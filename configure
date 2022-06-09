@@ -61,6 +61,7 @@ Supported targets:
   rv64-linux           (RISC-V 64 bits, Linux)
   aarch64-linux        (AArch64, i.e. ARMv8 in 64-bit mode, Linux)
   aarch64-macos        (AArch64, i.e. Apple silicon, MacOS)
+  ebpf-riot            (Unknown 32 bits, Riot, used for generating eBPF output)
   manual               (edit configuration file by hand)
 
 For x86 targets, the "x86_32-" prefix can also be written "ia32-" or "i386-".
@@ -200,6 +201,8 @@ case "$target" in
       arch="riscV"; model="64"; endianness="little"; bitsize=64;;
   aarch64-*|arm64-*)
       arch="aarch64"; model="default"; endianness="little"; bitsize=64;;
+  ebpf-*)
+      arch="ebpf"; model="default"; endianness="little"; bitsize=32;;
   manual)
       ;;
   "")
@@ -429,6 +432,27 @@ if test "$arch" = "aarch64"; then
   esac
 fi
 
+
+#
+# eBPF (32 bits) Target Configuration
+#
+if test "$arch" = "ebpf" -a "$bitsize" = "32"; then
+  case "$target" in
+    riot)
+        abi="standard"
+        cc_options="-m32"
+        casm_options="-m32 -c"
+        clinker_options="-m32"
+        cprepro_options="-std=c99 -m32 -U__GNUC__ -E"
+	has_runtime_lib="false"
+        system="riot"
+        ;;
+    *)
+        echo "Error: invalid eabi/system '$target' for architecture eBPF." 1>&2
+        echo "$usage" 1>&2
+        exit 2;;
+  esac
+fi
 
 #
 # Finalize Target Configuration
@@ -689,6 +713,7 @@ cat >> Makefile.config <<'EOF'
 # ARCH=x86
 # ARCH=riscV
 # ARCH=aarch6
+# ARCH=riot
 ARCH=
 
 # Hardware variant
