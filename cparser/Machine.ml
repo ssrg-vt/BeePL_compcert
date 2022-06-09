@@ -246,6 +246,9 @@ let aarch64 =
 let aarch64_apple =
   { aarch64 with char_signed = true }
 
+let ebpf =
+  { ilp32ll64 with name = "ebpf" } (* TODO *)
+
 (* Add GCC extensions re: sizeof and alignof *)
 
 let gcc_extensions c =

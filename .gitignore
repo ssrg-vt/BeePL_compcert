@@ -48,6 +48,9 @@
 /aarch64/ConstpropOp.v
 /aarch64/SelectOp.v
 /aarch64/SelectLong.v
+/ebpf/ConstpropOp.v
+/ebpf/SelectOp.v
+/ebpf/SelectLong.v
 /backend/SelectDiv.v
 /backend/SplitLong.v
 /cparser/Parser.v
