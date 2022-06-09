@@ -1,0 +1,41 @@
+(* *********************************************************************)
+(*                                                                     *)
+(*              The Compcert verified compiler                         *)
+(*                                                                     *)
+(*                  Xavier Leroy, INRIA Paris                          *)
+(*                                                                     *)
+(*  Copyright Institut National de Recherche en Informatique et en     *)
+(*  Automatique.  All rights reserved.  This file is distributed       *)
+(*  under the terms of the INRIA Non-Commercial License Agreement.     *)
+(*                                                                     *)
+(* *********************************************************************)
+
+(** Strength reduction for operators and conditions.
+    This is the machine-dependent part of [Constprop]. *)
+
+Require Import Op Registers.
+Require Import ValueDomain.
+
+(** * Converting known values to constants *)
+
+Definition const_for_result (a: aval) : option operation := None (* TODO *).
+
+(** * Operator strength reduction *)
+
+Nondetfunction cond_strength_reduction
+              (cond: condition) (args: list reg) (vl: list aval) := (* TODO *)
+  match cond, args, vl with
+  | _, _, _ => (cond, args)
+  end.
+
+Nondetfunction op_strength_reduction
+              (op: operation) (args: list reg) (vl: list aval) := (* TODO *)
+  match op, args, vl with
+  | _, _, _ => (op, args)
+  end.
+
+Nondetfunction addr_strength_reduction
+                (addr: addressing) (args: list reg) (vl: list aval) := (* TODO *)
+  match addr, args, vl with
+  | _, _, _ => (addr, args)
+  end.

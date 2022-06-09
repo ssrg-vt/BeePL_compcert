@@ -131,6 +131,7 @@ let init () =
     | "aarch64" -> if Configuration.abi = "apple"
                    then Machine.aarch64_apple
                    else Machine.aarch64
+    | "ebpf"    -> Machine.ebpf
     | _         -> assert false
   end;
   Env.set_builtins C2C.builtins;
