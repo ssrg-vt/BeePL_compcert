@@ -1,7 +1,9 @@
 open C
 
 let builtins = {
-  builtin_typedefs = [];
+  builtin_typedefs = [
+    "__builtin_va_list", TPtr(TVoid [], [])
+  ];
   builtin_functions = [];
 }
 

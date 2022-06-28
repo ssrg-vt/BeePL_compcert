@@ -2,7 +2,7 @@
 (*                                                                     *)
 (*              The Compcert verified compiler                         *)
 (*                                                                     *)
-(*                  Xavier Leroy, INRIA Paris                          *)
+(*                Xavier Leroy, INRIA Paris                            *)
 (*                                                                     *)
 (*  Copyright Institut National de Recherche en Informatique et en     *)
 (*  Automatique.  All rights reserved.  This file is distributed       *)
@@ -13,32 +13,143 @@
 (** Function calling conventions and other conventions regarding the use of
     machine registers and stack slots. *)
 
-(* Require Import Coqlib. *)
-(* Require Import AST Integers Locations. *)
 Require Import Coqlib Decidableplus.
 Require Import AST Machregs Locations.
 
-(** ** Location of function arguments *)
+(** * Classification of machine registers *)
 
-Definition int_param_regs :=
-  R1 :: R2 :: R3 :: R4 :: R5 :: nil.
+(** Machine registers (type [mreg] in module [Locations]) are divided in
+  the following groups:
+- Callee-save registers, whose value is preserved across a function call.
+- Caller-save registers that can be modified during a function call.
 
-Definition float_param_regs: list mreg := nil.
-Definition float_extra_param_regs: list mreg := nil.
+  We follow the RISC-V application binary interface (ABI) in our choice
+  of callee- and caller-save registers.
+*)
 
+Definition is_callee_save (r: mreg) : bool :=
+  match r with
+  | I6 | I7 | I8 | I9 => true
+  | _ => false
+  end.
+
+Definition int_caller_save_regs :=
+  I0 :: I1  :: I2 :: I3 :: I4 :: I5 :: nil.
+
+Definition float_caller_save_regs : list mreg := D0 :: D1 :: nil.
+
+Definition int_callee_save_regs := I6 :: I7 :: I8 :: I9 :: nil.
+
+Definition float_callee_save_regs : list mreg := D2 :: nil.
+
+Definition destroyed_at_call :=
+  List.filter (fun r => negb (is_callee_save r)) all_mregs.
+
+Definition dummy_int_reg := I0.     (**r Used in [Coloring]. *)
+Definition dummy_float_reg := D0.   (**r Used in [Coloring]. *)
+
+Definition callee_save_type := mreg_type.
+  
+Definition is_float_reg (r: mreg) :=
+  match r with
+  | D0 | D1 | D2 => true
+  | _ => false
+  end.
+
+(** * Function calling conventions *)
+
+(** The functions in this section determine the locations (machine registers
+  and stack slots) used to communicate arguments and results between the
+  caller and the callee during function calls.  These locations are functions
+  of the signature of the function and of the call instruction.
+  Agreement between the caller and the callee on the locations to use
+  is guaranteed by our dynamic semantics for Cminor and RTL, which demand
+  that the signature of the call instruction is identical to that of the
+  called function.
+
+  Calling conventions are largely arbitrary: they must respect the properties
+  proved in this section (such as no overlapping between the locations
+  of function arguments), but this leaves much liberty in choosing actual
+  locations.
+ *)
 
 (** ** Location of function result *)
 
 (** The result value of a function is passed back to the caller in
-  registers [R10] or [F10] or [R10,R11], depending on the type of the
-  returned value.  We treat a function without result as a function
-  with one integer result. *)
+  registers [R0] or [R0,R1], depending on the type of the returned value.
+  We treat a function without result as a function with one integer result. *)
 
 Definition loc_result (s: signature) : rpair mreg :=
   match proj_sig_res s with
-  | Tint | Tany32 => One R0
-  | Tfloat | Tsingle | Tany64 => One R0
-  | Tlong => if Archi.ptr64 then One R0 else Twolong R0 R1
+  | Tint | Tany32 => One I0
+  | Tfloat | Tsingle | Tany64 => One D0
+  | Tlong => if Archi.ptr64 then One I0
+             else Twolong I0 I1 (* Should not happen *)
+  end.
+
+(** The result registers have types compatible with that given in the signature. *)
+
+Lemma loc_result_type:
+  forall sig,
+  subtype (proj_sig_res sig) (typ_rpair mreg_type (loc_result sig)) = true.
+Proof.
+  intros. unfold loc_result, mreg_type;
+  destruct (proj_sig_res sig); auto; destruct Archi.ptr64; auto.
+Qed.
+
+(** The result locations are caller-save registers *)
+
+Lemma loc_result_caller_save:
+  forall (s: signature),
+  forall_rpair (fun r => is_callee_save r = false) (loc_result s).
+Proof.
+  intros. unfold loc_result, is_callee_save;
+  destruct (proj_sig_res s); simpl; auto; destruct Archi.ptr64; simpl; auto.
+Qed.
+
+(** If the result is in a pair of registers, those registers are distinct and have type [Tint] at least. *)
+
+Lemma loc_result_pair:
+  forall sg,
+  match loc_result sg with
+  | One _ => True
+  | Twolong r1 r2 =>
+       r1 <> r2 /\ proj_sig_res sg = Tlong
+    /\ subtype Tint (mreg_type r1) = true /\ subtype Tint (mreg_type r2) = true 
+    /\ Archi.ptr64 = false
+  end.
+Proof.
+  intros.
+  unfold loc_result; destruct (proj_sig_res sg); auto.
+  unfold mreg_type; destruct Archi.ptr64; auto.
+  split; auto. congruence.
+Qed.
+
+(** The location of the result depends only on the result part of the signature *)
+
+Lemma loc_result_exten:
+  forall s1 s2, s1.(sig_res) = s2.(sig_res) -> loc_result s1 = loc_result s2.
+Proof.
+  intros. unfold loc_result, proj_sig_res. rewrite H; auto.  
+Qed.
+
+(** ** Location of function arguments *)
+
+Definition int_param_regs := I1 :: I2 :: I3 :: I4 :: I5 :: nil.
+
+Definition float_param_regs : list mreg :=  nil.
+
+Definition float_extra_param_regs : list mreg := nil.
+
+Definition int_arg (ri rf ofs: Z) (ty: typ)
+                   (rec: Z -> Z -> Z -> list (rpair loc)) :=
+  match list_nth_z int_param_regs ri with
+  | Some r =>
+      One(R r) :: rec (ri + 1) rf ofs
+  | None   =>
+      let ofs := align ofs (typesize ty) in
+      One(S Outgoing ofs ty)
+      :: rec ri rf (ofs + (if Archi.ptr64 then 2 else typesize ty))
   end.
 
 Definition float_arg (va: bool) (ri rf ofs: Z) (ty: typ)
@@ -66,17 +177,6 @@ Definition float_arg (va: bool) (ri rf ofs: Z) (ty: typ)
       end
   end.
 
-Definition int_arg (ri rf ofs: Z) (ty: typ)
-                   (rec: Z -> Z -> Z -> list (rpair loc)) :=
-  match list_nth_z int_param_regs ri with
-  | Some r =>
-      One(R r) :: rec (ri + 1) rf ofs
-  | None   =>
-      let ofs := align ofs (typesize ty) in
-      One(S Outgoing ofs ty)
-      :: rec ri rf (ofs + (if Archi.ptr64 then 2 else typesize ty))
-  end.
-
 Definition split_long_arg (va: bool) (ri rf ofs: Z)
                           (rec: Z -> Z -> Z -> list (rpair loc)) :=
   let ri := if va then align ri 2 else ri in
@@ -90,35 +190,6 @@ Definition split_long_arg (va: bool) (ri rf ofs: Z)
       Twolong (S Outgoing (ofs + 1) Tint) (S Outgoing ofs Tint) ::
       rec ri rf (ofs + 2)
   end.
-
-Definition is_callee_save (r: mreg) : bool :=
-  match r with
-  | R6 | R7 | R8 | R9 => true
-  | _ => false
-  end.
-
-Definition int_caller_save_regs :=
-  R0 :: R1 :: R2 :: R3 :: R4 :: R5 :: nil.
-
-Definition float_caller_save_regs: list mreg := nil.
-
-Definition int_callee_save_regs :=
-  R6 :: R7 :: R8 :: R9 :: R10 :: nil.
-
-Definition float_callee_save_regs: list mreg := nil.
-
-Definition callee_save_type := mreg_type.
-
-Definition is_float_reg (r: mreg) := false.
-
-Definition dummy_int_reg   := R6.    (**r Used in [Coloring]. *)
-Definition dummy_float_reg := R0.   (**r Used in [Coloring]. *)
-
-Definition destroyed_at_call :=
-  List.filter (fun r => negb (is_callee_save r)) all_mregs.
-
-(** [loc_arguments s] returns the list of locations where to store arguments
-  when calling a function with signature [s].  *)
 
 Fixpoint loc_arguments_rec
     (tyl: list typ) (fixed ri rf ofs: Z) {struct tyl} : list (rpair loc) :=
@@ -168,49 +239,103 @@ Definition loc_argument_acceptable (l: loc) : Prop :=
   | _ => False
   end.
 
+Lemma loc_arguments_rec_charact:
+  forall va tyl ri rf ofs p,
+  ofs >= 0 ->
+  In p (loc_arguments_rec va tyl ri rf ofs) -> forall_rpair loc_argument_acceptable p.
+Proof.
+  set (OK := fun (l: list (rpair loc)) =>
+             forall p, In p l -> forall_rpair loc_argument_acceptable p).
+  set (OKF := fun (f: Z -> Z -> Z -> list (rpair loc)) =>
+              forall ri rf ofs, ofs >= 0 -> OK (f ri rf ofs)).
+  assert (CSI: forall r, In r int_param_regs -> is_callee_save r = false).
+  { decide_goal. }
+  assert (CSF: forall r, In r float_param_regs -> is_callee_save r = false).
+  { decide_goal. }
+  assert (CSFX: forall r, In r float_extra_param_regs -> is_callee_save r = false).
+  { decide_goal. }
+  assert (AL: forall ofs ty, ofs >= 0 -> align ofs (typesize ty) >= 0).
+  { intros. 
+    assert (ofs <= align ofs (typesize ty)) by (apply align_le; apply typesize_pos).
+    lia. }
+  assert (ALD: forall ofs ty, ofs >= 0 -> (typealign ty | align ofs (typesize ty))).
+  { intros. eapply Z.divide_trans. apply typealign_typesize.
+    apply align_divides. apply typesize_pos. }
+  assert (SK: (if Archi.ptr64 then 2 else 1) > 0).
+  { destruct Archi.ptr64; lia. }
+  assert (SKK: forall ty, (if Archi.ptr64 then 2 else typesize ty) > 0).
+  { intros. destruct Archi.ptr64. lia. apply typesize_pos.  }
+  assert (A: forall ri rf ofs ty f,
+             OKF f -> ofs >= 0 -> OK (int_arg ri rf ofs ty f)).
+  { intros until f; intros OF OO; red; unfold int_arg; intros.
+    destruct (list_nth_z int_param_regs ri) as [r|] eqn:NTH; destruct H.
+  - subst p; simpl. apply CSI. eapply list_nth_z_in; eauto. 
+  - eapply OF; eauto. 
+  - subst p; simpl. auto using align_divides, typealign_pos.
+  - eapply OF; [idtac|eauto].
+    generalize (AL ofs ty OO) (SKK ty); lia.
+  }
+  assert (B: forall va ri rf ofs ty f,
+             OKF f -> ofs >= 0 -> OK (float_arg va ri rf ofs ty f)).
+  { intros until f; intros OF OO; red; unfold float_arg; intros.
+    destruct (list_nth_z (if va then nil else float_param_regs) rf) as [r|] eqn:NTH.
+  - destruct H.
+    + subst p; simpl. apply CSF. destruct va. simpl in NTH; discriminate. eapply list_nth_z_in; eauto.
+    + eapply OF; eauto.
+  - set (regpair := negb Archi.ptr64 && zeq (typesize ty) 2) in *.
+    set (ri' := if va && regpair then align ri 2 else ri) in *.
+    destruct (list_nth_z float_extra_param_regs ri') as [r|] eqn:NTH'; destruct H.
+    + subst p; simpl. apply CSFX. eapply list_nth_z_in; eauto.
+    + eapply OF; [|eauto]. destruct (regpair && zeq ri' 7); lia.
+    + subst p; simpl. auto.
+    + eapply OF; [|eauto]. generalize (AL ofs ty OO) (SKK ty); lia.
+  }
+  assert (C: forall va ri rf ofs f,
+             OKF f -> ofs >= 0 -> OK (split_long_arg va ri rf ofs f)).
+  { intros until f; intros OF OO; unfold split_long_arg.
+    set (ri' := if va then align ri 2 else ri).
+    set (ofs' := align ofs 2).
+    assert (OO': ofs' >= 0) by (apply (AL ofs Tlong); auto).
+    destruct (list_nth_z int_param_regs ri') as [r1|] eqn:NTH1;
+    [destruct (list_nth_z int_param_regs (ri'+1)) as [r2|] eqn:NTH2 | idtac].
+  - red; simpl; intros; destruct H.
+    + subst p; split; apply CSI; eauto using list_nth_z_in.
+    + eapply OF; [idtac|eauto]. lia.
+  - red; simpl; intros; destruct H.
+    + subst p; split. split; auto using Z.divide_1_l. apply CSI; eauto using list_nth_z_in.
+    + eapply OF; [idtac|eauto]. lia.
+  - red; simpl; intros; destruct H.
+    + subst p; repeat split; auto using Z.divide_1_l. lia. 
+    + eapply OF; [idtac|eauto]. lia.
+  }
+  cut (forall tyl fixed ri rf ofs, ofs >= 0 -> OK (loc_arguments_rec tyl fixed ri rf ofs)).
+  unfold OK. eauto.
+  induction tyl as [ | ty1 tyl]; intros until ofs; intros OO; simpl.
+- red; simpl; tauto.
+- destruct ty1.
++ (* int *) apply A; unfold OKF; auto.
++ (* float *) apply B; unfold OKF; auto.
++ (* long *)
+  destruct Archi.ptr64.
+  apply A; unfold OKF; auto.
+  apply C; unfold OKF; auto.
++ (* single *) apply B; unfold OKF; auto.
++ (* any32 *) apply A; unfold OKF; auto.
++ (* any64 *) apply B; unfold OKF; auto.
+Qed.
+
 Lemma loc_arguments_acceptable:
   forall (s: signature) (p: rpair loc),
   In p (loc_arguments s) -> forall_rpair loc_argument_acceptable p.
 Proof.
-Admitted.
-
-(** The location of the result depends only on the result part of the signature *)
-
-Lemma loc_result_exten:
-  forall s1 s2, s1.(sig_res) = s2.(sig_res) -> loc_result s1 = loc_result s2.
-Proof.
-  intros. unfold loc_result, proj_sig_res. rewrite H; auto.
+  unfold loc_arguments; intros. eapply loc_arguments_rec_charact; eauto. lia.
 Qed.
 
-Lemma loc_result_caller_save:
-  forall (s: signature),
-  forall_rpair (fun r => is_callee_save r = false) (loc_result s).
+Lemma loc_arguments_main:
+  loc_arguments signature_main = nil.
 Proof.
-  intros. unfold loc_result, is_callee_save;
-  destruct (proj_sig_res s); simpl; auto; destruct Archi.ptr64; simpl; auto.
+  reflexivity.
 Qed.
-
-Lemma loc_result_pair:
-  forall sg,
-  match loc_result sg with
-  | One _ => True
-  | Twolong r1 r2 =>
-       r1 <> r2 /\ proj_sig_res sg = Tlong
-    /\ subtype Tint (mreg_type r1) = true /\ subtype Tint (mreg_type r2) = true
-    /\ Archi.ptr64 = false
-  end.
-Proof.
-  intros.
-  unfold loc_result; destruct (proj_sig_res sg); auto.
-  unfold mreg_type; destruct Archi.ptr64; auto.
-  split; auto. congruence.
-Qed.
-
-Lemma loc_result_type:
-  forall sig,
-  subtype (proj_sig_res sig) (typ_rpair mreg_type (loc_result sig)) = true.
-Proof.
-Admitted.
 
 (** ** Normalization of function results and parameters *)
 

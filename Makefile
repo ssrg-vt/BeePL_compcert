@@ -278,6 +278,7 @@ compcert.ini: Makefile.config
          echo "abi=$(ABI)"; \
          echo "endianness=$(ENDIANNESS)"; \
          echo "system=$(SYSTEM)"; \
+         echo "has_linking_step=$(HAS_LINKING_STEP)"; \
          echo "has_runtime_lib=$(HAS_RUNTIME_LIB)"; \
          echo "has_standard_headers=$(HAS_STANDARD_HEADERS)"; \
          echo "asm_supports_cfi=$(ASM_SUPPORTS_CFI)"; \

@@ -23,6 +23,7 @@ mandir='$(PREFIX)/share/man'
 coqdevdir='$(PREFIX)/lib/compcert/coq'
 toolprefix=''
 target=''
+has_linking_step=true
 has_runtime_lib=true
 has_standard_headers=true
 clightgen=false
@@ -124,6 +125,8 @@ while : ; do
         coqdevdir="$2"; install_coqdev=true; shift;;
     -toolprefix|--toolprefix)
         toolprefix="$2"; shift;;
+    -no-linker-phase)
+        has_linking_step=false;;
     -no-runtime-lib)
         has_runtime_lib=false;;
     -no-standard-headers)
@@ -440,11 +443,11 @@ if test "$arch" = "ebpf" -a "$bitsize" = "32"; then
   case "$target" in
     riot)
         abi="standard"
-        cc_options="-m32"
-        casm_options="-m32 -c"
-        clinker_options="-m32"
+        casm="llvm-mc"
+        casm_options="-triple bpf -filetype=obj"
         cprepro_options="-std=c99 -m32 -U__GNUC__ -E"
-	has_runtime_lib="false"
+        has_linking_step=false
+        has_runtime_lib=false
         system="riot"
         ;;
     *)
@@ -509,7 +512,7 @@ fi
 #
 # Test Availability of Option '-no-pie' or '-nopie'
 #
-if ($clinker_needs_no_pie) then
+if ($has_linking_step && $clinker_needs_no_pie) then
   echo "Testing linker support for '-no-pie' / '-nopie' option... " | tr -d '\n'
   if testcompiler ${cc} -no-pie;
   then echo "yes, '-no-pie'"; clinker_options="${clinker_options} -no-pie"
@@ -669,6 +672,7 @@ CPREPRO=$cprepro
 CPREPRO_OPTIONS=$cprepro_options
 ARCHIVER=$archiver
 ENDIANNESS=$endianness
+HAS_LINKING_STEP=$has_linking_step
 HAS_RUNTIME_LIB=$has_runtime_lib
 HAS_STANDARD_HEADERS=$has_standard_headers
 INSTALL_COQDEV=$install_coqdev
@@ -762,6 +766,9 @@ ARCHIVER=ar rcs
 # Math library. Set to empty under macOS
 LIBMATH=-lm
 
+# Turn on/off the linking phase when building a program
+HAS_LINKING_STEP=true
+
 # Turn on/off the installation and use of the runtime support library
 HAS_RUNTIME_LIB=true
 
@@ -846,6 +853,7 @@ CompCert configuration:
     Assembler..................... $casm $casm_options
     Assembler supports CFI........ $asm_supports_cfi
     Assembler for runtime lib..... $casmruntime
+    Will do linking phase......... $has_linking_step
     Linker........................ $clinker $clinker_options
     Archiver...................... $archiver
     Math library.................. $libmath
