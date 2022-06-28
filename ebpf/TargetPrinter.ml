@@ -1,4 +1,4 @@
-(* *********************************************************************)
+(* *********************************************************i************)
 (*                                                                     *)
 (*              The Compcert verified compiler                         *)
 (*                                                                     *)
@@ -15,14 +15,13 @@
 (*                                                                     *)
 (* *********************************************************************)
 
-(* Printing RISC-V assembly code in asm syntax *)
+(* Printing eBPF assembly code in asm syntax *)
 
 open Printf
 open Camlcoq
+open Ctypes
 open Sections
-(* open AST *)
 open Asm
-(* open AisAnnot *)
 open PrintAsmaux
 open Fileinfo
 
@@ -31,15 +30,18 @@ open Fileinfo
 module Target : TARGET =
   struct
 
-(* Basic printing functions *)
+    (* Basic printing functions *)
 
     let comment = "#"
 
     let symbol        = elf_symbol
-    (* let symbol_offset = elf_symbol_offset *)
     let label         = elf_label
 
-    let print_label oc lbl = label oc (transl_label lbl)
+    let rec print_label oc lbl = label oc (transl_label lbl)
+
+    and print_label_or_ident oc = function
+      | Datatypes.Coq_inl label -> print_label oc label
+      | Datatypes.Coq_inr ident -> symbol oc ident
 
     let use_abi_name = false
 
@@ -57,14 +59,55 @@ module Target : TARGET =
     let _ = int_reg_name;;
     let _ = float_reg_name;;
 
-    (* let ireg oc r = output_string oc (int_reg_name r) *)
-    (* let freg oc r = output_string oc (float_reg_name r) *)
+    let sizeOp oc mem =
+      let sizeOp_name = function
+        | Byte -> "u8"
+        | HalfWord -> "u16"
+        | Word -> "u32"
+      in output_string oc (sizeOp_name mem)
 
-    (* let ireg0 oc = function _ -> "ireg0" *)
+    let operator oc op =
+      let operator_name = function
+        | ADD -> " += " | SUB -> " -= " | MUL -> " *= " | DIV -> " /= "
+        | OR -> " |= " | AND -> " &= " | LSH -> " <<= " | RSH -> " >>= "
+        | NEG -> " -" | MOD -> "%= " | XOR -> " ^= " | MOV -> " = " | ARSH -> " s>>= "
+      in output_string oc (operator_name op)
 
-    (* let preg_asm oc ty = function _ -> "preg_asm" *)
+    let rec iregister oc ireg =
+      let iregister_name = function
+        | R0 -> "r0" | R1 -> "r1" | R2 -> "r2" | R3 -> "r3" | R4 -> "r4" | R5 -> "r5"
+        | R6 -> "r6" | R7 -> "r7" | R8 -> "r8" | R9 -> "r9" | R10 -> "r10"
+      in output_string oc (iregister_name ireg)
 
-    (* let preg_annot = function _ -> "preg_annot" *)
+    and register oc = function
+      | IR ireg -> iregister oc ireg
+      | PC -> output_string oc "pc"
+      | _ -> assert false
+
+    and immediate = coqint
+
+    and register_or_immediate oc = function
+      | Datatypes.Coq_inl reg -> register oc reg
+      | Datatypes.Coq_inr imm -> immediate oc imm
+
+    let rec cmpOp = function
+      | EQ -> "=="
+      | NE -> "!="
+      | SET -> "&="
+      | GT Signed -> "s>"
+      | GT Unsigned -> ">"
+      | GE Signed -> "s>="
+      | GE Unsigned -> ">="
+      | LT Signed -> "s<"
+      | LT Unsigned -> "<"
+      | LE Signed -> "s<="
+      | LE Unsigned -> "<="
+
+    and print_cmp oc op reg regimm =
+      fprintf oc "	%a = (%a %s %a)\n" register reg register reg (cmpOp op) register_or_immediate regimm
+
+    and print_jump_cmp oc op reg regimm label =
+      fprintf oc "	if %a %s %a goto %a\n" register reg (cmpOp op) register_or_immediate regimm print_label label
 
 (* Names of sections *)
 
@@ -137,8 +180,30 @@ module Target : TARGET =
 
     (* let offset oc = function _ -> "offset" *)
 
-(* Printing of instructions *)
-    let print_instruction oc = function _ -> ()
+    (* Printing of instructions *)
+    let print_instruction oc = function
+      | Pload (op, reg1, reg2, off) ->
+        fprintf oc "	%a = *(%a *)(%a + %a)\n" register reg1 sizeOp op register reg2 coqint off
+
+      | Pstore (op, reg, regimm, off) ->
+        fprintf oc "	*(%a *)(%a + %a) = %a\n" sizeOp op register_or_immediate regimm coqint off register reg
+
+      | Palu (op, reg, regimm) ->
+        fprintf oc "	%a%a%a\n" register reg operator op register_or_immediate regimm
+
+      | Pcmp (op, reg, regimm) -> print_cmp oc op reg regimm
+      | Pjmp goto -> fprintf oc "	goto %a\n" print_label_or_ident goto
+      | Pjmpcmp (op, reg, regimm, label) -> print_jump_cmp oc op reg regimm label
+
+      | Pcall (s, _) -> fprintf oc "	call %a\n" symbol s
+
+      | Pret -> fprintf oc "	exit\n"
+
+      | Plabel label -> fprintf oc "%a:\n" print_label label
+
+      | Pbuiltin _
+      | Pallocframe _
+      | Pfreeframe _ -> assert false
 
     let get_section_names name =
       let (text, lit) =

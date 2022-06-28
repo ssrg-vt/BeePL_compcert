@@ -72,6 +72,7 @@ let fast_cmove ty =
       (match ty with Tint | Tlong | Tfloat | Tsingle -> true | _ -> false)
   | "arm", _ ->
       (match ty with Tint | Tfloat | Tsingle -> true | _ -> false)
+  | "ebpf", _ -> false
   | "powerpc", "e5500" -> 
       (match ty with Tint -> true | Tlong -> true | _ -> false)
   | "powerpc", _ -> false

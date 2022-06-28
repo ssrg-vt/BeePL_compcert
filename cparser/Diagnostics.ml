@@ -392,10 +392,10 @@ let warning_help = {|Diagnostic options:
                        specified
   -Wfatal-errors     Turn all errors into fatal errors aborting the compilation
   -fdiagnostics-color Turn on colored diagnostics
-  -fno-diagnostics-color Turn of colored diagnostics
+  -fno-diagnostics-color Turn off colored diagnostics
   -fmax-errors=<n>   Maximum number of errors to report
   -fdiagnostics-show-option Print the option name with mappable diagnostics
-  -fno-diagnostics-show-option Turn of printing of options with mappable
+  -fno-diagnostics-show-option Turn off printing of options with mappable
                                diagnostics
 |}
 
