@@ -2,16 +2,11 @@
 (*                                                                     *)
 (*              The Compcert verified compiler                         *)
 (*                                                                     *)
-(*          Xavier Leroy, INRIA Paris-Rocquencourt                     *)
-(*           Prashanth Mundkur, SRI International                      *)
+(*                Xavier Leroy, INRIA Paris                            *)
 (*                                                                     *)
 (*  Copyright Institut National de Recherche en Informatique et en     *)
 (*  Automatique.  All rights reserved.  This file is distributed       *)
 (*  under the terms of the INRIA Non-Commercial License Agreement.     *)
-(*                                                                     *)
-(*  The contributions by Prashanth Mundkur are reused and adapted      *)
-(*  under the terms of a Contributor License Agreement between         *)
-(*  SRI International and INRIA.                                       *)
 (*                                                                     *)
 (* *********************************************************************)
 
@@ -38,18 +33,14 @@ Set Implicit Arguments.
 (** Conditions (boolean-valued operators). *)
 
 Inductive condition : Type :=
-  | Ccomp (c: comparison)       (**r signed integer comparison *)
-  | Ccompu (c: comparison)      (**r unsigned integer comparison *)
-  | Ccompimm (c: comparison) (n: int) (**r signed integer comparison with a constant *)
+  | Ccomp (c: comparison)               (**r signed integer comparison *)
+  | Ccompu (c: comparison)              (**r unsigned integer comparison *)
+  | Ccompimm (c: comparison) (n: int)   (**r signed integer comparison with a constant *)
   | Ccompuimm (c: comparison) (n: int)  (**r unsigned integer comparison with a constant *)
-  | Ccompl (c: comparison)      (**r signed 64-bit integer comparison *)
-  | Ccomplu (c: comparison)     (**r unsigned 64-bit integer comparison *)
-  | Ccomplimm (c: comparison) (n: int64) (**r signed 64-bit integer comparison with a constant *)
-  | Ccompluimm (c: comparison) (n: int64)  (**r unsigned 64-bit integer comparison with a constant *)
-  | Ccompf (c: comparison)      (**r 64-bit floating-point comparison *)
-  | Cnotcompf (c: comparison)   (**r negation of a floating-point comparison *)
-  | Ccompfs (c: comparison)     (**r 32-bit floating-point comparison *)
-  | Cnotcompfs (c: comparison). (**r negation of a floating-point comparison *)
+  | Ccompf (c: comparison)              (**r 64-bit floating-point comparison *)
+  | Cnotcompf (c: comparison)           (**r negation of a floating-point comparison *)
+  | Ccompfs (c: comparison)             (**r 32-bit floating-point comparison *)
+  | Cnotcompfs (c: comparison).         (**r negation of a floating-point comparison *)
 
 (** Arithmetic and logical operations.  In the descriptions, [rd] is the
   result of the operation and [r1], [r2], etc, are the arguments. *)
@@ -57,69 +48,55 @@ Inductive condition : Type :=
 Inductive operation : Type :=
   | Omove                    (**r [rd = r1] *)
   | Ointconst (n: int)       (**r [rd] is set to the given integer constant *)
-  | Olongconst (n: int64)    (**r [rd] is set to the given integer constant *)
+  | Oaddrstack (ofs: ptrofs) (**r [rd] is set to the stack pointer plus the given offset *)
+
+(*c 32-bit integer arithmetic: *)
+  | Oadd                     (**r [rd += r2] *)
+  | Oaddimm (n: int)         (**r [rd += n] *)
+  | Oneg                     (**r [rd = - rd] *)
+  | Osub                     (**r [rd -= r2] *)
+  | Osubimm (n: int)         (**r [rd -= n] *)
+  | Omul                     (**r [rd *= r2] *)
+  | Omulimm (n: int)         (**r [rd *= n] *)
+  | Odivu                    (**r [rd /= r2] (unsigned) *)
+  | Odivuimm (n: int)        (**r [rd /= n] (unsigned) *)
+  | Omodu                    (**r [rd %= r2] (unsigned) *)
+  | Omoduimm (n: int)        (**r [rd %= n] (unsigned) *)
+  | Oand                     (**r [rd &= r2] *)
+  | Oandimm (n: int)         (**r [rd &= n] *)
+  | Oor                      (**r [rd |= r2] *)
+  | Oorimm (n: int)          (**r [rd |= n] *)
+  | Oxor                     (**r [rd ^= r2] *)
+  | Oxorimm (n: int)         (**r [rd ^= n] *)
+  | Oshl                     (**r [rd <<= r2] *)
+  | Oshlimm (n: int)         (**r [rd <<= n] *)
+  | Oshr                     (**r [rd >>= r2] (signed) *)
+  | Oshrimm (n: int)         (**r [rd >>= n] (signed) *)
+  | Oshru                    (**r [rd >>= r2] (unsigned) *)
+  | Oshruimm (n: int)        (**r [rd >>= n] (unsigned) *)
+
+(*c Boolean tests: *)
+  | Ocmp (cond: condition)   (**r [rd = 1] if condition holds, [rd = 0] otherwise. *)
+
+(*c Following operations aren't available in eBPF, will throw errors in Asmgen step *)
   | Ofloatconst (n: float)   (**r [rd] is set to the given float constant *)
   | Osingleconst (n: float32)(**r [rd] is set to the given float constant *)
+
   | Oaddrsymbol (id: ident) (ofs: ptrofs)  (**r [rd] is set to the address of the symbol plus the given offset *)
-  | Oaddrstack (ofs: ptrofs) (**r [rd] is set to the stack pointer plus the given offset *)
-(*c 32-bit integer arithmetic: *)
+
   | Ocast8signed             (**r [rd] is 8-bit sign extension of [r1] *)
   | Ocast16signed            (**r [rd] is 16-bit sign extension of [r1] *)
-  | Oadd                     (**r [rd = r1 + r2] *)
-  | Oaddimm (n: int)         (**r [rd = r1 + n] *)
-  | Oneg                     (**r [rd = - r1]   *)                     
-  | Osub                     (**r [rd = r1 - r2] *)
-  | Omul                     (**r [rd = r1 * r2] *)
+
   | Omulhs                   (**r [rd = high part of r1 * r2, signed] *)
   | Omulhu                   (**r [rd = high part of r1 * r2, unsigned] *)
   | Odiv                     (**r [rd = r1 / r2] (signed) *)
-  | Odivu                    (**r [rd = r1 / r2] (unsigned) *)
   | Omod                     (**r [rd = r1 % r2] (signed) *)
-  | Omodu                    (**r [rd = r1 % r2] (unsigned) *)
-  | Oand                     (**r [rd = r1 & r2] *)
-  | Oandimm (n: int)         (**r [rd = r1 & n] *)
-  | Oor                      (**r [rd = r1 | r2] *)
-  | Oorimm (n: int)          (**r [rd = r1 | n] *)
-  | Oxor                     (**r [rd = r1 ^ r2] *)
-  | Oxorimm (n: int)         (**r [rd = r1 ^ n] *)
-  | Oshl                     (**r [rd = r1 << r2] *)
-  | Oshlimm (n: int)         (**r [rd = r1 << n] *)
-  | Oshr                     (**r [rd = r1 >> r2] (signed) *)
-  | Oshrimm (n: int)         (**r [rd = r1 >> n] (signed) *)
-  | Oshru                    (**r [rd = r1 >> r2] (unsigned) *)
-  | Oshruimm (n: int)        (**r [rd = r1 >> n] (unsigned) *)
   | Oshrximm (n: int)        (**r [rd = r1 / 2^n] (signed) *)
-(*c 64-bit integer arithmetic: *)
+
   | Omakelong                (**r [rd = r1 << 32 | r2] *)
   | Olowlong                 (**r [rd = low-word(r1)] *)
   | Ohighlong                (**r [rd = high-word(r1)] *)
-  | Ocast32signed            (**r [rd] is 32-bit sign extension of [r1] *)
-  | Ocast32unsigned          (**r [rd] is 32-bit zero extension of [r1] *)
-  | Oaddl                    (**r [rd = r1 + r2] *)
-  | Oaddlimm (n: int64)      (**r [rd = r1 + n] *)
-  | Onegl                    (**r [rd = - r1] *)
-  | Osubl                    (**r [rd = r1 - r2] *)
-  | Omull                    (**r [rd = r1 * r2] *)
-  | Omullhs                  (**r [rd = high part of r1 * r2, signed] *)
-  | Omullhu                  (**r [rd = high part of r1 * r2, unsigned] *)
-  | Odivl                    (**r [rd = r1 / r2] (signed) *)
-  | Odivlu                   (**r [rd = r1 / r2] (unsigned) *)
-  | Omodl                    (**r [rd = r1 % r2] (signed) *)
-  | Omodlu                   (**r [rd = r1 % r2] (unsigned) *)
-  | Oandl                    (**r [rd = r1 & r2] *)
-  | Oandlimm (n: int64)      (**r [rd = r1 & n] *)
-  | Oorl                     (**r [rd = r1 | r2] *)
-  | Oorlimm (n: int64)       (**r [rd = r1 | n] *)
-  | Oxorl                    (**r [rd = r1 ^ r2] *)
-  | Oxorlimm (n: int64)      (**r [rd = r1 ^ n] *)
-  | Oshll                    (**r [rd = r1 << r2] *)
-  | Oshllimm (n: int)        (**r [rd = r1 << n] *)
-  | Oshrl                    (**r [rd = r1 >> r2] (signed) *)
-  | Oshrlimm (n: int)        (**r [rd = r1 >> n] (signed) *)
-  | Oshrlu                   (**r [rd = r1 >> r2] (unsigned) *)
-  | Oshrluimm (n: int)       (**r [rd = r1 >> n] (unsigned) *)
-  | Oshrxlimm (n: int)       (**r [rd = r1 / 2^n] (signed) *)
-(*c Floating-point arithmetic: *)
+
   | Onegf                    (**r [rd = - r1] *)
   | Oabsf                    (**r [rd = abs(r1)] *)
   | Oaddf                    (**r [rd = r1 + r2] *)
@@ -134,7 +111,7 @@ Inductive operation : Type :=
   | Odivfs                   (**r [rd = r1 / r2] *)
   | Osingleoffloat           (**r [rd] is [r1] truncated to single-precision float *)
   | Ofloatofsingle           (**r [rd] is [r1] extended to double-precision float *)
-(*c Conversions between int and float: *)
+
   | Ointoffloat              (**r [rd = signed_int_of_float64(r1)] *)
   | Ointuoffloat             (**r [rd = unsigned_int_of_float64(r1)] *)
   | Ofloatofint              (**r [rd = float64_of_signed_int(r1)] *)
@@ -150,17 +127,16 @@ Inductive operation : Type :=
   | Olongofsingle            (**r [rd = signed_long_of_float32(r1)] *)
   | Olonguofsingle           (**r [rd = unsigned_long_of_float32(r1)] *)
   | Osingleoflong            (**r [rd = float32_of_signed_long(r1)] *)
-  | Osingleoflongu           (**r [rd = float32_of_unsigned_int(r1)] *)
-(*c Boolean tests: *)
-  | Ocmp (cond: condition).  (**r [rd = 1] if condition holds, [rd = 0] otherwise. *)
+  | Osingleoflongu.          (**r [rd = float32_of_unsigned_int(r1)] *)
+
 
 (** Addressing modes.  [r1], [r2], etc, are the arguments to the
   addressing. *)
 
 Inductive addressing: Type :=
-  | Aindexed: ptrofs -> addressing    (**r Address is [r1 + offset] *)
+  | Aindexed: ptrofs -> addressing          (**r Address is [r1 + offset] *)
   | Aglobal: ident -> ptrofs -> addressing  (**r Address is global plus offset *)
-  | Ainstack: ptrofs -> addressing.   (**r Address is [stack_pointer + offset] *)
+  | Ainstack: ptrofs -> addressing.         (**r Address is [stack_pointer + offset] *)
 
 (** Comparison functions (used in modules [CSE] and [Allocation]). *)
 
@@ -210,10 +186,6 @@ Definition eval_condition (cond: condition) (vl: list val) (m: mem): option bool
   | Ccompu c, v1 :: v2 :: nil => Val.cmpu_bool (Mem.valid_pointer m) c v1 v2
   | Ccompimm c n, v1 :: nil => Val.cmp_bool c v1 (Vint n)
   | Ccompuimm c n, v1 :: nil => Val.cmpu_bool (Mem.valid_pointer m) c v1 (Vint n)
-  | Ccompl c, v1 :: v2 :: nil => Val.cmpl_bool c v1 v2
-  | Ccomplu c, v1 :: v2 :: nil => Val.cmplu_bool (Mem.valid_pointer m) c v1 v2
-  | Ccomplimm c n, v1 :: nil => Val.cmpl_bool c v1 (Vlong n)
-  | Ccompluimm c n, v1 :: nil => Val.cmplu_bool (Mem.valid_pointer m) c v1 (Vlong n)
   | Ccompf c, v1 :: v2 :: nil => Val.cmpf_bool c v1 v2
   | Cnotcompf c, v1 :: v2 :: nil => option_map negb (Val.cmpf_bool c v1 v2)
   | Ccompfs c, v1 :: v2 :: nil => Val.cmpfs_bool c v1 v2
@@ -227,9 +199,6 @@ Definition eval_operation
   match op, vl with
   | Omove, v1::nil => Some v1
   | Ointconst n, nil => Some (Vint n)
-  | Olongconst n, nil => Some (Vlong n)
-  | Ofloatconst n, nil => Some (Vfloat n)
-  | Osingleconst n, nil => Some (Vsingle n)
   | Oaddrsymbol s ofs, nil => Some (Genv.symbol_address genv s ofs)
   | Oaddrstack ofs, nil => Some (Val.offset_ptr sp ofs)
   | Ocast8signed, v1 :: nil => Some (Val.sign_ext 8 v1)
@@ -238,13 +207,13 @@ Definition eval_operation
   | Oaddimm n, v1 :: nil => Some (Val.add v1 (Vint n))
   | Oneg, v1 :: nil => Some (Val.neg v1)
   | Osub, v1 :: v2 :: nil => Some (Val.sub v1 v2)
+  | Osubimm n, v1 :: nil => Some (Val.sub v1 (Vint n))
   | Omul, v1 :: v2 :: nil => Some (Val.mul v1 v2)
-  | Omulhs, v1::v2::nil => Some (Val.mulhs v1 v2)
-  | Omulhu, v1::v2::nil => Some (Val.mulhu v1 v2)
-  | Odiv, v1 :: v2 :: nil => Val.divs v1 v2
+  | Omulimm n, v1 :: nil => Some (Val.mul v1 (Vint n))
   | Odivu, v1 :: v2 :: nil => Val.divu v1 v2
-  | Omod, v1 :: v2 :: nil => Val.mods v1 v2
+  | Odivuimm n, v1 :: nil => Val.divu v1 (Vint n)
   | Omodu, v1 :: v2 :: nil => Val.modu v1 v2
+  | Omoduimm n, v1 :: nil => Val.modu v1 (Vint n)
   | Oand, v1 :: v2 :: nil => Some (Val.and v1 v2)
   | Oandimm n, v1 :: nil => Some (Val.and v1 (Vint n))
   | Oor, v1 :: v2 :: nil => Some (Val.or v1 v2)
@@ -257,36 +226,19 @@ Definition eval_operation
   | Oshrimm n, v1 :: nil => Some (Val.shr v1 (Vint n))
   | Oshru, v1 :: v2 :: nil => Some (Val.shru v1 v2)
   | Oshruimm n, v1 :: nil => Some (Val.shru v1 (Vint n))
+  | Ocmp c, _ => Some (Val.of_optbool (eval_condition c vl m))
+
+  (* Operations not available in eBPF *)
+  | Ofloatconst n, nil => Some (Vfloat n)
+  | Osingleconst n, nil => Some (Vsingle n)
+  | Omulhs, v1::v2::nil => Some (Val.mulhs v1 v2)
+  | Omulhu, v1::v2::nil => Some (Val.mulhu v1 v2)
+  | Odiv, v1 :: v2 :: nil => Val.divs v1 v2
+  | Omod, v1 :: v2 :: nil => Val.mods v1 v2
   | Oshrximm n, v1::nil => Val.shrx v1 (Vint n)
   | Omakelong, v1::v2::nil => Some (Val.longofwords v1 v2)
   | Olowlong, v1::nil => Some (Val.loword v1)
   | Ohighlong, v1::nil => Some (Val.hiword v1)
-  | Ocast32signed, v1 :: nil => Some (Val.longofint v1)
-  | Ocast32unsigned, v1 :: nil => Some (Val.longofintu v1)
-  | Oaddl, v1 :: v2 :: nil => Some (Val.addl v1 v2)
-  | Oaddlimm n, v1::nil => Some (Val.addl v1 (Vlong n))
-  | Onegl, v1::nil => Some (Val.negl v1)
-  | Osubl, v1::v2::nil => Some (Val.subl v1 v2)
-  | Omull, v1::v2::nil => Some (Val.mull v1 v2)
-  | Omullhs, v1::v2::nil => Some (Val.mullhs v1 v2)
-  | Omullhu, v1::v2::nil => Some (Val.mullhu v1 v2)
-  | Odivl, v1::v2::nil => Val.divls v1 v2
-  | Odivlu, v1::v2::nil => Val.divlu v1 v2
-  | Omodl, v1::v2::nil => Val.modls v1 v2
-  | Omodlu, v1::v2::nil => Val.modlu v1 v2
-  | Oandl, v1::v2::nil => Some(Val.andl v1 v2)
-  | Oandlimm n, v1::nil => Some (Val.andl v1 (Vlong n))
-  | Oorl, v1::v2::nil => Some(Val.orl v1 v2)
-  | Oorlimm n, v1::nil => Some (Val.orl v1 (Vlong n))
-  | Oxorl, v1::v2::nil => Some(Val.xorl v1 v2)
-  | Oxorlimm n, v1::nil => Some (Val.xorl v1 (Vlong n))
-  | Oshll, v1::v2::nil => Some (Val.shll v1 v2)
-  | Oshllimm n, v1::nil => Some (Val.shll v1 (Vint n))
-  | Oshrl, v1::v2::nil => Some (Val.shrl v1 v2)
-  | Oshrlimm n, v1::nil => Some (Val.shrl v1 (Vint n))
-  | Oshrlu, v1::v2::nil => Some (Val.shrlu v1 v2)
-  | Oshrluimm n, v1::nil => Some (Val.shrlu v1 (Vint n))
-  | Oshrxlimm n, v1::nil => Val.shrxl v1 (Vint n)
   | Onegf, v1::nil => Some (Val.negf v1)
   | Oabsf, v1::nil => Some (Val.absf v1)
   | Oaddf, v1::v2::nil => Some (Val.addf v1 v2)
@@ -317,7 +269,6 @@ Definition eval_operation
   | Olonguofsingle, v1::nil => Val.longuofsingle v1
   | Osingleoflong, v1::nil => Val.singleoflong v1
   | Osingleoflongu, v1::nil => Val.singleoflongu v1
-  | Ocmp c, _ => Some (Val.of_optbool (eval_condition c vl m))
   | _, _ => None
   end.
 
@@ -369,10 +320,6 @@ Definition type_of_condition (c: condition) : list typ :=
   | Ccompu _ => Tint :: Tint :: nil
   | Ccompimm _ _ => Tint :: nil
   | Ccompuimm _ _ => Tint :: nil
-  | Ccompl _ => Tlong :: Tlong :: nil
-  | Ccomplu _ => Tlong :: Tlong :: nil
-  | Ccomplimm _ _ => Tlong :: nil
-  | Ccompluimm _ _ => Tlong :: nil
   | Ccompf _ => Tfloat :: Tfloat :: nil
   | Cnotcompf _ => Tfloat :: Tfloat :: nil
   | Ccompfs _ => Tsingle :: Tsingle :: nil
@@ -383,9 +330,6 @@ Definition type_of_operation (op: operation) : list typ * typ :=
   match op with
   | Omove => (nil, Tint)   (* treated specially *)
   | Ointconst _ => (nil, Tint)
-  | Olongconst _ => (nil, Tlong)
-  | Ofloatconst f => (nil, Tfloat)
-  | Osingleconst f => (nil, Tsingle)
   | Oaddrsymbol _ _ => (nil, Tptr)
   | Oaddrstack _ => (nil, Tptr)
   | Ocast8signed => (Tint :: nil, Tint)
@@ -394,13 +338,13 @@ Definition type_of_operation (op: operation) : list typ * typ :=
   | Oaddimm _ => (Tint :: nil, Tint)
   | Oneg => (Tint :: nil, Tint)
   | Osub => (Tint :: Tint :: nil, Tint)
+  | Osubimm _ => (Tint :: nil, Tint)
   | Omul => (Tint :: Tint :: nil, Tint)
-  | Omulhs => (Tint :: Tint :: nil, Tint)
-  | Omulhu => (Tint :: Tint :: nil, Tint)
-  | Odiv => (Tint :: Tint :: nil, Tint)
+  | Omulimm _ => (Tint :: nil, Tint)
   | Odivu => (Tint :: Tint :: nil, Tint)
-  | Omod => (Tint :: Tint :: nil, Tint)
+  | Odivuimm _ => (Tint :: nil, Tint)
   | Omodu => (Tint :: Tint :: nil, Tint)
+  | Omoduimm _ => (Tint :: nil, Tint)
   | Oand => (Tint :: Tint :: nil, Tint)
   | Oandimm _ => (Tint :: nil, Tint)
   | Oor => (Tint :: Tint :: nil, Tint)
@@ -413,36 +357,18 @@ Definition type_of_operation (op: operation) : list typ * typ :=
   | Oshrimm _ => (Tint :: nil, Tint)
   | Oshru => (Tint :: Tint :: nil, Tint)
   | Oshruimm _ => (Tint :: nil, Tint)
+
+  (* Operations not available in eBPF *)
+  | Ofloatconst f => (nil, Tfloat)
+  | Osingleconst f => (nil, Tsingle)
+  | Omulhs => (Tint :: Tint :: nil, Tint)
+  | Omulhu => (Tint :: Tint :: nil, Tint)
+  | Odiv => (Tint :: Tint :: nil, Tint)
+  | Omod => (Tint :: Tint :: nil, Tint)
   | Oshrximm _ => (Tint :: nil, Tint)
   | Omakelong => (Tint :: Tint :: nil, Tlong)
   | Olowlong => (Tlong :: nil, Tint)
   | Ohighlong => (Tlong :: nil, Tint)
-  | Ocast32signed => (Tint :: nil, Tlong)
-  | Ocast32unsigned => (Tint :: nil, Tlong)
-  | Oaddl => (Tlong :: Tlong :: nil, Tlong)
-  | Oaddlimm _ => (Tlong :: nil, Tlong)
-  | Onegl => (Tlong :: nil, Tlong)
-  | Osubl => (Tlong :: Tlong :: nil, Tlong)
-  | Omull => (Tlong :: Tlong :: nil, Tlong)
-  | Omullhs => (Tlong :: Tlong :: nil, Tlong)
-  | Omullhu => (Tlong :: Tlong :: nil, Tlong)
-  | Odivl => (Tlong :: Tlong :: nil, Tlong)
-  | Odivlu => (Tlong :: Tlong :: nil, Tlong)
-  | Omodl => (Tlong :: Tlong :: nil, Tlong)
-  | Omodlu => (Tlong :: Tlong :: nil, Tlong)
-  | Oandl => (Tlong :: Tlong :: nil, Tlong)
-  | Oandlimm _ => (Tlong :: nil, Tlong)
-  | Oorl => (Tlong :: Tlong :: nil, Tlong)
-  | Oorlimm _ => (Tlong :: nil, Tlong)
-  | Oxorl => (Tlong :: Tlong :: nil, Tlong)
-  | Oxorlimm _ => (Tlong :: nil, Tlong)
-  | Oshll => (Tlong :: Tint :: nil, Tlong)
-  | Oshllimm _ => (Tlong :: nil, Tlong)
-  | Oshrl => (Tlong :: Tint :: nil, Tlong)
-  | Oshrlimm _ => (Tlong :: nil, Tlong)
-  | Oshrlu => (Tlong :: Tint :: nil, Tlong)
-  | Oshrluimm _ => (Tlong :: nil, Tlong)
-  | Oshrxlimm _ => (Tlong :: nil, Tlong)
   | Onegf => (Tfloat :: nil, Tfloat)
   | Oabsf => (Tfloat :: nil, Tfloat)
   | Oaddf => (Tfloat :: Tfloat :: nil, Tfloat)
@@ -546,10 +472,6 @@ Definition negate_condition (cond: condition): condition :=
   | Ccompu c => Ccompu(negate_comparison c)
   | Ccompimm c n => Ccompimm (negate_comparison c) n
   | Ccompuimm c n => Ccompuimm (negate_comparison c) n
-  | Ccompl c => Ccompl(negate_comparison c)
-  | Ccomplu c => Ccomplu(negate_comparison c)
-  | Ccomplimm c n => Ccomplimm (negate_comparison c) n
-  | Ccompluimm c n => Ccompluimm (negate_comparison c) n
   | Ccompf c => Cnotcompf c
   | Cnotcompf c => Ccompf c
   | Ccompfs c => Cnotcompfs c
@@ -565,10 +487,6 @@ Proof.
   repeat (destruct vl; auto). apply Val.negate_cmpu_bool.
   repeat (destruct vl; auto). apply Val.negate_cmp_bool.
   repeat (destruct vl; auto). apply Val.negate_cmpu_bool.
-  repeat (destruct vl; auto). apply Val.negate_cmpl_bool.
-  repeat (destruct vl; auto). apply Val.negate_cmplu_bool.
-  repeat (destruct vl; auto). apply Val.negate_cmpl_bool.
-  repeat (destruct vl; auto). apply Val.negate_cmplu_bool.
   repeat (destruct vl; auto).
   repeat (destruct vl; auto). destruct (Val.cmpf_bool c v v0) as [[]|]; auto.
   repeat (destruct vl; auto).
@@ -656,7 +574,6 @@ Definition is_trivial_op (op: operation) : bool :=
   match op with
   | Omove => true
   | Ointconst n => Int.eq (Int.sign_ext 12 n) n
-  | Olongconst n => Int64.eq (Int64.sign_ext 12 n) n
   | Oaddrstack _ => true
   | _ => false
   end.
@@ -667,8 +584,6 @@ Definition op_depends_on_memory (op: operation) : bool :=
   match op with
   | Ocmp (Ccompu _) => negb Archi.ptr64
   | Ocmp (Ccompuimm _ _) => negb Archi.ptr64
-  | Ocmp (Ccomplu _) => Archi.ptr64
-  | Ocmp (Ccompluimm _ _) => Archi.ptr64
   | _ => false
   end.
 
@@ -798,10 +713,6 @@ Proof.
 - inv H3; simpl in H0; inv H0; auto.
 - eauto 3 using Val.cmpu_bool_inject, Mem.valid_pointer_implies.
 - inv H3; inv H2; simpl in H0; inv H0; auto.
-- eauto 3 using Val.cmplu_bool_inject, Mem.valid_pointer_implies.
-- inv H3; simpl in H0; inv H0; auto.
-- eauto 3 using Val.cmplu_bool_inject, Mem.valid_pointer_implies.
-- inv H3; inv H2; simpl in H0; inv H0; auto.
 - inv H3; inv H2; simpl in H0; inv H0; auto.
 - inv H3; inv H2; simpl in H0; inv H0; auto.
 - inv H3; inv H2; simpl in H0; inv H0; auto.
@@ -825,37 +736,28 @@ Lemma eval_operation_inj:
   exists v2, eval_operation ge2 sp2 op vl2 m2 = Some v2 /\ Val.inject f v1 v2.
 Proof.
   intros until v1; intros GL; intros. destruct op; simpl in H1; simpl; FuncInv; InvInject; TrivialExists.
-  (* addrsymbol *)
-  - apply GL; simpl; auto.
   (* addrstack *)
-  - apply Val.offset_ptr_inject; auto. 
-  (* castsigned *)
-  - inv H4; simpl; auto.
-  - inv H4; simpl; auto.
+  - apply Val.offset_ptr_inject; auto.
   (* add, addimm *)
   - apply Val.add_inject; auto.
   - apply Val.add_inject; auto.
-  (* neg, sub *)
+  (* neg, sub, subimm *)
   - inv H4; simpl; auto.
   - apply Val.sub_inject; auto.
-  (* mul, mulhs, mulhu *)
+  - apply Val.sub_inject; auto.
+  (* mul, mulimm *)
   - inv H4; inv H2; simpl; auto.
-  - inv H4; inv H2; simpl; auto.
-  - inv H4; inv H2; simpl; auto.
-  (* div, divu *)
-  - inv H4; inv H3; simpl in H1; inv H1. simpl.
-    destruct (Int.eq i0 Int.zero
-              || Int.eq i (Int.repr Int.min_signed) && Int.eq i0 Int.mone); inv H2.
-    TrivialExists.
+  - inv H4; inv H; simpl; auto.
+  (* divu, divuimm *)
   - inv H4; inv H3; simpl in H1; inv H1. simpl.
     destruct (Int.eq i0 Int.zero); inv H2. TrivialExists.
-  (* mod, modu *)
-  - inv H4; inv H3; simpl in H1; inv H1. simpl.
-    destruct (Int.eq i0 Int.zero
-                     || Int.eq i (Int.repr Int.min_signed) && Int.eq i0 Int.mone); inv H2.
-    TrivialExists.
+  - inv H4; simpl in H1; inv H1. simpl.
+    destruct (Int.eq n Int.zero); inv H2. TrivialExists.
+  (* modu, moduimm *)
   - inv H4; inv H3; simpl in H1; inv H1. simpl.
     destruct (Int.eq i0 Int.zero); inv H2. TrivialExists.
+  - inv H4; simpl in H1; inv H1. simpl.
+    destruct (Int.eq n Int.zero); inv H2. TrivialExists.
   (* and, andimm *)
   - inv H4; inv H2; simpl; auto.
   - inv H4; simpl; auto.
@@ -874,6 +776,32 @@ Proof.
   (* shru, shruimm *)
   - inv H4; inv H2; simpl; auto. destruct (Int.ltu i0 Int.iwordsize); auto.
   - inv H4; simpl; auto. destruct (Int.ltu n Int.iwordsize); auto.
+  (* cmp *)
+  - subst v1. destruct (eval_condition cond vl1 m1) eqn:?.
+    exploit eval_condition_inj; eauto. intros EQ; rewrite EQ.
+    destruct b; simpl; constructor.
+    simpl; constructor.
+
+  (* Operations not available in eBPF *)
+
+  (* addrsymbol *)
+  - apply GL; simpl; auto.
+  (* castsigned *)
+  - inv H4; simpl; auto.
+  - inv H4; simpl; auto.
+  (* mulhs, mulhu *)
+  - inv H4; inv H2; simpl; auto.
+  - inv H4; inv H2; simpl; auto.
+  (* div *)
+  - inv H4; inv H3; simpl in H1; inv H1. simpl.
+    destruct (Int.eq i0 Int.zero
+              || Int.eq i (Int.repr Int.min_signed) && Int.eq i0 Int.mone); inv H2.
+    TrivialExists.
+  (* mod *)
+  - inv H4; inv H3; simpl in H1; inv H1. simpl.
+    destruct (Int.eq i0 Int.zero
+                     || Int.eq i (Int.repr Int.min_signed) && Int.eq i0 Int.mone); inv H2.
+    TrivialExists.
   (* shrx *)
   - inv H4; simpl in H1; try discriminate. simpl.
     destruct (Int.ltu n (Int.repr 31)); inv H1. TrivialExists.
@@ -881,54 +809,6 @@ Proof.
   - inv H4; inv H2; simpl; auto.
   - inv H4; simpl; auto.
   - inv H4; simpl; auto.
-  (* cast32 *)
-  - inv H4; simpl; auto.
-  - inv H4; simpl; auto.
-  (* addl, addlimm *)
-  - apply Val.addl_inject; auto.
-  - apply Val.addl_inject; auto.
-  (* negl, subl *)
-  - inv H4; simpl; auto.
-  - apply Val.subl_inject; auto.
-  (* mull, mullhs, mullhu *)
-  - inv H4; inv H2; simpl; auto.
-  - inv H4; inv H2; simpl; auto.
-  - inv H4; inv H2; simpl; auto.
-  (* divl, divlu *)
-  - inv H4; inv H3; simpl in H1; inv H1. simpl.
-    destruct (Int64.eq i0 Int64.zero
-              || Int64.eq i (Int64.repr Int64.min_signed) && Int64.eq i0 Int64.mone); inv H2.
-    TrivialExists.
-  - inv H4; inv H3; simpl in H1; inv H1. simpl.
-    destruct (Int64.eq i0 Int64.zero); inv H2. TrivialExists.
-  (* modl, modlu *)
-  - inv H4; inv H3; simpl in H1; inv H1. simpl.
-    destruct (Int64.eq i0 Int64.zero
-                     || Int64.eq i (Int64.repr Int64.min_signed) && Int64.eq i0 Int64.mone); inv H2.
-    TrivialExists.
-  - inv H4; inv H3; simpl in H1; inv H1. simpl.
-    destruct (Int64.eq i0 Int64.zero); inv H2. TrivialExists.
-  (* andl, andlimm *)
-  - inv H4; inv H2; simpl; auto.
-  - inv H4; simpl; auto.
-  (* orl, orlimm *)
-  - inv H4; inv H2; simpl; auto.
-  - inv H4; simpl; auto.
-  (* xorl, xorlimm *)
-  - inv H4; inv H2; simpl; auto.
-  - inv H4; simpl; auto.
-  (* shll, shllimm *)
-  - inv H4; inv H2; simpl; auto. destruct (Int.ltu i0 Int64.iwordsize'); auto.
-  - inv H4; simpl; auto. destruct (Int.ltu n Int64.iwordsize'); auto.
-  (* shr, shrimm *)
-  - inv H4; inv H2; simpl; auto. destruct (Int.ltu i0 Int64.iwordsize'); auto.
-  - inv H4; simpl; auto. destruct (Int.ltu n Int64.iwordsize'); auto.
-  (* shru, shruimm *)
-  - inv H4; inv H2; simpl; auto. destruct (Int.ltu i0 Int64.iwordsize'); auto.
-  - inv H4; simpl; auto. destruct (Int.ltu n Int64.iwordsize'); auto.
-  (* shrx *)
-  - inv H4; simpl in H1; try discriminate. simpl.
-    destruct (Int.ltu n (Int.repr 63)); inv H1. TrivialExists.
   (* negf, absf *)
   - inv H4; simpl; auto.
   - inv H4; simpl; auto.
@@ -982,11 +862,6 @@ Proof.
   (* singleoflong, singleoflongu *)
   - inv H4; simpl in H1; inv H1. simpl. TrivialExists.
   - inv H4; simpl in H1; inv H1. simpl. TrivialExists.
-  (* cmp *)
-  - subst v1. destruct (eval_condition cond vl1 m1) eqn:?.
-    exploit eval_condition_inj; eauto. intros EQ; rewrite EQ.
-    destruct b; simpl; constructor.
-    simpl; constructor.
 Qed.
 
 Lemma eval_addressing_inj:
@@ -1187,21 +1062,5 @@ End EVAL_INJECT.
 
 (** * Handling of builtin arguments *)
 
-Definition builtin_arg_ok_1
-       (A: Type) (ba: builtin_arg A) (c: builtin_arg_constraint) :=
-  match c, ba with
-  | OK_all, _ => true
-  | OK_const, (BA_int _ | BA_long _ | BA_float _ | BA_single _) => true
-  | OK_addrstack, BA_addrstack _ => true
-  | OK_addressing, BA_addrstack _ => true
-  | OK_addressing, BA_addptr (BA _) (BA_int _) => true
-  | OK_addressing, BA_addptr (BA _) (BA_long _) => true
-  | _, _ => false
-  end.
-
 Definition builtin_arg_ok
-       (A: Type) (ba: builtin_arg A) (c: builtin_arg_constraint) :=
-  match ba with
-  | (BA _ | BA_splitlong (BA _) (BA _)) => true
-  | _ => builtin_arg_ok_1 ba c
-  end.  
+       (A: Type) (ba: builtin_arg A) (c: builtin_arg_constraint) := false.

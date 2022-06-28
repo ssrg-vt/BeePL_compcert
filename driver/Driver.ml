@@ -28,11 +28,11 @@ let tool_name = "C verified compiler"
 let sdump_suffix = ref ".json"
 
 let nolink () =
-  !option_c || !option_S || !option_E || !option_interp
+  !option_c || !option_S || !option_E || !option_interp || not Configuration.has_linking_step
 
 let object_filename sourcename =
   if nolink () then
-    output_filename ~final: !option_c sourcename ~suffix:".o"
+    output_filename ~final:(!option_c || not Configuration.has_linking_step) sourcename ~suffix:".o"
   else
     tmp_file ".o"
 

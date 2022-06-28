@@ -133,6 +133,7 @@ let is_big_endian =
   | "little" -> false
   | v -> bad_config "endianness" [v]
 let system = get_config_string "system"
+let has_linking_step = get_bool_config "has_linking_step"
 let has_runtime_lib = get_bool_config "has_runtime_lib"
 let has_standard_headers = get_bool_config "has_standard_headers"
 let stdlib_path =

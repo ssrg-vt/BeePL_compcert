@@ -42,6 +42,7 @@ let gnu_linker_help =
 |}
 
 let linker_help =
+  if not (Configuration.has_linking_step) then "" else
 {|Linking options:
   -l<lib>        Link library <lib>
   -L<dir>        Add <dir> to search path for libraries
@@ -61,6 +62,7 @@ let linker_help =
 |}
 
 let linker_actions =
+  if not (Configuration.has_linking_step) then [] else
   [ Prefix "-l", Self push_linker_arg;
     Prefix "-L", Self push_linker_arg;
     Exact "-nostartfiles", Self (fun s  ->

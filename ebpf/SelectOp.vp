@@ -2,16 +2,11 @@
 (*                                                                     *)
 (*              The Compcert verified compiler                         *)
 (*                                                                     *)
-(*          Xavier Leroy, INRIA Paris-Rocquencourt                     *)
-(*           Prashanth Mundkur, SRI International                      *)
+(*                Xavier Leroy, INRIA Paris                            *)
 (*                                                                     *)
 (*  Copyright Institut National de Recherche en Informatique et en     *)
 (*  Automatique.  All rights reserved.  This file is distributed       *)
 (*  under the terms of the INRIA Non-Commercial License Agreement.     *)
-(*                                                                     *)
-(*  The contributions by Prashanth Mundkur are reused and adapted      *)
-(*  under the terms of a Contributor License Agreement between         *)
-(*  SRI International and INRIA.                                       *)
 (*                                                                     *)
 (* *********************************************************************)
 
@@ -62,10 +57,10 @@ Definition addrstack (ofs: ptrofs) :=
 Nondetfunction addimm (n: int) (e: expr) :=
   if Int.eq n Int.zero then e else
   match e with
-  | Eop (Ointconst m) Enil => Eop (Ointconst (Int.add n m)) Enil
+  | Eop (Ointconst m) Enil       => Eop (Ointconst (Int.add n m)) Enil
   | Eop (Oaddrsymbol s m) Enil   => Eop (Oaddrsymbol s (Ptrofs.add (Ptrofs.of_int n) m)) Enil
   | Eop (Oaddrstack m) Enil      => Eop (Oaddrstack (Ptrofs.add (Ptrofs.of_int n) m)) Enil
-  | Eop (Oaddimm m) (t ::: Enil) => Eop (Oaddimm(Int.add n m)) (t ::: Enil)
+  | Eop (Oaddimm m) (t ::: Enil) => Eop (Oaddimm (Int.add n m)) (t ::: Enil)
   | _ => Eop (Oaddimm n) (e ::: Enil)
   end.
 
@@ -88,10 +83,17 @@ Nondetfunction add (e1: expr) (e2: expr) :=
 
 (** ** Integer and pointer subtraction *)
 
+Nondetfunction subimm (n: int) (e: expr) :=
+  match e with
+  | Eop (Ointconst m) Enil       => Eop (Ointconst (Int.sub n m)) Enil
+  | Eop (Oaddimm m) (t ::: Enil) => Eop (Osubimm (Int.sub n m)) (t ::: Enil)
+  | _ => Eop (Osubimm n) (e ::: Enil)
+  end.
+
 Nondetfunction sub (e1: expr) (e2: expr) :=
   match e1, e2 with
-  | t1, Eop (Ointconst n2) Enil =>
-      addimm (Int.neg n2) t1
+  | Eop (Ointconst n1) Enil, t2 => subimm n1 t2
+  | t1, Eop (Ointconst n2) Enil => addimm (Int.neg n2) t1
   | Eop (Oaddimm n1) (t1:::Enil), Eop (Oaddimm n2) (t2:::Enil) =>
       addimm (Int.sub n1 n2) (Eop Osub (t1:::t2:::Enil))
   | Eop (Oaddimm n1) (t1:::Enil), t2 =>
@@ -166,7 +168,7 @@ Definition mulimm_base (n1: int) (e2: expr) :=
   | i :: j :: nil =>
       Elet e2 (add (shlimm (Eletvar 0) i) (shlimm (Eletvar 0) j))
   | _ =>
-      Eop Omul (Eop (Ointconst n1) Enil ::: e2 ::: Enil)
+      Eop (Omulimm n1) (e2 ::: Enil)
   end.
 
 Nondetfunction mulimm (n1: int) (e2: expr) :=
@@ -185,25 +187,8 @@ Nondetfunction mul (e1: expr) (e2: expr) :=
   | _, _ => Eop Omul (e1:::e2:::Enil)
   end.
 
-Definition mulhs (e1: expr) (e2: expr) :=
-  if Archi.ptr64 then
-    Eop Olowlong
-      (Eop (Oshrlimm (Int.repr 32))
-         (Eop Omull (Eop Ocast32signed (e1 ::: Enil) :::
-                     Eop Ocast32signed (e2 ::: Enil) ::: Enil) ::: Enil)
-          ::: Enil)
-  else
-    Eop Omulhs (e1 ::: e2 ::: Enil).
-
-Definition mulhu (e1: expr) (e2: expr) :=
-  if Archi.ptr64 then
-    Eop Olowlong
-      (Eop (Oshrluimm (Int.repr 32))
-         (Eop Omull (Eop Ocast32unsigned (e1 ::: Enil) :::
-                     Eop Ocast32unsigned (e2 ::: Enil) ::: Enil) ::: Enil)
-          ::: Enil)
-  else
-    Eop Omulhu (e1 ::: e2 ::: Enil).
+Definition mulhs (e1: expr) (e2: expr) := Eop Omulhs (e1 ::: e2 ::: Enil).
+Definition mulhu (e1: expr) (e2: expr) := Eop Omulhu (e1 ::: e2 ::: Enil).
 
 (** ** Bitwise and, or, xor *)
 
@@ -270,23 +255,6 @@ Definition modu_base (e1: expr) (e2: expr) := Eop Omodu (e1:::e2:::Enil).
 Definition shrximm (e1: expr) (n2: int) :=
   if Int.eq n2 Int.zero then e1 else Eop (Oshrximm n2) (e1:::Enil).
 
-(* Alternate definition, not convenient for strength reduction during constant propagation *)
-(*
-(* n2 will be less than 31. *)
-
-Definition shrximm_inner (e1: expr) (n2: int) :=
-  Eop (Oshruimm (Int.sub Int.iwordsize n2))
-      ((Eop (Oshrimm (Int.repr (Int.zwordsize - 1)))
-            (e1 ::: Enil))
-         ::: Enil).
-
-Definition shrximm (e1: expr) (n2: int) :=
-  if Int.eq n2 Int.zero then e1
-  else Eop (Oshrimm n2)
-           ((Eop Oadd (e1 ::: shrximm_inner e1 n2 ::: Enil))
-              ::: Enil).
-*)
-
 (** ** General shifts *)
 
 Nondetfunction shl (e1: expr) (e2: expr) :=
@@ -323,6 +291,13 @@ Definition mulfs (e1 e2: expr) :=  Eop Omulfs (e1 ::: e2 ::: Enil).
 
 (** ** Comparisons *)
 
+Definition cond_immtoreg (cond: condition): condition :=
+  match cond with
+  | Ccompimm c _ => Ccomp c
+  | Ccompuimm c _ => Ccompu c
+  | _ => cond
+  end.
+
 Nondetfunction compimm (default: comparison -> int -> condition)
                        (sem: comparison -> int -> int -> bool)
                        (c: comparison) (e1: expr) (n2: int) :=
@@ -344,7 +319,10 @@ Nondetfunction compimm (default: comparison -> int -> condition)
       else
         Eop (Ointconst Int.one) Enil
   | _, _ =>
+      if Int.ltu n2 (Int.repr 16) then
        Eop (Ocmp (default c n2)) (e1 ::: Enil)
+      else
+       Eop (Ocmp (cond_immtoreg (default c n2))) (e1 ::: Eop (Ointconst (n2)) Enil ::: Enil)
   end.
 
 Nondetfunction comp (c: comparison) (e1: expr) (e2: expr) :=
@@ -380,7 +358,7 @@ Definition cast8unsigned (e: expr) := andimm (Int.repr 255) e.
 Nondetfunction cast8signed (e: expr) :=
   match e with
   | Eop (Ointconst n) Enil => Eop (Ointconst (Int.sign_ext 8 n)) Enil
-  | _ =>  Eop Ocast8signed (e ::: Enil)
+  | _ => Eop Ocast8signed (e ::: Enil)
   end.
 
 Definition cast16unsigned (e: expr) := andimm (Int.repr 65535) e.
@@ -430,7 +408,6 @@ Nondetfunction addressing (chunk: memory_chunk) (e: expr) :=
   | Eop (Oaddrstack n) Enil => (Ainstack n, Enil)
   | Eop (Oaddrsymbol id ofs) Enil => (Aindexed Ptrofs.zero, e:::Enil)
   | Eop (Oaddimm n) (e1:::Enil) => (Aindexed (Ptrofs.of_int n), e1:::Enil)
-  | Eop (Oaddlimm n) (e1:::Enil) => (Aindexed (Ptrofs.of_int64 n), e1:::Enil)
   | _ => (Aindexed Ptrofs.zero, e:::Enil)
   end.
 
@@ -438,17 +415,6 @@ Nondetfunction addressing (chunk: memory_chunk) (e: expr) :=
 
 Nondetfunction builtin_arg (e: expr) :=
   match e with
-  | Eop (Ointconst n) Enil => BA_int n
-  | Eop (Oaddrsymbol id ofs) Enil => BA_addrglobal id ofs
-  | Eop (Oaddrstack ofs) Enil => BA_addrstack ofs
-  | Eop Omakelong (Eop (Ointconst h) Enil ::: Eop (Ointconst l) Enil ::: Enil) =>
-        BA_long (Int64.ofwords h l)
-  | Eop Omakelong (h ::: l ::: Enil) => BA_splitlong (BA h) (BA l)
-  | Eload chunk (Ainstack ofs) Enil => BA_loadstack chunk ofs
-  | Eop (Oaddimm n) (e1:::Enil) =>
-      if Archi.ptr64 then BA e else BA_addptr (BA e1) (BA_int n)
-  | Eop (Oaddlimm n) (e1:::Enil) =>
-      if Archi.ptr64 then BA_addptr (BA e1) (BA_long n) else BA e
   | _ => BA e
   end.
 

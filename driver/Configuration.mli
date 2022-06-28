@@ -40,6 +40,9 @@ val asm_supports_cfi: bool
 val stdlib_path: string
   (** Path to CompCert's library *)
 
+val has_linking_step: bool
+  (** true if program has to be linked with the external linker *)
+
 val has_runtime_lib: bool
   (** True if CompCert's library is available. *)
 
