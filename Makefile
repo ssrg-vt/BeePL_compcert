@@ -110,11 +110,11 @@ COMMON=Errors.v AST.v Linking.v \
 
 # Back-end modules (in backend/, $(ARCH)/)
 
-# Removed: Selectionproof.v SelectLongproof.v SelectDivproof.v SplitLongproof.v Deadcodeproof.v Constpropproof.v CSEproof.v Allocproof.v Tunnelingproof.v Stackingproof.v Asmgenproof0.v Asmgenproof1.v Asmgenproof.v
 BACKEND=\
   Cminor.v Cminortyping.v Op.v CminorSel.v \
   SelectOp.v SelectDiv.v SplitLong.v SelectLong.v Selection.v \
-  SelectOpproof.v \
+  SelectOpproof.v SelectDivproof.v SplitLongproof.v \
+  SelectLongproof.v Selectionproof.v \
   Registers.v RTL.v \
   RTLgen.v RTLgenspec.v RTLgenproof.v \
   Tailcall.v Tailcallproof.v \
@@ -123,20 +123,20 @@ BACKEND=\
   RTLtyping.v \
   Kildall.v Liveness.v \
   ValueDomain.v ValueAOp.v ValueAnalysis.v \
-  ConstpropOp.v Constprop.v ConstpropOpproof.v \
-  CSEdomain.v CombineOp.v CSE.v CombineOpproof.v \
-  NeedDomain.v NeedOp.v Deadcode.v \
+  ConstpropOp.v Constprop.v ConstpropOpproof.v Constpropproof.v \
+  CSEdomain.v CombineOp.v CSE.v CombineOpproof.v CSEproof.v \
+  NeedDomain.v NeedOp.v Deadcode.v Deadcodeproof.v \
   Unusedglob.v Unusedglobproof.v \
   Machregs.v Locations.v Conventions1.v Conventions.v LTL.v \
-  Allocation.v \
-  Tunneling.v \
+  Allocation.v Allocproof.v \
+  Tunneling.v Tunnelingproof.v \
   Linear.v Lineartyping.v \
   Linearize.v Linearizeproof.v \
   CleanupLabels.v CleanupLabelsproof.v \
   Debugvar.v Debugvarproof.v \
   Mach.v \
-  Bounds.v Stacklayout.v Stacking.v \
-  Asm.v Asmgen.v 
+  Bounds.v Stacklayout.v Stacking.v Stackingproof.v \
+  Asm.v Asmgen.v Asmgenproof0.v Asmgenproof1.v Asmgenproof.v
 
 # C front-end modules (in cfrontend/)
 

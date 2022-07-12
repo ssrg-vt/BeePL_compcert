@@ -103,7 +103,11 @@ Definition register_by_name (s: string) : option mreg :=
 
 (** ** Destroyed registers, preferred registers *)
 
-Definition destroyed_by_op (op: operation): list mreg := nil.
+Definition destroyed_by_op (op: operation): list mreg :=
+  match op with
+  | Omove
+  | _ => nil
+  end.
 
 Definition destroyed_by_load (chunk: memory_chunk) (addr: addressing): list mreg := nil.
 
@@ -126,7 +130,7 @@ Fixpoint destroyed_by_clobber (cl: list string): list mreg :=
 Definition destroyed_by_builtin (ef: external_function): list mreg :=
   match ef with
   | EF_inline_asm txt sg clob => destroyed_by_clobber clob
-  | EF_memcpy sz al => I1 :: I2 :: I3 :: nil (* TODO *)
+  | EF_memcpy sz al => I1 :: I2 :: I3 :: nil
   | EF_builtin name sg => nil
   | _ => nil
   end.
