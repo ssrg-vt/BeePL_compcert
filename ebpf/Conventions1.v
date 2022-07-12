@@ -34,7 +34,7 @@ Definition is_callee_save (r: mreg) : bool :=
   end.
 
 Definition int_caller_save_regs :=
-  I0 :: I1  :: I2 :: I3 :: I4 :: I5 :: nil.
+  I0 :: I1 :: I2 :: I3 :: I4 :: I5 :: nil.
 
 Definition float_caller_save_regs : list mreg := D0 :: D1 :: nil.
 

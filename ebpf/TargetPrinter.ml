@@ -64,25 +64,21 @@ module Target : TARGET =
         | Byte -> "u8"
         | HalfWord -> "u16"
         | Word -> "u32"
+        | SignedWord -> "i32"
       in output_string oc (sizeOp_name mem)
 
     let operator oc op =
       let operator_name = function
         | ADD -> " += " | SUB -> " -= " | MUL -> " *= " | DIV -> " /= "
         | OR -> " |= " | AND -> " &= " | LSH -> " <<= " | RSH -> " >>= "
-        | NEG -> " -" | MOD -> "%= " | XOR -> " ^= " | MOV -> " = " | ARSH -> " s>>= "
+        | NEG -> " -" | MOD -> " %= " | XOR -> " ^= " | MOV -> " = " | ARSH -> " s>>= "
       in output_string oc (operator_name op)
 
-    let rec iregister oc ireg =
-      let iregister_name = function
+    let rec register oc ireg =
+      let register_name = function
         | R0 -> "r0" | R1 -> "r1" | R2 -> "r2" | R3 -> "r3" | R4 -> "r4" | R5 -> "r5"
         | R6 -> "r6" | R7 -> "r7" | R8 -> "r8" | R9 -> "r9" | R10 -> "r10"
-      in output_string oc (iregister_name ireg)
-
-    and register oc = function
-      | IR ireg -> iregister oc ireg
-      | PC -> output_string oc "pc"
-      | _ -> assert false
+      in output_string oc (register_name ireg)
 
     and immediate = coqint
 

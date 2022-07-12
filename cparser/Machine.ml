@@ -249,7 +249,7 @@ let aarch64_apple =
 (*- #End *)
 
 let ebpf =
-  { ilp32ll64 with name = "ebpf" } (* TODO *)
+  { ilp32ll64 with name = "ebpf" }
 
 (* Add GCC extensions re: sizeof and alignof *)
 
