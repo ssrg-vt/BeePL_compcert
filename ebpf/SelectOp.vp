@@ -83,17 +83,11 @@ Nondetfunction add (e1: expr) (e2: expr) :=
 
 (** ** Integer and pointer subtraction *)
 
-Nondetfunction subimm (n: int) (e: expr) :=
-  match e with
-  | Eop (Ointconst m) Enil       => Eop (Ointconst (Int.sub n m)) Enil
-  | Eop (Oaddimm m) (t ::: Enil) => Eop (Osubimm (Int.sub n m)) (t ::: Enil)
-  | _ => Eop (Osubimm n) (e ::: Enil)
-  end.
 
 Nondetfunction sub (e1: expr) (e2: expr) :=
   match e1, e2 with
-  | Eop (Ointconst n1) Enil, t2 => subimm n1 t2
-  | t1, Eop (Ointconst n2) Enil => addimm (Int.neg n2) t1
+  | t1, Eop (Ointconst n2) Enil =>
+      addimm (Int.neg n2) t1
   | Eop (Oaddimm n1) (t1:::Enil), Eop (Oaddimm n2) (t2:::Enil) =>
       addimm (Int.sub n1 n2) (Eop Osub (t1:::t2:::Enil))
   | Eop (Oaddimm n1) (t1:::Enil), t2 =>
@@ -291,14 +285,8 @@ Definition mulfs (e1 e2: expr) :=  Eop Omulfs (e1 ::: e2 ::: Enil).
 
 (** ** Comparisons *)
 
-Definition cond_immtoreg (cond: condition): condition :=
-  match cond with
-  | Ccompimm c _ => Ccomp c
-  | Ccompuimm c _ => Ccompu c
-  | _ => cond
-  end.
-
-Nondetfunction compimm (default: comparison -> int -> condition)
+Nondetfunction compimm (default_imm: comparison -> int -> condition)
+                       (default: comparison -> condition)
                        (sem: comparison -> int -> int -> bool)
                        (c: comparison) (e1: expr) (n2: int) :=
   match c, e1 with
@@ -320,17 +308,17 @@ Nondetfunction compimm (default: comparison -> int -> condition)
         Eop (Ointconst Int.one) Enil
   | _, _ =>
       if Int.ltu n2 (Int.repr 16) then
-       Eop (Ocmp (default c n2)) (e1 ::: Enil)
+        Eop (Ocmp (default_imm c n2)) (e1 ::: Enil)
       else
-       Eop (Ocmp (cond_immtoreg (default c n2))) (e1 ::: Eop (Ointconst (n2)) Enil ::: Enil)
+        Eop (Ocmp (default c)) (e1 ::: Eop (Ointconst n2) Enil ::: Enil)
   end.
 
 Nondetfunction comp (c: comparison) (e1: expr) (e2: expr) :=
   match e1, e2 with
   | Eop (Ointconst n1) Enil, t2 =>
-      compimm Ccompimm Int.cmp (swap_comparison c) t2 n1
+      compimm Ccompimm Ccomp Int.cmp (swap_comparison c) t2 n1
   | t1, Eop (Ointconst n2) Enil =>
-      compimm Ccompimm Int.cmp c t1 n2
+      compimm Ccompimm Ccomp Int.cmp c t1 n2
   | _, _ =>
       Eop (Ocmp (Ccomp c)) (e1 ::: e2 ::: Enil)
   end.
@@ -338,9 +326,9 @@ Nondetfunction comp (c: comparison) (e1: expr) (e2: expr) :=
 Nondetfunction compu (c: comparison) (e1: expr) (e2: expr) :=
   match e1, e2 with
   | Eop (Ointconst n1) Enil, t2 =>
-      compimm Ccompuimm Int.cmpu (swap_comparison c) t2 n1
+      compimm Ccompuimm Ccompu Int.cmpu (swap_comparison c) t2 n1
   | t1, Eop (Ointconst n2) Enil =>
-      compimm Ccompuimm Int.cmpu c t1 n2
+      compimm Ccompuimm Ccompu Int.cmpu c t1 n2
   | _, _ =>
       Eop (Ocmp (Ccompu c)) (e1 ::: e2 ::: Enil)
   end.
