@@ -1,0 +1,15 @@
+The eBPF backend for CompCert was done by <frederic.besson@inria.fr> and <vincent.lafeychine@proton.me>.
+This backend mostly rely on the work done on RISC-V backend, and should be used to handle 32-bit eBPF embedded systems (rBPF).
+
+Beware, CompCert doesn't handle BPF helper calls: May be impossible to achieve in CompCert, should use ELF's relocation instead.
+
+There are three modifications on existing backend:
+ - Forbid CompCert to produce a linking step for eBPF (Correct modification - Should keep)
+ - Add symbols in extraction.v from AST (Issue - Should investigate)
+ - Force jumptable to not be created (Destructive modification - Should add a configuration option)
+
+There are some improvements available:
+ - Allows global variables.
+ - Add builtins simulating non-available arithmetics' instructions (mulhs, mulhu, div, mod, shrximm)
+ - More optimisations, with SelectOp, by using specific eBPF's instructions.
+ - Add 64-bits platform target.

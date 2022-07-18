@@ -64,7 +64,7 @@ module Target : TARGET =
         | Byte -> "u8"
         | HalfWord -> "u16"
         | Word -> "u32"
-        | SignedWord -> "i32"
+        | SignedWord -> "u32"
       in output_string oc (sizeOp_name mem)
 
     let operator oc op =
@@ -182,7 +182,7 @@ module Target : TARGET =
         fprintf oc "	%a = *(%a *)(%a + %a)\n" register reg1 sizeOp op register reg2 coqint off
 
       | Pstore (op, reg, regimm, off) ->
-        fprintf oc "	*(%a *)(%a + %a) = %a\n" sizeOp op register_or_immediate regimm coqint off register reg
+        fprintf oc "	*(%a *)(%a + %a) = %a\n" sizeOp op register reg coqint off register_or_immediate regimm
 
       | Palu (op, reg, regimm) ->
         fprintf oc "	%a%a%a\n" register reg operator op register_or_immediate regimm
