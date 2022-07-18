@@ -175,7 +175,7 @@ Definition two_address_op (op: operation) : bool :=
 
 Definition builtin_constraints (ef: external_function) :
                                        list builtin_arg_constraint :=
-  match ef with (* TODO *)
+  match ef with
   | EF_builtin id sg => nil
   | EF_vload _ => OK_addressing :: nil
   | EF_vstore _ => OK_addressing :: OK_default :: nil

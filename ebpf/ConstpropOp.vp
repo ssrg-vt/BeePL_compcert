@@ -173,7 +173,7 @@ Definition make_cast16signed (r: reg) (a: aval) :=
   if vincl a (Sgn Ptop 16) then (Omove, r :: nil) else (Ocast16signed, r :: nil).
 
 Nondetfunction op_strength_reduction
-              (op: operation) (args: list reg) (vl: list aval) := (* TODO *)
+              (op: operation) (args: list reg) (vl: list aval) :=
   match op, args, vl with
   | Ocast8signed, r1 :: nil, v1 :: nil => make_cast8signed r1 v1
   | Ocast16signed, r1 :: nil, v1 :: nil => make_cast16signed r1 v1
