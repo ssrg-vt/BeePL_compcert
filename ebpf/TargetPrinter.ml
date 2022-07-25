@@ -74,16 +74,24 @@ module Target : TARGET =
         | NEG -> " -" | MOD -> " %= " | XOR -> " ^= " | MOV -> " = " | ARSH -> " s>>= "
       in output_string oc (operator_name op)
 
-    let rec register oc ireg =
-      let register_name = function
-        | R0 -> "r0" | R1 -> "r1" | R2 -> "r2" | R3 -> "r3" | R4 -> "r4" | R5 -> "r5"
-        | R6 -> "r6" | R7 -> "r7" | R8 -> "r8" | R9 -> "r9" | R10 -> "r10"
-      in output_string oc (register_name ireg)
+    let register_name = function
+      | R0 -> "r0" | R1 -> "r1" | R2 -> "r2" | R3 -> "r3" | R4 -> "r4" | R5 -> "r5"
+      | R6 -> "r6" | R7 -> "r7" | R8 -> "r8" | R9 -> "r9" | R10 -> "r10"
+        
+    let register32_name = function
+      | R0 -> "w0" | R1 -> "w1" | R2 -> "w2" | R3 -> "w3" | R4 -> "w4" | R5 -> "w5"
+      | R6 -> "w6" | R7 -> "w7" | R8 -> "w8" | R9 -> "w9" | R10 -> "w10"
 
-    and immediate = coqint
+    let register_arch oc ireg =
+      output_string oc ((if Archi.ptr64 then register_name else register32_name) ireg)
 
-    and register_or_immediate oc = function
-      | Datatypes.Coq_inl reg -> register oc reg
+    let register oc ireg = 
+      output_string oc (register_name ireg)
+        
+    let immediate = coqint
+
+    let register_or_immediate oc = function
+      | Datatypes.Coq_inl reg -> register_arch oc reg
       | Datatypes.Coq_inr imm -> immediate oc imm
 
     let rec cmpOp = function
@@ -100,10 +108,10 @@ module Target : TARGET =
       | LE Unsigned -> "<="
 
     and print_cmp oc op reg regimm =
-      fprintf oc "	%a = (%a %s %a)\n" register reg register reg (cmpOp op) register_or_immediate regimm
+      fprintf oc "	%a = (%a %s %a)\n" register_arch  reg register_arch reg (cmpOp op) register_or_immediate regimm
 
     and print_jump_cmp oc op reg regimm label =
-      fprintf oc "	if %a %s %a goto %a\n" register reg (cmpOp op) register_or_immediate regimm print_label label
+      fprintf oc "	if %a %s %a goto %a\n" register_arch  reg (cmpOp op) register_or_immediate regimm print_label label
 
 (* Names of sections *)
 
@@ -153,7 +161,7 @@ module Target : TARGET =
          reset_literals ()
       end
 
-(* Generate code to load the address of id + ofs in register r *)
+(* Generate code to load the address of id + ofs in register_arch r *)
 
     (* let loadsymbol oc r id ofs = () *)
 
@@ -179,13 +187,13 @@ module Target : TARGET =
     (* Printing of instructions *)
     let print_instruction oc = function
       | Pload (op, reg1, reg2, off) ->
-        fprintf oc "	%a = *(%a *)(%a + %a)\n" register reg1 sizeOp op register reg2 coqint off
+        fprintf oc "	%a = *(%a *)(%a + %a)\n" register_arch  reg1 sizeOp op register reg2 coqint off
 
       | Pstore (op, reg, regimm, off) ->
-        fprintf oc "	*(%a *)(%a + %a) = %a\n" sizeOp op register reg coqint off register_or_immediate regimm
+        fprintf oc "	*(%a *)(%a + %a) = %a\n" sizeOp op register reg  coqint off register_or_immediate regimm
 
       | Palu (op, reg, regimm) ->
-        fprintf oc "	%a%a%a\n" register reg operator op register_or_immediate regimm
+        fprintf oc "	%a%a%a\n" register_arch reg operator op register_or_immediate  regimm
 
       | Pcmp (op, reg, regimm) -> print_cmp oc op reg regimm
       | Pjmp goto -> fprintf oc "	goto %a\n" print_label_or_ident goto
