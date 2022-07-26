@@ -108,7 +108,7 @@ module Target : TARGET =
       | LE Unsigned -> "<="
 
     and print_cmp oc op reg regimm =
-      fprintf oc "	%a = (%a %s %a)\n" register_arch  reg register_arch reg (cmpOp op) register_or_immediate regimm
+      fprintf oc "	%a (%s)= %a\n" register_arch reg (cmpOp op) register_or_immediate regimm
 
     and print_jump_cmp oc op reg regimm label =
       fprintf oc "	if %a %s %a goto %a\n" register_arch  reg (cmpOp op) register_or_immediate regimm print_label label
@@ -184,13 +184,21 @@ module Target : TARGET =
 
     (* let offset oc = function _ -> "offset" *)
 
+    let coqint_as_offset oc n =
+      let n = camlint_of_coqint n in
+      let cmp = Int32.compare n Int32.zero in
+      if cmp >= 0 then fprintf oc "+ %ld" n
+          else fprintf oc "- %ld" (Int32.abs n)
+
     (* Printing of instructions *)
     let print_instruction oc = function
       | Pload (op, reg1, reg2, off) ->
-        fprintf oc "	%a = *(%a *)(%a + %a)\n" register_arch  reg1 sizeOp op register reg2 coqint off
+
+
+        fprintf oc "	%a = *(%a *)(%a %a)\n" register_arch  reg1 sizeOp op register reg2 coqint_as_offset off
 
       | Pstore (op, reg, regimm, off) ->
-        fprintf oc "	*(%a *)(%a + %a) = %a\n" sizeOp op register reg  coqint off register_or_immediate regimm
+        fprintf oc "	*(%a *)(%a %a) = %a\n" sizeOp op register reg  coqint_as_offset off register_or_immediate regimm
 
       | Palu (op, reg, regimm) ->
         fprintf oc "	%a%a%a\n" register_arch reg operator op register_or_immediate  regimm
@@ -205,6 +213,8 @@ module Target : TARGET =
 
       | Plabel label -> fprintf oc "%a:\n" print_label label
 
+      | Ploadsymbol(r,id,ofs) -> fprintf oc "	%a = %a + %a\n" register r symbol id coqint ofs
+    
       | Pbuiltin _
       | Pallocframe _
       | Pfreeframe _ -> assert false

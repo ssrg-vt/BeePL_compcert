@@ -378,7 +378,6 @@ Proof.
   - unfold transl_memory_access in EQ0.
     inversion EV.
     destruct chunk; try discriminate; eapply transl_load_common_correct; eauto.
-
   - unfold transl_memory_access in EQ1.
     inversion EV.
     destruct chunk; try discriminate; eapply transl_load_common_correct; eauto.

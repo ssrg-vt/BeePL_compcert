@@ -135,7 +135,6 @@ Inductive operation : Type :=
 
 Inductive addressing: Type :=
   | Aindexed: ptrofs -> addressing          (**r Address is [r1 + offset] *)
-  | Aglobal: ident -> ptrofs -> addressing  (**r Address is global plus offset *)
   | Ainstack: ptrofs -> addressing.         (**r Address is [stack_pointer + offset] *)
 
 (** Comparison functions (used in modules [CSE] and [Allocation]). *)
@@ -277,7 +276,6 @@ Definition eval_addressing
     (addr: addressing) (vl: list val) : option val :=
   match addr, vl with
   | Aindexed n, v1 :: nil => Some (Val.offset_ptr v1 n)
-  | Aglobal s ofs, nil => Some (Genv.symbol_address genv s ofs)
   | Ainstack n, nil => Some (Val.offset_ptr sp n)
   | _, _ => None
   end.
@@ -405,7 +403,6 @@ Definition type_of_operation (op: operation) : list typ * typ :=
 Definition type_of_addressing (addr: addressing) : list typ :=
   match addr with
   | Aindexed _ => Tptr :: nil
-  | Aglobal _ _ => nil
   | Ainstack _ => nil
   end.
 
@@ -658,7 +655,6 @@ Qed.
 Definition offset_addressing (addr: addressing) (delta: Z) : option addressing :=
   match addr with
   | Aindexed n => Some(Aindexed (Ptrofs.add n (Ptrofs.repr delta)))
-  | Aglobal id n => Some(Aglobal id (Ptrofs.add n (Ptrofs.repr delta)))
   | Ainstack n => Some(Ainstack (Ptrofs.add n (Ptrofs.repr delta)))
   end.
 
@@ -677,8 +673,6 @@ Proof.
     rewrite Ptrofs.add_assoc. f_equal; f_equal; f_equal. symmetry; auto with ptrofs. }
   destruct addr; simpl in H; inv H; simpl in *; FuncInv; subst.
 - rewrite A; auto.
-- unfold Genv.symbol_address. destruct (Genv.find_symbol ge i); auto. 
-  simpl. rewrite H1. f_equal; f_equal; f_equal. symmetry; auto with ptrofs.
 - rewrite A; auto.
 Qed.
 
@@ -713,11 +707,7 @@ Qed.
 
 (** Global variables mentioned in an operation or addressing mode *)
 
-Definition globals_addressing (addr: addressing) : list ident :=
-  match addr with
-  | Aglobal s ofs => s :: nil
-  | _ => nil
-  end.
+Definition globals_addressing (addr: addressing) : list ident := nil.
 
 Definition globals_operation (op: operation) : list ident :=
   match op with
@@ -743,10 +733,9 @@ Hypothesis agree_on_symbols:
 Lemma eval_addressing_preserved:
   forall sp addr vl,
   eval_addressing ge2 sp addr vl = eval_addressing ge1 sp addr vl.
-Proof.
+Proof using agree_on_symbols.
   intros.
-  unfold eval_addressing; destruct addr; auto. destruct vl; auto. 
-  unfold Genv.symbol_address. rewrite agree_on_symbols; auto.
+  unfold eval_addressing; destruct addr; auto.
 Qed.
 
 Lemma eval_operation_preserved:
@@ -990,11 +979,12 @@ Lemma eval_addressing_inj:
 Proof.
   intros. destruct addr; simpl in H2; simpl; FuncInv; InvInject; TrivialExists.
   apply Val.offset_ptr_inject; auto.
-  apply H; simpl; auto.
-  apply Val.offset_ptr_inject; auto. 
+  apply Val.offset_ptr_inject; auto.
 Qed.
 
 End EVAL_COMPAT.
+
+Opaque globals_addressing.
 
 (** Compatibility of the evaluation functions with the ``is less defined'' relation over values. *)
 

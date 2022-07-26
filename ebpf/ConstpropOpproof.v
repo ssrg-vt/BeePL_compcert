@@ -518,8 +518,6 @@ Proof.
   intros until res. unfold addr_strength_reduction.
   destruct (addr_strength_reduction_match addr args vl); simpl;
   intros VL EA; InvApproxRegs; SimplVM; try (inv EA).
-- simpl. rewrite Genv.shift_symbol_address. econstructor; split; eauto.
-  inv H0; simpl; auto.
 - rewrite Ptrofs.add_zero_l. econstructor; split; eauto.
   change (Vptr sp (Ptrofs.add n1 n)) with (Val.offset_ptr (Vptr sp n1) n).
   inv H0; simpl; auto.

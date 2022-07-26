@@ -300,7 +300,9 @@ Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
       transl_cond_op cmp res args k
 
   (*c Following operations are not available in eBPF, and will throw errors in this step *)
-  | Oaddrsymbol s ofs, nil => Error (msg "Global variables are not yet available in eBPF")
+| Oaddrsymbol s ofs, nil =>
+      do r <- ireg_of res;
+      OK (Ploadsymbol r s ofs :: k)
 
   | Ocast8signed, a1 :: nil => Error (msg "cast8signed is not available in eBPF")
   | Ocast16signed, a1 :: nil => Error (msg "cast16signed is not available in eBPF")
@@ -355,6 +357,8 @@ Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
   | _, _ => Error (msg "Asmgen.transl_op")
   end.
 
+
+
 (** Accessing data in the stack frame. *)
 
 Definition transl_typ (typ: typ): res (sizeOp) :=
@@ -408,9 +412,6 @@ Definition transl_load (chunk: memory_chunk) (addr: addressing)
       do r <- ireg_of dst;
       do size <- transl_memory_access chunk;
       OK (Pload size r SP ofs :: k)
-
-  | Aglobal _ _, _ => Error(msg "Global variables are not yet available in eBPF")
-
   | _, _ => Error(msg "Asmgen.transl_load")
   end.
 
@@ -427,8 +428,6 @@ Definition transl_store (chunk: memory_chunk) (addr: addressing)
       do r <- ireg_of src;
       do size <- transl_memory_access chunk;
       OK (Pstore size SP (inl r) ofs :: k)
-
-  | Aglobal _ _, _ => Error(msg "Global variables are not yet available in eBPF")
 
   | _, _ => Error(msg "Asmgen.transl_store")
   end.
