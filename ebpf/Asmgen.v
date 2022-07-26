@@ -31,7 +31,7 @@ Local Open Scope error_monad_scope.
 Definition ireg_of (r: mreg) : res ireg :=
   match preg_of r with
   | IR mr => OK mr
-  | FR mr => Error (msg "Floating numbers aren't available in eBPF")
+  | FR mr => Error (msg "Floating numbers are not available in eBPF")
   | _ => Error (msg "Asmgen.ireg_of")
   end.
 
@@ -95,7 +95,7 @@ Definition transl_cbranch (cond: condition) (args: list mreg) (lbl: label) (k: c
   | Ccompf _, _
   | Cnotcompf _, _
   | Ccompfs _, _
-  | Cnotcompfs _, _ => Error (msg "Floating numbers aren't available in eBPF")
+  | Cnotcompfs _, _ => Error (msg "Floating numbers are not available in eBPF")
 
   | _, _ => Error(msg "Asmgen.transl_cbranch")
   end.
@@ -147,7 +147,7 @@ Definition transl_cond_op (cond: condition) (r: mreg) (args: list mreg) (k: code
   | Ccompf c, _
   | Cnotcompf c, _
   | Ccompfs c, _
-  | Cnotcompfs c, _ => Error (msg "Floating numbers aren't available in eBPF")
+  | Cnotcompfs c, _ => Error (msg "Floating numbers are not available in eBPF")
 
   | _, _ => Error (msg "Asmgen.transl_cond_op")
   end.
@@ -299,7 +299,7 @@ Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
   | Ocmp cmp, _ =>
       transl_cond_op cmp res args k
 
-  (*c Following operations aren't available in eBPF, and will throw errors in this step *)
+  (*c Following operations are not available in eBPF, and will throw errors in this step *)
   | Oaddrsymbol s ofs, nil => Error (msg "Global variables are not yet available in eBPF")
 
   | Ocast8signed, a1 :: nil => Error (msg "cast8signed is not available in eBPF")
@@ -307,8 +307,8 @@ Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
 
   | Omulhs, a1 :: a2 :: nil => Error (msg "mulhs is not available in eBPF")
   | Omulhu, a1 :: a2 :: nil => Error (msg "mulhu is not available in eBPF")
-  | Odiv, a1 :: a2 :: nil => Error (msg "div is not available in eBPF")
-  | Omod, a1 :: a2 :: nil => Error (msg "mod is not available in eBPF")
+  | Odiv, a1 :: a2 :: nil => Error (msg "signed division is not available in eBPF")
+  | Omod, a1 :: a2 :: nil => Error (msg "signed modulo is not available in eBPF")
   | Oshrximm n, a1 :: nil => Error (msg "shrximm is not available in eBPF")
 
   (* [Omakelong] and [Ohighlong] should not occur *)
@@ -350,7 +350,7 @@ Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
   | Olongofsingle, _
   | Olonguofsingle, _
   | Osingleoflong, _
-  | Osingleoflongu, _ => Error (msg "Floating numbers aren't available in eBPF")
+  | Osingleoflongu, _ => Error (msg "Floating numbers are not available in eBPF")
 
   | _, _ => Error (msg "Asmgen.transl_op")
   end.
@@ -362,7 +362,7 @@ Definition transl_typ (typ: typ): res (sizeOp) :=
   | Tany32 => OK Word
   | Tint => OK SignedWord
 
-  | Tsingle | Tfloat => Error (msg "Floating numbers aren't available in eBPF")
+  | Tsingle | Tfloat => Error (msg "Floating numbers are not available in eBPF")
 
   | _ => Error (msg "Asmgen.transl_typ")
   end.
@@ -380,7 +380,7 @@ Definition transl_memory_access (chunk: memory_chunk): res (sizeOp) :=
 
   | Mint32 => OK SignedWord
 
-  | Mfloat32 | Mfloat64 => Error (msg "Floating numbers aren't available in eBPF")
+  | Mfloat32 | Mfloat64 => Error (msg "Floating numbers are not available in eBPF")
 
   | _ => Error (msg "Asmgen.transl_memory_access")
   end.
@@ -442,7 +442,7 @@ Definition transl_instr (f: Mach.function) (i: Mach.instruction)
 
   | Msetstack src ofs ty => stack_store ofs ty src k
 
-  | Mgetparam _ _ _ => Error (msg "Functions with more than 5 arguments aren't available in eBPF")
+  | Mgetparam _ _ _ => Error (msg "Functions with more than 5 arguments are not available in eBPF")
 
   | Mop op args res => transl_op op args res k
 
@@ -456,7 +456,7 @@ Definition transl_instr (f: Mach.function) (i: Mach.instruction)
       OK (Pfreeframe f.(fn_stacksize) f.(fn_retaddr_ofs) f.(fn_link_ofs) :: Pjmp (inr symb) :: k)
 
   | Mcall sig (inl r)
-  | Mtailcall sig (inl r) => Error (msg "Call from function pointer aren't available in eBPF")
+  | Mtailcall sig (inl r) => Error (msg "Indirect calls are not available in eBPF")
 
   | Mbuiltin ef args res => Error (msg "No builtins have been implemented")
 
@@ -466,7 +466,7 @@ Definition transl_instr (f: Mach.function) (i: Mach.instruction)
 
   | Mcond cond args lbl => transl_cbranch cond args lbl k
 
-  | Mjumptable arg tbl => Error (msg "Internal error: Jumptable have been generated, but aren't available in eBPF")
+  | Mjumptable arg tbl => Error (msg "Internal error: Jumptable have been generated, but are not available in eBPF")
 
   | Mreturn => OK (Pfreeframe f.(fn_stacksize) f.(fn_retaddr_ofs) f.(fn_link_ofs) :: Pret :: k)
   end.

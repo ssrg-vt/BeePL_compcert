@@ -78,7 +78,7 @@ Inductive operation : Type :=
 (*c Boolean tests: *)
   | Ocmp (cond: condition)   (**r [rd = 1] if condition holds, [rd = 0] otherwise. *)
 
-(*c Following operations aren't available in eBPF, will throw errors in Asmgen step *)
+(*c Following operations are not available in eBPF, will throw errors in Asmgen step *)
   | Ofloatconst (n: float)   (**r [rd] is set to the given float constant *)
   | Osingleconst (n: float32)(**r [rd] is set to the given float constant *)
 
