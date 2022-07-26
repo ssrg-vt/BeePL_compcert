@@ -438,6 +438,7 @@ Proof.
   unfold notint; red; intros. rewrite Val.not_xor. apply eval_xorimm; auto.
 Qed.
 
+
 Theorem eval_divs_base:
   forall le a b x y z,
     eval_expr ge sp e m le a x ->
@@ -445,8 +446,56 @@ Theorem eval_divs_base:
     Val.divs x y = Some z ->
     exists v, eval_expr ge sp e m le (divs_base a b) v /\ Val.lessdef z v.
 Proof.
-  intros. unfold divs_base. exists z; split. EvalOp. auto.
+  intros. unfold divs_base. exists z; split;[|auto].
+  unfold Val.divs in H1.
+  destruct x,y ; try discriminate.
+  destruct ( Int.eq i0 Int.zero
+         || Int.eq i (Int.repr Int.min_signed) && Int.eq i0 Int.mone
+           ) eqn:COND ; try discriminate.
+  rewrite orb_false_iff in COND.
+  inv H1.
+  rewrite Int.divs_from_div_eq. unfold Int.divs_from_divu.
+  rewrite andb_false_iff in COND.
+  destruct COND as (COND1 & COND2).
+  assert (COND1' : Int.eq (Int.neg i0) Int.zero = false).
+  {
+    destruct (Int.eq (Int.neg i0) Int.zero) eqn:C'; auto.
+    apply Int.same_if_eq in C'.
+    rewrite <- Int.neg_zero in C'.
+    apply (f_equal Int.neg) in C'.
+    rewrite ! Int.neg_involutive in C'.
+    subst.
+    rewrite Int.eq_true in COND1. discriminate.
+  }
+  repeat (econstructor ; eauto).
+  apply eval_lift. eauto.
+  unfold Int.cmp.
+  destruct (Int.lt i Int.zero) eqn:LTI.
+  -
+    repeat (econstructor ; eauto).
+    unfold Int.cmp.
+    destruct (Int.lt i0 Int.zero) eqn:LTI0.
+    + unfold div_neg.
+    repeat (econstructor ; eauto).
+    simpl.
+    rewrite COND1'.
+    reflexivity.
+    + repeat (econstructor ; eauto).
+      simpl. rewrite COND1.
+      reflexivity.
+      simpl. reflexivity.
+  -  repeat (econstructor ; eauto).
+    unfold Int.cmp.
+    destruct (Int.lt i0 Int.zero) eqn:LTI0.
+    unfold div_neg.
+    repeat (econstructor ; eauto).
+    simpl.
+    rewrite COND1'. reflexivity.
+    repeat (econstructor ; eauto).
+    repeat (econstructor ; eauto).
+    simpl. rewrite COND1. reflexivity.
 Qed.
+
 
 Theorem eval_mods_base:
   forall le a b x y z,

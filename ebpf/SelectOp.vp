@@ -241,8 +241,29 @@ Definition notint (e: expr) := xorimm Int.mone e.
 
 (** ** Integer division and modulus *)
 
-Definition divs_base (e1: expr) (e2: expr) := Eop Odiv (e1:::e2:::Enil).
+Definition div_neg (is_neg1: bool) (e1 : expr) (is_neg2: bool) (e2 : expr) :=
+   let neg (e:expr) := Eop Oneg (e::: Enil) in
+   match is_neg1 , is_neg2 with
+   | true , true   => Eop Odivu (neg e1 :::  neg e2 ::: Enil)
+   | true , false  => neg (Eop Odivu (neg e1 ::: e2 ::: Enil))
+   | false, true   => neg (Eop Odivu (e1 ::: neg e2 ::: Enil))
+   | false , false => Eop Odivu (e1 ::: e2 ::: Enil)
+   end.
+
+Definition divs_base (e1: expr) (e2: expr) :=
+   Elet e1 (Elet (lift e2)
+                 (Econdition (CEcond (Ccompimm Clt Int.zero) (Eletvar 1 ::: Enil))
+                             (Econdition (CEcond (Ccompimm Clt Int.zero) (Eletvar 0 ::: Enil))
+                                         (div_neg true (Eletvar 1) true (Eletvar 0))
+                                         (div_neg true (Eletvar 1) false (Eletvar 0)))
+                             (Econdition  (CEcond (Ccompimm Clt Int.zero) ((Eletvar 0) ::: Enil))
+                                          (div_neg false (Eletvar 1) true (Eletvar 0))
+                                          (div_neg false (Eletvar 1) false (Eletvar 0))))).
+
+(** TODO *)
 Definition mods_base (e1: expr) (e2: expr) := Eop Omod (e1:::e2:::Enil).
+
+
 Definition divu_base (e1: expr) (e2: expr) := Eop Odivu (e1:::e2:::Enil).
 Definition modu_base (e1: expr) (e2: expr) := Eop Omodu (e1:::e2:::Enil).
 
