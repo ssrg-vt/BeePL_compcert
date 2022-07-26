@@ -206,8 +206,6 @@ Nondetfunction op_strength_reduction
 Nondetfunction addr_strength_reduction
                 (addr: addressing) (args: list reg) (vl: list aval) :=
   match addr, args, vl with
-  | Aindexed n, r1 :: nil, Ptr(Gl symb n1) :: nil =>
-      (Aglobal symb (Ptrofs.add n1 n), nil)
   | Aindexed n, r1 :: nil, Ptr(Stk n1) :: nil =>
       (Ainstack (Ptrofs.add n1 n), nil)
   | _, _, _ =>

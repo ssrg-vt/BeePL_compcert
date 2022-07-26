@@ -30,7 +30,6 @@ Definition eval_static_condition (cond: condition) (vl: list aval): abool :=
 Definition eval_static_addressing (addr: addressing) (vl: list aval): aval :=
   match addr, vl with
   | Aindexed n, v1::nil => offset_ptr v1 n
-  | Aglobal s ofs, nil => Ptr (Gl s ofs)
   | Ainstack ofs, nil => Ptr (Stk ofs)
   | _, _ => Vbot
   end.

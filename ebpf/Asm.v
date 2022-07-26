@@ -125,8 +125,9 @@ Inductive instruction : Type :=
   | Pret : instruction                                          (**r function return *)
 
   (* Pseudo-instructions *)
-  | Plabel (lbl: label)                                         (**r define a code label *)
-  | Pbuiltin: external_function -> list (builtin_arg preg)
+| Plabel (lbl: label)                                         (**r define a code label *)
+| Ploadsymbol (rd:ireg) (id:ident) (ofs: ptrofs)              (**r load address of symbol *)
+| Pbuiltin: external_function -> list (builtin_arg preg)
               -> builtin_res preg -> instruction                (**r built-in function (pseudo) *)
   | Pallocframe (sz: Z) (ofs_ra ofs_link: ptrofs)               (**r allocate new stack frame *)
   | Pfreeframe  (sz: Z) (ofs_ra ofs_link: ptrofs).              (**r deallocate stack frame and restore previous frame *)
@@ -376,7 +377,7 @@ Definition exec_instr (f: function) (i: instruction) (rs:regset) (m: mem) : outc
       end
 
   | Plabel l         => Next (nextinstr rs) m
-
+  | Ploadsymbol rd s ofs => Next (nextinstr (rs#rd <- (Genv.symbol_address ge s ofs))) m
   | _                => Stuck
   end.
 
