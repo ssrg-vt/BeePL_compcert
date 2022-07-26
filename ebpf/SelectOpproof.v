@@ -524,7 +524,23 @@ Theorem eval_modu_base:
     Val.modu x y = Some z ->
     exists v, eval_expr ge sp e m le (modu_base a b) v /\ Val.lessdef z v.
 Proof.
-  intros. unfold modu_base. exists z; split. EvalOp. auto.
+  intros.
+  unfold modu_base.
+  destruct Archi.has_modu.
+  - exists z; split. EvalOp. auto.
+  - exists z; split.
+    destruct x,y; try discriminate.
+    simpl in H1.
+    destruct (Int.eq i0 Int.zero) eqn:D; try discriminate.
+    inv H1.
+    repeat (econstructor; eauto).
+    apply eval_lift. eauto.
+    simpl. rewrite D. reflexivity.
+    simpl.
+    rewrite Int.modu_divu. reflexivity.
+    intro. subst.
+    rewrite Int.eq_true in D. discriminate.
+    auto.
 Qed.
 
 Theorem eval_shrximm:
@@ -533,42 +549,22 @@ Theorem eval_shrximm:
     Val.shrx x (Vint n) = Some z ->
     exists v, eval_expr ge sp e m le (shrximm a n) v /\ Val.lessdef z v.
 Proof.
-  intros. unfold shrximm.
-  predSpec Int.eq Int.eq_spec n Int.zero.
-  subst n. exists x; split; auto.
-  destruct x; simpl in H0; try discriminate.
-  destruct (Int.ltu Int.zero (Int.repr 31)); inv H0.
-  replace (Int.shrx i Int.zero) with i. auto.
-  unfold Int.shrx, Int.divs. rewrite Int.shl_zero.
-  change (Int.signed Int.one) with 1. rewrite Z.quot_1_r. rewrite Int.repr_signed; auto.
-  econstructor; split. EvalOp. auto.
-(*
-  intros. destruct x; simpl in H0; try discriminate.
-  destruct (Int.ltu n (Int.repr 31)) eqn:LTU; inv H0.
+  intros.
   unfold shrximm.
+  exploit  Val.shrx_shr_2; eauto.
   predSpec Int.eq Int.eq_spec n Int.zero.
-  - subst n. exists (Vint i); split; auto.
-    unfold Int.shrx, Int.divs. rewrite Z.quot_1_r. rewrite Int.repr_signed. auto.
-  - assert (NZ: Int.unsigned n <> 0).
-    { intro EQ; elim H0. rewrite <- (Int.repr_unsigned n). rewrite EQ; auto. }
-    assert (LT: 0 <= Int.unsigned n < 31) by (apply Int.ltu_inv in LTU; assumption).
-    assert (LTU2: Int.ltu (Int.sub Int.iwordsize n) Int.iwordsize = true).
-    { unfold Int.ltu; apply zlt_true.
-      unfold Int.sub. change (Int.unsigned Int.iwordsize) with 32.
-      rewrite Int.unsigned_repr. lia.
-      assert (32 < Int.max_unsigned) by reflexivity. lia. }
-    assert (X: eval_expr ge sp e m le
-               (Eop (Oshrimm (Int.repr (Int.zwordsize - 1))) (a ::: Enil))
-               (Vint (Int.shr i (Int.repr (Int.zwordsize - 1))))).
-    { EvalOp. }
-    assert (Y: eval_expr ge sp e m le (shrximm_inner a n)
-               (Vint (Int.shru (Int.shr i (Int.repr (Int.zwordsize - 1))) (Int.sub Int.iwordsize n)))).
-    { EvalOp. simpl. rewrite LTU2. auto. }
-    TrivialExists.
-    constructor. EvalOp. simpl; eauto. constructor.
-    simpl. unfold Int.ltu; rewrite zlt_true. rewrite Int.shrx_shr_2 by auto. reflexivity.
-    change (Int.unsigned Int.iwordsize) with 32; lia.
-*)
+  -
+    subst n. destruct x ; try discriminate.
+    simpl in H0.
+    change (Int.ltu Int.zero (Int.repr 31)) with true in H0.
+    inv H0.
+    rewrite Int.shrx_zero.
+    eexists ; split ; eauto.
+    change Int.zwordsize with 32. lia.
+  -
+    intro Z; subst.
+    eexists ; split ; eauto.
+    repeat (econstructor ; eauto).
 Qed.
 
 Theorem eval_shl: binary_constructor_sound shl Val.shl.
