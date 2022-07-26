@@ -15,7 +15,14 @@
 From Flocq Require Import Binary Bits.
 Require Import ZArith List.
 
+(** Features *)
+
+Definition has_modu := false. (* Does the archi has modulo? *)
+(**  **)
+
 Definition ptr64 := false.
+
+
 
 Definition big_endian := false.
 
@@ -59,7 +66,7 @@ Definition float_conversion_default_nan := false.
 (** Which ABI to use. *)
 Parameter win64: bool.   (* Always false in 32 bits *)
 
-Global Opaque ptr64 big_endian splitlong
+Global Opaque has_modu ptr64 big_endian splitlong
               default_nan_64 choose_nan_64
               default_nan_32 choose_nan_32
               fma_order fma_invalid_mul_is_nan
