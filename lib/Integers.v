@@ -947,6 +947,156 @@ Qed.
 
 (** ** Properties of division and modulus *)
 
+Definition divs_from_divu (x y: int) : int :=
+  if lt x zero
+  then if lt y zero then divu (neg x) (neg y)
+       else neg (divu (neg x) y)
+  else if lt y zero then neg (divu x (neg y))
+       else divu x y.
+
+Lemma unsigned_repr_half_modulus :
+  unsigned (repr half_modulus) = half_modulus.
+Proof.
+  rewrite unsigned_repr_eq.
+  rewrite Z.mod_small; auto.
+  generalize half_modulus_pos.
+  generalize half_modulus_modulus.
+  lia.
+Qed.
+
+Lemma lt_zero_ltu : forall x, lt x zero = negb (ltu x (repr half_modulus)).
+Proof.
+  intros.
+  unfold lt,ltu, signed.
+  change (unsigned zero) with 0.
+  rewrite unsigned_repr_half_modulus.
+  pose proof half_modulus_pos as HMP.
+  pose proof half_modulus_modulus as HMM.
+  pose proof (unsigned_range x)  as RX.
+  destruct (zlt 0 half_modulus); try lia.
+  destruct (zlt (unsigned x) half_modulus).
+  destruct (zlt (unsigned x) 0) ; try lia.
+  destruct (zlt (unsigned x - modulus) 0); lia.
+Qed.
+
+Lemma signed_unsigned_eq : forall x,
+    signed x =
+      if lt x zero then unsigned x - modulus
+      else unsigned x.
+Proof.
+  unfold signed.
+  intros.
+  rewrite lt_zero_ltu.
+  unfold ltu.
+  rewrite unsigned_repr_half_modulus.
+  destruct (zlt (unsigned x) half_modulus); auto.
+Qed.
+
+Lemma opp_mod_modulus : forall x,
+    - unsigned x mod modulus =
+      if zeq (unsigned x) 0 then 0
+      else - unsigned x + modulus.
+Proof.
+  intros.
+  destruct (zeq (unsigned x) 0).
+  - rewrite e. reflexivity.
+  -
+    replace (-unsigned x)
+      with ((- unsigned x + modulus) + ((-1) * modulus)) by ring.
+    rewrite Z_mod_plus_full.
+    rewrite Z.mod_small. ring.
+    generalize (unsigned_range x).
+    lia.
+Qed.
+
+
+Lemma neg_lt_zero : forall x,
+    lt x zero = true ->
+    unsigned (neg x) =  - (unsigned x - modulus).
+Proof.
+  intros.
+  rewrite lt_zero_ltu in H.
+  unfold ltu in H.
+  rewrite unsigned_repr_half_modulus in H.
+  destruct (zlt (unsigned x) half_modulus); try discriminate.
+  unfold neg.
+  rewrite unsigned_repr_eq.
+  rewrite opp_mod_modulus.
+  destruct (zeq (unsigned x) 0).
+  generalize (half_modulus_pos). lia.
+  lia.
+Qed.
+
+Lemma Z_div_unsigned_range : forall x y,
+    0 <= (unsigned x / unsigned y) < modulus.
+Proof.
+  intros.
+  pose proof (modulus_pos) as P.
+  pose proof (unsigned_range x) as RX.
+  pose proof (unsigned_range y) as RY.
+  assert (SGN : unsigned y = 0 \/ 0 < unsigned y) by lia.
+  destruct SGN as [Z | NZ].
+  - rewrite Z.
+    assert (DZ : unsigned x / 0 = 0) by (destruct (unsigned x); compute ; congruence).
+    rewrite DZ ; lia.
+  - split.
+    + apply Z.div_pos;lia.
+    + apply Z.div_lt_upper_bound; nia.
+Qed.
+
+Lemma divs_from_div_eq : forall x y,
+    divs x y = divs_from_divu x y.
+Proof.
+  unfold divs_from_divu, divs,divu.
+  intros.
+  pose proof (unsigned_range x) as RX.
+  pose proof (unsigned_range y) as RY.
+  destruct (lt x zero) eqn: LTX;
+    destruct (lt y zero) eqn: LTY.
+  -
+    rewrite !signed_unsigned_eq.
+    rewrite LTX. rewrite LTY.
+    rewrite <- (Z.opp_involutive ((unsigned x - modulus))).
+    rewrite Zquot.Zquot_opp_l.
+    rewrite <- (Z.opp_involutive ((unsigned y - modulus))).
+    rewrite Zquot.Zquot_opp_r.
+    rewrite Z.opp_involutive.
+    rewrite neg_lt_zero by auto.
+    rewrite neg_lt_zero by auto.
+    rewrite <- Zquot.Zquot_Zdiv_pos by lia.
+    reflexivity.
+  -
+    rewrite !signed_unsigned_eq.
+    rewrite LTX. rewrite LTY.
+    rewrite <- (Z.opp_involutive ((unsigned x - modulus))).
+    rewrite Zquot.Zquot_opp_l.
+    rewrite Zquot.Zquot_Zdiv_pos by lia.
+    rewrite <- neg_lt_zero by auto.
+    generalize (Z_div_unsigned_range  (neg x) y).
+    generalize (unsigned (neg x) / unsigned y).
+    intros. unfold neg.
+    rewrite unsigned_repr_eq.
+    rewrite Z.mod_small by auto.
+    reflexivity.
+  - rewrite !signed_unsigned_eq.
+    rewrite LTX. rewrite LTY.
+    rewrite <- (Z.opp_involutive ((unsigned y - modulus))).
+    rewrite Zquot.Zquot_opp_r.
+    rewrite Zquot.Zquot_Zdiv_pos by lia.
+    rewrite <- neg_lt_zero by auto.
+    generalize (Z_div_unsigned_range  x (neg y)).
+    generalize (unsigned  x / unsigned (neg y)).
+    intros. unfold neg.
+    rewrite unsigned_repr_eq.
+    rewrite Z.mod_small by auto.
+    reflexivity.
+  -
+    rewrite !signed_unsigned_eq.
+    rewrite LTX. rewrite LTY.
+    rewrite <- Zquot.Zquot_Zdiv_pos by lia.
+    reflexivity.
+Qed.
+
 Lemma modu_divu_Euclid:
   forall x y, y <> zero -> x = add (mul (divu x y) y) (modu x y).
 Proof.
