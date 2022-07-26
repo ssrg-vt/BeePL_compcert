@@ -89,7 +89,6 @@ Inductive operation : Type :=
 
   | Omulhs                   (**r [rd = high part of r1 * r2, signed] *)
   | Omulhu                   (**r [rd = high part of r1 * r2, unsigned] *)
-  | Odiv                     (**r [rd = r1 / r2] (signed) *)
   | Omod                     (**r [rd = r1 % r2] (signed) *)
   | Oshrximm (n: int)        (**r [rd = r1 / 2^n] (signed) *)
 
@@ -232,7 +231,6 @@ Definition eval_operation
   | Osingleconst n, nil => Some (Vsingle n)
   | Omulhs, v1::v2::nil => Some (Val.mulhs v1 v2)
   | Omulhu, v1::v2::nil => Some (Val.mulhu v1 v2)
-  | Odiv, v1 :: v2 :: nil => Val.divs v1 v2
   | Omod, v1 :: v2 :: nil => Val.mods v1 v2
   | Oshrximm n, v1::nil => Val.shrx v1 (Vint n)
   | Omakelong, v1::v2::nil => Some (Val.longofwords v1 v2)
@@ -361,7 +359,6 @@ Definition type_of_operation (op: operation) : list typ * typ :=
   | Osingleconst f => (nil, Tsingle)
   | Omulhs => (Tint :: Tint :: nil, Tint)
   | Omulhu => (Tint :: Tint :: nil, Tint)
-  | Odiv => (Tint :: Tint :: nil, Tint)
   | Omod => (Tint :: Tint :: nil, Tint)
   | Oshrximm _ => (Tint :: nil, Tint)
   | Omakelong => (Tint :: Tint :: nil, Tlong)
@@ -490,9 +487,6 @@ Proof with (try exact I; try reflexivity; auto using Val.Vptr_has_type).
   (* mulhs, mulhu *)
   - destruct v0; destruct v1...
   - destruct v0; destruct v1...
-  (* divs *)
-  - destruct v0; destruct v1; simpl in *; inv H0.
-    destruct (Int.eq i0 Int.zero || Int.eq i (Int.repr Int.min_signed) && Int.eq i0 Int.mone); inv H2...
   (* mods *)
   - destruct v0; destruct v1; simpl in *; inv H0.
     destruct (Int.eq i0 Int.zero || Int.eq i (Int.repr Int.min_signed) && Int.eq i0 Int.mone); inv H2...
@@ -895,11 +889,6 @@ Proof.
   (* mulhs, mulhu *)
   - inv H4; inv H2; simpl; auto.
   - inv H4; inv H2; simpl; auto.
-  (* div *)
-  - inv H4; inv H3; simpl in H1; inv H1. simpl.
-    destruct (Int.eq i0 Int.zero
-              || Int.eq i (Int.repr Int.min_signed) && Int.eq i0 Int.mone); inv H2.
-    TrivialExists.
   (* mod *)
   - inv H4; inv H3; simpl in H1; inv H1. simpl.
     destruct (Int.eq i0 Int.zero
