@@ -31,7 +31,7 @@ Local Open Scope error_monad_scope.
 Definition ireg_of (r: mreg) : res ireg :=
   match preg_of r with
   | IR mr => OK mr
-  | FR mr => Error (msg "Floating numbers are not available in eBPF")
+  | FR mr => Error (msg "eBPF does not has floating point registers")
   | _ => Error (msg "Asmgen.ireg_of")
   end.
 
@@ -95,7 +95,7 @@ Definition transl_cbranch (cond: condition) (args: list mreg) (lbl: label) (k: c
   | Ccompf _, _
   | Cnotcompf _, _
   | Ccompfs _, _
-  | Cnotcompfs _, _ => Error (msg "Floating numbers are not available in eBPF")
+  | Cnotcompfs _, _ => Error (msg "Floating point comparisons are not available in eBPF")
 
   | _, _ => Error(msg "Asmgen.transl_cbranch")
   end.
@@ -147,7 +147,7 @@ Definition transl_cond_op (cond: condition) (r: mreg) (args: list mreg) (k: code
   | Ccompf c, _
   | Cnotcompf c, _
   | Ccompfs c, _
-  | Cnotcompfs c, _ => Error (msg "Floating numbers are not available in eBPF")
+  | Cnotcompfs c, _ => Error (msg "Floating point comparisons are not available in eBPF")
 
   | _, _ => Error (msg "Asmgen.transl_cond_op")
   end.
@@ -352,7 +352,7 @@ Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
   | Olongofsingle, _
   | Olonguofsingle, _
   | Osingleoflong, _
-  | Osingleoflongu, _ => Error (msg "Floating numbers are not available in eBPF")
+  | Osingleoflongu, _ => Error (msg "Floating point conversions are not available in eBPF")
 
   | _, _ => Error (msg "Asmgen.transl_op")
   end.
@@ -366,7 +366,7 @@ Definition transl_typ (typ: typ): res (sizeOp) :=
   | Tany32 => OK Word
   | Tint => OK SignedWord
 
-  | Tsingle | Tfloat => Error (msg "Floating numbers are not available in eBPF")
+  | Tsingle | Tfloat => Error (msg "Floating point types are not available in eBPF")
 
   | _ => Error (msg "Asmgen.transl_typ")
   end.
