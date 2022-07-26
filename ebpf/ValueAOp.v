@@ -71,7 +71,6 @@ Definition eval_static_operation (op: operation) (vl: list aval): aval :=
   | Ocast16signed, v1 :: nil => sign_ext 16 v1
   | Omulhs, v1::v2::nil => mulhs v1 v2
   | Omulhu, v1::v2::nil => mulhu v1 v2
-  | Odiv, v1::v2::nil => divs v1 v2
   | Omod, v1::v2::nil => mods v1 v2
   | Oshrximm n, v1::nil => shrx v1 (I n)
   | Omakelong, v1::v2::nil => longofwords v1 v2
