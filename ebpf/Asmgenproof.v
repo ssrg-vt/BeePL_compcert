@@ -179,14 +179,14 @@ Remark transl_load_label:
   forall chunk addr args dst k c,
   transl_load chunk addr args dst k = OK c -> tail_nolabel k c.
 Proof.
-  intros. unfold transl_load in H; destruct args, addr; TailNoLabel.
+  intros. unfold transl_load,transl_load_indexed in H;destruct args, addr,chunk; TailNoLabel.
 Qed.
 
 Remark transl_store_label:
   forall chunk addr args dst k c,
   transl_store chunk addr args dst k = OK c -> tail_nolabel k c.
 Proof.
-  intros. unfold transl_store in H; destruct args, addr; TailNoLabel.
+  intros. unfold transl_store, transl_store_indexed in H; destruct args, addr,chunk; TailNoLabel.
 Qed.
 
 Lemma transl_instr_label:

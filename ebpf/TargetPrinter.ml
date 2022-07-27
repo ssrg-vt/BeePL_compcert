@@ -64,7 +64,10 @@ module Target : TARGET =
         | Byte -> "u8"
         | HalfWord -> "u16"
         | Word -> "u32"
-        | SignedWord -> "u32"
+        | WordAny -> "u32"
+        | SignedWord -> "s32"
+        | DBWord     -> "u64"
+        | DBWordAny  -> "u64"
       in output_string oc (sizeOp_name mem)
 
     let operator oc op =
