@@ -31,7 +31,7 @@ Local Open Scope error_monad_scope.
 Definition ireg_of (r: mreg) : res ireg :=
   match preg_of r with
   | IR mr => OK mr
-  | FR mr => Error (msg "eBPF does not has floating point registers")
+  | FR mr => Error (msg "eBPF does not have floating point registers")
   | _ => Error (msg "Asmgen.ireg_of")
   end.
 
@@ -360,33 +360,18 @@ Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
 
 (** Accessing data in the stack frame. *)
 
-Definition transl_typ (typ: typ): res (sizeOp) :=
-  match typ with
-  | Tany32 => OK Word
-  | Tint => OK SignedWord
 
+Definition transl_typ (t: typ): res (sizeOp) :=
+  match t with
+  | Tany32 => OK WordAny
+  | Tint => OK Word
   | Tsingle | Tfloat => Error (msg "Floating point types are not available in eBPF")
-
-  | _ => Error (msg "Asmgen.transl_typ")
+  | Tlong => if Archi.ptr64 then OK DBWord else Error (msg "Tlong is only available for eBPF-64")
+  | Tany64 => if Archi.ptr64 then OK DBWordAny else Error (msg "Tany64 is only available for eBPF-64")
   end.
 
 
 (** Translation of memory accesses: loads, and stores. *)
-
-Definition transl_memory_access (chunk: memory_chunk): res (sizeOp) :=
-  match chunk with
-  | Mint8unsigned => OK Byte
-
-  | Mint16unsigned => OK HalfWord
-
-  | Many32 => OK Word
-
-  | Mint32 => OK SignedWord
-
-  | Mfloat32 | Mfloat64 => Error (msg "Floating numbers are not available in eBPF")
-
-  | _ => Error (msg "Asmgen.transl_memory_access")
-  end.
 
 Definition stack_load (ofs: ptrofs) (ty: typ) (dst: mreg) (k: code): res (list instruction) :=
   do r <- ireg_of dst;
@@ -398,20 +383,45 @@ Definition stack_store (ofs: ptrofs) (ty: typ) (src: mreg) (k: code): res (list 
   do size <- transl_typ ty;
   OK (Pstore size SP (inl r) ofs :: k).
 
+Definition transl_load_indexed (chunk : memory_chunk) (d:ireg) (a:ireg) (ofs: ptrofs) (k:code) : res (list instruction) :=
+  match chunk with
+  | Mint8unsigned  => OK (Pload Byte d a ofs :: k)
+  | Mint16unsigned => OK (Pload HalfWord d a ofs :: k)
+  | Many32         => OK (Pload WordAny d a ofs :: k)
+  | Mint32         => OK (Pload Word   d a ofs :: k)
+  | Mint64         => if Archi.ptr64 then OK (Pload DBWord d a ofs :: k) else Error (msg "int64 is only available for eBPF-64")
+  | Many64         => if Archi.ptr64 then OK (Pload DBWordAny d a ofs :: k) else Error (msg "int64 is only available for eBPF-64")
+  | Mint8signed    => OK (Pload Byte d a ofs :: Palu LSH d (inr (Int.repr 24)) :: Palu ARSH d (inr (Int.repr 24)) :: k)
+  | Mint16signed   => OK (Pload HalfWord d a ofs :: Palu LSH d (inr (Int.repr 16)) :: Palu ARSH d (inr (Int.repr 16)) :: k)
+  | Mfloat32 | Mfloat64      => Error (msg "Floating point numbers are not supported by eBPF")
+  end.
+
+
 Definition transl_load (chunk: memory_chunk) (addr: addressing)
            (args: list mreg) (dst: mreg) (k: code): res (list instruction) :=
   match addr, args with
   | Aindexed ofs, a1 :: nil =>
       do r <- ireg_of dst;
       do r1 <- ireg_of a1;
-      do size <- transl_memory_access chunk;
-      OK (Pload size r r1 ofs :: k)
+      transl_load_indexed chunk r r1 ofs k
 
   | Ainstack ofs, nil =>
       do r <- ireg_of dst;
-      do size <- transl_memory_access chunk;
-      OK (Pload size r SP ofs :: k)
+      transl_load_indexed chunk r SP ofs k
   | _, _ => Error(msg "Asmgen.transl_load")
+  end.
+
+Definition transl_store_indexed (chunk : memory_chunk) (d:ireg) (ofs: ptrofs) (a:ireg)  (k:code) : res (list instruction) :=
+  match chunk with
+  | Mint8unsigned  => OK (Pstore Byte d (inl a) ofs :: k)
+  | Mint16unsigned => OK (Pstore HalfWord d (inl a) ofs :: k)
+  | Many32         => OK (Pstore WordAny d (inl a) ofs :: k)
+  | Mint32         => OK (Pstore Word   d (inl a) ofs :: k)
+  | Mint64         => if Archi.ptr64 then OK (Pstore DBWord d (inl a) ofs :: k) else Error (msg "int64 is only available for eBPF-64")
+  | Many64         => if Archi.ptr64 then OK (Pstore DBWordAny d (inl a) ofs :: k) else Error (msg "int64 is only available for eBPF-64")
+  | Mint8signed    => OK (Pstore Byte d (inl a) ofs :: k)
+  | Mint16signed   => OK (Pstore HalfWord d (inl a) ofs  :: k)
+  | Mfloat32 | Mfloat64      => Error (msg "Floating point numbers are not supported by eBPF")
   end.
 
 Definition transl_store (chunk: memory_chunk) (addr: addressing)
@@ -420,13 +430,11 @@ Definition transl_store (chunk: memory_chunk) (addr: addressing)
   | Aindexed ofs, a1 :: nil =>
       do r <- ireg_of src;
       do r1 <- ireg_of a1;
-      do size <- transl_memory_access chunk;
-      OK (Pstore size r1 (inl r) ofs :: k)
+      (transl_store_indexed chunk r1 ofs r  k)
 
   | Ainstack ofs, nil =>
       do r <- ireg_of src;
-      do size <- transl_memory_access chunk;
-      OK (Pstore size SP (inl r) ofs :: k)
+       (transl_store_indexed chunk SP ofs r  k)
 
   | _, _ => Error(msg "Asmgen.transl_store")
   end.
