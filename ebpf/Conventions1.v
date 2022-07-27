@@ -29,7 +29,7 @@ Require Import AST Machregs Locations.
 
 Definition is_callee_save (r: mreg) : bool :=
   match r with
-  | I6 | I7 | I8 | I9 => true
+  | I6 | I7 | I8 (*| I9*) => true
   | _ => false
   end.
 
@@ -38,7 +38,7 @@ Definition int_caller_save_regs :=
 
 Definition float_caller_save_regs : list mreg := D0 :: D1 :: nil.
 
-Definition int_callee_save_regs := I6 :: I7 :: I8 :: I9 :: nil.
+Definition int_callee_save_regs := I6 :: I7 :: I8 (*:: I9*) :: nil.
 
 Definition float_callee_save_regs : list mreg := D2 :: nil.
 

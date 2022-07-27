@@ -20,25 +20,27 @@ open Camlcoq
 
 exception Error of string
 
+let ra = R9
+let sp = R10
 
 (* Expansion of instructions *)
 let expand_alloc_frame sz ofs_ra ofs_link =
   Datatypes.(
   (* RO := SP *)
-  emit (Palu(MOV,R0,Coq_inl R10));
+  emit (Palu(MOV,R0,Coq_inl sp));
   (* SP := SP - sz *)
-  emit (Palu(SUB,R10,Coq_inr sz));
+  emit (Palu(SUB,sp,Coq_inr sz));
   (* *(SP+ofs_link) := R0 *)
-  emit (Pstore(Word,R10,Coq_inl R0,ofs_link));
+  emit (Pstore(Word,sp,Coq_inl R0,ofs_link));
   (* *(SP+ofs_ra) := RA *)
-  emit (Pstore(Word,R10,Coq_inl RA,ofs_ra)))
+  emit (Pstore(Word,sp,Coq_inl ra,ofs_ra)))
 
 let expand_free_frame sz ofs_ra ofs_link =
   Datatypes.(
   (* RA := *(SP+ofs_ra) *)
-  emit (Pload(Word,RA,R10,ofs_ra));
+  emit (Pload(Word,ra,sp,ofs_ra));
   (* SP := SP + sz *)
-  emit (Palu(ADD,R10,Coq_inr sz)))
+  emit (Palu(ADD,sp,Coq_inr sz)))
 
 
 let expand_instruction instr =
@@ -56,7 +58,7 @@ let expand_instruction instr =
 let int_reg_to_dwarf = function
                | R0  -> 1  | R1  -> 2  | R2  -> 3
    | R3  -> 4  | R4  -> 5  | R5  -> 6  | R6  -> 7
-   | R7  -> 8  | R8  -> 9  | R9  -> 10 | R10 -> 11 | RA -> 12
+   | R7  -> 8  | R8  -> 9  | R9  -> 10 | R10 -> 11 (*| RA -> 12*)
 
 let preg_to_dwarf = function
    | IR r -> int_reg_to_dwarf r

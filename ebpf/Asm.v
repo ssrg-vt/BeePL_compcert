@@ -24,7 +24,8 @@ Require Stacklayout.
 
 (** Registers. *)
 
-Inductive ireg: Type := R0 | R1 | R2 | R3 | R4 | R5 | R6 | R7 | R8 | R9 | R10 | RA.
+Inductive ireg: Type := R0 | R1 | R2 | R3 | R4 | R5 | R6 | R7 | R8 | R9 | R10 (*| RA is actually R9 *).
+
 Inductive freg: Type := F0 | F1 | F2.
 
 Lemma ireg_eq: forall (x y: ireg), {x=y} + {x<>y}.
@@ -63,7 +64,7 @@ Module Pregmap := EMap(PregEq).
 Definition preg_of (r: mreg) : preg :=
   match r with
   | I0 => IR R0 | I1 => IR R1 | I2 => IR R2 | I3 => IR R3 | I4 => IR R4
-  | I5 => IR R5 | I6 => IR R6 | I7 => IR R7 | I8 => IR R8 | I9 => IR R9
+  | I5 => IR R5 | I6 => IR R6 | I7 => IR R7 | I8 => IR R8 (*| I9 => IR R9*)
 
   | D0 => FR F0 | D1 => FR F1 | D2 => FR F2
   end.
@@ -71,6 +72,7 @@ Definition preg_of (r: mreg) : preg :=
 (** Conventional names for stack pointer ([SP]) *)
 
 Notation "'SP'" := R10 (only parsing) : asm.
+Notation "'RA'" := R9 (only parsing) : asm.
 
 
 (** The instruction set.  Most instructions correspond exactly to
