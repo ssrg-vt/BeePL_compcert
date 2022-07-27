@@ -24,7 +24,7 @@ Require Stacklayout.
 
 (** Registers. *)
 
-Inductive ireg: Type := R0 | R1 | R2 | R3 | R4 | R5 | R6 | R7 | R8 | R9 | R10.
+Inductive ireg: Type := R0 | R1 | R2 | R3 | R4 | R5 | R6 | R7 | R8 | R9 | R10 | RA.
 Inductive freg: Type := F0 | F1 | F2.
 
 Lemma ireg_eq: forall (x y: ireg), {x=y} + {x<>y}.
@@ -39,8 +39,8 @@ Proof. decide equality. Defined.
 Inductive preg :=
 | IR : ireg -> preg  (**r integer registers *)
 | FR : freg -> preg  (**r float registers, not available in eBPF *)
-| PC : preg          (**r program counter *)
-| RA : preg.         (**r pseudo-reg representing return address *)
+| PC : preg.          (**r program counter *)
+
 
 Coercion IR: ireg >-> preg.
 Coercion FR: freg >-> preg.
@@ -540,9 +540,8 @@ Qed.
 
 Definition data_preg (r: preg) : bool :=
   match r with
+  | IR RA   => false
   | IR _ => true
   | FR _ => true
   | PC   => false
-  | RA   => false
   end.
-
