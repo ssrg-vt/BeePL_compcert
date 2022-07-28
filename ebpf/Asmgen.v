@@ -54,22 +54,22 @@ Definition addptrofs (rd rs: ireg) (n: ptrofs) (k: code) :=
 
 Definition transl_cbranch_signed (cmp: comparison) (r1: ireg) (r2: ireg+imm) (lbl: label) :=
   match cmp with
-  | Ceq => Pjmpcmp EQ r1 r2 lbl
-  | Cne => Pjmpcmp NE r1 r2 lbl
-  | Clt => Pjmpcmp (LT Ctypes.Signed) r1 r2 lbl
-  | Cle => Pjmpcmp (LE Ctypes.Signed) r1 r2 lbl
-  | Cgt => Pjmpcmp (GT Ctypes.Signed) r1 r2 lbl
-  | Cge => Pjmpcmp (GE Ctypes.Signed) r1 r2 lbl
+  | Ceq => Pjmpcmp EQ r1 r2 (inl lbl)
+  | Cne => Pjmpcmp NE r1 r2 (inl lbl)
+  | Clt => Pjmpcmp (LT Ctypes.Signed) r1 r2 (inl lbl)
+  | Cle => Pjmpcmp (LE Ctypes.Signed) r1 r2 (inl lbl)
+  | Cgt => Pjmpcmp (GT Ctypes.Signed) r1 r2 (inl lbl)
+  | Cge => Pjmpcmp (GE Ctypes.Signed) r1 r2 (inl lbl)
   end.
 
 Definition transl_cbranch_unsigned (cmp: comparison) (r1: ireg) (r2: ireg+imm) (lbl: label) :=
   match cmp with
-  | Ceq => Pjmpcmp EQ r1 r2 lbl
-  | Cne => Pjmpcmp NE r1 r2 lbl
-  | Clt => Pjmpcmp (LT Ctypes.Unsigned) r1 r2 lbl
-  | Cle => Pjmpcmp (LE Ctypes.Unsigned) r1 r2 lbl
-  | Cgt => Pjmpcmp (GT Ctypes.Unsigned) r1 r2 lbl
-  | Cge => Pjmpcmp (GE Ctypes.Unsigned) r1 r2 lbl
+  | Ceq => Pjmpcmp EQ r1 r2 (inl lbl)
+  | Cne => Pjmpcmp NE r1 r2 (inl lbl)
+  | Clt => Pjmpcmp (LT Ctypes.Unsigned) r1 r2 (inl lbl)
+  | Cle => Pjmpcmp (LE Ctypes.Unsigned) r1 r2 (inl lbl)
+  | Cgt => Pjmpcmp (GT Ctypes.Unsigned) r1 r2 (inl lbl)
+  | Cge => Pjmpcmp (GE Ctypes.Unsigned) r1 r2 (inl lbl)
   end.
 
 Definition transl_cbranch (cond: condition) (args: list mreg) (lbl: label) (k: code) :=

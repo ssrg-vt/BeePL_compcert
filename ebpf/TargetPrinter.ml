@@ -37,11 +37,13 @@ module Target : TARGET =
     let symbol        = elf_symbol
     let label         = elf_label
 
-    let rec print_label oc lbl = label oc (transl_label lbl)
 
-    and print_label_or_ident oc = function
-      | Datatypes.Coq_inl label -> print_label oc label
-      | Datatypes.Coq_inr ident -> symbol oc ident
+    let print_sum  (f1:out_channel -> 'a -> unit) (f2:out_channel -> 'b -> unit) (oc: out_channel) = function
+      | Datatypes.Coq_inl a -> f1 oc a
+      | Datatypes.Coq_inr a -> f2 oc a
+
+    
+    let  print_label oc lbl = label oc (transl_label lbl)
 
     let use_abi_name = false
 
@@ -114,7 +116,8 @@ module Target : TARGET =
       fprintf oc "	%a (%s)= %a\n" register_arch reg (cmpOp op) register_or_immediate regimm
 
     and print_jump_cmp oc op reg regimm label =
-      fprintf oc "	if %a %s %a goto %a\n" register_arch  reg (cmpOp op) register_or_immediate regimm print_label label
+      fprintf oc "	if %a %s %a goto %a\n" register_arch  reg (cmpOp op) register_or_immediate regimm
+        (print_sum print_label immediate) label
 
 (* Names of sections *)
 
@@ -207,7 +210,7 @@ module Target : TARGET =
         fprintf oc "	%a%a%a\n" register_arch reg operator op register_or_immediate  regimm
 
       | Pcmp (op, reg, regimm) -> print_cmp oc op reg regimm
-      | Pjmp goto -> fprintf oc "	goto %a\n" print_label_or_ident goto
+      | Pjmp goto -> fprintf oc "	goto %a\n" (print_sum print_label symbol) goto
       | Pjmpcmp (op, reg, regimm, label) -> print_jump_cmp oc op reg regimm label
 
       | Pcall (s, _) -> fprintf oc "	call %a\n" symbol s

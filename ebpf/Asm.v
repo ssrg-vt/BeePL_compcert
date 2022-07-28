@@ -127,7 +127,7 @@ Inductive instruction : Type :=
   | Palu : aluOp -> ireg -> ireg+imm -> instruction             (**r arithmetics *)
   | Pcmp : cmpOp -> ireg -> ireg+imm -> instruction             (**r comparison without branching: eBPF extension *)
   | Pjmp : ident+label -> instruction                           (**r unconditional jump *)
-  | Pjmpcmp : cmpOp -> ireg -> ireg+imm -> label -> instruction (**r conditional jump with comparison *)
+  | Pjmpcmp : cmpOp -> ireg -> ireg+imm -> label+ptrofs -> instruction (**r conditional jump with comparison *)
   | Pcall : ident -> signature -> instruction                   (**r function call *)
   | Pret : instruction                                          (**r function return *)
 
@@ -361,9 +361,13 @@ Definition exec_alu (o: aluOp)  (r: ireg) (ri: ireg+imm) (rs: regset) (m: mem) :
 Definition exec_cmp (r: ireg) (rs: regset) (m: mem) (res: option bool) :=
   Next (nextinstr (rs#r <- (Val.of_optbool res))) m.
 
-Definition exec_branch (f: function) (l: label) (rs: regset) (m: mem) (res: option bool) : outcome :=
+Definition exec_branch (f: function) (l: label+ptrofs) (rs: regset) (m: mem) (res: option bool) : outcome :=
   match res with
-  | Some true  => goto_label f l rs m
+  | Some true  =>
+      match l with
+      | inl l   => goto_label f l rs m
+      | inr ofs => Next (nextinstr (rs#PC <- (Val.offset_ptr rs#PC ofs))) m
+      end
   | Some false => Next (nextinstr rs) m
   | None => Stuck
   end.
