@@ -136,8 +136,8 @@ Inductive instruction : Type :=
 | Ploadsymbol (rd:ireg) (id:ident) (ofs: ptrofs)              (**r load address of symbol *)
 | Pbuiltin: external_function -> list (builtin_arg preg)
               -> builtin_res preg -> instruction                (**r built-in function (pseudo) *)
-  | Pallocframe (sz: Z) (ofs_ra ofs_link: ptrofs)               (**r allocate new stack frame *)
-  | Pfreeframe  (sz: Z) (ofs_ra ofs_link: ptrofs).              (**r deallocate stack frame and restore previous frame *)
+| Pallocframe (sz: Z) (ofs_ra ofs_link: ptrofs)               (**r allocate new stack frame *)
+| Pfreeframe  (sz: Z) (ofs_ra ofs_link: ptrofs).              (**r deallocate stack frame and restore previous frame *)
 
 
 Definition code := list instruction.

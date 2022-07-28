@@ -39,8 +39,10 @@ let print_condition reg pp = function
       fprintf pp "%a %ss %ld" reg r1 (comparison_name c) (camlint_of_coqint n)
   | (Ccompuimm(c, n), [r1]) ->
       fprintf pp "%a %su %ld" reg r1 (comparison_name c) (camlint_of_coqint n)
-  | _ ->
-      fprintf pp "<bad condition>"
+  | (Ccomp _ , _ ) | Ccompu _ ,_ | Ccompimm _ , _ | Ccompuimm _ ,_  -> assert false
+  | (Ccompfs c | Ccompf c) , [r1;r2] -> fprintf pp "%a %sf %a" reg r1 (comparison_name c) reg r2
+  | (Cnotcompfs c | Cnotcompf c) , [r1;r2] -> fprintf pp "%a not(%sf) %a" reg r1 (comparison_name c) reg r2
+  | _ -> assert false
 
 let print_operation reg pp = function
   | Omove, [r1] -> reg pp r1
