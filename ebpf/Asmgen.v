@@ -421,6 +421,21 @@ Definition transl_store (chunk: memory_chunk) (addr: addressing)
   end.
 
 (** Translation of a Mach instruction. *)
+Definition name_of_builtin (ef:external_function) : string :=
+  match ef with
+    EF_external s _ => append "external " s
+  | EF_builtin s  _  => append "builtin " s
+  | EF_runtime s _  => append "runtime " s
+  | EF_vload  _    => "vload"
+  | EF_vstore _    => "vstore"
+  | EF_malloc      => "malloc"
+  | EF_free        => "free"
+  | EF_memcpy _ _  => "memcpy"
+  | EF_annot _ _ _ => "annot"
+  | EF_annot_val _ _ _ => "annot_val"
+  | EF_inline_asm s _ _ => append "inline_adm " s
+  | EF_debug _ _ _      => "debug"
+  end.
 
 Definition transl_instr (f: Mach.function) (i: Mach.instruction)
                         (ep: bool) (k: code): res (list instruction) :=
@@ -445,7 +460,7 @@ Definition transl_instr (f: Mach.function) (i: Mach.instruction)
   | Mcall sig (inl r)
   | Mtailcall sig (inl r) => Error (msg "Indirect calls are not available in eBPF")
 
-  | Mbuiltin ef args res => Error (msg "No builtins have been implemented")
+  | Mbuiltin ef args res => Error (MSG "Builtin ":: MSG (name_of_builtin ef) :: MSG " is not supported by eBPF"::nil)
 
   | Mlabel lbl => OK (Plabel lbl :: k)
 

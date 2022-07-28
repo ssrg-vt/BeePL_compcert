@@ -56,6 +56,7 @@ Global Instance Finite_mreg : Finite mreg := {
   Finite_elements_spec := all_mregs_complete
 }.
 
+
 Definition mreg_type (r: mreg): typ :=
   match r with
   | D0 | D1 | D2 => Tany64
@@ -167,7 +168,10 @@ Definition two_address_op (op: operation) : bool :=
   | Oand | Oandimm _ | Oor | Oorimm _
   | Oxor | Oxorimm _ | Oshl | Oshlimm _
   | Oshr | Oshrimm _ | Oshru | Oshruimm _
-  | Ocmp _ => true
+  | Ocmp (Ccomp _ | Ccompu _ | Ccompimm _ _ | Ccompuimm _ _)
+  | Odivuimm _ | Omoduimm _
+  | Omulhs | Omulhu | Omod | Oshrximm _
+                             => true
   | _ => false
   end.
 
