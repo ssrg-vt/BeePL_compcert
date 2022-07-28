@@ -199,6 +199,7 @@ Processing options:
   -finline-functions-called-once Integrate functions only required by their
                  single caller [on]
   -fif-conversion Perform if-conversion (generation of conditional moves) [on]
+  -fjump-tables  Optimize switch statements using jump tables [on]
 Code generation options: (use -fno-<opt> to turn off -f<opt>)
   -ffpu          Use FP registers for some integer operations [on]
   -fsmall-data <n>  Set maximal size <n> for allocation in small data area
@@ -249,7 +250,7 @@ let dump_mnemonics destfile =
 
 let optimization_options = [
   option_ftailcalls; option_fifconversion; option_fconstprop; option_fcse;
-  option_fredundancy; option_finline; option_finline_functions_called_once;
+  option_fredundancy; option_finline; option_finline_functions_called_once;option_jump_tables
 ]
 
 let set_all opts () = List.iter (fun r -> r := true) opts
@@ -368,6 +369,7 @@ let cmdline_actions =
   @ f_opt "redundancy" option_fredundancy
   @ f_opt "inline" option_finline
   @ f_opt "inline-functions-called-once" option_finline_functions_called_once
+  @ f_opt "jump-tables" option_jump_tables
 (* Code generation options *)
   @ f_opt "fpu" option_ffpu
   @ f_opt "sse" option_ffpu (* backward compatibility *)

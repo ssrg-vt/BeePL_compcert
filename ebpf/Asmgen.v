@@ -472,7 +472,7 @@ Definition transl_instr (f: Mach.function) (i: Mach.instruction)
 
   | Mcond cond args lbl => transl_cbranch cond args lbl k
 
-  | Mjumptable arg tbl => Error (msg "Internal error: Jumptable have been generated, but are not available in eBPF")
+  | Mjumptable arg tbl => Error (msg "Jump tables are not supported by eBPF: pass -fno-jumptables ")
 
   | Mreturn => OK (Pfreeframe f.(fn_stacksize) f.(fn_retaddr_ofs) f.(fn_link_ofs) :: Pret :: k)
   end.
