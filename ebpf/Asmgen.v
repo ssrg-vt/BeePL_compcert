@@ -63,10 +63,10 @@ Definition transl_comparison (cmp:comparison) (sg:Ctypes.signedness) :=
   end.
 
 Definition transl_cbranch_signed (cmp: comparison) (r1: ireg) (r2: ireg+imm) (lbl: label) :=
-  Pjmpcmp (transl_comparison cmp Ctypes.Signed) r1 r2 (inl lbl).
+  Pjmpcmp (transl_comparison cmp Ctypes.Signed) r1 r2 lbl.
 
 Definition transl_cbranch_unsigned (cmp: comparison) (r1: ireg) (r2: ireg+imm) (lbl: label) :=
-  Pjmpcmp (transl_comparison cmp Ctypes.Unsigned) r1 r2 (inl lbl).
+  Pjmpcmp (transl_comparison cmp Ctypes.Unsigned) r1 r2 lbl.
 
 Definition transl_cbranch (cond: condition) (args: list mreg) (lbl: label) (k: code) :=
   match cond, args with

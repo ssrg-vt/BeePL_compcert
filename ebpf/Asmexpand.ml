@@ -48,7 +48,19 @@ let expand_instruction instr =
   | Pbuiltin _ -> failwith "Builtin are not supported"
   | Pallocframe(sz,ofs_ra,ofs_link) -> expand_alloc_frame sz ofs_ra ofs_link
   | Pfreeframe(sz,ofs_ra,ofs_link)  -> expand_free_frame sz ofs_ra ofs_link
-
+  | Pcmp(cmp,reg,regimm) ->
+    (* reg := reg cmp regimm *)
+    Datatypes.(
+      let label_true = new_label () in
+      let label_end   = new_label () in 
+      (* if reg cmp regimm Goto goto_true *)
+      emit (Pjmpcmp(cmp,reg,regimm, label_true));
+      (* else reg := false *)
+      emit (Palu(MOV,reg, Coq_inr Integers.Int.zero));
+      emit (Pjmp (Coq_inl label_end));
+      emit (Plabel label_true);
+      emit  (Palu(MOV,reg, Coq_inr Integers.Int.one));
+    emit (Plabel label_end))
   | _ -> emit instr
 
 
