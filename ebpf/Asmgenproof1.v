@@ -82,7 +82,7 @@ Lemma transl_cbranch_signed_correct:
   forall cmp r1 r2 lbl (rs: regset) m b,
   Val.cmp_bool cmp rs#(IR r1) (eval_reg_imm rs r2) = Some b ->
   exec_instr ge fn (transl_cbranch_signed cmp r1 r2 lbl) rs m =
-  exec_branch fn lbl rs m (Some b).
+  exec_branch fn (inl lbl) rs m (Some b).
 Proof.
   intros. destruct cmp; simpl; rewrite ? H; try reflexivity.
   - destruct rs#r1; simpl in H; try discriminate.
@@ -99,7 +99,7 @@ Lemma transl_cbranch_unsigned_correct:
   forall cmp r1 r2 lbl (rs: regset) m b,
   Val.cmpu_bool (Mem.valid_pointer m) cmp rs#(IR r1) (eval_reg_imm rs r2) = Some b ->
   exec_instr ge fn (transl_cbranch_unsigned cmp r1 r2 lbl) rs m =
-  exec_branch fn lbl rs m (Some b).
+  exec_branch fn (inl lbl) rs m (Some b).
 Proof.
   intros. destruct cmp; simpl; rewrite ? H; reflexivity.
 Qed.
@@ -126,7 +126,7 @@ Lemma transl_cbranch_correct_1:
   Mem.extends m m' ->
   exists rs', exists insn,
      exec_straight_opt ge fn c rs m' (insn :: k) rs' m'
-  /\ exec_instr ge fn insn rs' m' = exec_branch fn lbl rs' m' (Some b)
+  /\ exec_instr ge fn insn rs' m' = exec_branch fn (inl lbl) rs' m' (Some b)
   /\ forall r, r <> PC -> rs'#r = rs#r.
 Proof.
   intros until m'; intros TRANSL EVAL AG MEXT.
