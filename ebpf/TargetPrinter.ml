@@ -117,7 +117,7 @@ module Target : TARGET =
 
     and print_jump_cmp oc op reg regimm label =
       fprintf oc "	if %a %s %a goto %a\n" register_arch  reg (cmpOp op) register_or_immediate regimm
-        (print_sum print_label immediate) label
+        print_label label
 
 (* Names of sections *)
 
