@@ -141,29 +141,22 @@ Remark transl_cbranch_label:
   transl_cbranch cond args lbl k = OK c -> tail_nolabel k c.
 Proof.
   intros. unfold transl_cbranch in H; destruct cond; TailNoLabel.
-- destruct c0; simpl; TailNoLabel.
-- destruct c0; simpl; TailNoLabel.
-- destruct (Int.eq n Int.zero).
-  destruct c0; simpl; TailNoLabel.
-  apply tail_nolabel_trans with (transl_cbranch_signed c0 x (inr n) lbl :: k).
-  auto with labels. destruct c0; simpl; TailNoLabel.
-- destruct (Int.eq n Int.zero).
-  destruct c0; simpl; TailNoLabel.
-  apply tail_nolabel_trans with (transl_cbranch_unsigned c0 x (inr n) lbl :: k).
-  auto with labels. destruct c0; simpl; TailNoLabel.
 Qed.
+
+Lemma transl_cond_op_as_jump_label : forall k c sg r1 r2,
+    tail_nolabel k (transl_cond_as_Pcmp c sg r1 r2 k).
+Proof.
+  unfold transl_cond_as_Pcmp.
+  intros. TailNoLabel.
+Qed.
+
 
 Remark transl_cond_op_label:
   forall cond args r k c,
   transl_cond_op cond r args k = OK c -> tail_nolabel k c.
 Proof.
-  intros. unfold transl_cond_op in H; destruct cond; TailNoLabel.
-- destruct c0; simpl; TailNoLabel.
-- destruct c0; simpl; TailNoLabel.
-- unfold transl_cond_signed.
-  destruct (Int.eq n Int.zero); destruct c0; simpl; TailNoLabel.
-- unfold transl_cond_unsigned.
-  destruct (Int.eq n Int.zero); destruct c0; simpl; TailNoLabel.
+  intros. unfold transl_cond_op in H; destruct cond; TailNoLabel;
+  apply transl_cond_op_as_jump_label.
 Qed.
 
 Remark transl_op_label:
@@ -500,7 +493,7 @@ Proof.
 
 - (* Mop *)
   assert (eval_operation tge sp op rs##args m = Some v).
-    rewrite <- H. apply eval_operation_preserved. exact symbols_preserved.
+  rewrite <- H. apply eval_operation_preserved. exact symbols_preserved.
   exploit eval_operation_lessdef. eapply preg_vals; eauto. eauto. eexact H0.
   intros [v' [A B]]. rewrite (sp_val _ _ _ AG) in A.
   left; eapply exec_straight_steps; eauto; intros. simpl in TR.

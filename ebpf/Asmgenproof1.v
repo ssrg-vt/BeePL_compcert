@@ -13,7 +13,9 @@
 Require Import Coqlib Errors Maps.
 Require Import AST Zbits Integers Floats Values Memory Globalenvs.
 Require Import Op Locations Mach Conventions.
+Require Import Events Smallstep.
 Require Import Asm Asmgen Asmgenproof0.
+
 
 (** Properties of registers *)
 
@@ -78,21 +80,62 @@ Qed.
 
 (** Translation of conditional branches *)
 
+Lemma cmp_cmpu_Ceq : forall v1 v2 f b,
+    Val.cmp_bool Ceq v1 v2  = Some b ->
+    Val.cmpu_bool f Ceq v1 v2 = Some b.
+Proof.
+  intros.
+  unfold Val.cmp_bool in H.
+  destruct v1 ; try discriminate H.
+  destruct v2 ; try discriminate H.
+  apply H.
+Qed.
+
+Lemma cmp_cmpu_Cne : forall v1 v2 f b,
+    Val.cmp_bool Cne v1 v2  = Some b ->
+    Val.cmpu_bool f Cne v1 v2 = Some b.
+Proof.
+  intros.
+  unfold Val.cmp_bool in H.
+  destruct v1 ; try discriminate H.
+  destruct v2 ; try discriminate H.
+  apply H.
+Qed.
+
+
+Lemma transl_comparison_signed_correct:
+  forall cmp r1 r2  (rs: regset) m b,
+  Val.cmp_bool cmp rs#(IR r1) (eval_reg_imm rs r2) = Some b ->
+  eval_cmp (transl_comparison cmp Ctypes.Signed) rs m r1 r2 = Some b.
+Proof.
+  intros.
+  unfold transl_comparison.
+  destruct cmp ; simpl; auto.
+  - apply cmp_cmpu_Ceq; auto.
+  - apply cmp_cmpu_Cne; auto.
+Qed.
+
+Lemma transl_comparison_unsigned_correct:
+  forall cmp r1 r2  (rs: regset) m b,
+  Val.cmpu_bool (Mem.valid_pointer m) cmp rs#(IR r1) (eval_reg_imm rs r2) = Some b ->
+  eval_cmp (transl_comparison cmp Ctypes.Unsigned) rs m r1 r2 = Some b.
+Proof.
+  intros.
+  unfold transl_comparison.
+  destruct cmp ; simpl; auto.
+Qed.
+
 Lemma transl_cbranch_signed_correct:
   forall cmp r1 r2 lbl (rs: regset) m b,
   Val.cmp_bool cmp rs#(IR r1) (eval_reg_imm rs r2) = Some b ->
   exec_instr ge fn (transl_cbranch_signed cmp r1 r2 lbl) rs m =
   exec_branch fn (inl lbl) rs m (Some b).
 Proof.
-  intros. destruct cmp; simpl; rewrite ? H; try reflexivity.
-  - destruct rs#r1; simpl in H; try discriminate.
-    destruct (eval_reg_imm rs r2); simpl in H; try discriminate.
-    inv H; simpl.
-    reflexivity.
-  - destruct rs#r1; simpl in H; try discriminate.
-    destruct (eval_reg_imm rs r2); simpl in H; try discriminate.
-    inv H; simpl.
-    reflexivity.
+  intros.
+  unfold transl_cbranch_signed.
+  simpl.
+  apply transl_comparison_signed_correct with (m:=m) in H.
+  rewrite H. reflexivity.
 Qed.
 
 Lemma transl_cbranch_unsigned_correct:
@@ -101,7 +144,11 @@ Lemma transl_cbranch_unsigned_correct:
   exec_instr ge fn (transl_cbranch_unsigned cmp r1 r2 lbl) rs m =
   exec_branch fn (inl lbl) rs m (Some b).
 Proof.
-  intros. destruct cmp; simpl; rewrite ? H; reflexivity.
+  intros.
+  unfold transl_cbranch_unsigned.
+  simpl.
+  apply transl_comparison_unsigned_correct with (m:=m) in H.
+  rewrite H. reflexivity.
 Qed.
 
 Ltac ArgsInv :=
@@ -177,6 +224,8 @@ Proof.
 Qed.
 
 
+
+
 (** Translation of condition operators *)
 
 Ltac TranslCondSimpl :=
@@ -187,11 +236,13 @@ Ltac TranslCondSimpl :=
 Lemma transl_cond_signed_correct:
   forall cmp r1 r2 k rs m,
   exists rs',
-     exec_straight ge fn (transl_cond_signed cmp r1 r2 :: k) rs m k rs' m
+     exec_straight ge fn (transl_cond_as_Pcmp cmp Ctypes.Signed r1 r2  k) rs m k rs' m
   /\ Val.lessdef (Val.cmp cmp rs#r1 (eval_reg_imm rs r2)) rs'#r1
   /\ forall r, r <> PC -> r <> r1 -> rs'#r = rs#r.
 Proof.
-  intros. destruct cmp; simpl; TranslCondSimpl.
+  intros.
+  unfold transl_cond_as_Pcmp.
+  destruct cmp; simpl; TranslCondSimpl.
   unfold eval_cmp; destruct (rs#r1); auto; destruct (eval_reg_imm rs r2); auto.
   unfold eval_cmp; destruct (rs#r1); auto; destruct (eval_reg_imm rs r2); auto.
 Qed.
@@ -199,12 +250,28 @@ Qed.
 Lemma transl_cond_unsigned_correct:
   forall cmp r1 r2 k rs m,
   exists rs',
-     exec_straight ge fn (transl_cond_unsigned cmp r1 r2 :: k) rs m k rs' m
+     exec_straight ge fn (transl_cond_as_Pcmp cmp Ctypes.Unsigned r1 r2 k) rs m k rs' m
   /\ Val.lessdef (Val.cmpu (Mem.valid_pointer m) cmp rs#r1 (eval_reg_imm rs r2)) rs'#r1
   /\ forall r, r <> PC -> r <> r1 -> rs'#r = rs#r.
 Proof.
   intros. destruct cmp; simpl; TranslCondSimpl.
 Qed.
+
+Lemma transl_cond_as_jump_correct:
+  forall cmp r1 r2 k rs m,
+  exists rs',
+     exec_straight ge fn (transl_cond_as_Pcmp cmp Ctypes.Signed r1 r2 k) rs m k rs' m
+  /\ Val.lessdef (Val.cmp cmp rs#r1 (eval_reg_imm rs r2)) rs'#r1
+  /\ forall r, r <> PC -> r <> r1 -> rs'#r = rs#r.
+Proof.
+  intros.
+  unfold transl_cond_as_Pcmp.
+  destruct cmp; simpl; TranslCondSimpl.
+  unfold eval_cmp; destruct (rs#r1); auto; destruct (eval_reg_imm rs r2); auto.
+  unfold eval_cmp; destruct (rs#r1); auto; destruct (eval_reg_imm rs r2); auto.
+Qed.
+
+
 
 Lemma transl_cond_op_correct:
   forall cond rd args k c rs m,
@@ -266,11 +333,9 @@ Proof.
 Opaque Int.eq.
   intros until c; intros TR EV.
   unfold transl_op in TR; destruct op; ArgsInv; simpl in EV; SimplEval EV; try TranslOpSimpl.
-
-- (* addrstack *)
+  - (* addrstack *)
   exploit addptrofs_correct; intros (rs' & A & B & C).
   exists rs'; split; [ exact A | auto with asmgen ].
-
 - (* neg *)
   econstructor; split.
   apply exec_straight_one; reflexivity.

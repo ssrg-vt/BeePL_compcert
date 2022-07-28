@@ -52,25 +52,21 @@ Definition addptrofs (rd rs: ireg) (n: ptrofs) (k: code) :=
 
 (** Translation of conditional branches. *)
 
-Definition transl_cbranch_signed (cmp: comparison) (r1: ireg) (r2: ireg+imm) (lbl: label) :=
+Definition transl_comparison (cmp:comparison) (sg:Ctypes.signedness) :=
   match cmp with
-  | Ceq => Pjmpcmp EQ r1 r2 (inl lbl)
-  | Cne => Pjmpcmp NE r1 r2 (inl lbl)
-  | Clt => Pjmpcmp (LT Ctypes.Signed) r1 r2 (inl lbl)
-  | Cle => Pjmpcmp (LE Ctypes.Signed) r1 r2 (inl lbl)
-  | Cgt => Pjmpcmp (GT Ctypes.Signed) r1 r2 (inl lbl)
-  | Cge => Pjmpcmp (GE Ctypes.Signed) r1 r2 (inl lbl)
+  | Ceq => EQ
+  | Cne => NE
+  | Clt => LT sg
+  | Cle => LE sg
+  | Cgt => GT sg
+  | Cge => GE sg
   end.
 
+Definition transl_cbranch_signed (cmp: comparison) (r1: ireg) (r2: ireg+imm) (lbl: label) :=
+  Pjmpcmp (transl_comparison cmp Ctypes.Signed) r1 r2 (inl lbl).
+
 Definition transl_cbranch_unsigned (cmp: comparison) (r1: ireg) (r2: ireg+imm) (lbl: label) :=
-  match cmp with
-  | Ceq => Pjmpcmp EQ r1 r2 (inl lbl)
-  | Cne => Pjmpcmp NE r1 r2 (inl lbl)
-  | Clt => Pjmpcmp (LT Ctypes.Unsigned) r1 r2 (inl lbl)
-  | Cle => Pjmpcmp (LE Ctypes.Unsigned) r1 r2 (inl lbl)
-  | Cgt => Pjmpcmp (GT Ctypes.Unsigned) r1 r2 (inl lbl)
-  | Cge => Pjmpcmp (GE Ctypes.Unsigned) r1 r2 (inl lbl)
-  end.
+  Pjmpcmp (transl_comparison cmp Ctypes.Unsigned) r1 r2 (inl lbl).
 
 Definition transl_cbranch (cond: condition) (args: list mreg) (lbl: label) (k: code) :=
   match cond, args with
@@ -100,25 +96,10 @@ Definition transl_cbranch (cond: condition) (args: list mreg) (lbl: label) (k: c
   | _, _ => Error(msg "Asmgen.transl_cbranch")
   end.
 
-Definition transl_cond_signed (cmp: comparison) (r1: ireg) (r2: ireg+imm) :=
-  match cmp with
-  | Ceq => Pcmp EQ r1 r2
-  | Cne => Pcmp NE r1 r2
-  | Clt => Pcmp (LT Ctypes.Signed) r1 r2
-  | Cle => Pcmp (LE Ctypes.Signed) r1 r2
-  | Cgt => Pcmp (GT Ctypes.Signed) r1 r2
-  | Cge => Pcmp (GE Ctypes.Signed) r1 r2
-  end.
+Definition transl_cond_as_Pcmp (cond: comparison) (sg:Ctypes.signedness) (rd:ireg) (a:ireg+int)  (k:code) :=
+    Pcmp (transl_comparison cond sg) rd a :: k.
 
-Definition transl_cond_unsigned (cmp: comparison) (r1: ireg) (r2: ireg+imm) :=
-  match cmp with
-  | Ceq => Pcmp EQ r1 r2
-  | Cne => Pcmp NE r1 r2
-  | Clt => Pcmp (LT Ctypes.Unsigned) r1 r2
-  | Cle => Pcmp (LE Ctypes.Unsigned) r1 r2
-  | Cgt => Pcmp (GT Ctypes.Unsigned) r1 r2
-  | Cge => Pcmp (GE Ctypes.Unsigned) r1 r2
-  end.
+
 
 Definition transl_cond_op (cond: condition) (r: mreg) (args: list mreg) (k: code) :=
   match cond, args with
@@ -126,23 +107,23 @@ Definition transl_cond_op (cond: condition) (r: mreg) (args: list mreg) (k: code
       assertion (mreg_eq r a1);
       do r1 <- ireg_of a1;
       do r2 <- ireg_of a2;
-      OK (transl_cond_signed c r1 (inl r2) :: k)
+      OK (transl_cond_as_Pcmp c Ctypes.Signed r1 (inl r2) k)
 
   | Ccompu c, a1 :: a2 :: nil =>
       assertion (mreg_eq r a1);
       do r1 <- ireg_of a1;
       do r2 <- ireg_of a2;
-      OK (transl_cond_unsigned c r1 (inl r2) :: k)
+      OK (transl_cond_as_Pcmp c Ctypes.Unsigned r1 (inl r2) k)
 
   | Ccompimm c n, a1 :: nil =>
       assertion (mreg_eq r a1);
       do r1 <- ireg_of a1;
-      OK (transl_cond_signed c r1 (inr n) :: k)
+      OK (transl_cond_as_Pcmp c Ctypes.Signed r1 (inr n) k)
 
   | Ccompuimm c n, a1 :: nil =>
       assertion (mreg_eq r a1);
       do r1 <- ireg_of a1;
-      OK (transl_cond_unsigned c r1 (inr n) :: k)
+      OK (transl_cond_as_Pcmp c Ctypes.Unsigned r1 (inr n) k)
 
   | Ccompf c, _
   | Cnotcompf c, _
