@@ -1236,9 +1236,9 @@ Proof.
   apply IHs. constructor; auto. auto.
 (* switch *)
   destruct b.
-  destruct (validate_switch Int64.modulus n l (compile_switch Int64.modulus n l)); inv SE.
+  destruct (validate_switch Int64.modulus n l (compile_switch (Compopts.jump_tables tt) Int64.modulus n l)); inv SE.
   simpl; auto.
-  destruct (validate_switch Int.modulus n l (compile_switch Int.modulus n l)); inv SE.
+  destruct (validate_switch Int.modulus n l (compile_switch (Compopts.jump_tables tt) Int.modulus n l)); inv SE.
   simpl; auto.
 (* return *)
   destruct o; inv SE; simpl; auto.
@@ -1364,13 +1364,13 @@ Proof.
   inv H.
 - (* Sswitch *)
   inv H0; simpl in TS.
-+ set (ct := compile_switch Int.modulus default cases) in *.
++ set (ct := compile_switch (Compopts.jump_tables tt) Int.modulus default cases) in *.
   destruct (validate_switch Int.modulus default cases ct) eqn:VALID; inv TS.
   exploit sel_expr_correct; eauto. intros [v' [A B]]. inv B.
   left; econstructor; split.
   apply plus_one; econstructor. eapply sel_switch_int_correct; eauto.
   econstructor; eauto.
-+ set (ct := compile_switch Int64.modulus default cases) in *.
++ set (ct := compile_switch (Compopts.jump_tables tt) Int64.modulus default cases) in *.
   destruct (validate_switch Int64.modulus default cases ct) eqn:VALID; inv TS.
   exploit sel_expr_correct; eauto. intros [v' [A B]]. inv B.
   left; econstructor; split.

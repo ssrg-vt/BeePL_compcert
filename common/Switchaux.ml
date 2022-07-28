@@ -89,14 +89,14 @@ let dense_enough (numcases: int) (minkey: Z.t) (maxkey: Z.t) =
   && Z.le table_size tree_size
   && Z.lt span (Z.of_uint Sys.max_array_length)
 
-let compile_switch modulus default table =
+let compile_switch jt modulus default table =
   let (tbl, keys) = normalize_table table in
   if ZSet.is_empty keys then CTaction default else begin
-    (* let minkey = ZSet.min_elt keys *)
-    (* and maxkey = ZSet.max_elt keys in *)
-    (* if dense_enough (List.length tbl) minkey maxkey *)
-    (* then compile_switch_as_jumptable default tbl minkey maxkey *)
-    (* else *) compile_switch_as_tree modulus default tbl
+    let minkey = ZSet.min_elt keys 
+    and maxkey = ZSet.max_elt keys in 
+    if jt && dense_enough (List.length tbl) minkey maxkey
+    then compile_switch_as_jumptable default tbl minkey maxkey 
+    else compile_switch_as_tree modulus default tbl
   end
 
 (* For debugging *)
