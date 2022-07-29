@@ -291,7 +291,6 @@ Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
   | Omulhs, a1 :: a2 :: nil => Error (msg "mulhs is not available in eBPF")
   | Omulhu, a1 :: a2 :: nil => Error (msg "mulhu is not available in eBPF")
   | Omod, a1 :: a2 :: nil => Error (msg "signed modulo is not available in eBPF")
-  | Oshrximm n, a1 :: nil => Error (msg "shrximm is not available in eBPF")
 
   (* [Omakelong] and [Ohighlong] should not occur *)
   | Olowlong, a1 :: nil => Error (msg "lowlong is not available in eBPF")

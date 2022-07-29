@@ -170,7 +170,7 @@ Definition two_address_op (op: operation) : bool :=
   | Oshr | Oshrimm _ | Oshru | Oshruimm _
   | Ocmp (Ccomp _ | Ccompu _ | Ccompimm _ _ | Ccompuimm _ _)
   | Odivuimm _ | Omoduimm _
-  | Omulhs | Omulhu | Omod | Oshrximm _
+  | Omulhs | Omulhu | Omod
                              => true
   | _ => false
   end.

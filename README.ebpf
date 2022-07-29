@@ -1,15 +1,23 @@
-The eBPF backend for CompCert was done by <frederic.besson@inria.fr> and <vincent.lafeychine@proton.me>.
-This backend mostly rely on the work done on RISC-V backend, and should be used to handle 32-bit eBPF embedded systems (rBPF).
+The eBPF backend for CompCert was done by <frederic.besson@inria.fr>
+and <vincent.lafeychine@proton.me>.  This backend mostly rely on the
+work done on RISC-V backend, and should be used to handle 32-bit eBPF
+embedded systems (rBPF).
 
-Beware, CompCert doesn't handle BPF helper calls: May be impossible to achieve in CompCert, should use ELF's relocation instead.
+CompCert generates an eBPF text assembly file that is assembled by llvm-mc -triple bpf.
+The generated ELF file contains relocations for functions calls and global variables.
+As a result, an additional (static/dynamic) linking phase is necessary to get an executable BPF code.
 
-There are three modifications on existing backend:
- - Forbid CompCert to produce a linking step for eBPF (Correct modification - Should keep)
- - Add symbols in extraction.v from AST (Issue - Should investigate)
- - Force jumptable to not be created (Destructive modification - Should add a configuration option)
+Caveat: the traditional way of specifying BPF helper calls in C is not compatible with CompCert.
+Helper calls need to be external functions (not global function pointers assigned to fixed integers).
 
-There are some improvements available:
- - Allows global variables.
- - Add builtins simulating non-available arithmetics' instructions (mulhs, mulhu, div, mod, shrximm)
- - More optimisations, with SelectOp, by using specific eBPF's instructions.
- - Add 64-bits platform target.
+
+Other limitations or specificites:
+ - There is no linking step (this is the right way for eBPF)
+ - Some additional symbols are added in extraction.v (need more investigation)
+ - Jump tables are not supported (there is a command-line option to disable jump-table,
+   this is should be a configuration option.)
+ - Builtin and some arithmetic operations are not supported e.g mulhs, mulhu, mod, cast signed byte, addl
+ - Instruction selection could be optimised further
+ - The backend target 32 bits eBPF instruction (there is no 64 bits target)
+ - There is no support for floating point numbers (could support soft-float)
+ - Functions calls are limited to 5 arguments
