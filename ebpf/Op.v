@@ -90,7 +90,7 @@ Inductive operation : Type :=
   | Omulhs                   (**r [rd = high part of r1 * r2, signed] *)
   | Omulhu                   (**r [rd = high part of r1 * r2, unsigned] *)
   | Omod                     (**r [rd = r1 % r2] (signed) *)
-  | Oshrximm (n: int)        (**r [rd = r1 / 2^n] (signed) *)
+(*  | Oshrximm (n: int)        (**r [rd = r1 / 2^n] (signed) *) *)
 
   | Omakelong                (**r [rd = r1 << 32 | r2] *)
   | Olowlong                 (**r [rd = low-word(r1)] *)
@@ -232,7 +232,7 @@ Definition eval_operation
   | Omulhs, v1::v2::nil => Some (Val.mulhs v1 v2)
   | Omulhu, v1::v2::nil => Some (Val.mulhu v1 v2)
   | Omod, v1 :: v2 :: nil => Val.mods v1 v2
-  | Oshrximm n, v1::nil => Val.shrx v1 (Vint n)
+(*  | Oshrximm n, v1::nil => Val.shrx v1 (Vint n)*)
   | Omakelong, v1::v2::nil => Some (Val.longofwords v1 v2)
   | Olowlong, v1::nil => Some (Val.loword v1)
   | Ohighlong, v1::nil => Some (Val.hiword v1)
@@ -360,7 +360,7 @@ Definition type_of_operation (op: operation) : list typ * typ :=
   | Omulhs => (Tint :: Tint :: nil, Tint)
   | Omulhu => (Tint :: Tint :: nil, Tint)
   | Omod => (Tint :: Tint :: nil, Tint)
-  | Oshrximm _ => (Tint :: nil, Tint)
+(*  | Oshrximm _ => (Tint :: nil, Tint)*)
   | Omakelong => (Tint :: Tint :: nil, Tlong)
   | Olowlong => (Tlong :: nil, Tint)
   | Ohighlong => (Tlong :: nil, Tint)
@@ -490,8 +490,6 @@ Proof with (try exact I; try reflexivity; auto using Val.Vptr_has_type).
   (* mods *)
   - destruct v0; destruct v1; simpl in *; inv H0.
     destruct (Int.eq i0 Int.zero || Int.eq i (Int.repr Int.min_signed) && Int.eq i0 Int.mone); inv H2...
-  (* shrx *)
-  - destruct v0; simpl in H0; try discriminate. destruct (Int.ltu n (Int.repr 31)); inv H0...
   (* makelong, lowlong, highlong *)
   - destruct v0; destruct v1...
   - destruct v0...
@@ -894,9 +892,6 @@ Proof.
     destruct (Int.eq i0 Int.zero
                      || Int.eq i (Int.repr Int.min_signed) && Int.eq i0 Int.mone); inv H2.
     TrivialExists.
-  (* shrx *)
-  - inv H4; simpl in H1; try discriminate. simpl.
-    destruct (Int.ltu n (Int.repr 31)); inv H1. TrivialExists.
   (* makelong, highlong, lowlong *)
   - inv H4; inv H2; simpl; auto.
   - inv H4; simpl; auto.
