@@ -199,7 +199,7 @@ Processing options:
   -finline-functions-called-once Integrate functions only required by their
                  single caller [on]
   -fif-conversion Perform if-conversion (generation of conditional moves) [on]
-  -fjump-tables  Optimize switch statements using jump tables [on]
+  -fjump-tables  Use jump tables for lowering switches [on]
 Code generation options: (use -fno-<opt> to turn off -f<opt>)
   -ffpu          Use FP registers for some integer operations [on]
   -fsmall-data <n>  Set maximal size <n> for allocation in small data area
