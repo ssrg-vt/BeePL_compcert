@@ -288,8 +288,8 @@ Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
   | Ocast8signed, a1 :: nil => Error (msg "cast8signed is not available in eBPF")
   | Ocast16signed, a1 :: nil => Error (msg "cast16signed is not available in eBPF")
 
-  | Omulhs, a1 :: a2 :: nil => Error (msg "mulhs is not available in eBPF")
-  | Omulhu, a1 :: a2 :: nil => Error (msg "mulhu is not available in eBPF")
+  | Omulhs, a1 :: a2 :: nil => Error (msg "mulhs is not available in eBPF: pass -Os")
+  | Omulhu, a1 :: a2 :: nil => Error (msg "mulhu is not available in eBPF: pass -Os")
   | Omod, a1 :: a2 :: nil => Error (msg "signed modulo is not available in eBPF")
 
   (* [Omakelong] and [Ohighlong] should not occur *)
@@ -353,15 +353,19 @@ Definition transl_typ (t: typ): res (sizeOp) :=
 
 (** Translation of memory accesses: loads, and stores. *)
 
-Definition stack_load (ofs: ptrofs) (ty: typ) (dst: mreg) (k: code): res (list instruction) :=
+Definition loadind (base: ireg) (ofs: ptrofs) (ty: typ) (dst: mreg) (k: code): res (list instruction) :=
   do r <- ireg_of dst;
   do size <- transl_typ ty;
-  OK (Pload size r SP ofs :: k).
+  OK (Pload size r base ofs :: k).
 
-Definition stack_store (ofs: ptrofs) (ty: typ) (src: mreg) (k: code): res (list instruction) :=
+Definition loadind_ptr (base: ireg) (ofs:ptrofs) (dst:ireg) (k:code) :=
+  Pload (if Archi.ptr64 then DBWord else Word) dst base ofs  :: k.
+
+
+Definition storeind (base: ireg) (ofs: ptrofs) (ty: typ) (src: mreg) (k: code): res (list instruction) :=
   do r <- ireg_of src;
   do size <- transl_typ ty;
-  OK (Pstore size SP (inl r) ofs :: k).
+  OK (Pstore size base (inl r) ofs :: k).
 
 Definition transl_load_indexed (chunk : memory_chunk) (d:ireg) (a:ireg) (ofs: ptrofs) (k:code) : res (list instruction) :=
   match chunk with
@@ -439,12 +443,14 @@ Definition name_of_builtin (ef:external_function) : string :=
 Definition transl_instr (f: Mach.function) (i: Mach.instruction)
                         (ep: bool) (k: code): res (list instruction) :=
   match i with
-  | Mgetstack ofs ty dst => stack_load ofs ty dst k
+  | Mgetstack ofs ty dst => loadind SP ofs ty dst k
 
-  | Msetstack src ofs ty => stack_store ofs ty src k
+  | Msetstack src ofs ty => storeind SP ofs ty src k
 
-  | Mgetparam _ _ _ => Error (msg "Functions with more than 5 arguments are not available in eBPF")
-
+  | Mgetparam ofs ty dst =>
+      do c <- loadind R0 ofs ty dst k;
+      OK (if ep then c
+                else loadind_ptr SP f.(fn_link_ofs) R0 c)
   | Mop op args res => transl_op op args res k
 
   | Mload chunk addr args dst => transl_load chunk addr args dst k
@@ -476,7 +482,9 @@ Definition transl_instr (f: Mach.function) (i: Mach.instruction)
 
 Definition it1_is_parent (before: bool) (i: Mach.instruction) : bool :=
   match i with
-  | Msetstack _ _ _
+  | Msetstack src ofs ty => before
+  | Mgetparam ofs ty dst => negb (mreg_eq dst I0)
+  | Mop op args res => before && negb (mreg_eq res I0)
   | _ => false
   end.
 
