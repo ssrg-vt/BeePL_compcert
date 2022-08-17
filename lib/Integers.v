@@ -149,6 +149,8 @@ Definition one  := repr 1.
 Definition mone := repr (-1).
 Definition iwordsize := repr zwordsize.
 
+Definition of_bool (b: bool): int := if b then one else zero.
+
 Lemma mkint_eq:
   forall x y Px Py, x = y -> mkint x Px = mkint y Py.
 Proof.
@@ -4605,6 +4607,35 @@ Proof.
   apply Int.eqm_unsigned_repr_l. apply Int.eqm_refl.
 Qed.
 
+Lemma decompose_add_no_carry:
+  forall xh xl yh yl,
+    add (ofwords xh xl) (ofwords yh yl) =
+  ofwords (Int.add (Int.add xh yh) (Int.of_bool (Int.cmpu Clt (Int.add xl yl) xl)))
+          (Int.add xl yl).
+Proof.
+  intros.
+  rewrite decompose_add.
+  f_equal. f_equal.
+  unfold Int.add_carry.
+  rewrite Z.add_0_r.
+  simpl. unfold Int.ltu.
+  pose proof  (Int.unsigned_range xl) as Rxl.
+  pose proof  (Int.unsigned_range yl) as Ryl.
+  rewrite Int.add_unsigned.
+  rewrite Int.unsigned_repr_eq.
+  destruct (zlt (Int.unsigned xl + Int.unsigned yl) Int.modulus).
+  - rewrite Z.mod_small by lia.
+    destruct (zlt (Int.unsigned xl + Int.unsigned yl) (Int.unsigned xl)).
+    lia.
+    reflexivity.
+  - replace (Int.unsigned xl + Int.unsigned yl) with
+      (((Int.unsigned xl + Int.unsigned yl) - Int.modulus) + 1 * Int.modulus) by ring.
+    rewrite Z_mod_plus_full.
+    rewrite Z.mod_small by lia.
+    destruct (zlt (Int.unsigned xl + Int.unsigned yl - Int.modulus) (Int.unsigned xl)).
+    reflexivity. lia.
+Qed.
+
 Lemma decompose_sub:
   forall xh xl yh yl,
   sub (ofwords xh xl) (ofwords yh yl) =
@@ -4630,6 +4661,25 @@ Proof.
   apply Int.eqm_unsigned_repr_l. apply Int.eqm_add. 2: apply Int.eqm_refl.
   apply Int.eqm_unsigned_repr_l. apply Int.eqm_refl.
 Qed.
+
+Lemma decompose_sub_no_carry:
+  forall xh xl yh yl,
+    sub (ofwords xh xl) (ofwords yh yl) =
+  ofwords (Int.sub (Int.sub xh yh) (Int.of_bool (Int.cmpu Clt xl yl)))
+          (Int.sub xl yl).
+Proof.
+  intros.
+  rewrite decompose_sub.
+  f_equal. f_equal.
+  unfold Int.sub_borrow.
+  rewrite Z.sub_0_r.
+  simpl. unfold Int.ltu.
+  pose proof  (Int.unsigned_range xl) as Rxl.
+  pose proof  (Int.unsigned_range yl) as Ryl.
+  destruct (zlt (Int.unsigned xl - Int.unsigned yl) 0);
+    destruct (zlt (Int.unsigned xl) (Int.unsigned yl)); try lia; reflexivity.
+Qed.
+
 
 Lemma decompose_sub':
   forall xh xl yh yl,
