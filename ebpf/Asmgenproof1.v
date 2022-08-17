@@ -357,17 +357,17 @@ Opaque Int.eq.
   exists rs'; split. eexact A. eauto with asmgen.
 Qed.
 
-Lemma stack_load_correct:
-  forall ofs ty dst k c (rs: regset) m v,
-  stack_load ofs ty dst k = OK c ->
-  Mem.loadv (chunk_of_type ty) m (Val.offset_ptr rs#SP ofs) = Some v ->
+Lemma loadind_correct:
+  forall base ofs ty dst k c (rs: regset) m v,
+    loadind base ofs ty dst k = OK c ->
+  Mem.loadv (chunk_of_type ty) m (Val.offset_ptr rs#base ofs) = Some v ->
   exists rs',
      exec_straight ge fn c rs m k rs' m
   /\ rs'#(preg_of dst) = v
   /\ forall r, r <> PC -> r <> preg_of dst -> rs'#r = rs#r.
 Proof.
   intros until v. intros LOAD TR.
-  unfold stack_load in LOAD; ArgsInv.
+  unfold loadind in LOAD; ArgsInv.
   econstructor. split.
   - apply exec_straight_one. simpl; unfold exec_load.
     +
@@ -382,16 +382,59 @@ Proof.
   - split; intros; Simpl.
 Qed.
 
+Lemma storeind_correct:
+  forall (base: ireg) ofs ty src k c (rs: regset) m m',
+  storeind base ofs ty src k = OK c ->
+  Mem.storev (chunk_of_type ty) m (Val.offset_ptr rs#base ofs) rs#(preg_of src) = Some m' ->
+  exists rs',
+     exec_straight ge fn c rs m k rs' m'
+  /\ forall r, r <> PC -> rs'#r = rs#r.
+Proof.
+  intros until m'; intros TR STORE.
+  unfold storeind in TR. ArgsInv.
+  econstructor.
+  split.
+  - apply exec_straight_one. simpl; unfold exec_store.
+    + unfold store, transl_typ in *.
+      destruct Archi.ptr64 eqn:A.
+      *
+        destruct ty; simpl in *; inv EQ1;
+        rewrite STORE; reflexivity.
+      *  destruct ty; simpl in *; inv EQ1;
+        rewrite STORE; reflexivity.
+    + Simpl.
+  - intros; Simpl.
+Qed.
+
+Lemma loadind_ptr_correct:
+  forall (base: ireg) ofs (dst: ireg) k (rs: regset) m v,
+  Mem.loadv Mptr m (Val.offset_ptr rs#base ofs) = Some v ->
+  exists rs',
+     exec_straight ge fn (loadind_ptr base ofs dst k) rs m k rs' m
+  /\ rs'#dst = v
+  /\ forall r, r <> PC -> r <> dst -> rs'#r = rs#r.
+Proof.
+  intros until v. intros LOAD.
+  unfold loadind_ptr, Mptr in *.
+  econstructor. split.
+  apply exec_straight_one. simpl. unfold exec_load,load.
+  destruct Archi.ptr64; rewrite LOAD;reflexivity.
+  Simpl.
+  split; intros; Simpl.
+Qed.
+
+
+
 Lemma stack_store_correct:
-  forall ofs ty src k c (rs: regset) m m',
-  stack_store ofs ty src k = OK c ->
-  Mem.storev (chunk_of_type ty) m (Val.offset_ptr rs#SP ofs) rs#(preg_of src) = Some m' ->
+  forall base ofs ty src k c (rs: regset) m m',
+  storeind base ofs ty src k = OK c ->
+  Mem.storev (chunk_of_type ty) m (Val.offset_ptr rs#base ofs) rs#(preg_of src) = Some m' ->
   exists rs',
      exec_straight ge fn c rs m k rs' m'
   /\ forall r, r <> PC -> rs'#r = rs#r.
 Proof.
   intros until m'. intros STORE TR.
-  unfold stack_store in STORE; ArgsInv.
+  unfold storeind in STORE; ArgsInv.
   econstructor. split.
   - apply exec_straight_one. simpl; unfold exec_store.
     + unfold store, transl_typ in *.
