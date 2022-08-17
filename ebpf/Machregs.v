@@ -171,7 +171,7 @@ Definition two_address_op (op: operation) : bool :=
   | Ocmp (Ccomp _ | Ccompu _ | Ccompimm _ _ | Ccompuimm _ _)
   | Odivuimm _ | Omoduimm _
   | Omulhs | Omulhu | Omod
-                             => true
+                        | Ocast8signed | Ocast16signed => true
   | _ => false
   end.
 
