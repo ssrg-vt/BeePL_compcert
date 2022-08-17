@@ -1,0 +1,46 @@
+(* We actually implement addl *)
+
+Require Import Coqlib.
+Require Import Compopts.
+Require Import AST Integers Floats.
+Require Import Op CminorSel.
+Require Import SelectOp SplitLong.
+
+Local Open Scope cminorsel_scope.
+Local Open Scope string_scope.
+
+Section SELECT.
+
+Context {hf: helper_functions}.
+
+Definition addl_split (h1:expr) (l1:expr) (h2:expr) (l2:expr) :=
+  Elet (Eop Oadd (l1::: l2:::Enil))
+    (Eop Omakelong
+         ((Eop Oadd
+              ((Eop Oadd (lift h1:::lift h2 ::: Enil))
+                 :::
+                 (Eop (Ocmp (Ccompu Clt)) (Eletvar O ::: lift l1 ::: Enil))
+                 ::: Enil)) ::: Eletvar O ::: Enil)).
+
+
+Definition addl (e1:expr) (e2:expr) :=
+ if Archi.splitlong then splitlong2 e1 e2 addl_split
+ else SplitLong.addl e1 e2.
+
+
+Definition subl_split (h1:expr) (l1:expr) (h2:expr) (l2:expr) :=
+    Eop Omakelong
+         ((Eop Osub
+              ((Eop Osub (h1::: h2 ::: Enil))
+                 :::
+                 (Eop (Ocmp (Ccompu Clt)) (l1 ::: l2 ::: Enil))
+                 ::: Enil)) ::: (Eop Osub (l1:::l2 ::: Enil)) ::: Enil).
+
+
+Definition subl (e1:expr) (e2:expr) :=
+ if Archi.splitlong then splitlong2 e1 e2 subl_split
+ else SplitLong.subl e1 e2.
+
+
+
+End SELECT.
