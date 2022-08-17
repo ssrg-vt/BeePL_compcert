@@ -282,18 +282,21 @@ Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
 
   (*c Following operations are not available in eBPF, and will throw errors in this step *)
 | Oaddrsymbol s ofs, nil =>
-      do r <- ireg_of res;
+    do r <- ireg_of res;
       OK (Ploadsymbol r s ofs :: k)
 
-  | Ocast8signed, a1 :: nil => Error (msg "cast8signed is not available in eBPF")
-  | Ocast16signed, a1 :: nil => Error (msg "cast16signed is not available in eBPF")
+| Ocast8signed, a1 :: nil =>
+    do r <- ireg_of res;
+    assertion (mreg_eq a1 res);
+    OK (Palu LSH r (inr (Int.repr 24)) :: Palu ARSH r (inr (Int.repr 24)) :: k)
+| Ocast16signed, a1 :: nil =>
+    do r <- ireg_of res;
+    assertion (mreg_eq a1 res);
+    OK (Palu LSH r (inr (Int.repr 16)) :: Palu ARSH r (inr (Int.repr 16)) :: k)
 
   | Omulhs, a1 :: a2 :: nil => Error (msg "mulhs is not available in eBPF: pass -Os")
   | Omulhu, a1 :: a2 :: nil => Error (msg "mulhu is not available in eBPF: pass -Os")
   | Omod, a1 :: a2 :: nil => Error (msg "signed modulo is not available in eBPF")
-
-  (* [Omakelong] and [Ohighlong] should not occur *)
-  | Olowlong, a1 :: nil => Error (msg "lowlong is not available in eBPF")
 
   | Ofloatconst _, _
   | Osingleconst _, nil

@@ -319,6 +319,44 @@ Ltac TranslALUOpSimpl EV :=
   [ apply exec_straight_one; [ unfold exec_instr, exec_alu; simpl; rewrite EV; try reflexivity | reflexivity]
   | split; [ apply Val.lessdef_same; Simpl; fail | intros; Simpl; fail ] ].
 
+Lemma sign_ext_8 : forall x rs k  m,
+  exists rs' : regset,
+    exec_straight ge fn (Palu LSH x (inr (Int.repr 24)) :: Palu ARSH x (inr (Int.repr 24)) :: k) rs m k rs' m /\
+      Val.sign_ext 8 (rs x) = (rs' x) /\
+      (forall r : preg, r <> PC -> r <> x  -> rs' r = rs r).
+Proof.
+  intros.
+  eexists.  split;[|split].
+  - eapply exec_straight_two; reflexivity.
+  - Simpl.
+    unfold eval_reg_imm.
+    destruct (rs x) ; simpl; auto.
+    change (Int.ltu (Int.repr 24) Int.iwordsize) with true.
+    simpl. change (Int.ltu (Int.repr 24) Int.iwordsize) with true.
+    simpl. rewrite Int.sign_ext_shr_shl. reflexivity.
+    change Int.zwordsize with 32. lia.
+  - intros. Simpl.
+Qed.
+
+Lemma sign_ext_16 : forall x rs k  m,
+  exists rs' : regset,
+    exec_straight ge fn (Palu LSH x (inr (Int.repr 16)) :: Palu ARSH x (inr (Int.repr 16)) :: k) rs m k rs' m /\
+      (Val.sign_ext 16 (rs x)) =  (rs' x) /\
+      (forall r : preg, r <> PC -> r <> x  -> rs' r = rs r).
+Proof.
+  intros.
+  eexists.  split;[|split].
+  - eapply exec_straight_two; reflexivity.
+  - Simpl.
+    unfold eval_reg_imm.
+    destruct (rs x) ; simpl; auto.
+    change (Int.ltu (Int.repr 16) Int.iwordsize) with true.
+    simpl. change (Int.ltu (Int.repr 16) Int.iwordsize) with true.
+    simpl. rewrite Int.sign_ext_shr_shl. reflexivity.
+    change Int.zwordsize with 32. lia.
+  - intros. Simpl.
+Qed.
+
 
 Lemma transl_op_correct:
   forall op args res k (rs: regset) m v c,
@@ -355,6 +393,16 @@ Opaque Int.eq.
 - (* cond *)
   exploit transl_cond_op_correct; eauto. intros (rs' & A & B & C).
   exists rs'; split. eexact A. eauto with asmgen.
+- (* sign_ext 8 *)
+  exploit sign_ext_8.
+  intros (rs' & EXEC & LD & RS).
+  eexists. split;[eauto|split]; eauto.
+  intros. apply RS; auto. intro. subst. discriminate.
+- (* sign_ext 16 *)
+  exploit sign_ext_16.
+  intros (rs' & EXEC & LD & RS).
+  eexists. split;[eauto|split]; eauto.
+  intros. apply RS; auto. intro. subst. discriminate.
 Qed.
 
 Lemma loadind_correct:
@@ -468,21 +516,14 @@ Proof.
     rewrite Mem.load_int8_signed_unsigned in LOAD.
     destruct (Mem.load Mint8unsigned m b (Ptrofs.unsigned i0))eqn:ML; try discriminate.
     simpl in LOAD. inv LOAD.
-    econstructor. split.
-    eapply exec_straight_three; simpl; unfold exec_load,load; try reflexivity.
+    exploit sign_ext_8. intros (rs' & EXEC & LD & RS).
+    eexists ; split ; eauto.
+    eapply exec_straight_step; simpl; unfold exec_load,load; try reflexivity.
     unfold Mem.loadv. rewrite EV. rewrite ML.
     reflexivity.
-    reflexivity.
-    split.
-    * Simpl.
-      destruct v0 ; simpl; auto.
-      change (Int.ltu (Int.repr 24) Int.iwordsize) with true.
-      simpl. change (Int.ltu (Int.repr 24) Int.iwordsize) with true.
-      simpl. rewrite Int.sign_ext_shr_shl. reflexivity.
-      change Int.zwordsize with 32. lia.
-    * Simpl.
-      intros.
-      Simpl.
+    reflexivity. eauto.
+    split. rewrite <- LD. Simpl.
+    intros. rewrite RS by auto. Simpl.
   + (* Mint8unsigned *)
     inv TR.
     econstructor. split.
@@ -499,19 +540,14 @@ Proof.
     rewrite Mem.load_int16_signed_unsigned in LOAD.
     destruct (Mem.load Mint16unsigned m b (Ptrofs.unsigned i0))eqn:ML; try discriminate.
     simpl in LOAD. inv LOAD.
-    econstructor. split.
-    eapply exec_straight_three; simpl; unfold exec_load,load; try reflexivity.
+    exploit sign_ext_16. intros (rs' & EXEC & LD & RS).
+    eexists ; split ; eauto.
+    eapply exec_straight_step; simpl; unfold exec_load,load; try reflexivity.
     unfold Mem.loadv. rewrite EV. rewrite ML.
     reflexivity.
-    reflexivity.
-    split.
-    * Simpl.
-      destruct v0 ; simpl; auto.
-      change (Int.ltu (Int.repr 16) Int.iwordsize) with true.
-      simpl. change (Int.ltu (Int.repr 16) Int.iwordsize) with true.
-      simpl. rewrite Int.sign_ext_shr_shl. reflexivity.
-      change Int.zwordsize with 32. lia.
-    * intros. Simpl.
+    reflexivity. eauto.
+    split. rewrite <- LD. Simpl.
+    intros. rewrite RS by auto. Simpl.
   + (* Mint16unsigned *)
     inv TR.
     econstructor. split.
