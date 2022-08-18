@@ -448,7 +448,8 @@ if test "$arch" = "ebpf" -a "$bitsize" = "32"; then
         cprepro_options="-std=c99 -m32 -U__GNUC__ -E"
         has_linking_step=false
         has_runtime_lib=false
-        system="riot"
+        libmath=""
+	system="riot"
         ;;
     *)
         echo "Error: invalid eabi/system '$target' for architecture eBPF." 1>&2
