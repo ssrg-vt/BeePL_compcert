@@ -18,8 +18,8 @@ int main (int argc, char **argv)
     int w, h, bit_num = 0;
     char byte_acc = 0;
     int i, iter = 50;
-    double x, y, limit = 2.0;
-    double Zr, Zi, Cr, Ci, Tr, Ti;
+    int x, y, limit = 20;
+    int Zr, Zi, Cr, Ci, Tr, Ti;
 
     if (argc < 2) {
       w = h = 1000;
@@ -33,12 +33,12 @@ int main (int argc, char **argv)
     {
         for(x=0;x<w;++x)
         {
-            Zr = Zi = Tr = Ti = 0.0;
-            Cr = (2.0*x/w - 1.5); Ci=(2.0*y/h - 1.0);
+            Zr = Zi = Tr = Ti = 00;
+            Cr = (20*x/w - 15); Ci=(20*y/h - 10);
 
             for (i=0;i<iter && (Tr+Ti <= limit*limit);++i)
             {
-                Zi = 2.0*Zr*Zi + Ci;
+                Zi = 20*Zr*Zi + Ci;
                 Zr = Tr - Ti + Cr;
                 Tr = Zr * Zr;
                 Ti = Zi * Zi;

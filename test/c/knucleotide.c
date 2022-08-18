@@ -265,7 +265,7 @@ write_frequencies (int fl, char *buffer, long buflen)
 	  memcpy (&(s[j]), &tmp, sizeof (sorter));
 	}
   for (i = 0; i < size; i++)
-    printf ("%s %.3f\n", s[i].string, 100 * (float) s[i].num / total);
+    printf ("%s %.3f\n", s[i].string, 100 *  s[i].num / total);
   printf ("\n");
   ht_destroy (ht);
   free (s);

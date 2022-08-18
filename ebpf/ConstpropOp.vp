@@ -131,16 +131,6 @@ Definition make_xorimm (n: int) (r: reg) :=
   if Int.eq n Int.zero then (Omove, r :: nil)
   else (Oxorimm n, r :: nil).
 
-Definition make_divimm n (r1 r2: reg) :=
-  if Int.eq n Int.one then
-    (Omove, r1 :: nil)
-  else
-    match Int.is_power2 n with
-    | Some l => if Int.ltu l (Int.repr 31)
-                then (Oshrximm l, r1 :: nil)
-                else (Odiv, r1 :: r2 :: nil)
-    | None   => (Odiv, r1 :: r2 :: nil)
-    end.
 
 Definition make_divuimm n (r1 r2: reg) :=
   if Int.eq n Int.one then
@@ -182,7 +172,6 @@ Nondetfunction op_strength_reduction
   | Osub, r1 :: r2 :: nil, v1 :: I n2 :: nil => make_addimm (Int.neg n2) r1
   | Omul, r1 :: r2 :: nil, I n1 :: v2 :: nil => make_mulimm n1 r2 r1
   | Omul, r1 :: r2 :: nil, v1 :: I n2 :: nil => make_mulimm n2 r1 r2
-  | Odiv, r1 :: r2 :: nil, v1 :: I n2 :: nil => make_divimm n2 r1 r2
   | Odivu, r1 :: r2 :: nil, v1 :: I n2 :: nil => make_divuimm n2 r1 r2
   | Omodu, r1 :: r2 :: nil, v1 :: I n2 :: nil => make_moduimm n2 r1 r2
   | Oand, r1 :: r2 :: nil, I n1 :: v2 :: nil => make_andimm n1 r2 v2
@@ -206,8 +195,6 @@ Nondetfunction op_strength_reduction
 Nondetfunction addr_strength_reduction
                 (addr: addressing) (args: list reg) (vl: list aval) :=
   match addr, args, vl with
-  | Aindexed n, r1 :: nil, Ptr(Gl symb n1) :: nil =>
-      (Aglobal symb (Ptrofs.add n1 n), nil)
   | Aindexed n, r1 :: nil, Ptr(Stk n1) :: nil =>
       (Ainstack (Ptrofs.add n1 n), nil)
   | _, _, _ =>

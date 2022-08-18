@@ -44,3 +44,6 @@ Parameter thumb: unit -> bool.
 
 (** Flag -g.  For insertion of debugging information. *)
 Parameter debug: unit -> bool.
+
+(** Flag -fjump-tables. For instruction selection. *)
+Parameter jump_tables: unit -> bool.

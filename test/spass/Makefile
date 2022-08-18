@@ -1,18 +1,32 @@
 include ../../Makefile.config
 
 CC=../../ccomp 
-CFLAGS=$(CCOMPOPTS) -stdlib ../../runtime -dparse -dclight -dasm -fstruct-return
+CFLAGS=$(CCOMPOPTS) -stdlib ../../runtime -dall -fstruct-return -fno-jump-tables -Os
 
-SRCS=analyze.c clause.c clock.c closure.c cnf.c component.c                 \
-  condensing.c context.c defs.c dfgparser.c dfgscanner.c doc-proof.c        \
-  flags.c foldfg.c graph.c hash.c hasharray.c iaparser.c iascanner.c        \
-  kbo.c list.c memory.c misc.c options.c order.c partition.c                \
-  proofcheck.c renaming.c resolution.c rpos.c rules-inf.c rules-red.c       \
-  rules-sort.c rules-split.c rules-ur.c search.c sharing.c sort.c st.c      \
-  stack.c strings.c subst.c subsumption.c symbol.c table.c tableau.c        \
-  term.c terminator.c top.c unify.c vector.c
+SRCS=analyze.c component.c                 \
+  condensing.c context.c dfgscanner.c doc-proof.c        \
+  flags.c graph.c hasharray.c iascanner.c        \
+  memory.c misc.c options.c  \
+  proofcheck.c renaming.c resolution.c rpos.c        \
+  rules-split.c  search.c sharing.c        \
+  stack.c  subst.c  symbol.c table.c tableau.c        \
+  unify.c closure.c  cnf.c partition.c sort.c  \
+  defs.c  foldfg.c   kbo.c order.c rules-inf.c    rules-sort.c rules-ur.c \
+  subsumption.c   terminator.c 
 
 all: spass
+
+# use indirect calls
+# clause.c  hash.c list.c st.c term.c vector.c
+# use float
+# clock.c strings.c top.c rules-red.c 
+# use mulhs
+# 
+# use more than 5 args
+# defs.c  foldfg.c   kbo.c order.c rules-inf.c  rules-red.c   rules-sort.c rules-ur.c
+# 
+# use memcpy
+# dfgparser.c  iaparser.c
 
 spass: $(SRCS:.c=.o)
 	$(CC) $(CFLAGS) -o spass $(SRCS:.c=.o) $(LIBMATH)

@@ -24,7 +24,8 @@ Require Stacklayout.
 
 (** Registers. *)
 
-Inductive ireg: Type := R0 | R1 | R2 | R3 | R4 | R5 | R6 | R7 | R8 | R9 | R10.
+Inductive ireg: Type := R0 | R1 | R2 | R3 | R4 | R5 | R6 | R7 | R8 | R9 | R10 (*| RA is actually R9 *).
+
 Inductive freg: Type := F0 | F1 | F2.
 
 Lemma ireg_eq: forall (x y: ireg), {x=y} + {x<>y}.
@@ -39,8 +40,8 @@ Proof. decide equality. Defined.
 Inductive preg :=
 | IR : ireg -> preg  (**r integer registers *)
 | FR : freg -> preg  (**r float registers, not available in eBPF *)
-| PC : preg          (**r program counter *)
-| RA : preg.         (**r pseudo-reg representing return address *)
+| PC : preg.          (**r program counter *)
+
 
 Coercion IR: ireg >-> preg.
 Coercion FR: freg >-> preg.
@@ -63,7 +64,7 @@ Module Pregmap := EMap(PregEq).
 Definition preg_of (r: mreg) : preg :=
   match r with
   | I0 => IR R0 | I1 => IR R1 | I2 => IR R2 | I3 => IR R3 | I4 => IR R4
-  | I5 => IR R5 | I6 => IR R6 | I7 => IR R7 | I8 => IR R8 | I9 => IR R9
+  | I5 => IR R5 | I6 => IR R6 | I7 => IR R7 | I8 => IR R8 (*| I9 => IR R9*)
 
   | D0 => FR F0 | D1 => FR F1 | D2 => FR F2
   end.
@@ -71,6 +72,7 @@ Definition preg_of (r: mreg) : preg :=
 (** Conventional names for stack pointer ([SP]) *)
 
 Notation "'SP'" := R10 (only parsing) : asm.
+Notation "'RA'" := R9 (only parsing) : asm.
 
 
 (** The instruction set.  Most instructions correspond exactly to
@@ -109,10 +111,15 @@ Inductive cmpOp : Type :=
   | LE: signedness -> cmpOp. (**r e1 <= e2 *)
 
 Inductive sizeOp : Type :=
-  | Byte        (**r 1 byte *)
-  | HalfWord    (**r 2 bytes *)
-  | Word        (**r 4 bytes *)
-  | SignedWord. (**r 4 bytes (signed) *)
+  (** 32 bits *)
+| Byte        (**r 1 byte *)
+| HalfWord    (**r 2 bytes *)
+| Word        (**r 4 bytes *)
+| WordAny     (**r 4 bytes *)
+  (** 64 bits *)
+| SignedWord (**r 4 bytes (signed) *)
+| DBWord     (**r 8 bytes *)
+| DBWordAny.  (**r 8 bytes *)
 
 Inductive instruction : Type :=
   | Pload : sizeOp -> ireg -> ireg -> off -> instruction        (**r dereference load *)
@@ -125,11 +132,12 @@ Inductive instruction : Type :=
   | Pret : instruction                                          (**r function return *)
 
   (* Pseudo-instructions *)
-  | Plabel (lbl: label)                                         (**r define a code label *)
-  | Pbuiltin: external_function -> list (builtin_arg preg)
+| Plabel (lbl: label)                                         (**r define a code label *)
+| Ploadsymbol (rd:ireg) (id:ident) (ofs: ptrofs)              (**r load address of symbol *)
+| Pbuiltin: external_function -> list (builtin_arg preg)
               -> builtin_res preg -> instruction                (**r built-in function (pseudo) *)
-  | Pallocframe (sz: Z) (ofs_ra ofs_link: ptrofs)               (**r allocate new stack frame *)
-  | Pfreeframe  (sz: Z) (ofs_ra ofs_link: ptrofs).              (**r deallocate stack frame and restore previous frame *)
+| Pallocframe (sz: Z) (ofs_ra ofs_link: ptrofs)               (**r allocate new stack frame *)
+| Pfreeframe  (sz: Z) (ofs_ra ofs_link: ptrofs).              (**r deallocate stack frame and restore previous frame *)
 
 
 Definition code := list instruction.
@@ -286,22 +294,60 @@ Definition eval_cmp (op: cmpOp) (rs: regset) (m: mem) (r: ireg) (ri: ireg+imm) :
 
 (** Auxiliaries for memory accesses *)
 
-Definition size_to_memory_chunk (size: sizeOp) : memory_chunk :=
+(*Definition size_to_memory_chunk (size: sizeOp) : memory_chunk :=
   match size with
   | Byte => Mint8unsigned
   | HalfWord => Mint16unsigned
   | Word => Many32
   | SignedWord => Mint32
   end.
+ *)
+
+Definition load (k: sizeOp) (addr:val) (m:mem) :=
+  match k with
+  | Byte => Mem.loadv Mint8unsigned m addr
+  | HalfWord => Mem.loadv Mint16unsigned m addr
+  | Word     => Mem.loadv Mint32 m addr
+  | WordAny  => Mem.loadv Many32 m addr
+  | SignedWord => if Archi.ptr64
+                  then match Mem.loadv Mint32 m addr with
+                       | None => None
+                       | Some v => Some (Val.longofint v)
+                       end
+                  else None
+  | DBWord     => if Archi.ptr64 then Mem.loadv Mint64 m addr else None
+  | DBWordAny  => if Archi.ptr64 then Mem.loadv Many64 m addr else None
+  end.
 
 Definition exec_load (k: sizeOp) (r:ireg) (r':ireg) (o:Ptrofs.int) (rs: regset) (m:mem) :=
-  match Mem.loadv (size_to_memory_chunk k) m (Val.offset_ptr rs#r' o) with
+  match load k (Val.offset_ptr rs#r' o) m with
   | None => Stuck
   | Some v => Next (nextinstr (rs#r <- v)) m
   end.
 
+
+Definition cast_long_int (v:val) : val :=
+  match v with
+  | Vlong l => Vint (Int.repr (Int64.unsigned l))
+  | _       => Vundef
+  end.
+
+
+
+Definition store (k: sizeOp) (addr:val) (v:val) (m:mem) :=
+  match k with
+  | Byte => Mem.storev Mint8unsigned m addr v
+  | HalfWord => Mem.storev Mint16unsigned m addr v
+  | Word     => Mem.storev Mint32 m addr v
+  | WordAny  => Mem.storev Many32 m addr v
+  | SignedWord => if Archi.ptr64 then Mem.storev Mint32 m addr (cast_long_int v) else None
+  | DBWord     => if Archi.ptr64 then Mem.storev Mint64 m addr v else None
+  | DBWordAny  => if Archi.ptr64 then Mem.storev Many64 m addr v else None
+  end.
+
+
 Definition exec_store (k: sizeOp) (r:ireg) (ri:ireg+imm) (o:Ptrofs.int) (rs: regset) (m:mem) :=
-  match Mem.storev (size_to_memory_chunk k) m (Val.offset_ptr rs#r o) (eval_reg_imm rs ri) with
+  match store  k (Val.offset_ptr rs#r o) (eval_reg_imm rs ri) m with
   | None => Stuck
   | Some m' => Next (nextinstr rs) m'
   end.
@@ -376,7 +422,7 @@ Definition exec_instr (f: function) (i: instruction) (rs:regset) (m: mem) : outc
       end
 
   | Plabel l         => Next (nextinstr rs) m
-
+  | Ploadsymbol rd s ofs => Next (nextinstr (rs#rd <- (Genv.symbol_address ge s ofs))) m
   | _                => Stuck
   end.
 
@@ -539,9 +585,8 @@ Qed.
 
 Definition data_preg (r: preg) : bool :=
   match r with
+  | IR RA   => false
   | IR _ => true
   | FR _ => true
   | PC   => false
-  | RA   => false
   end.
-

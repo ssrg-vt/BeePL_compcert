@@ -256,24 +256,6 @@ Proof.
   econstructor; split; eauto. simpl. rewrite H; auto.
 Qed.
 
-Lemma make_divimm_correct:
-  forall n r1 r2 v,
-  Val.divs e#r1 e#r2 = Some v ->
-  e#r2 = Vint n ->
-  let (op, args) := make_divimm n r1 r2 in
-  exists w, eval_operation ge (Vptr sp Ptrofs.zero) op e##args m = Some w /\ Val.lessdef v w.
-Proof.
-  intros; unfold make_divimm.
-  predSpec Int.eq Int.eq_spec n Int.one; intros. subst. rewrite H0 in H.
-  destruct (e#r1) eqn:?;
-    try (rewrite Val.divs_one in H; exists (Vint i); split; simpl; try rewrite Heqv0; auto);
-    inv H; auto.
-  destruct (Int.is_power2 n) eqn:?.
-  destruct (Int.ltu i (Int.repr 31)) eqn:?.
-  exists v; split; auto. simpl. eapply Val.divs_pow2; eauto. congruence.
-  exists v; auto.
-  exists v; auto.
-Qed.
 
 Lemma make_divuimm_correct:
   forall n r1 r2 v,
@@ -463,9 +445,6 @@ Proof.
   rewrite Val.mul_commut in H0. InvApproxRegs; SimplVM; inv H0. apply make_mulimm_correct; auto.
 - (* mul 2*)
   InvApproxRegs; SimplVM; inv H0. apply make_mulimm_correct; auto.
-- (* divs *)
-  assert (e#r2 = Vint n2). clear H0. InvApproxRegs; SimplVM; auto.
-  apply make_divimm_correct; auto.
 - (* divu *)
   assert (e#r2 = Vint n2). clear H0. InvApproxRegs; SimplVM; auto.
   apply make_divuimm_correct; auto.
@@ -518,8 +497,6 @@ Proof.
   intros until res. unfold addr_strength_reduction.
   destruct (addr_strength_reduction_match addr args vl); simpl;
   intros VL EA; InvApproxRegs; SimplVM; try (inv EA).
-- simpl. rewrite Genv.shift_symbol_address. econstructor; split; eauto.
-  inv H0; simpl; auto.
 - rewrite Ptrofs.add_zero_l. econstructor; split; eauto.
   change (Vptr sp (Ptrofs.add n1 n)) with (Val.offset_ptr (Vptr sp n1) n).
   inv H0; simpl; auto.

@@ -13,7 +13,9 @@
 Require Import Coqlib Errors Maps.
 Require Import AST Zbits Integers Floats Values Memory Globalenvs.
 Require Import Op Locations Mach Conventions.
+Require Import Events Smallstep.
 Require Import Asm Asmgen Asmgenproof0.
+
 
 (** Properties of registers *)
 
@@ -78,21 +80,62 @@ Qed.
 
 (** Translation of conditional branches *)
 
+Lemma cmp_cmpu_Ceq : forall v1 v2 f b,
+    Val.cmp_bool Ceq v1 v2  = Some b ->
+    Val.cmpu_bool f Ceq v1 v2 = Some b.
+Proof.
+  intros.
+  unfold Val.cmp_bool in H.
+  destruct v1 ; try discriminate H.
+  destruct v2 ; try discriminate H.
+  apply H.
+Qed.
+
+Lemma cmp_cmpu_Cne : forall v1 v2 f b,
+    Val.cmp_bool Cne v1 v2  = Some b ->
+    Val.cmpu_bool f Cne v1 v2 = Some b.
+Proof.
+  intros.
+  unfold Val.cmp_bool in H.
+  destruct v1 ; try discriminate H.
+  destruct v2 ; try discriminate H.
+  apply H.
+Qed.
+
+
+Lemma transl_comparison_signed_correct:
+  forall cmp r1 r2  (rs: regset) m b,
+  Val.cmp_bool cmp rs#(IR r1) (eval_reg_imm rs r2) = Some b ->
+  eval_cmp (transl_comparison cmp Ctypes.Signed) rs m r1 r2 = Some b.
+Proof.
+  intros.
+  unfold transl_comparison.
+  destruct cmp ; simpl; auto.
+  - apply cmp_cmpu_Ceq; auto.
+  - apply cmp_cmpu_Cne; auto.
+Qed.
+
+Lemma transl_comparison_unsigned_correct:
+  forall cmp r1 r2  (rs: regset) m b,
+  Val.cmpu_bool (Mem.valid_pointer m) cmp rs#(IR r1) (eval_reg_imm rs r2) = Some b ->
+  eval_cmp (transl_comparison cmp Ctypes.Unsigned) rs m r1 r2 = Some b.
+Proof.
+  intros.
+  unfold transl_comparison.
+  destruct cmp ; simpl; auto.
+Qed.
+
 Lemma transl_cbranch_signed_correct:
   forall cmp r1 r2 lbl (rs: regset) m b,
   Val.cmp_bool cmp rs#(IR r1) (eval_reg_imm rs r2) = Some b ->
   exec_instr ge fn (transl_cbranch_signed cmp r1 r2 lbl) rs m =
   exec_branch fn lbl rs m (Some b).
 Proof.
-  intros. destruct cmp; simpl; rewrite ? H; try reflexivity.
-  - destruct rs#r1; simpl in H; try discriminate.
-    destruct (eval_reg_imm rs r2); simpl in H; try discriminate.
-    inv H; simpl.
-    reflexivity.
-  - destruct rs#r1; simpl in H; try discriminate.
-    destruct (eval_reg_imm rs r2); simpl in H; try discriminate.
-    inv H; simpl.
-    reflexivity.
+  intros.
+  unfold transl_cbranch_signed.
+  simpl.
+  apply transl_comparison_signed_correct with (m:=m) in H.
+  rewrite H. reflexivity.
 Qed.
 
 Lemma transl_cbranch_unsigned_correct:
@@ -101,7 +144,11 @@ Lemma transl_cbranch_unsigned_correct:
   exec_instr ge fn (transl_cbranch_unsigned cmp r1 r2 lbl) rs m =
   exec_branch fn lbl rs m (Some b).
 Proof.
-  intros. destruct cmp; simpl; rewrite ? H; reflexivity.
+  intros.
+  unfold transl_cbranch_unsigned.
+  simpl.
+  apply transl_comparison_unsigned_correct with (m:=m) in H.
+  rewrite H. reflexivity.
 Qed.
 
 Ltac ArgsInv :=
@@ -177,6 +224,8 @@ Proof.
 Qed.
 
 
+
+
 (** Translation of condition operators *)
 
 Ltac TranslCondSimpl :=
@@ -187,11 +236,13 @@ Ltac TranslCondSimpl :=
 Lemma transl_cond_signed_correct:
   forall cmp r1 r2 k rs m,
   exists rs',
-     exec_straight ge fn (transl_cond_signed cmp r1 r2 :: k) rs m k rs' m
+     exec_straight ge fn (transl_cond_as_Pcmp cmp Ctypes.Signed r1 r2  k) rs m k rs' m
   /\ Val.lessdef (Val.cmp cmp rs#r1 (eval_reg_imm rs r2)) rs'#r1
   /\ forall r, r <> PC -> r <> r1 -> rs'#r = rs#r.
 Proof.
-  intros. destruct cmp; simpl; TranslCondSimpl.
+  intros.
+  unfold transl_cond_as_Pcmp.
+  destruct cmp; simpl; TranslCondSimpl.
   unfold eval_cmp; destruct (rs#r1); auto; destruct (eval_reg_imm rs r2); auto.
   unfold eval_cmp; destruct (rs#r1); auto; destruct (eval_reg_imm rs r2); auto.
 Qed.
@@ -199,12 +250,28 @@ Qed.
 Lemma transl_cond_unsigned_correct:
   forall cmp r1 r2 k rs m,
   exists rs',
-     exec_straight ge fn (transl_cond_unsigned cmp r1 r2 :: k) rs m k rs' m
+     exec_straight ge fn (transl_cond_as_Pcmp cmp Ctypes.Unsigned r1 r2 k) rs m k rs' m
   /\ Val.lessdef (Val.cmpu (Mem.valid_pointer m) cmp rs#r1 (eval_reg_imm rs r2)) rs'#r1
   /\ forall r, r <> PC -> r <> r1 -> rs'#r = rs#r.
 Proof.
   intros. destruct cmp; simpl; TranslCondSimpl.
 Qed.
+
+Lemma transl_cond_as_jump_correct:
+  forall cmp r1 r2 k rs m,
+  exists rs',
+     exec_straight ge fn (transl_cond_as_Pcmp cmp Ctypes.Signed r1 r2 k) rs m k rs' m
+  /\ Val.lessdef (Val.cmp cmp rs#r1 (eval_reg_imm rs r2)) rs'#r1
+  /\ forall r, r <> PC -> r <> r1 -> rs'#r = rs#r.
+Proof.
+  intros.
+  unfold transl_cond_as_Pcmp.
+  destruct cmp; simpl; TranslCondSimpl.
+  unfold eval_cmp; destruct (rs#r1); auto; destruct (eval_reg_imm rs r2); auto.
+  unfold eval_cmp; destruct (rs#r1); auto; destruct (eval_reg_imm rs r2); auto.
+Qed.
+
+
 
 Lemma transl_cond_op_correct:
   forall cond rd args k c rs m,
@@ -252,6 +319,44 @@ Ltac TranslALUOpSimpl EV :=
   [ apply exec_straight_one; [ unfold exec_instr, exec_alu; simpl; rewrite EV; try reflexivity | reflexivity]
   | split; [ apply Val.lessdef_same; Simpl; fail | intros; Simpl; fail ] ].
 
+Lemma sign_ext_8 : forall x rs k  m,
+  exists rs' : regset,
+    exec_straight ge fn (Palu LSH x (inr (Int.repr 24)) :: Palu ARSH x (inr (Int.repr 24)) :: k) rs m k rs' m /\
+      Val.sign_ext 8 (rs x) = (rs' x) /\
+      (forall r : preg, r <> PC -> r <> x  -> rs' r = rs r).
+Proof.
+  intros.
+  eexists.  split;[|split].
+  - eapply exec_straight_two; reflexivity.
+  - Simpl.
+    unfold eval_reg_imm.
+    destruct (rs x) ; simpl; auto.
+    change (Int.ltu (Int.repr 24) Int.iwordsize) with true.
+    simpl. change (Int.ltu (Int.repr 24) Int.iwordsize) with true.
+    simpl. rewrite Int.sign_ext_shr_shl. reflexivity.
+    change Int.zwordsize with 32. lia.
+  - intros. Simpl.
+Qed.
+
+Lemma sign_ext_16 : forall x rs k  m,
+  exists rs' : regset,
+    exec_straight ge fn (Palu LSH x (inr (Int.repr 16)) :: Palu ARSH x (inr (Int.repr 16)) :: k) rs m k rs' m /\
+      (Val.sign_ext 16 (rs x)) =  (rs' x) /\
+      (forall r : preg, r <> PC -> r <> x  -> rs' r = rs r).
+Proof.
+  intros.
+  eexists.  split;[|split].
+  - eapply exec_straight_two; reflexivity.
+  - Simpl.
+    unfold eval_reg_imm.
+    destruct (rs x) ; simpl; auto.
+    change (Int.ltu (Int.repr 16) Int.iwordsize) with true.
+    simpl. change (Int.ltu (Int.repr 16) Int.iwordsize) with true.
+    simpl. rewrite Int.sign_ext_shr_shl. reflexivity.
+    change Int.zwordsize with 32. lia.
+  - intros. Simpl.
+Qed.
+
 
 Lemma transl_op_correct:
   forall op args res k (rs: regset) m v c,
@@ -266,11 +371,9 @@ Proof.
 Opaque Int.eq.
   intros until c; intros TR EV.
   unfold transl_op in TR; destruct op; ArgsInv; simpl in EV; SimplEval EV; try TranslOpSimpl.
-
-- (* addrstack *)
+  - (* addrstack *)
   exploit addptrofs_correct; intros (rs' & A & B & C).
   exists rs'; split; [ exact A | auto with asmgen ].
-
 - (* neg *)
   econstructor; split.
   apply exec_straight_one; reflexivity.
@@ -290,77 +393,220 @@ Opaque Int.eq.
 - (* cond *)
   exploit transl_cond_op_correct; eauto. intros (rs' & A & B & C).
   exists rs'; split. eexact A. eauto with asmgen.
+- (* sign_ext 8 *)
+  exploit sign_ext_8.
+  intros (rs' & EXEC & LD & RS).
+  eexists. split;[eauto|split]; eauto.
+  intros. apply RS; auto. intro. subst. discriminate.
+- (* sign_ext 16 *)
+  exploit sign_ext_16.
+  intros (rs' & EXEC & LD & RS).
+  eexists. split;[eauto|split]; eauto.
+  intros. apply RS; auto. intro. subst. discriminate.
 Qed.
 
-Lemma stack_load_correct:
-  forall ofs ty dst k c (rs: regset) m v,
-  stack_load ofs ty dst k = OK c ->
-  Mem.loadv (chunk_of_type ty) m (Val.offset_ptr rs#SP ofs) = Some v ->
+Lemma loadind_correct:
+  forall base ofs ty dst k c (rs: regset) m v,
+    loadind base ofs ty dst k = OK c ->
+  Mem.loadv (chunk_of_type ty) m (Val.offset_ptr rs#base ofs) = Some v ->
   exists rs',
      exec_straight ge fn c rs m k rs' m
   /\ rs'#(preg_of dst) = v
   /\ forall r, r <> PC -> r <> preg_of dst -> rs'#r = rs#r.
 Proof.
   intros until v. intros LOAD TR.
-  unfold stack_load in LOAD; ArgsInv.
+  unfold loadind in LOAD; ArgsInv.
   econstructor. split.
   - apply exec_straight_one. simpl; unfold exec_load.
-    + assert (H: Mem.loadv (size_to_memory_chunk x0) m (Val.offset_ptr (rs R10) ofs) = Some v). {
-        unfold chunk_of_type in TR.
-        unfold size_to_memory_chunk.
-        destruct ty, x0; try discriminate; auto.
-      }
-      rewrite H.
-      reflexivity.
+    +
+      unfold load, transl_typ in *.
+      destruct Archi.ptr64 eqn:A.
+      *
+        destruct ty; simpl in *; inv EQ1;
+        rewrite TR; reflexivity.
+      *  destruct ty; simpl in *; inv EQ1;
+        rewrite TR; reflexivity.
     + Simpl.
   - split; intros; Simpl.
 Qed.
 
+Lemma storeind_correct:
+  forall (base: ireg) ofs ty src k c (rs: regset) m m',
+  storeind base ofs ty src k = OK c ->
+  Mem.storev (chunk_of_type ty) m (Val.offset_ptr rs#base ofs) rs#(preg_of src) = Some m' ->
+  exists rs',
+     exec_straight ge fn c rs m k rs' m'
+  /\ forall r, r <> PC -> rs'#r = rs#r.
+Proof.
+  intros until m'; intros TR STORE.
+  unfold storeind in TR. ArgsInv.
+  econstructor.
+  split.
+  - apply exec_straight_one. simpl; unfold exec_store.
+    + unfold store, transl_typ in *.
+      destruct Archi.ptr64 eqn:A.
+      *
+        destruct ty; simpl in *; inv EQ1;
+        rewrite STORE; reflexivity.
+      *  destruct ty; simpl in *; inv EQ1;
+        rewrite STORE; reflexivity.
+    + Simpl.
+  - intros; Simpl.
+Qed.
+
+Lemma loadind_ptr_correct:
+  forall (base: ireg) ofs (dst: ireg) k (rs: regset) m v,
+  Mem.loadv Mptr m (Val.offset_ptr rs#base ofs) = Some v ->
+  exists rs',
+     exec_straight ge fn (loadind_ptr base ofs dst k) rs m k rs' m
+  /\ rs'#dst = v
+  /\ forall r, r <> PC -> r <> dst -> rs'#r = rs#r.
+Proof.
+  intros until v. intros LOAD.
+  unfold loadind_ptr, Mptr in *.
+  econstructor. split.
+  apply exec_straight_one. simpl. unfold exec_load,load.
+  destruct Archi.ptr64; rewrite LOAD;reflexivity.
+  Simpl.
+  split; intros; Simpl.
+Qed.
+
+
+
 Lemma stack_store_correct:
-  forall ofs ty src k c (rs: regset) m m',
-  stack_store ofs ty src k = OK c ->
-  Mem.storev (chunk_of_type ty) m (Val.offset_ptr rs#SP ofs) rs#(preg_of src) = Some m' ->
+  forall base ofs ty src k c (rs: regset) m m',
+  storeind base ofs ty src k = OK c ->
+  Mem.storev (chunk_of_type ty) m (Val.offset_ptr rs#base ofs) rs#(preg_of src) = Some m' ->
   exists rs',
      exec_straight ge fn c rs m k rs' m'
   /\ forall r, r <> PC -> rs'#r = rs#r.
 Proof.
   intros until m'. intros STORE TR.
-  unfold stack_store in STORE; ArgsInv.
+  unfold storeind in STORE; ArgsInv.
   econstructor. split.
   - apply exec_straight_one. simpl; unfold exec_store.
-    + assert (H: Mem.storev (size_to_memory_chunk x0) m (Val.offset_ptr (rs R10) ofs) (rs x) = Some m'). {
-        unfold chunk_of_type in TR.
-        unfold size_to_memory_chunk.
-        destruct ty, x0; try discriminate; auto.
-      }
-      simpl.
-      rewrite H.
-      reflexivity.
+    + unfold store, transl_typ in *.
+      destruct Archi.ptr64 eqn:A.
+      *
+        destruct ty; simpl in *; inv EQ1;
+        rewrite TR; reflexivity.
+      *  destruct ty; simpl in *; inv EQ1;
+        rewrite TR; reflexivity.
     + Simpl.
   - intros; Simpl.
 Qed.
 
-Lemma transl_load_common_correct:
-  forall chunk k i op (x x0: ireg) (rs: regset) m a v,
+Lemma transl_load_indexed_correct:
+  forall chunk k i  (x x0: ireg) (rs: regset) m a v kl,
   Val.offset_ptr (rs x0) i = a ->
   Mem.loadv chunk m a = Some v ->
-  transl_memory_access chunk = OK op ->
+  transl_load_indexed chunk x x0 i k = OK kl ->
   exists rs',
-     exec_straight ge fn (Pload op x x0 i :: k) rs m k rs' m
+     exec_straight ge fn kl rs m k rs' m
   /\ rs'#x = v
   /\ forall r, r <> PC -> r <> x -> rs'#r = rs#r.
 Proof.
-  intros until v. intros EV LOAD TR.
-  econstructor. split.
-  - apply exec_straight_one; simpl; unfold exec_load.
-    + assert (H: Mem.loadv (size_to_memory_chunk op) m a = Some v). {
-        unfold transl_memory_access in TR.
-        destruct chunk, op; try discriminate; auto.
-      }
-      rewrite EV, H.
-      reflexivity.
-    + Simpl.
-  - split; intros; Simpl.
+  intros until v. intros KL EV LOAD TR.
+  unfold transl_load_indexed in TR.
+  destruct a; try discriminate.
+  unfold Mem.loadv in LOAD.
+  destruct chunk.
+  + (* Mint8signed *)
+    inv TR.
+    rewrite Mem.load_int8_signed_unsigned in LOAD.
+    destruct (Mem.load Mint8unsigned m b (Ptrofs.unsigned i0))eqn:ML; try discriminate.
+    simpl in LOAD. inv LOAD.
+    exploit sign_ext_8. intros (rs' & EXEC & LD & RS).
+    eexists ; split ; eauto.
+    eapply exec_straight_step; simpl; unfold exec_load,load; try reflexivity.
+    unfold Mem.loadv. rewrite EV. rewrite ML.
+    reflexivity.
+    reflexivity. eauto.
+    split. rewrite <- LD. Simpl.
+    intros. rewrite RS by auto. Simpl.
+  + (* Mint8unsigned *)
+    inv TR.
+    econstructor. split.
+    eapply exec_straight_one; simpl; unfold exec_load,load; try reflexivity.
+    unfold Mem.loadv. rewrite EV. rewrite LOAD.
+    reflexivity.
+    reflexivity.
+    split.
+    * Simpl.
+    * intros.
+      Simpl.
+  + (* Mint16signed *)
+    inv TR.
+    rewrite Mem.load_int16_signed_unsigned in LOAD.
+    destruct (Mem.load Mint16unsigned m b (Ptrofs.unsigned i0))eqn:ML; try discriminate.
+    simpl in LOAD. inv LOAD.
+    exploit sign_ext_16. intros (rs' & EXEC & LD & RS).
+    eexists ; split ; eauto.
+    eapply exec_straight_step; simpl; unfold exec_load,load; try reflexivity.
+    unfold Mem.loadv. rewrite EV. rewrite ML.
+    reflexivity.
+    reflexivity. eauto.
+    split. rewrite <- LD. Simpl.
+    intros. rewrite RS by auto. Simpl.
+  + (* Mint16unsigned *)
+    inv TR.
+    econstructor. split.
+    eapply exec_straight_one; simpl; unfold exec_load,load; try reflexivity.
+    unfold Mem.loadv. rewrite EV. rewrite LOAD.
+    reflexivity.
+    reflexivity.
+    split.
+    * Simpl.
+    * intros.
+      Simpl.
+  + (* Mint32 *)
+    inv TR.
+    econstructor. split.
+    eapply exec_straight_one; simpl; unfold exec_load,load; try reflexivity.
+    unfold Mem.loadv. rewrite EV. rewrite LOAD.
+    reflexivity.
+    reflexivity.
+    split.
+    * Simpl.
+    * intros.
+      Simpl.
+  + destruct Archi.ptr64 eqn:A;[| discriminate].
+    (* Mint64 *)
+    inv TR.
+    econstructor. split.
+    eapply exec_straight_one; simpl; unfold exec_load,load; try reflexivity.
+    unfold Mem.loadv. rewrite EV. rewrite LOAD. rewrite A.
+    reflexivity.
+    reflexivity.
+    split.
+    * Simpl.
+    * intros.
+      Simpl.
+  + (* Mfloat32 *) discriminate.
+  + (* Mfloat64 *) discriminate.
+  + (* Many32 *)
+    inv TR.
+    econstructor. split.
+    eapply exec_straight_one; simpl; unfold exec_load,load; try reflexivity.
+    unfold Mem.loadv. rewrite EV. rewrite LOAD.
+    reflexivity.
+    reflexivity.
+    split.
+    * Simpl.
+    * intros.
+      Simpl.
+  + (* Many64 *)
+    destruct Archi.ptr64 eqn:A;[|discriminate].
+    inv TR.
+    econstructor. split.
+    eapply exec_straight_one; simpl; unfold exec_load,load; try reflexivity.
+    unfold Mem.loadv. rewrite EV. rewrite A.  rewrite LOAD.
+    reflexivity.
+    reflexivity.
+    split.
+    * Simpl.
+    * intros.
+      Simpl.
 Qed.
 
 Lemma transl_load_correct:
@@ -375,36 +621,91 @@ Lemma transl_load_correct:
 Proof.
   intros until v; intros TR EV LOAD.
   destruct addr, args; simpl in TR; ArgsInv.
-  - unfold transl_memory_access in EQ0.
-    inversion EV.
-    destruct chunk; try discriminate; eapply transl_load_common_correct; eauto.
-
-  - unfold transl_memory_access in EQ1.
-    inversion EV.
-    destruct chunk; try discriminate; eapply transl_load_common_correct; eauto.
+  - exploit transl_load_indexed_correct; eauto.
+    congruence.
+  - exploit transl_load_indexed_correct; eauto.
+    congruence.
 Qed.
 
 Lemma transl_store_common_correct:
-  forall chunk k i op (x x0: ireg) (rs: regset) m m' a,
+  forall chunk k i k' (x x0: ireg) (rs: regset) m m' a,
   Val.offset_ptr (rs x0) i = a ->
   Mem.storev chunk m a (rs x) = Some m' ->
-  transl_memory_access chunk = OK op ->
+  transl_store_indexed chunk x0 i x k = OK k' ->
   exists rs',
-     exec_straight ge fn (Pstore op x0 (inl x) i :: k) rs m k rs' m'
+     exec_straight ge fn k' rs m k rs' m'
   /\ forall r, r <> PC -> rs'#r = rs#r.
 Proof.
   intros until a. intros EV STORE TR.
-  econstructor. split.
-  - apply exec_straight_one; simpl; unfold exec_store.
-    + assert (H: Mem.storev (size_to_memory_chunk op) m a (rs x) = Some m'). {
-        unfold transl_memory_access in TR.
-        destruct chunk, op; try discriminate; auto.
-      }
-      simpl.
-      rewrite EV, H.
-      reflexivity.
-    + Simpl.
-  - intros; Simpl.
+  destruct chunk; simpl in TR.
+  - (* Mint8signed *)
+    inv TR.
+    econstructor. split.
+    apply exec_straight_one; simpl; unfold exec_store,store.
+    destruct (Val.offset_ptr (rs x0) i); try discriminate.
+    simpl in STORE.
+    rewrite Mem.store_signed_unsigned_8 in STORE.
+    simpl.
+    rewrite STORE. reflexivity.
+    reflexivity.
+    intros. Simplif.
+  - (* Mint8unsigned *)
+    inv TR.
+    econstructor. split.
+    apply exec_straight_one; simpl; unfold exec_store,store,eval_reg_imm.
+    rewrite STORE. reflexivity.
+    reflexivity.
+    intros. Simplif.
+  - (* Mint16signed *)
+    inv TR.
+    econstructor. split.
+    apply exec_straight_one; simpl; unfold exec_store,store.
+    destruct (Val.offset_ptr (rs x0) i); try discriminate.
+    simpl in STORE.
+    rewrite Mem.store_signed_unsigned_16 in STORE.
+    simpl.
+    rewrite STORE. reflexivity.
+    reflexivity.
+    intros. Simplif.
+  -
+    inv TR.
+    econstructor. split.
+    apply exec_straight_one; simpl; unfold exec_store,store,eval_reg_imm.
+    rewrite STORE. reflexivity.
+    reflexivity.
+    intros. Simplif.
+  -     inv TR.
+    econstructor. split.
+    apply exec_straight_one; simpl; unfold exec_store,store,eval_reg_imm.
+    rewrite STORE. reflexivity.
+    reflexivity.
+    intros. Simplif.
+  -
+    destruct Archi.ptr64 eqn:ARCHI;[|discriminate].
+    inv TR.
+    econstructor. split.
+    apply exec_straight_one; simpl; unfold exec_store,store,eval_reg_imm.
+    rewrite ARCHI.
+    rewrite STORE. reflexivity.
+    reflexivity.
+    intros. Simplif.
+  - discriminate.
+  - discriminate.
+  -
+    inv TR.
+    econstructor. split.
+    apply exec_straight_one; simpl; unfold exec_store,store,eval_reg_imm.
+    rewrite STORE. reflexivity.
+    reflexivity.
+    intros. Simplif.
+  -
+    destruct Archi.ptr64 eqn:ARCHI; [|discriminate].
+    inv TR.
+    econstructor. split.
+    apply exec_straight_one; simpl; unfold exec_store,store,eval_reg_imm.
+    rewrite STORE. rewrite ARCHI. reflexivity.
+    reflexivity.
+    intros. Simplif.
 Qed.
 
 Lemma transl_store_correct:
@@ -418,13 +719,10 @@ Lemma transl_store_correct:
 Proof.
   intros until m'; intros TR EV STORE.
   destruct addr, args; simpl in TR; ArgsInv.
-  - unfold transl_memory_access in EQ0.
-    inversion EV.
-    destruct chunk; try discriminate; eapply transl_store_common_correct; eauto.
-
-  - unfold transl_memory_access in EQ1.
-    inversion EV.
-    destruct chunk; try discriminate; eapply transl_store_common_correct; eauto.
+  - exploit transl_store_common_correct;eauto.
+    congruence.
+  - exploit transl_store_common_correct;eauto.
+    congruence.
 Qed.
 
 End CONSTRUCTORS.

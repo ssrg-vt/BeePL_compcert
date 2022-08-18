@@ -1,10 +1,11 @@
 /* Assignment between structs and unions */
 
 #include <stdio.h>
+#include <stdint.h>
 
 struct small {
   int x;
-  double d;
+  uint64_t d;
   char c[5];
 };
 

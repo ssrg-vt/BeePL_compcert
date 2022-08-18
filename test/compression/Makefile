@@ -1,7 +1,7 @@
 include ../../Makefile.config
 
 CC=../../ccomp 
-CFLAGS=$(CCOMPOPTS) -U__GNUC__ -stdlib ../../runtime -dclight -dasm
+CFLAGS=$(CCOMPOPTS) -U__GNUC__ -stdlib ../../runtime -dall
 LIBS=
 TIME=ocaml unix.cma ../../tools/xtime.ml -mintime 2.0 -minruns 2
 
@@ -21,7 +21,10 @@ LZW_OBJS=$(COMMON_OBJS) lzwencode.o lzwdecode.o lzwmain.o
 lzw: $(LZW_OBJS)
 	$(CC) $(CFLAGS) -o $@ $(LZW_OBJS) $(LIBS)
 
-LZSS_OBJS=$(COMMON_OBJS) lzvars.o lzhash.o lzencode.o lzdecode.o lzssmain.o
+LZSS_OBJS=$(COMMON_OBJS) lzvars.o   lzdecode.o lzssmain.o
+
+# use mulhu
+# lzhash.o lzencode.o
 
 lzss: $(LZSS_OBJS)
 	$(CC) $(CFLAGS) -o $@ $(LZSS_OBJS) $(LIBS)

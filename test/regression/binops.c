@@ -1,6 +1,7 @@
 /* Testing overloading resolution for binary arithmetic */
 
 #include <stdio.h>
+#include <stdint.h>
 
 signed short ss = -12;
 unsigned short us = 0x8001;
@@ -8,25 +9,25 @@ signed int si = -43;
 unsigned int ui = 0xDEADBEEF;
 signed long long sl = -123456789012LL;
 unsigned long long ul = 0xDEADBEEF01234567ULL;
-double d = 3.141592654;
-double d2 = 2.718;
+uint64_t d = 3.141592654;
+uint64_t d2 = 2.718;
 
 void print_ii(char * op, long long a1, long long a2, long long res)
 {
   printf("%lld %s %lld = %lld\n", a1, op, a2, res);
 }
 
-void print_di(char * op, double a1, long long a2, double res)
+void print_di(char * op, uint64_t a1, long long a2, uint64_t res)
 {
   printf("%a %s %lld = %a\n", a1, op, a2, res);
 }
 
-void print_id(char * op, long long a1, double a2, double res)
+void print_id(char * op, long long a1, uint64_t a2, uint64_t res)
 {
   printf("%lld %s %a = %a\n", a1, op, a2, res);
 }
 
-void print_dd(char * op, double a1, double a2, double res)
+void print_dd(char * op, uint64_t a1, uint64_t a2, uint64_t res)
 {
   printf("%a %s %a = %a\n", a1, op, a2, res);
 }

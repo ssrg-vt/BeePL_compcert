@@ -1,7 +1,7 @@
 include ../../Makefile.config
 
 CCOMP=../../ccomp
-CCOMPFLAGS=$(CCOMPOPTS) -stdlib ../../runtime -dc -dclight -dasm
+CCOMPFLAGS=$(CCOMPOPTS) -fno-jump-tables -stdlib ../../runtime -dall
 
 CFLAGS=-O1 -Wall
 
@@ -9,10 +9,12 @@ LIBS=$(LIBMATH)
 
 TIME=ocaml unix.cma ../../tools/xtime.ml -o /dev/null -mintime 2.0 -minruns 4
 
-PROGS=fib integr qsort fft fftsp fftw sha1 sha3 aes almabench \
-  lists binarytrees fannkuch knucleotide mandelbrot nbody \
-  nsieve nsievebits spectral vmach \
-  bisect chomp perlin siphash24
+PROGS=fib integr qsort sha1 sha3 fletcher32 \
+  lists binarytrees fannkuch knucleotide mandelbrot \
+  nsieve nsievebits  vmach \
+  chomp perlin aes siphash24
+# Use float 
+# fft fftsp fftw almabench  nbody spectral bisect 
 
 all: $(PROGS:%=%.compcert)
 

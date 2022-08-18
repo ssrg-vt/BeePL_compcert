@@ -41,7 +41,8 @@ void wipestack(void)
 {
   unsigned int b[100];
   int i;
-  for (i = 0; i < 100; i++) ((volatile unsigned int *)b)[i] = 0xDEADBEEFU;
+  for (i = 0; i < 100; i++) ((//volatile
+			      unsigned int *)b)[i] = 0xDEADBEEFU;
 }
 
 int main()

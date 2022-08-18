@@ -39,7 +39,8 @@ char * valname[8] = {
 
 void test64(void)
 {
-  volatile double val[8];
+  //volatile
+  double val[8];
   int i, j;
 
   printf("--- Double precision\n");
@@ -72,7 +73,8 @@ void test64(void)
 
 void test32(void)
 {
-  volatile float val[8];
+  // volatile
+  float val[8];
   int i, j;
 
   printf("--- Single precision\n");

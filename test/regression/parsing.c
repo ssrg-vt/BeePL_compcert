@@ -1,4 +1,5 @@
 #include<stdio.h>
+#include <stdint.h>
 
 typedef signed int T;
 
@@ -135,7 +136,7 @@ void krh(b)
 void kri();
 void kri(b, c)
   int b;
-  double c;
+  uint64_t c;
 {
   printf("%d %f %f\n", b, c, 2*c);
 }

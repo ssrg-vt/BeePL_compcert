@@ -21,27 +21,27 @@ static int permutation[256] = { 151,160,137,91,90,15,
    138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180
    };
 
-static inline double fade(double t)
+static inline int fade(int t)
 { return t * t * t * (t * (t * 6 - 15) + 10); }
 
-static inline double lerp(double t, double a, double b)
+static inline int lerp(int t, int a, int b)
 { return a + t * (b - a); }
 
-static double grad(int hash, double x, double y, double z) {
+static int grad(int hash, int x, int y, int z) {
   int h = hash & 15;                      // CONVERT LO 4 BITS OF HASH CODE
-  double u = h<8 ? x : y,                 // INTO 12 GRADIENT DIRECTIONS.
+  int u = h<8 ? x : y,                 // INTO 12 GRADIENT DIRECTIONS.
          v = h<4 ? y : h==12||h==14 ? x : z;
   return ((h&1) == 0 ? u : -u) + ((h&2) == 0 ? v : -v);
 }
 
-static double noise(double x, double y, double z) {
-  int X = (int)floor(x) & 255,                  // FIND UNIT CUBE THAT
-      Y = (int)floor(y) & 255,                  // CONTAINS POINT.
-      Z = (int)floor(z) & 255;
-  x -= floor(x);                                // FIND RELATIVE X,Y,Z
-  y -= floor(y);                                // OF POINT IN CUBE.
-  z -= floor(z);
-  double u = fade(x),                                // COMPUTE FADE CURVES
+static int noise(int x, int y, int z) {
+  int X = (int)(x) & 255,                  // FIND UNIT CUBE THAT
+      Y = (int)(y) & 255,                  // CONTAINS POINT.
+      Z = (int)(z) & 255;
+  x -= (x);                                // FIND RELATIVE X,Y,Z
+  y -= (y);                                // OF POINT IN CUBE.
+  z -= (z);
+  int u = fade(x),                                // COMPUTE FADE CURVES
          v = fade(y),                                // FOR EACH OF X,Y,Z.
          w = fade(z);
   int A = p[X  ]+Y, AA = p[A]+Z, AB = p[A+1]+Z,      // HASH COORDINATES OF
@@ -66,12 +66,12 @@ static void init(void) {
 int main(int argc, char ** argv) {
   init();
   
-  double x, y, z, sum = 0.0;
-  for (x = -5.0; x < 5.0; x += 0.1)
-    for (y = -5.0; y < 5.0; y += 0.1)
-      for (z = -5.0; z < 5.0; z += 0.1)
+  int x, y, z, sum = 0;
+  for (x = -50; x < 50; x += 1)
+    for (y = -50; y < 50; y += 1)
+      for (z = -50; z < 50; z += 1)
         sum += noise(x, y, z);
   
-  printf("%.4e\n", sum);
+  printf("%i\n", sum);
   return 0;
 }

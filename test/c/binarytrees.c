@@ -7,9 +7,22 @@
        icc -O3 -ip -unroll -static binary-trees.c -lm
 */
 
-#include <math.h>
+// #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+int pow(int x, int y){
+  if (y <= 0) { return 1;}
+  else if (y == 1) {return x;}
+  else {
+    int p = pow(x, y >> 1);
+    if (y % 2 == 0)
+      { return p * p; }
+    else {return x * p * p;}
+  }
+}
+     
+
 
 
 typedef struct tn {

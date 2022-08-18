@@ -31,7 +31,7 @@ Local Open Scope error_monad_scope.
 Definition ireg_of (r: mreg) : res ireg :=
   match preg_of r with
   | IR mr => OK mr
-  | FR mr => Error (msg "Floating numbers aren't available in eBPF")
+  | FR mr => Error (msg "eBPF does not have floating point registers")
   | _ => Error (msg "Asmgen.ireg_of")
   end.
 
@@ -52,25 +52,21 @@ Definition addptrofs (rd rs: ireg) (n: ptrofs) (k: code) :=
 
 (** Translation of conditional branches. *)
 
-Definition transl_cbranch_signed (cmp: comparison) (r1: ireg) (r2: ireg+imm) (lbl: label) :=
+Definition transl_comparison (cmp:comparison) (sg:Ctypes.signedness) :=
   match cmp with
-  | Ceq => Pjmpcmp EQ r1 r2 lbl
-  | Cne => Pjmpcmp NE r1 r2 lbl
-  | Clt => Pjmpcmp (LT Ctypes.Signed) r1 r2 lbl
-  | Cle => Pjmpcmp (LE Ctypes.Signed) r1 r2 lbl
-  | Cgt => Pjmpcmp (GT Ctypes.Signed) r1 r2 lbl
-  | Cge => Pjmpcmp (GE Ctypes.Signed) r1 r2 lbl
+  | Ceq => EQ
+  | Cne => NE
+  | Clt => LT sg
+  | Cle => LE sg
+  | Cgt => GT sg
+  | Cge => GE sg
   end.
 
+Definition transl_cbranch_signed (cmp: comparison) (r1: ireg) (r2: ireg+imm) (lbl: label) :=
+  Pjmpcmp (transl_comparison cmp Ctypes.Signed) r1 r2 lbl.
+
 Definition transl_cbranch_unsigned (cmp: comparison) (r1: ireg) (r2: ireg+imm) (lbl: label) :=
-  match cmp with
-  | Ceq => Pjmpcmp EQ r1 r2 lbl
-  | Cne => Pjmpcmp NE r1 r2 lbl
-  | Clt => Pjmpcmp (LT Ctypes.Unsigned) r1 r2 lbl
-  | Cle => Pjmpcmp (LE Ctypes.Unsigned) r1 r2 lbl
-  | Cgt => Pjmpcmp (GT Ctypes.Unsigned) r1 r2 lbl
-  | Cge => Pjmpcmp (GE Ctypes.Unsigned) r1 r2 lbl
-  end.
+  Pjmpcmp (transl_comparison cmp Ctypes.Unsigned) r1 r2 lbl.
 
 Definition transl_cbranch (cond: condition) (args: list mreg) (lbl: label) (k: code) :=
   match cond, args with
@@ -95,30 +91,15 @@ Definition transl_cbranch (cond: condition) (args: list mreg) (lbl: label) (k: c
   | Ccompf _, _
   | Cnotcompf _, _
   | Ccompfs _, _
-  | Cnotcompfs _, _ => Error (msg "Floating numbers aren't available in eBPF")
+  | Cnotcompfs _, _ => Error (msg "Floating point comparisons are not available in eBPF")
 
   | _, _ => Error(msg "Asmgen.transl_cbranch")
   end.
 
-Definition transl_cond_signed (cmp: comparison) (r1: ireg) (r2: ireg+imm) :=
-  match cmp with
-  | Ceq => Pcmp EQ r1 r2
-  | Cne => Pcmp NE r1 r2
-  | Clt => Pcmp (LT Ctypes.Signed) r1 r2
-  | Cle => Pcmp (LE Ctypes.Signed) r1 r2
-  | Cgt => Pcmp (GT Ctypes.Signed) r1 r2
-  | Cge => Pcmp (GE Ctypes.Signed) r1 r2
-  end.
+Definition transl_cond_as_Pcmp (cond: comparison) (sg:Ctypes.signedness) (rd:ireg) (a:ireg+int)  (k:code) :=
+    Pcmp (transl_comparison cond sg) rd a :: k.
 
-Definition transl_cond_unsigned (cmp: comparison) (r1: ireg) (r2: ireg+imm) :=
-  match cmp with
-  | Ceq => Pcmp EQ r1 r2
-  | Cne => Pcmp NE r1 r2
-  | Clt => Pcmp (LT Ctypes.Unsigned) r1 r2
-  | Cle => Pcmp (LE Ctypes.Unsigned) r1 r2
-  | Cgt => Pcmp (GT Ctypes.Unsigned) r1 r2
-  | Cge => Pcmp (GE Ctypes.Unsigned) r1 r2
-  end.
+
 
 Definition transl_cond_op (cond: condition) (r: mreg) (args: list mreg) (k: code) :=
   match cond, args with
@@ -126,28 +107,28 @@ Definition transl_cond_op (cond: condition) (r: mreg) (args: list mreg) (k: code
       assertion (mreg_eq r a1);
       do r1 <- ireg_of a1;
       do r2 <- ireg_of a2;
-      OK (transl_cond_signed c r1 (inl r2) :: k)
+      OK (transl_cond_as_Pcmp c Ctypes.Signed r1 (inl r2) k)
 
   | Ccompu c, a1 :: a2 :: nil =>
       assertion (mreg_eq r a1);
       do r1 <- ireg_of a1;
       do r2 <- ireg_of a2;
-      OK (transl_cond_unsigned c r1 (inl r2) :: k)
+      OK (transl_cond_as_Pcmp c Ctypes.Unsigned r1 (inl r2) k)
 
   | Ccompimm c n, a1 :: nil =>
       assertion (mreg_eq r a1);
       do r1 <- ireg_of a1;
-      OK (transl_cond_signed c r1 (inr n) :: k)
+      OK (transl_cond_as_Pcmp c Ctypes.Signed r1 (inr n) k)
 
   | Ccompuimm c n, a1 :: nil =>
       assertion (mreg_eq r a1);
       do r1 <- ireg_of a1;
-      OK (transl_cond_unsigned c r1 (inr n) :: k)
+      OK (transl_cond_as_Pcmp c Ctypes.Unsigned r1 (inr n) k)
 
   | Ccompf c, _
   | Cnotcompf c, _
   | Ccompfs c, _
-  | Cnotcompfs c, _ => Error (msg "Floating numbers aren't available in eBPF")
+  | Cnotcompfs c, _ => Error (msg "Floating point comparisons are not available in eBPF")
 
   | _, _ => Error (msg "Asmgen.transl_cond_op")
   end.
@@ -299,20 +280,23 @@ Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
   | Ocmp cmp, _ =>
       transl_cond_op cmp res args k
 
-  (*c Following operations aren't available in eBPF, and will throw errors in this step *)
-  | Oaddrsymbol s ofs, nil => Error (msg "Global variables are not yet available in eBPF")
+  (*c Following operations are not available in eBPF, and will throw errors in this step *)
+| Oaddrsymbol s ofs, nil =>
+    do r <- ireg_of res;
+      OK (Ploadsymbol r s ofs :: k)
 
-  | Ocast8signed, a1 :: nil => Error (msg "cast8signed is not available in eBPF")
-  | Ocast16signed, a1 :: nil => Error (msg "cast16signed is not available in eBPF")
+| Ocast8signed, a1 :: nil =>
+    do r <- ireg_of res;
+    assertion (mreg_eq a1 res);
+    OK (Palu LSH r (inr (Int.repr 24)) :: Palu ARSH r (inr (Int.repr 24)) :: k)
+| Ocast16signed, a1 :: nil =>
+    do r <- ireg_of res;
+    assertion (mreg_eq a1 res);
+    OK (Palu LSH r (inr (Int.repr 16)) :: Palu ARSH r (inr (Int.repr 16)) :: k)
 
-  | Omulhs, a1 :: a2 :: nil => Error (msg "mulhs is not available in eBPF")
-  | Omulhu, a1 :: a2 :: nil => Error (msg "mulhu is not available in eBPF")
-  | Odiv, a1 :: a2 :: nil => Error (msg "div is not available in eBPF")
-  | Omod, a1 :: a2 :: nil => Error (msg "mod is not available in eBPF")
-  | Oshrximm n, a1 :: nil => Error (msg "shrximm is not available in eBPF")
-
-  (* [Omakelong] and [Ohighlong] should not occur *)
-  | Olowlong, a1 :: nil => Error (msg "lowlong is not available in eBPF")
+  | Omulhs, a1 :: a2 :: nil => Error (msg "mulhs is not available in eBPF: pass -Os")
+  | Omulhu, a1 :: a2 :: nil => Error (msg "mulhu is not available in eBPF: pass -Os")
+  | Omod, a1 :: a2 :: nil => Error (msg "signed modulo is not available in eBPF")
 
   | Ofloatconst _, _
   | Osingleconst _, nil
@@ -350,50 +334,55 @@ Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
   | Olongofsingle, _
   | Olonguofsingle, _
   | Osingleoflong, _
-  | Osingleoflongu, _ => Error (msg "Floating numbers aren't available in eBPF")
+  | Osingleoflongu, _ => Error (msg "Floating point conversions are not available in eBPF")
 
   | _, _ => Error (msg "Asmgen.transl_op")
   end.
 
+
+
 (** Accessing data in the stack frame. *)
 
-Definition transl_typ (typ: typ): res (sizeOp) :=
-  match typ with
-  | Tany32 => OK Word
-  | Tint => OK SignedWord
 
-  | Tsingle | Tfloat => Error (msg "Floating numbers aren't available in eBPF")
-
-  | _ => Error (msg "Asmgen.transl_typ")
+Definition transl_typ (t: typ): res (sizeOp) :=
+  match t with
+  | Tany32 => OK WordAny
+  | Tint => OK Word
+  | Tsingle | Tfloat => Error (msg "Floating point types are not available in eBPF")
+  | Tlong => if Archi.ptr64 then OK DBWord else Error (msg "Tlong is only available for eBPF-64")
+  | Tany64 => if Archi.ptr64 then OK DBWordAny else Error (msg "Tany64 is only available for eBPF-64")
   end.
 
 
 (** Translation of memory accesses: loads, and stores. *)
 
-Definition transl_memory_access (chunk: memory_chunk): res (sizeOp) :=
-  match chunk with
-  | Mint8unsigned => OK Byte
-
-  | Mint16unsigned => OK HalfWord
-
-  | Many32 => OK Word
-
-  | Mint32 => OK SignedWord
-
-  | Mfloat32 | Mfloat64 => Error (msg "Floating numbers aren't available in eBPF")
-
-  | _ => Error (msg "Asmgen.transl_memory_access")
-  end.
-
-Definition stack_load (ofs: ptrofs) (ty: typ) (dst: mreg) (k: code): res (list instruction) :=
+Definition loadind (base: ireg) (ofs: ptrofs) (ty: typ) (dst: mreg) (k: code): res (list instruction) :=
   do r <- ireg_of dst;
   do size <- transl_typ ty;
-  OK (Pload size r SP ofs :: k).
+  OK (Pload size r base ofs :: k).
 
-Definition stack_store (ofs: ptrofs) (ty: typ) (src: mreg) (k: code): res (list instruction) :=
+Definition loadind_ptr (base: ireg) (ofs:ptrofs) (dst:ireg) (k:code) :=
+  Pload (if Archi.ptr64 then DBWord else Word) dst base ofs  :: k.
+
+
+Definition storeind (base: ireg) (ofs: ptrofs) (ty: typ) (src: mreg) (k: code): res (list instruction) :=
   do r <- ireg_of src;
   do size <- transl_typ ty;
-  OK (Pstore size SP (inl r) ofs :: k).
+  OK (Pstore size base (inl r) ofs :: k).
+
+Definition transl_load_indexed (chunk : memory_chunk) (d:ireg) (a:ireg) (ofs: ptrofs) (k:code) : res (list instruction) :=
+  match chunk with
+  | Mint8unsigned  => OK (Pload Byte d a ofs :: k)
+  | Mint16unsigned => OK (Pload HalfWord d a ofs :: k)
+  | Many32         => OK (Pload WordAny d a ofs :: k)
+  | Mint32         => OK (Pload Word   d a ofs :: k)
+  | Mint64         => if Archi.ptr64 then OK (Pload DBWord d a ofs :: k) else Error (msg "int64 is only available for eBPF-64")
+  | Many64         => if Archi.ptr64 then OK (Pload DBWordAny d a ofs :: k) else Error (msg "int64 is only available for eBPF-64")
+  | Mint8signed    => OK (Pload Byte d a ofs :: Palu LSH d (inr (Int.repr 24)) :: Palu ARSH d (inr (Int.repr 24)) :: k)
+  | Mint16signed   => OK (Pload HalfWord d a ofs :: Palu LSH d (inr (Int.repr 16)) :: Palu ARSH d (inr (Int.repr 16)) :: k)
+  | Mfloat32 | Mfloat64      => Error (msg "Floating point numbers are not supported by eBPF")
+  end.
+
 
 Definition transl_load (chunk: memory_chunk) (addr: addressing)
            (args: list mreg) (dst: mreg) (k: code): res (list instruction) :=
@@ -401,17 +390,25 @@ Definition transl_load (chunk: memory_chunk) (addr: addressing)
   | Aindexed ofs, a1 :: nil =>
       do r <- ireg_of dst;
       do r1 <- ireg_of a1;
-      do size <- transl_memory_access chunk;
-      OK (Pload size r r1 ofs :: k)
+      transl_load_indexed chunk r r1 ofs k
 
   | Ainstack ofs, nil =>
       do r <- ireg_of dst;
-      do size <- transl_memory_access chunk;
-      OK (Pload size r SP ofs :: k)
-
-  | Aglobal _ _, _ => Error(msg "Global variables are not yet available in eBPF")
-
+      transl_load_indexed chunk r SP ofs k
   | _, _ => Error(msg "Asmgen.transl_load")
+  end.
+
+Definition transl_store_indexed (chunk : memory_chunk) (d:ireg) (ofs: ptrofs) (a:ireg)  (k:code) : res (list instruction) :=
+  match chunk with
+  | Mint8unsigned  => OK (Pstore Byte d (inl a) ofs :: k)
+  | Mint16unsigned => OK (Pstore HalfWord d (inl a) ofs :: k)
+  | Many32         => OK (Pstore WordAny d (inl a) ofs :: k)
+  | Mint32         => OK (Pstore Word   d (inl a) ofs :: k)
+  | Mint64         => if Archi.ptr64 then OK (Pstore DBWord d (inl a) ofs :: k) else Error (msg "int64 is only available for eBPF-64")
+  | Many64         => if Archi.ptr64 then OK (Pstore DBWordAny d (inl a) ofs :: k) else Error (msg "int64 is only available for eBPF-64")
+  | Mint8signed    => OK (Pstore Byte d (inl a) ofs :: k)
+  | Mint16signed   => OK (Pstore HalfWord d (inl a) ofs  :: k)
+  | Mfloat32 | Mfloat64      => Error (msg "Floating point numbers are not supported by eBPF")
   end.
 
 Definition transl_store (chunk: memory_chunk) (addr: addressing)
@@ -420,30 +417,43 @@ Definition transl_store (chunk: memory_chunk) (addr: addressing)
   | Aindexed ofs, a1 :: nil =>
       do r <- ireg_of src;
       do r1 <- ireg_of a1;
-      do size <- transl_memory_access chunk;
-      OK (Pstore size r1 (inl r) ofs :: k)
+      (transl_store_indexed chunk r1 ofs r  k)
 
   | Ainstack ofs, nil =>
       do r <- ireg_of src;
-      do size <- transl_memory_access chunk;
-      OK (Pstore size SP (inl r) ofs :: k)
-
-  | Aglobal _ _, _ => Error(msg "Global variables are not yet available in eBPF")
+       (transl_store_indexed chunk SP ofs r  k)
 
   | _, _ => Error(msg "Asmgen.transl_store")
   end.
 
 (** Translation of a Mach instruction. *)
+Definition name_of_builtin (ef:external_function) : string :=
+  match ef with
+    EF_external s _ => append "external " s
+  | EF_builtin s  _  => append "builtin " s
+  | EF_runtime s _  => append "runtime " s
+  | EF_vload  _    => "vload"
+  | EF_vstore _    => "vstore"
+  | EF_malloc      => "malloc"
+  | EF_free        => "free"
+  | EF_memcpy _ _  => "memcpy"
+  | EF_annot _ _ _ => "annot"
+  | EF_annot_val _ _ _ => "annot_val"
+  | EF_inline_asm s _ _ => append "inline_adm " s
+  | EF_debug _ _ _      => "debug"
+  end.
 
 Definition transl_instr (f: Mach.function) (i: Mach.instruction)
                         (ep: bool) (k: code): res (list instruction) :=
   match i with
-  | Mgetstack ofs ty dst => stack_load ofs ty dst k
+  | Mgetstack ofs ty dst => loadind SP ofs ty dst k
 
-  | Msetstack src ofs ty => stack_store ofs ty src k
+  | Msetstack src ofs ty => storeind SP ofs ty src k
 
-  | Mgetparam _ _ _ => Error (msg "Functions with more than 5 arguments aren't available in eBPF")
-
+  | Mgetparam ofs ty dst =>
+      do c <- loadind R0 ofs ty dst k;
+      OK (if ep then c
+                else loadind_ptr SP f.(fn_link_ofs) R0 c)
   | Mop op args res => transl_op op args res k
 
   | Mload chunk addr args dst => transl_load chunk addr args dst k
@@ -456,9 +466,9 @@ Definition transl_instr (f: Mach.function) (i: Mach.instruction)
       OK (Pfreeframe f.(fn_stacksize) f.(fn_retaddr_ofs) f.(fn_link_ofs) :: Pjmp (inr symb) :: k)
 
   | Mcall sig (inl r)
-  | Mtailcall sig (inl r) => Error (msg "Call from function pointer aren't available in eBPF")
+  | Mtailcall sig (inl r) => Error (msg "Indirect calls are not available in eBPF")
 
-  | Mbuiltin ef args res => Error (msg "No builtins have been implemented")
+  | Mbuiltin ef args res => Error (MSG "Builtin ":: MSG (name_of_builtin ef) :: MSG " is not supported by eBPF"::nil)
 
   | Mlabel lbl => OK (Plabel lbl :: k)
 
@@ -466,7 +476,7 @@ Definition transl_instr (f: Mach.function) (i: Mach.instruction)
 
   | Mcond cond args lbl => transl_cbranch cond args lbl k
 
-  | Mjumptable arg tbl => Error (msg "Internal error: Jumptable have been generated, but aren't available in eBPF")
+  | Mjumptable arg tbl => Error (msg "Jump tables are not supported by eBPF: pass -fno-jumptables ")
 
   | Mreturn => OK (Pfreeframe f.(fn_stacksize) f.(fn_retaddr_ofs) f.(fn_link_ofs) :: Pret :: k)
   end.
@@ -475,7 +485,9 @@ Definition transl_instr (f: Mach.function) (i: Mach.instruction)
 
 Definition it1_is_parent (before: bool) (i: Mach.instruction) : bool :=
   match i with
-  | Msetstack _ _ _
+  | Msetstack src ofs ty => before
+  | Mgetparam ofs ty dst => negb (mreg_eq dst I0)
+  | Mop op args res => before && negb (mreg_eq res I0)
   | _ => false
   end.
 

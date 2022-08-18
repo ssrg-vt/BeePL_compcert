@@ -26,10 +26,12 @@ struct s z = {0, };                    /* far data area, relative addressing */
   x = v1;                                                          \
   __builtin_membar();                                              \
   printf("%s 1: %s\n", msg, x == v1 ? "OK" : "FAILED");            \
-  *((volatile ty *) &x) = v2;                                      \
+  *((//volatile
+ty *) &x) = v2;							   \
   printf("%s 2: %s\n", msg, x == v2 ? "OK" : "FAILED");            \
   x = v3;                                                          \
-  printf("%s 3: %s\n", msg, *((volatile ty *) &x) == v3 ? "OK" : "FAILED");
+printf("%s 3: %s\n", msg, *((//volatile
+			     ty *) &x) == v3 ? "OK" : "FAILED");
 
 /* This function must be inlined so that global addressing modes are 
    generated */

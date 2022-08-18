@@ -20,15 +20,47 @@ open Camlcoq
 
 exception Error of string
 
+let ra = R9
+let sp = R10
 
 (* Expansion of instructions *)
+let expand_alloc_frame sz ofs_ra ofs_link =
+  Datatypes.(
+  (* RO := SP *)
+  emit (Palu(MOV,R0,Coq_inl sp));
+  (* SP := SP - sz *)
+  emit (Palu(SUB,sp,Coq_inr sz));
+  (* *(SP+ofs_link) := R0 *)
+  emit (Pstore(Word,sp,Coq_inl R0,ofs_link));
+  (* *(SP+ofs_ra) := RA *)
+  emit (Pstore(Word,sp,Coq_inl ra,ofs_ra)))
+
+let expand_free_frame sz ofs_ra ofs_link =
+  Datatypes.(
+  (* RA := *(SP+ofs_ra) *)
+  emit (Pload(Word,ra,sp,ofs_ra));
+  (* SP := SP + sz *)
+  emit (Palu(ADD,sp,Coq_inr sz)))
+
 
 let expand_instruction instr =
   match instr with
-  | Pbuiltin _
-  | Pallocframe _
-  | Pfreeframe _  -> ()
-
+  | Pbuiltin _ -> failwith "Builtin are not supported"
+  | Pallocframe(sz,ofs_ra,ofs_link) -> expand_alloc_frame sz ofs_ra ofs_link
+  | Pfreeframe(sz,ofs_ra,ofs_link)  -> expand_free_frame sz ofs_ra ofs_link
+  | Pcmp(cmp,reg,regimm) ->
+    (* reg := reg cmp regimm *)
+    Datatypes.(
+      let label_true = new_label () in
+      let label_end   = new_label () in 
+      (* if reg cmp regimm Goto goto_true *)
+      emit (Pjmpcmp(cmp,reg,regimm, label_true));
+      (* else reg := false *)
+      emit (Palu(MOV,reg, Coq_inr Integers.Int.zero));
+      emit (Pjmp (Coq_inl label_end));
+      emit (Plabel label_true);
+      emit  (Palu(MOV,reg, Coq_inr Integers.Int.one));
+    emit (Plabel label_end))
   | _ -> emit instr
 
 
@@ -38,7 +70,7 @@ let expand_instruction instr =
 let int_reg_to_dwarf = function
                | R0  -> 1  | R1  -> 2  | R2  -> 3
    | R3  -> 4  | R4  -> 5  | R5  -> 6  | R6  -> 7
-   | R7  -> 8  | R8  -> 9  | R9  -> 10 | R10 -> 11
+   | R7  -> 8  | R8  -> 9  | R9  -> 10 | R10 -> 11 (*| RA -> 12*)
 
 let preg_to_dwarf = function
    | IR r -> int_reg_to_dwarf r

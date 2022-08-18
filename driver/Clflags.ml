@@ -28,6 +28,7 @@ let option_fcse = ref true
 let option_fredundancy = ref true
 let option_fifconversion = ref true
 let option_Obranchless = ref false
+let option_jump_tables = ref true
 let option_falignfunctions = ref (None: int option)
 let option_falignbranchtargets = ref 0
 let option_faligncondbranchs = ref 0

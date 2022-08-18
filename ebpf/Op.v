@@ -78,7 +78,7 @@ Inductive operation : Type :=
 (*c Boolean tests: *)
   | Ocmp (cond: condition)   (**r [rd = 1] if condition holds, [rd = 0] otherwise. *)
 
-(*c Following operations aren't available in eBPF, will throw errors in Asmgen step *)
+(*c Following operations are not available in eBPF, will throw errors in Asmgen step *)
   | Ofloatconst (n: float)   (**r [rd] is set to the given float constant *)
   | Osingleconst (n: float32)(**r [rd] is set to the given float constant *)
 
@@ -89,9 +89,8 @@ Inductive operation : Type :=
 
   | Omulhs                   (**r [rd = high part of r1 * r2, signed] *)
   | Omulhu                   (**r [rd = high part of r1 * r2, unsigned] *)
-  | Odiv                     (**r [rd = r1 / r2] (signed) *)
   | Omod                     (**r [rd = r1 % r2] (signed) *)
-  | Oshrximm (n: int)        (**r [rd = r1 / 2^n] (signed) *)
+(*  | Oshrximm (n: int)        (**r [rd = r1 / 2^n] (signed) *) *)
 
   | Omakelong                (**r [rd = r1 << 32 | r2] *)
   | Olowlong                 (**r [rd = low-word(r1)] *)
@@ -135,7 +134,6 @@ Inductive operation : Type :=
 
 Inductive addressing: Type :=
   | Aindexed: ptrofs -> addressing          (**r Address is [r1 + offset] *)
-  | Aglobal: ident -> ptrofs -> addressing  (**r Address is global plus offset *)
   | Ainstack: ptrofs -> addressing.         (**r Address is [stack_pointer + offset] *)
 
 (** Comparison functions (used in modules [CSE] and [Allocation]). *)
@@ -233,9 +231,8 @@ Definition eval_operation
   | Osingleconst n, nil => Some (Vsingle n)
   | Omulhs, v1::v2::nil => Some (Val.mulhs v1 v2)
   | Omulhu, v1::v2::nil => Some (Val.mulhu v1 v2)
-  | Odiv, v1 :: v2 :: nil => Val.divs v1 v2
   | Omod, v1 :: v2 :: nil => Val.mods v1 v2
-  | Oshrximm n, v1::nil => Val.shrx v1 (Vint n)
+(*  | Oshrximm n, v1::nil => Val.shrx v1 (Vint n)*)
   | Omakelong, v1::v2::nil => Some (Val.longofwords v1 v2)
   | Olowlong, v1::nil => Some (Val.loword v1)
   | Ohighlong, v1::nil => Some (Val.hiword v1)
@@ -277,7 +274,6 @@ Definition eval_addressing
     (addr: addressing) (vl: list val) : option val :=
   match addr, vl with
   | Aindexed n, v1 :: nil => Some (Val.offset_ptr v1 n)
-  | Aglobal s ofs, nil => Some (Genv.symbol_address genv s ofs)
   | Ainstack n, nil => Some (Val.offset_ptr sp n)
   | _, _ => None
   end.
@@ -363,9 +359,8 @@ Definition type_of_operation (op: operation) : list typ * typ :=
   | Osingleconst f => (nil, Tsingle)
   | Omulhs => (Tint :: Tint :: nil, Tint)
   | Omulhu => (Tint :: Tint :: nil, Tint)
-  | Odiv => (Tint :: Tint :: nil, Tint)
   | Omod => (Tint :: Tint :: nil, Tint)
-  | Oshrximm _ => (Tint :: nil, Tint)
+(*  | Oshrximm _ => (Tint :: nil, Tint)*)
   | Omakelong => (Tint :: Tint :: nil, Tlong)
   | Olowlong => (Tlong :: nil, Tint)
   | Ohighlong => (Tlong :: nil, Tint)
@@ -405,7 +400,6 @@ Definition type_of_operation (op: operation) : list typ * typ :=
 Definition type_of_addressing (addr: addressing) : list typ :=
   match addr with
   | Aindexed _ => Tptr :: nil
-  | Aglobal _ _ => nil
   | Ainstack _ => nil
   end.
 
@@ -493,14 +487,9 @@ Proof with (try exact I; try reflexivity; auto using Val.Vptr_has_type).
   (* mulhs, mulhu *)
   - destruct v0; destruct v1...
   - destruct v0; destruct v1...
-  (* divs *)
-  - destruct v0; destruct v1; simpl in *; inv H0.
-    destruct (Int.eq i0 Int.zero || Int.eq i (Int.repr Int.min_signed) && Int.eq i0 Int.mone); inv H2...
   (* mods *)
   - destruct v0; destruct v1; simpl in *; inv H0.
     destruct (Int.eq i0 Int.zero || Int.eq i (Int.repr Int.min_signed) && Int.eq i0 Int.mone); inv H2...
-  (* shrx *)
-  - destruct v0; simpl in H0; try discriminate. destruct (Int.ltu n (Int.repr 31)); inv H0...
   (* makelong, lowlong, highlong *)
   - destruct v0; destruct v1...
   - destruct v0...
@@ -658,7 +647,6 @@ Qed.
 Definition offset_addressing (addr: addressing) (delta: Z) : option addressing :=
   match addr with
   | Aindexed n => Some(Aindexed (Ptrofs.add n (Ptrofs.repr delta)))
-  | Aglobal id n => Some(Aglobal id (Ptrofs.add n (Ptrofs.repr delta)))
   | Ainstack n => Some(Ainstack (Ptrofs.add n (Ptrofs.repr delta)))
   end.
 
@@ -677,8 +665,6 @@ Proof.
     rewrite Ptrofs.add_assoc. f_equal; f_equal; f_equal. symmetry; auto with ptrofs. }
   destruct addr; simpl in H; inv H; simpl in *; FuncInv; subst.
 - rewrite A; auto.
-- unfold Genv.symbol_address. destruct (Genv.find_symbol ge i); auto. 
-  simpl. rewrite H1. f_equal; f_equal; f_equal. symmetry; auto with ptrofs.
 - rewrite A; auto.
 Qed.
 
@@ -713,11 +699,7 @@ Qed.
 
 (** Global variables mentioned in an operation or addressing mode *)
 
-Definition globals_addressing (addr: addressing) : list ident :=
-  match addr with
-  | Aglobal s ofs => s :: nil
-  | _ => nil
-  end.
+Definition globals_addressing (addr: addressing) : list ident := nil.
 
 Definition globals_operation (op: operation) : list ident :=
   match op with
@@ -743,10 +725,9 @@ Hypothesis agree_on_symbols:
 Lemma eval_addressing_preserved:
   forall sp addr vl,
   eval_addressing ge2 sp addr vl = eval_addressing ge1 sp addr vl.
-Proof.
+Proof using agree_on_symbols.
   intros.
-  unfold eval_addressing; destruct addr; auto. destruct vl; auto. 
-  unfold Genv.symbol_address. rewrite agree_on_symbols; auto.
+  unfold eval_addressing; destruct addr; auto.
 Qed.
 
 Lemma eval_operation_preserved:
@@ -906,19 +887,11 @@ Proof.
   (* mulhs, mulhu *)
   - inv H4; inv H2; simpl; auto.
   - inv H4; inv H2; simpl; auto.
-  (* div *)
-  - inv H4; inv H3; simpl in H1; inv H1. simpl.
-    destruct (Int.eq i0 Int.zero
-              || Int.eq i (Int.repr Int.min_signed) && Int.eq i0 Int.mone); inv H2.
-    TrivialExists.
   (* mod *)
   - inv H4; inv H3; simpl in H1; inv H1. simpl.
     destruct (Int.eq i0 Int.zero
                      || Int.eq i (Int.repr Int.min_signed) && Int.eq i0 Int.mone); inv H2.
     TrivialExists.
-  (* shrx *)
-  - inv H4; simpl in H1; try discriminate. simpl.
-    destruct (Int.ltu n (Int.repr 31)); inv H1. TrivialExists.
   (* makelong, highlong, lowlong *)
   - inv H4; inv H2; simpl; auto.
   - inv H4; simpl; auto.
@@ -990,11 +963,12 @@ Lemma eval_addressing_inj:
 Proof.
   intros. destruct addr; simpl in H2; simpl; FuncInv; InvInject; TrivialExists.
   apply Val.offset_ptr_inject; auto.
-  apply H; simpl; auto.
-  apply Val.offset_ptr_inject; auto. 
+  apply Val.offset_ptr_inject; auto.
 Qed.
 
 End EVAL_COMPAT.
+
+Opaque globals_addressing.
 
 (** Compatibility of the evaluation functions with the ``is less defined'' relation over values. *)
 

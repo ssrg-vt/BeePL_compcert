@@ -122,16 +122,25 @@ Proof.
 Qed.
 Hint Resolve addptrofs_label: labels.
 
-Remark stack_load_label:
-  forall ofs ty dst k c,
-  stack_load ofs ty dst k = OK c -> tail_nolabel k c.
+Remark loadind_label:
+  forall base ofs ty dst k c,
+  loadind base ofs ty dst k = OK c -> tail_nolabel k c.
 Proof.
   intros. monadInv H. TailNoLabel.
 Qed.
 
-Remark stack_store_label:
-  forall ofs ty src k c,
-  stack_store ofs ty src k = OK c -> tail_nolabel k c.
+Remark loadind_ptr_label:
+  forall base ofs dst k, tail_nolabel k (loadind_ptr base ofs dst k).
+Proof.
+  intros. unfold loadind_ptr.
+  destruct Archi.ptr64;  TailNoLabel.
+Qed.
+
+
+
+Remark storeind_label:
+  forall base ofs ty src k c,
+  storeind base ofs ty src k = OK c -> tail_nolabel k c.
 Proof.
   intros. monadInv H. TailNoLabel.
 Qed.
@@ -141,29 +150,22 @@ Remark transl_cbranch_label:
   transl_cbranch cond args lbl k = OK c -> tail_nolabel k c.
 Proof.
   intros. unfold transl_cbranch in H; destruct cond; TailNoLabel.
-- destruct c0; simpl; TailNoLabel.
-- destruct c0; simpl; TailNoLabel.
-- destruct (Int.eq n Int.zero).
-  destruct c0; simpl; TailNoLabel.
-  apply tail_nolabel_trans with (transl_cbranch_signed c0 x (inr n) lbl :: k).
-  auto with labels. destruct c0; simpl; TailNoLabel.
-- destruct (Int.eq n Int.zero).
-  destruct c0; simpl; TailNoLabel.
-  apply tail_nolabel_trans with (transl_cbranch_unsigned c0 x (inr n) lbl :: k).
-  auto with labels. destruct c0; simpl; TailNoLabel.
 Qed.
+
+Lemma transl_cond_op_as_jump_label : forall k c sg r1 r2,
+    tail_nolabel k (transl_cond_as_Pcmp c sg r1 r2 k).
+Proof.
+  unfold transl_cond_as_Pcmp.
+  intros. TailNoLabel.
+Qed.
+
 
 Remark transl_cond_op_label:
   forall cond args r k c,
   transl_cond_op cond r args k = OK c -> tail_nolabel k c.
 Proof.
-  intros. unfold transl_cond_op in H; destruct cond; TailNoLabel.
-- destruct c0; simpl; TailNoLabel.
-- destruct c0; simpl; TailNoLabel.
-- unfold transl_cond_signed.
-  destruct (Int.eq n Int.zero); destruct c0; simpl; TailNoLabel.
-- unfold transl_cond_unsigned.
-  destruct (Int.eq n Int.zero); destruct c0; simpl; TailNoLabel.
+  intros. unfold transl_cond_op in H; destruct cond; TailNoLabel;
+  apply transl_cond_op_as_jump_label.
 Qed.
 
 Remark transl_op_label:
@@ -179,14 +181,14 @@ Remark transl_load_label:
   forall chunk addr args dst k c,
   transl_load chunk addr args dst k = OK c -> tail_nolabel k c.
 Proof.
-  intros. unfold transl_load in H; destruct args, addr; TailNoLabel.
+  intros. unfold transl_load,transl_load_indexed in H;destruct args, addr,chunk; TailNoLabel.
 Qed.
 
 Remark transl_store_label:
   forall chunk addr args dst k c,
   transl_store chunk addr args dst k = OK c -> tail_nolabel k c.
 Proof.
-  intros. unfold transl_store in H; destruct args, addr; TailNoLabel.
+  intros. unfold transl_store, transl_store_indexed in H; destruct args, addr,chunk; TailNoLabel.
 Qed.
 
 Lemma transl_instr_label:
@@ -195,8 +197,10 @@ Lemma transl_instr_label:
   match i with Mlabel lbl => c = Plabel lbl :: k | _ => tail_nolabel k c end.
 Proof.
   unfold transl_instr; intros; destruct i; TailNoLabel.
-- eapply stack_load_label; eauto.
-- eapply stack_store_label; eauto.
+- eapply loadind_label; eauto.
+- eapply storeind_label; eauto.
+- destruct ep. eapply loadind_label;eauto.
+  eapply tail_nolabel_trans. apply loadind_ptr_label. eapply loadind_label; eauto.
 - eapply transl_op_label; eauto.
 - eapply transl_load_label; eauto.
 - eapply transl_store_label; eauto.
@@ -459,6 +463,13 @@ Definition measure (s: Mach.state) : nat :=
   | Mach.Returnstate _ _ _ => 1%nat
   end.
 
+Remark preg_of_not_R0: forall r, negb (mreg_eq r I0) = true -> IR R0 <> preg_of r.
+Proof.
+  intros. change (IR R0) with (preg_of I0). red; intros.
+  exploit preg_of_injective; eauto. intros; subst r; discriminate.
+Qed.
+
+
 (** This is the simulation diagram.  We prove it by case analysis on the Mach transition. *)
 
 Theorem step_simulation:
@@ -475,11 +486,11 @@ Proof.
   split. apply agree_nextinstr; auto. simpl; congruence.
 
 - (* Mgetstack *)
-  unfold load_stack in H.
+  unfold load_stack,loadind in H.
   exploit Mem.loadv_extends; eauto. intros [v' [A B]].
   rewrite (sp_val _ _ _ AG) in A.
   left; eapply exec_straight_steps; eauto. intros. simpl in TR.
-  exploit stack_load_correct; eauto with asmgen. intros [rs' [P [Q R]]].
+  exploit loadind_correct; eauto with asmgen. intros [rs' [P [Q R]]].
   exists rs'; split. eauto.
   split. eapply agree_set_mreg; eauto with asmgen. congruence.
   simpl; congruence.
@@ -490,26 +501,58 @@ Proof.
   exploit Mem.storev_extends; eauto. intros [m2' [A B]].
   left; eapply exec_straight_steps; eauto.
   rewrite (sp_val _ _ _ AG) in A. intros. simpl in TR.
-  exploit stack_store_correct; eauto with asmgen. intros [rs' [P Q]].
+  exploit storeind_correct; eauto with asmgen. intros [rs' [P Q]].
   exists rs'; split. eauto.
   split. eapply agree_undef_regs; eauto with asmgen.
-  simpl; intros. discriminate.
+  simpl; intros. rewrite Q; auto with asmgen.
 
 - (* Mgetparam *)
-  left; eapply exec_straight_steps; eauto. intros; monadInv TR.
+  assert (f0 = f) by congruence; subst f0.
+  unfold load_stack in *.
+  exploit Mem.loadv_extends. eauto. eexact H0. auto.
+  intros [parent' [A B]]. rewrite (sp_val _ _ _ AG) in A.
+  exploit lessdef_parent_sp; eauto. clear B; intros B; subst parent'.
+  exploit Mem.loadv_extends. eauto. eexact H1. auto.
+  intros [v' [C D]].
+Opaque loadind.
+  left; eapply exec_straight_steps; eauto; intros. monadInv TR.
+  destruct ep.
+  + (* I0 contains parent *)
+  exploit loadind_correct.  eexact EQ.
+  instantiate (2 := rs0). rewrite DXP; eauto.
+  intros [rs1 [P [Q R]]].
+  exists rs1; split. eauto.
+  split. eapply agree_set_mreg. eapply agree_set_mreg; eauto. congruence. auto with asmgen.
+  simpl; intros. rewrite R; auto with asmgen.
+  apply preg_of_not_R0; auto.
+ + (* I0 does not contain parent *)
+  rewrite chunk_of_Tptr in A.
+  exploit loadind_ptr_correct. eexact A. intros [rs1 [P [Q R]]].
+  exploit loadind_correct. eexact EQ. instantiate (2 := rs1). rewrite Q. eauto.
+  intros [rs2 [S [T U]]].
+  exists rs2; split. eapply exec_straight_trans; eauto.
+  split. eapply agree_set_mreg. eapply agree_set_mreg. eauto. eauto.
+  instantiate (1 := rs1#R0 <- (rs2#R0)). intros.
+  rewrite Pregmap.gso; auto with asmgen.
+  congruence.
+  intros. unfold Pregmap.set. destruct (PregEq.eq r' R0). congruence. auto with asmgen.
+  simpl; intros. rewrite U; auto with asmgen.
+  apply preg_of_not_R0; auto.
 
 - (* Mop *)
   assert (eval_operation tge sp op rs##args m = Some v).
-    rewrite <- H. apply eval_operation_preserved. exact symbols_preserved.
+  rewrite <- H. apply eval_operation_preserved. exact symbols_preserved.
   exploit eval_operation_lessdef. eapply preg_vals; eauto. eauto. eexact H0.
   intros [v' [A B]]. rewrite (sp_val _ _ _ AG) in A.
   left; eapply exec_straight_steps; eauto; intros. simpl in TR.
   exploit transl_op_correct; eauto. intros [rs2 [P [Q R]]].
-  assert (S: Val.lessdef v (rs2 (preg_of res))) by (eapply Val.lessdef_trans; eauto).
-  exists rs2; split. eauto.
-  split. eapply agree_set_undef_mreg; eauto.
-  simpl; congruence.
-
+  exists rs2; split. eauto. split. auto.
+  apply agree_set_undef_mreg with rs0; auto.
+  apply Val.lessdef_trans with v'; auto.
+  simpl; intros. destruct (andb_prop _ _ H1); clear H1.
+  rewrite R; auto. apply preg_of_not_R0; auto.
+Local Transparent destroyed_by_op.
+  destruct op; simpl; auto; congruence.
 - (* Mload *)
   assert (eval_addressing tge sp addr (map rs args) = Some a).
     rewrite <- H. apply eval_addressing_preserved. exact symbols_preserved.

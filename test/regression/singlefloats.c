@@ -26,7 +26,8 @@ expf(float x)
 
 /* Another internal compiler error in CompCert 2.2.  */
 
-void store(volatile float * p, double x)
+void store(//volatile
+	   float * p, double x)
 {
   *p = x + 1.0;
 }
