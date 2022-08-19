@@ -54,28 +54,32 @@ Variable fn: function.
 (** Add offset to pointer *)
 
 Lemma addptrofs_correct:
-  forall rd r1 n k rs m,
+  forall rd r1 n k k' rs m,
+    addptrofs rd r1 n k = OK k' ->
   exists rs',
-     exec_straight ge fn (addptrofs rd r1 n k) rs m k rs' m
+     exec_straight ge fn k' rs m k rs' m
   /\ Val.lessdef (Val.offset_ptr rs#r1 n) rs'#rd
   /\ forall r, r <> PC -> r <> rd -> rs'#r = rs#r.
 Proof.
   unfold addptrofs; intros.
-  destruct (Ptrofs.eq_dec n Ptrofs.zero).
-  - subst n. econstructor; split.
-    apply exec_straight_one. simpl; constructor. auto.
-    split. Simpl. simpl. destruct (rs r1); simpl; auto. rewrite Ptrofs.add_zero; auto.
-    intros; Simpl.
-  - eexists; split.
-    eapply exec_straight_two; reflexivity.
-    split; intros; Simpl.
-    simpl.
-    unfold Val.add, Val.offset_ptr.
-    destruct (rs r1); try constructor.
-    change Archi.ptr64 with false; simpl.
-    apply Val.lessdef_same; f_equal; f_equal.
-    rewrite Ptrofs.of_int_to_int by auto.
-    reflexivity.
+  destruct Archi.ptr64 eqn:A; try discriminate.
+  - (* Archi.ptr64 = false *)
+    inv H.
+    destruct (Ptrofs.eq_dec n Ptrofs.zero).
+    + subst n. econstructor; split.
+      apply exec_straight_one. simpl; constructor. auto.
+      split. Simpl. simpl. destruct (rs r1); simpl; auto. rewrite Ptrofs.add_zero; auto.
+      intros; Simpl.
+    + eexists; split.
+      eapply exec_straight_two; reflexivity.
+      split; intros; Simpl.
+      simpl.
+      unfold Val.add, Val.offset_ptr.
+      destruct (rs r1); try constructor.
+      rewrite A.
+      apply Val.lessdef_same; f_equal; f_equal.
+      rewrite Ptrofs.of_int_to_int by auto.
+      reflexivity.
 Qed.
 
 (** Translation of conditional branches *)
@@ -372,8 +376,9 @@ Opaque Int.eq.
   intros until c; intros TR EV.
   unfold transl_op in TR; destruct op; ArgsInv; simpl in EV; SimplEval EV; try TranslOpSimpl.
   - (* addrstack *)
-  exploit addptrofs_correct; intros (rs' & A & B & C).
-  exists rs'; split; [ exact A | auto with asmgen ].
+    exploit addptrofs_correct; eauto.
+    intros (rs' & A & B & C).
+    exists rs'; split; [ exact A | auto with asmgen ].
 - (* neg *)
   econstructor; split.
   apply exec_straight_one; reflexivity.

@@ -62,7 +62,8 @@ Supported targets:
   rv64-linux           (RISC-V 64 bits, Linux)
   aarch64-linux        (AArch64, i.e. ARMv8 in 64-bit mode, Linux)
   aarch64-macos        (AArch64, i.e. Apple silicon, MacOS)
-  ebpf-riot            (Unknown 32 bits, Riot, used for generating eBPF output)
+  ebpf32               (EBPF 32 bits)
+  ebpf64               (EBPF 64 bits)
   manual               (edit configuration file by hand)
 
 For x86 targets, the "x86_32-" prefix can also be written "ia32-" or "i386-".
@@ -204,8 +205,10 @@ case "$target" in
       arch="riscV"; model="64"; endianness="little"; bitsize=64;;
   aarch64-*|arm64-*)
       arch="aarch64"; model="default"; endianness="little"; bitsize=64;;
-  ebpf-*)
-      arch="ebpf"; model="default"; endianness="little"; bitsize=32;;
+  ebpf32)
+      arch="ebpf"; model="32"; endianness="little"; bitsize=32;;
+  ebpf64)
+      arch="ebpf"; model="64"; endianness="little"; bitsize=64;;
   manual)
       ;;
   "")
@@ -437,25 +440,26 @@ fi
 
 
 #
-# eBPF (32 bits) Target Configuration
+# eBPF  Target Configuration
 #
-if test "$arch" = "ebpf" -a "$bitsize" = "32"; then
-  case "$target" in
-    riot)
-        abi="standard"
-        casm="llvm-mc"
-        casm_options="-triple bpf -filetype=obj"
-        cprepro_options="-std=c99 -m32 -U__GNUC__ -E"
-        has_linking_step=false
-        has_runtime_lib=false
-        libmath=""
-	system="riot"
-        ;;
-    *)
-        echo "Error: invalid eabi/system '$target' for architecture eBPF." 1>&2
-        echo "$usage" 1>&2
-        exit 2;;
-  esac
+if test "$arch" = "ebpf"; then
+    case "$bitsize" in
+	32)
+            cprepro_options="-std=c99 -m32 -U__GNUC__ -E";;
+	64)
+	    cprepro_options="-std=c99 -m64 -U__GNUC__ -E";;
+	*)
+	    echo "Error: '$bitsize' is either 32 or 64." 1>&2
+	    echo "$usage" 1>&2
+	    exit 2;;
+    esac 
+    abi="standard"
+    casm="llvm-mc"
+    casm_options="-triple bpf -filetype=obj"
+    has_linking_step=false
+    has_runtime_lib=false
+    libmath=""
+    system="any"
 fi
 
 #

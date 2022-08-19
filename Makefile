@@ -92,7 +92,7 @@ endif
 # General-purpose libraries (in lib/)
 
 VLIB=Axioms.v Coqlib.v Intv.v Maps.v Heaps.v Lattice.v Ordered.v \
-  Iteration.v Zbits.v Integers.v ZifyInt.v Archi.v IEEE754_extra.v Floats.v \
+  Iteration.v Zbits.v Integers.v  Archi.v IEEE754_extra.v Floats.v \
   Parmov.v UnionFind.v Wfsimpl.v \
   Postorder.v FSetAVLplus.v IntvSets.v Decidableplus.v BoolEqual.v
 

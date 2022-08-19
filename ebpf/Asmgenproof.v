@@ -116,9 +116,14 @@ Qed.
 Section TRANSL_LABEL.
 
 Remark addptrofs_label:
-  forall r1 r2 n k, tail_nolabel k (addptrofs r1 r2 n k).
+  forall r1 r2 n k k',
+    addptrofs r1 r2 n k = OK k' ->
+    tail_nolabel k k'.
 Proof.
-  unfold addptrofs; intros. destruct (Ptrofs.eq_dec n Ptrofs.zero); TailNoLabel.
+  unfold addptrofs; intros.
+  destruct Archi.ptr64; try discriminate.
+  inv H.
+  destruct (Ptrofs.eq_dec n Ptrofs.zero); TailNoLabel.
 Qed.
 Hint Resolve addptrofs_label: labels.
 
