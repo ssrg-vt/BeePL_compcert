@@ -155,30 +155,31 @@ Proof.
        with (Val.add (Val.add v1 v0) (Val.add (Vint n1) (Vint n2))).
     apply eval_addimm. EvalOp.
     repeat rewrite Val.add_assoc. decEq. apply Val.add_permut.
-  - subst. econstructor; split.
-    EvalOp. constructor. EvalOp. simpl; eauto. constructor. eauto. constructor. simpl; eauto.
-    rewrite Val.add_commut. destruct sp; simpl; auto.
-    destruct v1; simpl; auto.
-    destruct Archi.ptr64 eqn:SF; auto.
-    apply Val.lessdef_same. f_equal. rewrite ! Ptrofs.add_assoc. f_equal.
-    rewrite (Ptrofs.add_commut (Ptrofs.of_int n1)), Ptrofs.add_assoc. f_equal. auto with ptrofs.
-  - subst. econstructor; split.
-    EvalOp. constructor. EvalOp. simpl; eauto. constructor. eauto. constructor. simpl; eauto.
-    destruct sp; simpl; auto.
-    destruct v1; simpl; auto.
-    destruct Archi.ptr64 eqn:SF; auto.
-    apply Val.lessdef_same. f_equal. rewrite ! Ptrofs.add_assoc. f_equal. f_equal.
-    rewrite Ptrofs.add_commut. auto with ptrofs.
   - subst.
-    replace (Val.add (Val.add v1 (Vint n1)) y)
-       with (Val.add (Val.add v1 y) (Vint n1)).
-    apply eval_addimm. EvalOp.
-    repeat rewrite Val.add_assoc. decEq. apply Val.add_commut.
+    econstructor; split.
+    repeat econstructor ; eauto.
+    rewrite Val.add_assoc.
+    rewrite <- (Val.add_commut v1).
+    apply Val.add_lessdef; auto.
+    apply Val.offset_ptr_add_int.
   - subst.
-    replace (Val.add x (Val.add v1 (Vint n2)))
-       with (Val.add (Val.add x v1) (Vint n2)).
-    apply eval_addimm. EvalOp.
-    repeat rewrite Val.add_assoc. reflexivity.
+    econstructor; split.
+    repeat econstructor ; eauto.
+    rewrite Val.add_commut.
+    rewrite Val.add_assoc.
+    rewrite <- (Val.add_commut v1).
+    apply Val.add_lessdef; auto.
+    rewrite Ptrofs.add_commut.
+    apply Val.offset_ptr_add_int.
+  - subst.
+    rewrite Val.add_commut.
+    rewrite <- Val.add_assoc.
+    apply eval_addimm.
+    EvalOp. rewrite Val.add_commut. reflexivity.
+  - subst.
+    rewrite <- Val.add_assoc.
+    apply eval_addimm.
+    EvalOp.
   - TrivialExists.
 Qed.
 

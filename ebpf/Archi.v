@@ -20,7 +20,7 @@ Require Import ZArith List.
 Definition has_modu := false. (* Does the archi has modulo? *)
 (**  **)
 
-Definition ptr64 := false.
+Parameter ptr64 : bool.
 
 
 

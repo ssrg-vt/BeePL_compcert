@@ -44,11 +44,15 @@ Definition freg_of (r: mreg) : res freg :=
 (** Smart constructors for arithmetic operations. *)
 
 Definition addptrofs (rd rs: ireg) (n: ptrofs) (k: code) :=
-  if Ptrofs.eq_dec n Ptrofs.zero then
-    Palu MOV rd (inl rs) :: k
+  if Archi.ptr64
+  then Error (msg "ebpf64 is not supported yet")
   else
-    Palu MOV rd (inl rs) ::
-    Palu ADD rd (inr (Ptrofs.to_int n)) :: k.
+    OK
+      (if Ptrofs.eq_dec n Ptrofs.zero then
+         Palu MOV rd (inl rs) :: k
+       else
+         Palu MOV rd (inl rs) ::
+              Palu ADD rd (inr (Ptrofs.to_int n)) :: k).
 
 (** Translation of conditional branches. *)
 
@@ -149,7 +153,7 @@ Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
 
   | Oaddrstack n, nil =>
       do r <- ireg_of res;
-      OK (addptrofs r SP n k)
+      addptrofs r SP n k
 
   | Oadd, a1 :: a2 :: nil =>
       assertion (mreg_eq a1 res);
@@ -298,6 +302,30 @@ Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
   | Omulhu, a1 :: a2 :: nil => Error (msg "mulhu is not available in eBPF: pass -Os")
   | Omod, a1 :: a2 :: nil => Error (msg "signed modulo is not available in eBPF")
 
+  | Oaddl , _
+  | Oaddlimm _ , _
+  | Onegl , _
+  | Osubl , _
+  | Osublimm _ , _
+  | Omull  , _
+  | Omullimm _ , _
+  | Odivlu    , _
+  | Odivluimm _ , _
+  | Omodlu      , _
+  | Omodluimm _ , _
+  | Oandl       , _
+  | Oandlimm  _ , _
+  | Oorl        , _
+  | Oorlimm   _ , _
+  | Oxorl       , _
+  | Oxorlimm _  , _
+  | Oshll       , _
+  | Oshllimm _  , _
+  | Oshrl       , _
+  | Oshrlimm _  , _
+  | Oshrlu      , _
+  | Oshrluimm _ , _ => Error (MSG "ebpf(64) does not support '" :: MSG (string_of_operation op) :: MSG "'" :: nil)
+
   | Ofloatconst _, _
   | Osingleconst _, nil
 
@@ -336,7 +364,7 @@ Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
   | Osingleoflong, _
   | Osingleoflongu, _ => Error (msg "Floating point conversions are not available in eBPF")
 
-  | _, _ => Error (msg "Asmgen.transl_op")
+| _, _ => Error (msg "Asmgen.transl_op")
   end.
 
 

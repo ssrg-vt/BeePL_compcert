@@ -127,9 +127,12 @@ Theorem combine_addr_sound:
 Proof.
   intros. functional inversion H; subst.
 - (* indexed - addimm *)
-  UseGetSound. simpl. rewrite <- H0. destruct v; auto. simpl.
-  change Archi.ptr64 with false; simpl.
+  UseGetSound. simpl. rewrite <- H0. destruct v; auto.
+  simpl. rewrite H7. simpl.
   rewrite Ptrofs.add_assoc. auto.
+-   UseGetSound. simpl. rewrite <- H0. destruct v; auto.
+    simpl. rewrite H7. simpl.
+    rewrite Ptrofs.add_assoc. auto.
 Qed.
 
 Theorem combine_op_sound:
@@ -151,6 +154,19 @@ Proof.
   - UseGetSound. simpl. rewrite <- H0. rewrite Val.or_assoc. auto.
   (* xorimm - xorimm *)
   - UseGetSound. simpl. rewrite <- H0. rewrite Val.xor_assoc. auto.
+  (* addlimm - addlimm *)
+  - UseGetSound. FuncInv. simpl.
+    rewrite <- H0. rewrite Val.addl_assoc. auto.
+  (* andlimm - andlimm *)
+  - UseGetSound; simpl.
+    generalize (Int64.eq_spec p m0); rewrite H7; intros.
+    rewrite <- H0. rewrite Val.andl_assoc. simpl. fold p. rewrite H1. auto.
+  - UseGetSound; simpl.
+    rewrite <- H0. rewrite Val.andl_assoc. auto.
+  (* orlimm - orlimm *)
+  - UseGetSound. simpl. rewrite <- H0. rewrite Val.orl_assoc. auto.
+  (* xorlimm - xorlimm *)
+  - UseGetSound. simpl. rewrite <- H0. rewrite Val.xorl_assoc. auto.
   (* cmp *)
   - simpl. decEq; decEq. eapply combine_cond_sound; eauto.
 Qed.

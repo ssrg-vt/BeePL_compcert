@@ -73,7 +73,9 @@ Function combine_addr (addr: addressing) (args: list valnum) : option(addressing
   | Aindexed n, x::nil =>
       match get x with
       | Some(Op (Oaddimm m) ys) =>
-          Some(Aindexed (Ptrofs.add (Ptrofs.of_int m) n), ys)
+          if Archi.ptr64 then None else Some(Aindexed (Ptrofs.add (Ptrofs.of_int m) n), ys)
+      | Some(Op (Oaddlimm m) ys) =>
+          if Archi.ptr64 then Some(Aindexed (Ptrofs.add (Ptrofs.of_int64 m) n), ys) else None
       | _ => None
       end
   | _, _ => None
@@ -101,6 +103,28 @@ Function combine_op (op: operation) (args: list valnum) : option(operation * lis
   | Oxorimm n, x :: nil =>
       match get x with
       | Some(Op (Oxorimm m) ys) => Some(Oxorimm (Int.xor m n), ys)
+      | _ => None
+      end
+  | Oaddlimm n, x :: nil =>
+      match get x with
+      | Some(Op (Oaddlimm m) ys) => Some(Oaddlimm (Int64.add m n), ys)
+      | _ => None
+      end
+  | Oandlimm n, x :: nil =>
+      match get x with
+      | Some(Op (Oandlimm m) ys) =>
+          Some(let p := Int64.and m n in
+               if Int64.eq p m then (Omove, x :: nil) else (Oandlimm p, ys))
+      | _ => None
+      end
+  | Oorlimm n, x :: nil =>
+      match get x with
+      | Some(Op (Oorlimm m) ys) => Some(Oorlimm (Int64.or m n), ys)
+      | _ => None
+      end
+  | Oxorlimm n, x :: nil =>
+      match get x with
+      | Some(Op (Oxorlimm m) ys) => Some(Oxorlimm (Int64.xor m n), ys)
       | _ => None
       end
   | Ocmp cond, _ =>

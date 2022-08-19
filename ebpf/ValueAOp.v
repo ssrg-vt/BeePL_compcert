@@ -20,6 +20,10 @@ Definition eval_static_condition (cond: condition) (vl: list aval): abool :=
   | Ccompu c, v1 :: v2 :: nil => cmpu_bool c v1 v2
   | Ccompimm c n, v1 :: nil => cmp_bool c v1 (I n)
   | Ccompuimm c n, v1 :: nil => cmpu_bool c v1 (I n)
+  | Ccompl c, v1 :: v2 :: nil => cmpl_bool c v1 v2
+  | Ccomplu c, v1 :: v2 :: nil => cmplu_bool c v1 v2
+  | Ccomplimm c n, v1 :: nil => cmpl_bool c v1 (L n)
+  | Ccompluimm c n, v1 :: nil => cmplu_bool c v1 (L n)
   | Ccompf c, v1 :: v2 :: nil => cmpf_bool c v1 v2
   | Cnotcompf c, v1 :: v2 :: nil => cnot (cmpf_bool c v1 v2)
   | Ccompfs c, v1 :: v2 :: nil => cmpfs_bool c v1 v2
@@ -76,6 +80,33 @@ Definition eval_static_operation (op: operation) (vl: list aval): aval :=
   | Omakelong, v1::v2::nil => longofwords v1 v2
   | Olowlong, v1::nil => loword v1
   | Ohighlong, v1::nil => hiword v1
+
+(* 64 bits *)
+  | Oaddl, v1::v2::nil => addl v1 v2
+  | Oaddlimm n, v1::nil => addl v1 (L n)
+  | Onegl, v1::nil => negl v1
+  | Osubl, v1::v2::nil => subl v1 v2
+  | Osublimm n, v1::nil => subl v1 (L n)
+  | Omull, v1::v2::nil => mull v1 v2
+  | Omullimm n, v1::nil => mull v1 (L n)
+  | Odivlu, v1::v2::nil => divlu v1 v2
+  | Odivluimm n, v1::nil => divlu v1 (L n)
+  | Omodlu, v1::v2::nil => modlu v1 v2
+  | Omodluimm n, v1::nil => modlu v1 (L n)
+  | Oandl, v1::v2::nil => andl v1 v2
+  | Oandlimm n, v1::nil => andl v1 (L n)
+  | Oorl, v1::v2::nil => orl v1 v2
+  | Oorlimm n, v1::nil => orl v1 (L n)
+  | Oxorl, v1::v2::nil => xorl v1 v2
+  | Oxorlimm n, v1::nil => xorl v1 (L n)
+  | Oshll, v1::v2::nil => shll v1 v2
+  | Oshllimm n, v1::nil => shll v1 (L n)
+  | Oshrl, v1::v2::nil => shrl v1 v2
+  | Oshrlimm n, v1::nil => shrl v1 (L n)
+  | Oshrlu, v1::v2::nil => shrlu v1 v2
+  | Oshrluimm n, v1::nil => shrlu v1 (L n)
+
+ (* floats *)
   | Onegf, v1::nil => negf v1
   | Oabsf, v1::nil => absf v1
   | Oaddf, v1::v2::nil => addf v1 v2

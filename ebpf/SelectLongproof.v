@@ -82,7 +82,10 @@ Proof.
       unfold Vtrue. reflexivity.
       unfold Vfalse. reflexivity.
     + destruct x, y; auto.
-  -  apply SplitLongproof.eval_addl. apply Archi.splitlong_ptr32; auto.
+      simpl. rewrite Archi.splitlong_ptr32 by auto. reflexivity.
+      simpl. rewrite Archi.splitlong_ptr32 by auto. reflexivity.
+  - unfold binary_constructor_sound.
+    intros. TrivialExists.
 Qed.
 
 Theorem eval_subl: binary_constructor_sound subl Val.subl.
@@ -103,7 +106,30 @@ Proof.
       unfold Vtrue. reflexivity.
       unfold Vfalse. reflexivity.
     + destruct x, y; auto.
-  -  apply SplitLongproof.eval_subl. apply Archi.splitlong_ptr32; auto.
+      simpl. rewrite Archi.splitlong_ptr32 by auto. reflexivity.
+      simpl. rewrite Archi.splitlong_ptr32 by auto. reflexivity.
+  -  unfold binary_constructor_sound. intros. TrivialExists.
+Qed.
+
+Theorem eval_cmplu:
+  forall c le a x b y v,
+  eval_expr ge sp e m le a x ->
+  eval_expr ge sp e m le b y ->
+  Val.cmplu (Mem.valid_pointer m) c x y = Some v ->
+  eval_expr ge sp e m le (cmplu c a b) v.
+Proof.
+  unfold cmplu; intros. destruct Archi.splitlong eqn:SL.
+  eapply SplitLongproof.eval_cmplu; eauto using Archi.splitlong_ptr32.
+  unfold Val.cmplu in H1.
+  destruct (Val.cmplu_bool (Mem.valid_pointer m) c x y) as [vb|] eqn:C; simpl in H1; inv H1.
+  destruct (is_longconst a) as [n1|] eqn:LC1; destruct (is_longconst b) as [n2|] eqn:LC2;
+  try (assert (x = Vlong n1) by (eapply is_longconst_sound; eauto));
+  try (assert (y = Vlong n2) by (eapply is_longconst_sound; eauto));
+  subst.
+- simpl in C; inv C. EvalOp. destruct (Int64.cmpu c n1 n2); reflexivity.
+- EvalOp. simpl. rewrite Val.swap_cmplu_bool. rewrite C; auto.
+- EvalOp. simpl; rewrite C; auto.
+- EvalOp. simpl; rewrite C; auto.
 Qed.
 
 
