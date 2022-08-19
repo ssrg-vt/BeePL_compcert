@@ -712,7 +712,7 @@ Proof.
   econstructor; split. eapply eval_helper_2; eauto. DeclHelper. reflexivity. reflexivity. auto.
 Qed.
 
-Theorem eval_addl: Archi.ptr64 = false -> binary_constructor_sound addl Val.addl.
+Theorem eval_addl: binary_constructor_sound addl Val.addl.
 Proof.
   unfold addl; red; intros.
   set (default := Ebuiltin (EF_builtin "__builtin_addl" sig_ll_l) (a ::: b ::: Enil)).
@@ -728,14 +728,17 @@ Proof.
   econstructor; split. apply eval_longconst. simpl; auto.
 - predSpec Int64.eq Int64.eq_spec p Int64.zero; auto.
   subst p. exploit (is_longconst_sound le a); eauto. intros EQ; subst x.
-  exists y; split; auto. unfold Val.addl; rewrite H; destruct y; auto. rewrite Int64.add_zero_l; auto.
+  exists y; split; auto. unfold Val.addl; destruct y; auto.
+  rewrite Int64.add_zero_l; auto.
+  rewrite Ptrofs.add_zero; destruct Archi.ptr64; auto.
 - predSpec Int64.eq Int64.eq_spec q Int64.zero; auto.
   subst q. exploit (is_longconst_sound le b); eauto. intros EQ; subst y.
-  exists x; split; auto. unfold Val.addl; rewrite H; destruct x; simpl; auto. rewrite Int64.add_zero; auto.
+  exists x; split; auto. unfold Val.addl; destruct x; simpl; auto. rewrite Int64.add_zero; auto.
+  rewrite Ptrofs.add_zero; destruct Archi.ptr64; auto.
 - auto.
 Qed.
 
-Theorem eval_subl: Archi.ptr64 = false -> binary_constructor_sound subl Val.subl.
+Theorem eval_subl: binary_constructor_sound subl Val.subl.
 Proof.
   unfold subl; red; intros.
   set (default := Ebuiltin (EF_builtin "__builtin_subl" sig_ll_l) (a ::: b ::: Enil)).
@@ -755,7 +758,9 @@ Proof.
   destruct y; simpl; auto.
 - predSpec Int64.eq Int64.eq_spec q Int64.zero; auto.
   subst q. exploit (is_longconst_sound le b); eauto. intros EQ; subst y.
-  exists x; split; auto. unfold Val.subl; rewrite H; destruct x; simpl; auto. rewrite Int64.sub_zero_l; auto.
+  exists x; split; auto. unfold Val.subl; destruct x; simpl; auto.
+  rewrite Int64.sub_zero_l; auto.
+  rewrite Ptrofs.sub_zero_l. destruct Archi.ptr64; auto.
 - auto.
 Qed.
 
@@ -833,13 +838,12 @@ Qed.
 
 Theorem eval_shrxlimm:
   forall le a n x z,
-  Archi.ptr64 = false ->
   eval_expr ge sp e m le a x ->
   Val.shrxl x (Vint n) = Some z ->
   exists v, eval_expr ge sp e m le (shrxlimm a n) v /\ Val.lessdef z v.
 Proof.
   intros.
-  apply Val.shrxl_shrl_2 in H1. unfold shrxlimm.
+  apply Val.shrxl_shrl_2 in H0. unfold shrxlimm.
   destruct (Int.eq n Int.zero).
 - subst z; exists x; auto.
 - set (le' := x :: le).
@@ -847,15 +851,15 @@ Proof.
   constructor. reflexivity.
   edestruct (eval_shrluimm (Int.sub (Int.repr 64) n) le') as (v2 & A2 & B2).
   eexact A1.
-  edestruct (eval_addl H le' (Eletvar 0)) as (v3 & A3 & B3).
+  edestruct (eval_addl le' (Eletvar 0)) as (v3 & A3 & B3).
   constructor. reflexivity. eexact A2.
   edestruct (eval_shrlimm n le') as (v4 & A4 & B4). eexact A3.
   exists v4; split.
   econstructor; eauto.
   assert (X: forall v1 v2 n, Val.lessdef v1 v2 -> Val.lessdef (Val.shrl v1 (Vint n)) (Val.shrl v2 (Vint n))).
-  { intros. inv H2; auto. }
+  { intros. inv H1; auto. }
   assert (Y: forall v1 v2 n, Val.lessdef v1 v2 -> Val.lessdef (Val.shrlu v1 (Vint n)) (Val.shrlu v2 (Vint n))).
-  { intros. inv H2; auto. }
+  { intros. inv H1; auto. }
   subst z. eapply Val.lessdef_trans; [|eexact B4]. apply X.
   eapply Val.lessdef_trans; [|eexact B3]. apply Val.addl_lessdef; auto.
   eapply Val.lessdef_trans; [|eexact B2]. apply Y.
