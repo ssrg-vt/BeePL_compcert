@@ -22,7 +22,7 @@ Definition has_modu := false. (* Does the archi has modulo? *)
 
 Parameter ptr64 : bool.
 
-
+Parameter rbpf : bool. (* Restrict code generation for the RIOT OS rbpf machine *)
 
 Definition big_endian := false.
 

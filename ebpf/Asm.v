@@ -124,7 +124,7 @@ Inductive sizeOp : Type :=
 Inductive instruction : Type :=
   | Pload : sizeOp -> ireg -> ireg -> off -> instruction        (**r dereference load *)
   | Pstore : sizeOp -> ireg -> ireg+imm -> off -> instruction   (**r dereference store *)
-  | Palu : aluOp -> ireg -> ireg+imm -> instruction             (**r 32 bits arithmetics *)
+  | Palu : aluOp -> ireg -> ireg+imm -> instruction             (**r arithmetics *)
   | Pcmp : cmpOp -> ireg -> ireg+imm -> instruction             (**r comparison without branching: eBPF extension *)
   | Pjmp : ident+label -> instruction                           (**r unconditional jump *)
   | Pjmpcmp : cmpOp -> ireg -> ireg+imm -> label -> instruction (**r conditional jump with comparison *)

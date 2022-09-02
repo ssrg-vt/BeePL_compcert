@@ -63,7 +63,8 @@ Supported targets:
   aarch64-linux        (AArch64, i.e. ARMv8 in 64-bit mode, Linux)
   aarch64-macos        (AArch64, i.e. Apple silicon, MacOS)
   ebpf32               (EBPF 32 bits)
-  ebpf64               (EBPF 64 bits)
+  rbpf                 (EBPF 32 bits, specialised for riot OS)
+  ebpf64               (EBPF 64 bits, experimental)
   manual               (edit configuration file by hand)
 
 For x86 targets, the "x86_32-" prefix can also be written "ia32-" or "i386-".
@@ -207,6 +208,8 @@ case "$target" in
       arch="aarch64"; model="default"; endianness="little"; bitsize=64;;
   ebpf32)
       arch="ebpf"; model="32"; endianness="little"; bitsize=32;;
+  rbpf)
+      arch="ebpf"; model="rbpf"; endianness="little"; bitsize=32;;
   ebpf64)
       arch="ebpf"; model="64"; endianness="little"; bitsize=64;;
   manual)
@@ -453,7 +456,10 @@ if test "$arch" = "ebpf"; then
 	    echo "$usage" 1>&2
 	    exit 2;;
     esac 
-    abi="standard"
+    case "$model" in
+        rbpf) abi="rbpf";;
+	*)   abi="standard";;
+    esac
     casm="llvm-mc"
     casm_options="-triple bpf -filetype=obj"
     has_linking_step=false

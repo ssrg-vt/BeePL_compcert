@@ -108,7 +108,7 @@ Nondetfunction negint (e: expr) :=
 Nondetfunction shlimm (e1: expr) (n: int) :=
   if Int.eq n Int.zero then
     e1
-  else if negb (Int.ltu n Int.iwordsize) then
+  else if negb (Int.ltu n Int.iwordsize) || Archi.rbpf then
     Eop Oshl (e1 ::: Eop (Ointconst n) Enil ::: Enil)
   else match e1 with
     | Eop (Ointconst n1) Enil =>
@@ -124,7 +124,7 @@ Nondetfunction shlimm (e1: expr) (n: int) :=
 Nondetfunction shruimm (e1: expr) (n: int) :=
   if Int.eq n Int.zero then
     e1
-  else if negb (Int.ltu n Int.iwordsize) then
+  else if negb (Int.ltu n Int.iwordsize) || Archi.rbpf then
     Eop Oshru (e1 ::: Eop (Ointconst n) Enil ::: Enil)
   else match e1 with
     | Eop (Ointconst n1) Enil =>
@@ -140,7 +140,7 @@ Nondetfunction shruimm (e1: expr) (n: int) :=
 Nondetfunction shrimm (e1: expr) (n: int) :=
   if Int.eq n Int.zero then
     e1
-  else if negb (Int.ltu n Int.iwordsize) then
+  else if negb (Int.ltu n Int.iwordsize) || Archi.rbpf then
     Eop Oshr (e1 ::: Eop (Ointconst n) Enil ::: Enil)
   else match e1 with
     | Eop (Ointconst n1) Enil =>

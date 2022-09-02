@@ -2200,6 +2200,20 @@ Proof.
   intros. destruct v; simpl; auto. f_equal. apply Ptrofs.add_assoc.
 Qed.
 
+Lemma offset_ptr_add_int : forall sp n1 n2,
+  Val.lessdef (Val.add (Vint n1) (Val.offset_ptr sp n2)) (Val.offset_ptr sp (Ptrofs.add (Ptrofs.of_int n1) n2)).
+Proof.
+  intros.
+  rewrite add_commut.
+  unfold offset_ptr.
+  destruct sp; try constructor.
+  simpl. destruct Archi.ptr64.
+  constructor.
+  rewrite Ptrofs.add_assoc.
+  rewrite (Ptrofs.add_commut n2).
+  constructor.
+Qed.
+
 Lemma lessdef_normalize:
   forall v ty, lessdef (normalize v ty) v.
 Proof.

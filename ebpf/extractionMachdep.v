@@ -22,3 +22,4 @@ Require Archi Asm.
 (* Archi *)
 
 Extract Constant Archi.ptr64 => " Configuration.model = ""64"" ".
+Extract Constant Archi.rbpf  => " Configuration.abi = ""rbpf"" ".

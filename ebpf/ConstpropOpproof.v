@@ -208,7 +208,7 @@ Proof.
   intros; unfold make_shlimm.
   predSpec Int.eq Int.eq_spec n Int.zero; intros. subst.
   exists (e#r1); split; auto. destruct (e#r1); simpl; auto. rewrite Int.shl_zero. auto.
-  destruct (Int.ltu n Int.iwordsize).
+  destruct (Int.ltu n Int.iwordsize && negb Archi.rbpf).
   econstructor; split. simpl. eauto. auto.
   econstructor; split. simpl. eauto. rewrite H; auto.
 Qed.
@@ -222,7 +222,7 @@ Proof.
   intros; unfold make_shrimm.
   predSpec Int.eq Int.eq_spec n Int.zero; intros. subst.
   exists (e#r1); split; auto. destruct (e#r1); simpl; auto. rewrite Int.shr_zero. auto.
-  destruct (Int.ltu n Int.iwordsize).
+  destruct (Int.ltu n Int.iwordsize && negb Archi.rbpf).
   econstructor; split. simpl. eauto. auto.
   econstructor; split. simpl. eauto. rewrite H; auto.
 Qed.
@@ -236,7 +236,7 @@ Proof.
   intros; unfold make_shruimm.
   predSpec Int.eq Int.eq_spec n Int.zero; intros. subst.
   exists (e#r1); split; auto. destruct (e#r1); simpl; auto. rewrite Int.shru_zero. auto.
-  destruct (Int.ltu n Int.iwordsize).
+  destruct (Int.ltu n Int.iwordsize && negb Archi.rbpf).
   econstructor; split. simpl. eauto. auto.
   econstructor; split. simpl. eauto. rewrite H; auto.
 Qed.

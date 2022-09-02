@@ -18,5 +18,5 @@ Other limitations or specificites:
    this is should be a configuration option.)
  - Builtin and some arithmetic operations are not supported e.g mulhs, mulhu, mod, mull
  - Instruction selection could be optimised further
- - The backend target 32 bits eBPF instruction (there is no 64 bits target)
+ - The backend targets 32 bits eBPF instruction (there is no 64 bits target)
  - There is no support for floating point numbers (could support soft-float)
