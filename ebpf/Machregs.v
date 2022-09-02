@@ -144,7 +144,14 @@ Definition temp_for_parent_frame: mreg := I0.
 
 Definition destroyed_at_indirect_call: list mreg := nil.
 
-Definition mregs_for_operation (op: operation): list (option mreg) * option mreg := (nil, None).
+Definition mregs_for_operation (op: operation): list (option mreg) * option mreg :=
+  if Archi.rbpf
+  then
+    match op with
+    | Odivu => (Some I0 :: Some I1 :: nil, Some I0)
+    | _ => (nil, None)
+    end
+  else (nil,None).
 
 Definition mregs_for_builtin (ef: external_function): list (option mreg) * list(option mreg) :=
   match ef with

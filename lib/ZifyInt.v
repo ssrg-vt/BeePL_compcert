@@ -157,7 +157,8 @@ Lemma inj_eq : forall n m,
 Proof.
   split ; intros.
   - congruence.
-  - unfold Int.unsigned in H.
+  -
+    unfold Int.unsigned in H.
     destruct n,m.
     simpl in *.
     subst.
@@ -175,7 +176,7 @@ Proof.
     }
     destruct intrange0.
     destruct intrange.
-    simpl in *.
+    simpl in H,H0.
     congruence.
 Qed.
 
@@ -252,7 +253,7 @@ Next Obligation.
 Qed.
 Add Zify BinOpSpec Zzero_ext_spec.
 
-Lemma unsigned_ptrofs : forall i : Ptrofs.int, 0 <= Ptrofs.unsigned i < 4294967296.
+(*Lemma unsigned_ptrofs : forall i : Ptrofs.int, 0 <= Ptrofs.unsigned i < 4294967296.
 Proof.
   exact Ptrofs.unsigned_range.
 Qed.
@@ -340,7 +341,7 @@ Qed.
 
 Instance eq_ptrofs : BinRel (@eq ptrofs)  :=  {| TR := @eq Z ; TRInj := ptrofs_eq |}.
 Add Zify BinRel eq_ptrofs.
-
+*)
 Lemma signed_spec : forall  x : Z,
     x < 2147483648 /\ signed x = x \/
       x >= 2147483648 /\ signed x = x - 4294967296.

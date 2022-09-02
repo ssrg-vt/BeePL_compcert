@@ -90,17 +90,17 @@ Definition make_addimm (n: int) (r: reg) :=
 
 Definition make_shlimm (n: int) (r1 r2: reg) :=
   if Int.eq n Int.zero then (Omove, r1 :: nil)
-  else if Int.ltu n Int.iwordsize then (Oshlimm n, r1 :: nil)
+  else if Int.ltu n Int.iwordsize && negb Archi.rbpf then (Oshlimm n, r1 :: nil)
   else (Oshl, r1 :: r2 :: nil).
 
 Definition make_shrimm (n: int) (r1 r2: reg) :=
   if Int.eq n Int.zero then (Omove, r1 :: nil)
-  else if Int.ltu n Int.iwordsize then (Oshrimm n, r1 :: nil)
+  else if Int.ltu n Int.iwordsize && negb Archi.rbpf then (Oshrimm n, r1 :: nil)
   else (Oshr, r1 :: r2 :: nil).
 
 Definition make_shruimm (n: int) (r1 r2: reg) :=
   if Int.eq n Int.zero then (Omove, r1 :: nil)
-  else if Int.ltu n Int.iwordsize then (Oshruimm n, r1 :: nil)
+  else if Int.ltu n Int.iwordsize && negb Archi.rbpf then (Oshruimm n, r1 :: nil)
   else (Oshru, r1 :: r2 :: nil).
 
 Definition make_mulimm (n: int) (r1 r2: reg) :=
