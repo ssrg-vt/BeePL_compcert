@@ -211,12 +211,10 @@ Proof.
 
   predSpec Int.eq Int.eq_spec n Int.zero.
   intros; subst. exists x; split; auto. destruct x; simpl; auto. rewrite Int.shl_zero; auto.
-  destruct (negb (Int.ltu n Int.iwordsize) || Archi.rbpf) eqn:LT; simpl.
+  destruct (negb (Int.ltu n Int.iwordsize)) eqn:LT; simpl.
   - intros; TrivialExists. constructor. eauto. constructor. EvalOp. simpl; eauto. constructor.
     auto.
-  - rewrite orb_false_iff in LT.
-    destruct LT as (LT & _).
-    rewrite negb_false_iff in LT.
+  - rewrite negb_false_iff in LT.
     destruct (shlimm_match a); intros; InvEval.
   + exists (Vint (Int.shl n1 n)); split. EvalOp.
     simpl. rewrite LT. auto.
@@ -241,12 +239,10 @@ Proof.
   predSpec Int.eq Int.eq_spec n Int.zero.
   intros; subst. exists x; split; auto. destruct x; simpl; auto. rewrite Int.shru_zero; auto.
 
-  destruct (negb (Int.ltu n Int.iwordsize) || Archi.rbpf) eqn:LT; simpl.
+  destruct (negb (Int.ltu n Int.iwordsize)) eqn:LT; simpl.
   - intros; TrivialExists. constructor. eauto. constructor. EvalOp. simpl; eauto. constructor.
     auto.
   -
-    rewrite orb_false_iff in LT.
-    destruct LT as (LT & _).
     rewrite negb_false_iff in LT.
   destruct (shruimm_match a); intros; InvEval.
   + exists (Vint (Int.shru n1 n)); split. EvalOp.
@@ -271,12 +267,10 @@ Proof.
   predSpec Int.eq Int.eq_spec n Int.zero.
   intros; subst. exists x; split; auto. destruct x; simpl; auto. rewrite Int.shr_zero; auto.
 
-  destruct (negb (Int.ltu n Int.iwordsize) || Archi.rbpf) eqn:LT.
+  destruct (negb (Int.ltu n Int.iwordsize)) eqn:LT.
   - intros; TrivialExists. constructor. eauto. constructor. EvalOp. simpl; eauto. constructor.
     auto.
-  - rewrite orb_false_iff in LT.
-    rewrite negb_false_iff in LT.
-    destruct LT as (LT & _).
+  - rewrite negb_false_iff in LT.
     destruct (shrimm_match a); intros; InvEval.
   + exists (Vint (Int.shr n1 n)); split. EvalOp.
     simpl. rewrite LT; auto.
