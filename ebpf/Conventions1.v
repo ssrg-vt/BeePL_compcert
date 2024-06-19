@@ -56,6 +56,20 @@ Definition is_float_reg (r: mreg) :=
   | _ => false
   end.
 
+Record alloc_regs := mk_alloc_regs {
+  preferred_int_regs: list mreg;
+  remaining_int_regs: list mreg;
+  preferred_float_regs: list mreg;
+  remaining_float_regs: list mreg
+}.
+
+
+Definition allocatable_registers (_: unit) :=
+  {| preferred_int_regs := int_caller_save_regs;
+     remaining_int_regs := int_callee_save_regs;
+     preferred_float_regs := float_caller_save_regs;
+     remaining_float_regs := float_callee_save_regs |}.
+
 (** * Function calling conventions *)
 
 (** The functions in this section determine the locations (machine registers

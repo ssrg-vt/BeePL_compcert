@@ -400,6 +400,7 @@ Definition storeind (base: ireg) (ofs: ptrofs) (ty: typ) (src: mreg) (k: code): 
 
 Definition transl_load_indexed (chunk : memory_chunk) (d:ireg) (a:ireg) (ofs: ptrofs) (k:code) : res (list instruction) :=
   match chunk with
+  | Mbool          => OK (Pload Byte d a ofs :: k)
   | Mint8unsigned  => OK (Pload Byte d a ofs :: k)
   | Mint16unsigned => OK (Pload HalfWord d a ofs :: k)
   | Many32         => OK (Pload WordAny d a ofs :: k)
@@ -428,6 +429,7 @@ Definition transl_load (chunk: memory_chunk) (addr: addressing)
 
 Definition transl_store_indexed (chunk : memory_chunk) (d:ireg) (ofs: ptrofs) (a:ireg)  (k:code) : res (list instruction) :=
   match chunk with
+  | Mbool          => OK (Pstore Byte d (inl a) ofs :: k)
   | Mint8unsigned  => OK (Pstore Byte d (inl a) ofs :: k)
   | Mint16unsigned => OK (Pstore HalfWord d (inl a) ofs :: k)
   | Many32         => OK (Pstore WordAny d (inl a) ofs :: k)

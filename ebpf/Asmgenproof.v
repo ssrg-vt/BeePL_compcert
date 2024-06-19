@@ -567,7 +567,8 @@ Local Transparent destroyed_by_op.
   left; eapply exec_straight_steps; eauto; intros. simpl in TR.
   exploit transl_load_correct; eauto. intros [rs2 [P [Q R]]].
   exists rs2; split. eauto.
-  split. eapply agree_set_undef_mreg; eauto. congruence.
+  split. eapply agree_set_undef_mreg; eauto.
+  eapply Val.lessdef_trans;eauto.
   intros; auto with asmgen.
   simpl; congruence.
 

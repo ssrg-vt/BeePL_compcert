@@ -508,7 +508,7 @@ Lemma transl_load_indexed_correct:
   transl_load_indexed chunk x x0 i k = OK kl ->
   exists rs',
      exec_straight ge fn kl rs m k rs' m
-  /\ rs'#x = v
+  /\ Val.lessdef v (rs'#x)
   /\ forall r, r <> PC -> r <> x -> rs'#r = rs#r.
 Proof.
   intros until v. intros KL EV LOAD TR.
@@ -516,6 +516,19 @@ Proof.
   destruct a; try discriminate.
   unfold Mem.loadv in LOAD.
   destruct chunk.
+  + (* Mbool *)
+    inv TR.
+    rewrite Mem.load_bool_int8_unsigned in LOAD.
+    destruct (Mem.load Mint8unsigned m b (Ptrofs.unsigned i0))eqn:ML; try discriminate.
+    simpl in LOAD. inv LOAD.
+    eexists ; split ; eauto.
+    eapply exec_straight_one; simpl; unfold exec_load,load; try reflexivity.
+    unfold Mem.loadv. rewrite EV. rewrite ML.
+    reflexivity.
+    reflexivity.
+    split. Simpl.
+    apply Val.norm_bool_is_lessdef.
+    intros. Simpl.
   + (* Mint8signed *)
     inv TR.
     rewrite Mem.load_int8_signed_unsigned in LOAD.
@@ -621,7 +634,7 @@ Lemma transl_load_correct:
   Mem.loadv chunk m a = Some v ->
   exists rs',
      exec_straight ge fn c rs m k rs' m
-  /\ rs'#(preg_of dst) = v
+  /\ Val.lessdef v (rs'#(preg_of dst))
   /\ forall r, r <> PC -> r <> preg_of dst -> rs'#r = rs#r.
 Proof.
   intros until v; intros TR EV LOAD.
@@ -643,6 +656,17 @@ Lemma transl_store_common_correct:
 Proof.
   intros until a. intros EV STORE TR.
   destruct chunk; simpl in TR.
+  - (* Mbool *)
+  inv TR.
+    econstructor. split.
+    apply exec_straight_one; simpl; unfold exec_store,store.
+    destruct (Val.offset_ptr (rs x0) i); try discriminate.
+    simpl in STORE.
+    rewrite Mem.store_bool_unsigned_8 in STORE.
+    simpl.
+    rewrite STORE. reflexivity.
+    reflexivity.
+    intros. Simplif.
   - (* Mint8signed *)
     inv TR.
     econstructor. split.

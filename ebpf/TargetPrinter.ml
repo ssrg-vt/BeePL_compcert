@@ -127,8 +127,10 @@ module Target : TARGET =
           variable_section ~sec:".data" ~bss:".bss" i
       | Section_const i | Section_small_const i ->
           variable_section ~sec:".section	.rodata" i
-      | Section_string       -> ".section	.rodata"
-      | Section_literal      -> ".section	.rodata"
+      | Section_string sz ->
+          elf_mergeable_string_section sz ".section	.rodata"
+      | Section_literal sz ->
+          elf_mergeable_literal_section sz ".section	.rodata"
       | Section_jumptable    -> ".section	.rodata"
       | Section_debug_info _ -> ".section	.debug_info,\"\",%progbits"
       | Section_debug_loc    -> ".section	.debug_loc,\"\",%progbits"
@@ -146,7 +148,7 @@ module Target : TARGET =
 
 (* Associate labels to floating-point constants and to symbols. *)
 
-    let emit_constants oc lit =
+(*    let emit_constants oc lit =
       if exists_constants () then begin
          section oc lit;
          if Hashtbl.length literal64_labels > 0 then
@@ -166,7 +168,7 @@ module Target : TARGET =
            end;
          reset_literals ()
       end
-
+ *)
 (* Generate code to load the address of id + ofs in register_arch r *)
 
     (* let loadsymbol oc r id ofs = () *)
@@ -225,12 +227,12 @@ module Target : TARGET =
       | Pallocframe _
       | Pfreeframe _ -> assert false
 
-    let get_section_names name =
+(*    let get_section_names name =
       let (text, lit) =
         match C2C.atom_sections name with
         | t :: l :: _ -> (t, l)
         | _    -> (Section_text, Section_literal) in
-      text,lit,Section_jumptable
+      text,lit,Section_jumptable *)
 
     let print_align oc alignment =
       fprintf oc "	.balign %d\n" alignment
@@ -287,8 +289,8 @@ module Target : TARGET =
 
     let default_falignment = 2
 
-    let cfi_startproc oc = ()
-    let cfi_endproc oc = ()
+                               (*let cfi_startproc oc = ()*)
+                               (*let cfi_endproc oc = ()*)
 
   end
 
