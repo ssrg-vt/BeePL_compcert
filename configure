@@ -448,9 +448,9 @@ fi
 if test "$arch" = "ebpf"; then
     case "$bitsize" in
 	32)
-            cprepro_options="-std=c99 -m32 -U__GNUC__ -E";;
+            cprepro_options="-std=c99 -m32 -D__ccomp__ -U__GNUC__ -E";;
 	64)
-	    cprepro_options="-std=c99 -m64 -U__GNUC__ -E";;
+	    cprepro_options="-std=c99 -m64 -D__ccomp__ -U__GNUC__ -E";;
 	*)
 	    echo "Error: '$bitsize' is either 32 or 64." 1>&2
 	    echo "$usage" 1>&2

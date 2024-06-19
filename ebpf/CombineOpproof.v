@@ -120,6 +120,20 @@ Proof.
   - simpl; eapply combine_compimm_eq_1_sound; eauto.
 Qed.
 
+Theorem combine_cond'_sound:
+  forall cond args res res',
+  combine_cond' cond args = Some res' ->
+  eval_condition cond (map valu args) m = Some res ->
+  res = res'.
+Proof.
+  intros.  unfold combine_cond' in *.
+  destruct cond; inv H; destruct args; inv H2; destruct args; inv H1; destruct args; inv H2.
+  apply (combine_comparison_cmp_sound valu c v v0 res res'); auto.
+  apply (combine_comparison_cmpu_sound valu m c v v0 res res'); auto.
+  apply (combine_comparison_cmpl_sound valu c v v0 res res'); auto.
+  apply (combine_comparison_cmplu_sound valu m c v v0 res res'); auto.
+Qed.
+
 Theorem combine_addr_sound:
   forall addr args addr' args',
   combine_addr get addr args = Some(addr', args') ->
@@ -135,7 +149,7 @@ Proof.
     rewrite Ptrofs.add_assoc. auto.
 Qed.
 
-Theorem combine_op_sound:
+Theorem combine_op_sound_eq:
   forall op args op' args',
   combine_op get op args = Some(op', args') ->
   eval_operation ge sp op' (map valu args') m = eval_operation ge sp op (map valu args) m.
@@ -170,5 +184,17 @@ Proof.
   (* cmp *)
   - simpl. decEq; decEq. eapply combine_cond_sound; eauto.
 Qed.
+
+Theorem combine_op_sound:
+  forall op args op' args' r,
+  combine_op get op args = Some(op', args') ->
+  eval_operation ge sp op (map valu args) m = Some r ->
+  exists r', eval_operation ge sp op' (map valu args') m = Some r' /\ Val.lessdef r r'.
+Proof.
+  intros.
+  exploit combine_op_sound_eq;eauto. intros.
+  exists r. split;auto. congruence.
+Qed.
+
 
 End COMBINE.
