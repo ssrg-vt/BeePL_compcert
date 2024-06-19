@@ -221,7 +221,7 @@ module Target : TARGET =
 
       | Plabel label -> fprintf oc "%a:\n" print_label label
 
-      | Ploadsymbol(r,id,ofs) -> fprintf oc "	%a = \"%a\" + %a\n" register_arch r symbol id coqint ofs
+      | Ploadsymbol(r,id,ofs) -> fprintf oc "	%a = \"%a\" + %a ll\n" register_arch r symbol id coqint ofs
     
       | Pbuiltin _
       | Pallocframe _
