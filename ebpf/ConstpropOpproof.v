@@ -91,6 +91,8 @@ Proof.
   destruct a; inv H; SimplVM.
 - (* integer *)
   exists (Vint n); auto.
+- (* integer *)
+  exists (Vlong n); auto.
 - (* float *)
   destruct (Compopts.generate_float_constants tt); inv H2. exists (Vfloat f); auto.
 - (* single *)

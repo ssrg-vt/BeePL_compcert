@@ -42,6 +42,7 @@ Definition eval_static_operation (op: operation) (vl: list aval): aval :=
   match op, vl with
   | Omove, v1::nil => v1
   | Ointconst n, nil => I n
+  | Olongconst n, nil => L n
   | Oaddrstack ofs, nil => Ptr (Stk ofs)
   | Oadd, v1::v2::nil => add v1 v2
   | Oaddimm n, v1::nil => add v1 (I n)

@@ -248,8 +248,11 @@ let aarch64_apple =
                  wchar_ikind = C.IInt;}
 (*- #End *)
 
-let ebpf =
-  { ilp32ll64 with name = "ebpf" }
+let ebpf32 =
+  { ilp32ll64 with name = "ebpf32" }
+
+let ebpf64 =
+  { i32lpll64 with name = "ebpf64" }
 
 (* Add GCC extensions re: sizeof and alignof *)
 

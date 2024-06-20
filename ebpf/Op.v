@@ -55,6 +55,7 @@ Inductive condition : Type :=
 Inductive operation : Type :=
   | Omove                    (**r [rd = r1] *)
   | Ointconst (n: int)       (**r [rd] is set to the given integer constant *)
+  | Olongconst (n: int64)    (**r [rd] is set to the given integer constant *)
   | Oaddrstack (ofs: ptrofs) (**r [rd] is set to the stack pointer plus the given offset *)
 
 (*c 32-bit integer arithmetic: *)
@@ -164,6 +165,7 @@ Definition string_of_operation (o:operation) : string :=
   match o with
   | Omove   => "Omove"
   | Ointconst _ => "Ointconst"
+  | Olongconst _ => "Olongconst"
   | Oaddrstack _ => "Oaddrstack"
   | Oadd         => "Oadd"
   | Oaddimm _    => "Oaddimm"
@@ -336,6 +338,7 @@ Definition eval_operation
   match op, vl with
   | Omove, v1::nil => Some v1
   | Ointconst n, nil => Some (Vint n)
+  | Olongconst n, nil => Some (Vlong n)
   | Oaddrsymbol s ofs, nil => Some (Genv.symbol_address genv s ofs)
   | Oaddrstack ofs, nil => Some (Val.offset_ptr sp ofs)
   | Ocast8signed, v1 :: nil => Some (Val.sign_ext 8 v1)
@@ -495,6 +498,7 @@ Definition type_of_operation (op: operation) : list typ * typ :=
   match op with
   | Omove => (nil, Tint)   (* treated specially *)
   | Ointconst _ => (nil, Tint)
+  | Olongconst _ => (nil , Tlong)
   | Oaddrsymbol _ _ => (nil, Tptr)
   | Oaddrstack _ => (nil, Tptr)
   | Ocast8signed => (Tint :: nil, Tint)

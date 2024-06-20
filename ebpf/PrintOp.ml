@@ -47,6 +47,7 @@ let print_condition reg pp = function
 let print_operation reg pp = function
   | Omove, [r1] -> reg pp r1
   | Ointconst n, [] -> fprintf pp "%ld" (camlint_of_coqint n)
+  | Olongconst n, [] -> fprintf pp "%LdL" (camlint64_of_coqint n)
   | Oaddrsymbol(id, ofs), [] ->
       fprintf pp "\"%s\" + %Ld" (extern_atom id) (camlint64_of_ptrofs ofs)
   | Oaddrstack ofs, [] ->
