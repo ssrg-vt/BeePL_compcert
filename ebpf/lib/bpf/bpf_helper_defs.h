@@ -53,10 +53,10 @@ struct ipv6hdr;
  * 	Map value associated to *key*, or **NULL** if no entry was
  * 	found.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern void bpf_map_lookup_elem(void *map, const void *key);
 #else
-static const void *(*bpf_map_lookup_elem)(void *map, const void *key) = (void *) 1;
+static void *(*const bpf_map_lookup_elem)(void *map, const void *key) = (void *) 1;
 #endif
 
 /*
@@ -79,10 +79,10 @@ static const void *(*bpf_map_lookup_elem)(void *map, const void *key) = (void *)
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_map_update_elem(void *map, const void *key, const void *value, __u64 flags);
 #else
-static const long (*bpf_map_update_elem)(void *map, const void *key, const void *value, __u64 flags) = (void *) 2;
+static long (*const bpf_map_update_elem)(void *map, const void *key, const void *value, __u64 flags) = (void *) 2;
 #endif
 /*
  * bpf_map_delete_elem
@@ -92,10 +92,10 @@ static const long (*bpf_map_update_elem)(void *map, const void *key, const void 
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_map_delete_elem(void *map, const void *key);
 #else
-static const long (*bpf_map_delete_elem)(void *map, const void *key) = (void *) 3;
+static long (*const bpf_map_delete_elem)(void *map, const void *key) = (void *) 3;
 #endif
 /*
  * bpf_probe_read
@@ -109,10 +109,10 @@ static const long (*bpf_map_delete_elem)(void *map, const void *key) = (void *) 
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_probe_read(void *dst, __u32 size, const void *unsafe_ptr);
 #else
-static const long (*bpf_probe_read)(void *dst, __u32 size, const void *unsafe_ptr) = (void *) 4;
+static long (*const bpf_probe_read)(void *dst, __u32 size, const void *unsafe_ptr) = (void *) 4;
 #endif
 
 /*
@@ -125,10 +125,10 @@ static const long (*bpf_probe_read)(void *dst, __u32 size, const void *unsafe_pt
  * Returns
  * 	Current *ktime*.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u64 bpf_ktime_get_ns(void);
 #else
-static const __u64 (*bpf_ktime_get_ns)(void) = (void *) 5;
+static __u64 (*const bpf_ktime_get_ns)(void) = (void *) 5;
 #endif
 /*
  * bpf_trace_printk
@@ -191,10 +191,10 @@ static const __u64 (*bpf_ktime_get_ns)(void) = (void *) 5;
  * 	The number of bytes written to the buffer, or a negative error
  * 	in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern const long bpf_trace_printk(const char *fmt, __u32 fmt_size, ...);
 #else
-static const long (*bpf_trace_printk)(const char *fmt, __u32 fmt_size, ...) = (void *) 6;
+static long (*const bpf_trace_printk)(const char *fmt, __u32 fmt_size, ...) = (void *) 6;
 #endif
 
 
@@ -212,10 +212,10 @@ static const long (*bpf_trace_printk)(const char *fmt, __u32 fmt_size, ...) = (v
  * Returns
  * 	A random 32-bit unsigned value.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u32 bpf_get_prandom_u32(void);
 #else
-static const __u32 (*bpf_get_prandom_u32)(void) = (void *) 7;
+static __u32 (*const bpf_get_prandom_u32)(void) = (void *) 7;
 #endif
 /*
  * bpf_get_smp_processor_id
@@ -228,10 +228,10 @@ static const __u32 (*bpf_get_prandom_u32)(void) = (void *) 7;
  * Returns
  * 	The SMP id of the processor running the program.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u32 bpf_get_smp_processor_id(void);
 #else
-static const __u32 (*bpf_get_smp_processor_id)(void) = (void *) 8;
+static __u32 (*const bpf_get_smp_processor_id)(void) = (void *) 8;
 #endif
 /*
  * bpf_skb_store_bytes
@@ -252,10 +252,10 @@ static const __u32 (*bpf_get_smp_processor_id)(void) = (void *) 8;
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_skb_store_bytes(struct __sk_buff *skb, __u32 offset, const void *from, __u32 len, __u64 flags);
 #else
-static const long (*bpf_skb_store_bytes)(struct __sk_buff *skb, __u32 offset, const void *from, __u32 len, __u64 flags) = (void *) 9;
+static long (*const bpf_skb_store_bytes)(struct __sk_buff *skb, __u32 offset, const void *from, __u32 len, __u64 flags) = (void *) 9;
 #endif
 /*
  * bpf_l3_csum_replace
@@ -284,10 +284,10 @@ static const long (*bpf_skb_store_bytes)(struct __sk_buff *skb, __u32 offset, co
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_l3_csum_replace(struct __sk_buff *skb, __u32 offset, __u64 from, __u64 to, __u64 size);
 #else
-static const long (*bpf_l3_csum_replace)(struct __sk_buff *skb, __u32 offset, __u64 from, __u64 to, __u64 size) = (void *) 10;
+static long (*const bpf_l3_csum_replace)(struct __sk_buff *skb, __u32 offset, __u64 from, __u64 to, __u64 size) = (void *) 10;
 #endif
 /*
  * bpf_l4_csum_replace
@@ -323,10 +323,10 @@ static const long (*bpf_l3_csum_replace)(struct __sk_buff *skb, __u32 offset, __
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_l4_csum_replace(struct __sk_buff *skb, __u32 offset, __u64 from, __u64 to, __u64 flags);
 #else
-static const long (*bpf_l4_csum_replace)(struct __sk_buff *skb, __u32 offset, __u64 from, __u64 to, __u64 flags) = (void *) 11;
+static long (*const bpf_l4_csum_replace)(struct __sk_buff *skb, __u32 offset, __u64 from, __u64 to, __u64 flags) = (void *) 11;
 #endif
 /*
  * bpf_tail_call
@@ -361,10 +361,10 @@ static const long (*bpf_l4_csum_replace)(struct __sk_buff *skb, __u32 offset, __
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_tail_call(void *ctx, void *prog_array_map, __u32 index);
 #else
-static const long (*bpf_tail_call)(void *ctx, void *prog_array_map, __u32 index) = (void *) 12;
+static long (*const bpf_tail_call)(void *ctx, void *prog_array_map, __u32 index) = (void *) 12;
 #endif
 /*
  * bpf_clone_redirect
@@ -392,10 +392,10 @@ static const long (*bpf_tail_call)(void *ctx, void *prog_array_map, __u32 index)
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_clone_redirect(struct __sk_buff *skb, __u32 ifindex, __u64 flags);
 #else
-static const long (*bpf_clone_redirect)(struct __sk_buff *skb, __u32 ifindex, __u64 flags) = (void *) 13;
+static long (*const bpf_clone_redirect)(struct __sk_buff *skb, __u32 ifindex, __u64 flags) = (void *) 13;
 #endif
 /*
  * bpf_get_current_pid_tgid
@@ -408,10 +408,10 @@ static const long (*bpf_clone_redirect)(struct __sk_buff *skb, __u32 ifindex, __
  * 	*current_task*\ **->tgid << 32 \|**
  * 	*current_task*\ **->pid**.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u64 bpf_get_current_pid_tgid(void);
 #else
-static const __u64 (*bpf_get_current_pid_tgid)(void) = (void *) 14;
+static __u64 (*const bpf_get_current_pid_tgid)(void) = (void *) 14;
 #endif
 /*
  * bpf_get_current_uid_gid
@@ -422,10 +422,10 @@ static const __u64 (*bpf_get_current_pid_tgid)(void) = (void *) 14;
  * 	A 64-bit integer containing the current GID and UID, and
  * 	created as such: *current_gid* **<< 32 \|** *current_uid*.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u64 bpf_get_current_uid_gid(void);
 #else
-static const __u64 (*bpf_get_current_uid_gid)(void) = (void *) 15;
+static __u64 (*const bpf_get_current_uid_gid)(void) = (void *) 15;
 #endif
 /*
  * bpf_get_current_comm
@@ -440,10 +440,10 @@ static const __u64 (*bpf_get_current_uid_gid)(void) = (void *) 15;
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_get_current_comm(void *buf, __u32 size_of_buf);
 #else
-static const long (*bpf_get_current_comm)(void *buf, __u32 size_of_buf) = (void *) 16;
+static long (*const bpf_get_current_comm)(void *buf, __u32 size_of_buf) = (void *) 16;
 #endif
 /*
  * bpf_get_cgroup_classid
@@ -473,10 +473,10 @@ static const long (*bpf_get_current_comm)(void *buf, __u32 size_of_buf) = (void 
  * Returns
  * 	The classid, or 0 for the default unconfigured classid.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u32 bpf_get_cgroup_classid(struct __sk_buff *skb);
 #else
-static const __u32 (*bpf_get_cgroup_classid)(struct __sk_buff *skb) = (void *) 17;
+static __u32 (*const bpf_get_cgroup_classid)(struct __sk_buff *skb) = (void *) 17;
 #endif
 /*
  * bpf_skb_vlan_push
@@ -496,10 +496,10 @@ static const __u32 (*bpf_get_cgroup_classid)(struct __sk_buff *skb) = (void *) 1
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_skb_vlan_push(struct __sk_buff *skb, __be16 vlan_proto, __u16 vlan_tci);
 #else
-static const long (*bpf_skb_vlan_push)(struct __sk_buff *skb, __be16 vlan_proto, __u16 vlan_tci) = (void *) 18;
+static long (*const bpf_skb_vlan_push)(struct __sk_buff *skb, __be16 vlan_proto, __u16 vlan_tci) = (void *) 18;
 #endif
 /*
  * bpf_skb_vlan_pop
@@ -515,10 +515,10 @@ static const long (*bpf_skb_vlan_push)(struct __sk_buff *skb, __be16 vlan_proto,
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_skb_vlan_pop(struct __sk_buff *skb);
 #else
-static const long (*bpf_skb_vlan_pop)(struct __sk_buff *skb) = (void *) 19;
+static long (*const bpf_skb_vlan_pop)(struct __sk_buff *skb) = (void *) 19;
 #endif
 /*
  * bpf_skb_get_tunnel_key
@@ -573,10 +573,10 @@ static const long (*bpf_skb_vlan_pop)(struct __sk_buff *skb) = (void *) 19;
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_skb_get_tunnel_key(struct __sk_buff *skb, struct bpf_tunnel_key *key, __u32 size, __u64 flags);
 #else
-static const long (*bpf_skb_get_tunnel_key)(struct __sk_buff *skb, struct bpf_tunnel_key *key, __u32 size, __u64 flags) = (void *) 20;
+static long (*const bpf_skb_get_tunnel_key)(struct __sk_buff *skb, struct bpf_tunnel_key *key, __u32 size, __u64 flags) = (void *) 20;
 #endif
 /*
  * bpf_skb_set_tunnel_key
@@ -620,10 +620,10 @@ static const long (*bpf_skb_get_tunnel_key)(struct __sk_buff *skb, struct bpf_tu
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_skb_set_tunnel_key(struct __sk_buff *skb, struct bpf_tunnel_key *key, __u32 size, __u64 flags);
 #else
-static const long (*bpf_skb_set_tunnel_key)(struct __sk_buff *skb, struct bpf_tunnel_key *key, __u32 size, __u64 flags) = (void *) 21;
+static long (*const bpf_skb_set_tunnel_key)(struct __sk_buff *skb, struct bpf_tunnel_key *key, __u32 size, __u64 flags) = (void *) 21;
 #endif
 /*
  * bpf_perf_event_read
@@ -656,10 +656,10 @@ static const long (*bpf_skb_set_tunnel_key)(struct __sk_buff *skb, struct bpf_tu
  * 	The value of the perf event counter read from the map, or a
  * 	negative error code in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u64 bpf_perf_event_read(void *map, __u64 flags);
 #else
-static const __u64 (*bpf_perf_event_read)(void *map, __u64 flags) = (void *) 22;
+static __u64 (*const bpf_perf_event_read)(void *map, __u64 flags) = (void *) 22;
 #endif
 /*
  * bpf_redirect
@@ -686,10 +686,10 @@ static const __u64 (*bpf_perf_event_read)(void *map, __u64 flags) = (void *) 22;
  * 	are **TC_ACT_REDIRECT** on success or **TC_ACT_SHOT** on
  * 	error.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_redirect(__u32 ifindex, __u64 flags);
 #else
-static const long (*bpf_redirect)(__u32 ifindex, __u64 flags) = (void *) 23;
+static long (*const bpf_redirect)(__u32 ifindex, __u64 flags) = (void *) 23;
 #endif
 /*
  * bpf_get_route_realm
@@ -717,10 +717,10 @@ static const long (*bpf_redirect)(__u32 ifindex, __u64 flags) = (void *) 23;
  * 	The realm of the route for the packet associated to *skb*, or 0
  * 	if none was found.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u32 bpf_get_route_realm(struct __sk_buff *skb);
 #else
-static const __u32 (*bpf_get_route_realm)(struct __sk_buff *skb) = (void *) 24;
+static __u32 (*const bpf_get_route_realm)(struct __sk_buff *skb) = (void *) 24;
 #endif
 /*
  * bpf_perf_event_output
@@ -769,10 +769,10 @@ static const __u32 (*bpf_get_route_realm)(struct __sk_buff *skb) = (void *) 24;
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_perf_event_output(void *ctx, void *map, __u64 flags, void *data, __u64 size);
 #else
-static const long (*bpf_perf_event_output)(void *ctx, void *map, __u64 flags, void *data, __u64 size) = (void *) 25;
+static long (*const bpf_perf_event_output)(void *ctx, void *map, __u64 flags, void *data, __u64 size) = (void *) 25;
 #endif
 /*
  * bpf_skb_load_bytes
@@ -793,10 +793,10 @@ static const long (*bpf_perf_event_output)(void *ctx, void *map, __u64 flags, vo
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_skb_load_bytes(const void *skb, __u32 offset, void *to, __u32 len);
 #else
-static const long (*bpf_skb_load_bytes)(const void *skb, __u32 offset, void *to, __u32 len) = (void *) 26;
+static long (*const bpf_skb_load_bytes)(const void *skb, __u32 offset, void *to, __u32 len) = (void *) 26;
 #endif
 /*
  * bpf_get_stackid
@@ -842,10 +842,10 @@ static const long (*bpf_skb_load_bytes)(const void *skb, __u32 offset, void *to,
  * 	The positive or null stack id on success, or a negative error
  * 	in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_get_stackid(void *ctx, void *map, __u64 flags);
 #else
-static const long (*bpf_get_stackid)(void *ctx, void *map, __u64 flags) = (void *) 27;
+static long (*const bpf_get_stackid)(void *ctx, void *map, __u64 flags) = (void *) 27;
 #endif
 /*
  * bpf_csum_diff
@@ -876,10 +876,10 @@ static const long (*bpf_get_stackid)(void *ctx, void *map, __u64 flags) = (void 
  * 	The checksum result, or a negative error code in case of
  * 	failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __s64 bpf_csum_diff(__be32 *from, __u32 from_size, __be32 *to, __u32 to_size, __wsum seed);
 #else
-static const __s64 (*bpf_csum_diff)(__be32 *from, __u32 from_size, __be32 *to, __u32 to_size, __wsum seed) = (void *) 28;
+static __s64 (*const bpf_csum_diff)(__be32 *from, __u32 from_size, __be32 *to, __u32 to_size, __wsum seed) = (void *) 28;
 #endif
 /*
  * bpf_skb_get_tunnel_opt
@@ -901,10 +901,10 @@ static const __s64 (*bpf_csum_diff)(__be32 *from, __u32 from_size, __be32 *to, _
  * Returns
  * 	The size of the option data retrieved.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_skb_get_tunnel_opt(struct __sk_buff *skb, void *opt, __u32 size);
 #else
-static const long (*bpf_skb_get_tunnel_opt)(struct __sk_buff *skb, void *opt, __u32 size) = (void *) 29;
+static long (*const bpf_skb_get_tunnel_opt)(struct __sk_buff *skb, void *opt, __u32 size) = (void *) 29;
 #endif
 /*
  * bpf_skb_set_tunnel_opt
@@ -918,10 +918,10 @@ static const long (*bpf_skb_get_tunnel_opt)(struct __sk_buff *skb, void *opt, __
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_skb_set_tunnel_opt(struct __sk_buff *skb, void *opt, __u32 size);
 #else
-static const long (*bpf_skb_set_tunnel_opt)(struct __sk_buff *skb, void *opt, __u32 size) = (void *) 30;
+static long (*const bpf_skb_set_tunnel_opt)(struct __sk_buff *skb, void *opt, __u32 size) = (void *) 30;
 #endif
 /*
  * bpf_skb_change_proto
@@ -952,10 +952,10 @@ static const long (*bpf_skb_set_tunnel_opt)(struct __sk_buff *skb, void *opt, __
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_skb_change_proto(struct __sk_buff *skb, __be16 proto, __u64 flags);
 #else
-static const long (*bpf_skb_change_proto)(struct __sk_buff *skb, __be16 proto, __u64 flags) = (void *) 31;
+static long (*const bpf_skb_change_proto)(struct __sk_buff *skb, __be16 proto, __u64 flags) = (void *) 31;
 #endif
 /*
  * bpf_skb_change_type
@@ -986,10 +986,10 @@ static const long (*bpf_skb_change_proto)(struct __sk_buff *skb, __be16 proto, _
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_skb_change_type(struct __sk_buff *skb, __u32 type);
 #else
-static const long (*bpf_skb_change_type)(struct __sk_buff *skb, __u32 type) = (void *) 32;
+static long (*const bpf_skb_change_type)(struct __sk_buff *skb, __u32 type) = (void *) 32;
 #endif
 /*
  * bpf_skb_under_cgroup
@@ -1004,10 +1004,10 @@ static const long (*bpf_skb_change_type)(struct __sk_buff *skb, __u32 type) = (v
  * 	* 1, if the *skb* succeeded the cgroup2 descendant test.
  * 	* A negative error code, if an error occurred.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_skb_under_cgroup(struct __sk_buff *skb, void *map, __u32 index);
 #else
-static const long (*bpf_skb_under_cgroup)(struct __sk_buff *skb, void *map, __u32 index) = (void *) 33;
+static long (*const bpf_skb_under_cgroup)(struct __sk_buff *skb, void *map, __u32 index) = (void *) 33;
 #endif
 /*
  * bpf_get_hash_recalc
@@ -1027,10 +1027,10 @@ static const long (*bpf_skb_under_cgroup)(struct __sk_buff *skb, void *map, __u3
  * Returns
  * 	The 32-bit hash.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u32 bpf_get_hash_recalc(struct __sk_buff *skb);
 #else
-static const __u32 (*bpf_get_hash_recalc)(struct __sk_buff *skb) = (void *) 34;
+static __u32 (*const bpf_get_hash_recalc)(struct __sk_buff *skb) = (void *) 34;
 #endif
 /*
  * bpf_get_current_task
@@ -1040,10 +1040,10 @@ static const __u32 (*bpf_get_hash_recalc)(struct __sk_buff *skb) = (void *) 34;
  * Returns
  * 	A pointer to the current task struct.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u64 bpf_get_current_task(void);
 #else
-static const __u64 (*bpf_get_current_task)(void) = (void *) 35;
+static __u64 (*const bpf_get_current_task)(void) = (void *) 35;
 #endif
 /*
  * bpf_probe_write_user
@@ -1066,10 +1066,10 @@ static const __u64 (*bpf_get_current_task)(void) = (void *) 35;
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_probe_write_user(void *dst, const void *src, __u32 len);
 #else
-static const long (*bpf_probe_write_user)(void *dst, const void *src, __u32 len) = (void *) 36;
+static long (*const bpf_probe_write_user)(void *dst, const void *src, __u32 len) = (void *) 36;
 #endif
 /*
  * bpf_current_task_under_cgroup
@@ -1085,10 +1085,10 @@ static const long (*bpf_probe_write_user)(void *dst, const void *src, __u32 len)
  * 	* 0, if current task does not belong to the cgroup2.
  * 	* A negative error code, if an error occurred.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_current_task_under_cgroup(void *map, __u32 index);
 #else
-static const long (*bpf_current_task_under_cgroup)(void *map, __u32 index) = (void *) 37;
+static long (*const bpf_current_task_under_cgroup)(void *map, __u32 index) = (void *) 37;
 #endif
 /*
  * bpf_skb_change_tail
@@ -1116,10 +1116,10 @@ static const long (*bpf_current_task_under_cgroup)(void *map, __u32 index) = (vo
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_skb_change_tail(struct __sk_buff *skb, __u32 len, __u64 flags);
 #else
-static const long (*bpf_skb_change_tail)(struct __sk_buff *skb, __u32 len, __u64 flags) = (void *) 38;
+static long (*const bpf_skb_change_tail)(struct __sk_buff *skb, __u32 len, __u64 flags) = (void *) 38;
 #endif
 /*
  * bpf_skb_pull_data
@@ -1160,10 +1160,10 @@ static const long (*bpf_skb_change_tail)(struct __sk_buff *skb, __u32 len, __u64
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_skb_pull_data(struct __sk_buff *skb, __u32 len);
 #else
-static const long (*bpf_skb_pull_data)(struct __sk_buff *skb, __u32 len) = (void *) 39;
+static long (*const bpf_skb_pull_data)(struct __sk_buff *skb, __u32 len) = (void *) 39;
 #endif
 /*
  * bpf_csum_update
@@ -1179,10 +1179,10 @@ static const long (*bpf_skb_pull_data)(struct __sk_buff *skb, __u32 len) = (void
  * 	The checksum on success, or a negative error code in case of
  * 	failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __s64 bpf_csum_update(struct __sk_buff *skb, __wsum csum);
 #else
-static const __s64 (*bpf_csum_update)(struct __sk_buff *skb, __wsum csum) = (void *) 40;
+static __s64 (*const bpf_csum_update)(struct __sk_buff *skb, __wsum csum) = (void *) 40;
 #endif
 /*
  * bpf_set_hash_invalid
@@ -1196,10 +1196,10 @@ static const __s64 (*bpf_csum_update)(struct __sk_buff *skb, __wsum csum) = (voi
  * Returns
  * 	void.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern void bpf_set_hash_invalid(struct __sk_buff *skb);
 #else
-static const void (*bpf_set_hash_invalid)(struct __sk_buff *skb) = (void *) 41;
+static void (*const bpf_set_hash_invalid)(struct __sk_buff *skb) = (void *) 41;
 #endif
 /*
  * bpf_get_numa_node_id
@@ -1214,10 +1214,10 @@ static const void (*bpf_set_hash_invalid)(struct __sk_buff *skb) = (void *) 41;
  * Returns
  * 	The id of current NUMA node.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_get_numa_node_id(void);
 #else
-static const long (*bpf_get_numa_node_id)(void) = (void *) 42;
+static long (*const bpf_get_numa_node_id)(void) = (void *) 42;
 #endif
 /*
  * bpf_skb_change_head
@@ -1242,10 +1242,10 @@ static const long (*bpf_get_numa_node_id)(void) = (void *) 42;
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_skb_change_head(struct __sk_buff *skb, __u32 len, __u64 flags);
 #else
-static const long (*bpf_skb_change_head)(struct __sk_buff *skb, __u32 len, __u64 flags) = (void *) 43;
+static long (*const bpf_skb_change_head)(struct __sk_buff *skb, __u32 len, __u64 flags) = (void *) 43;
 #endif
 /*
  * bpf_xdp_adjust_head
@@ -1264,10 +1264,10 @@ static const long (*bpf_skb_change_head)(struct __sk_buff *skb, __u32 len, __u64
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_xdp_adjust_head(struct xdp_md *xdp_md, int delta);
 #else
-static const long (*bpf_xdp_adjust_head)(struct xdp_md *xdp_md, int delta) = (void *) 44;
+static long (*const bpf_xdp_adjust_head)(struct xdp_md *xdp_md, int delta) = (void *) 44;
 #endif
 /*
  * bpf_probe_read_str
@@ -1284,10 +1284,10 @@ static const long (*bpf_xdp_adjust_head)(struct xdp_md *xdp_md, int delta) = (vo
  * 	including the trailing NUL character. On error, a negative
  * 	value.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_probe_read_str(void *dst, __u32 size, const void *unsafe_ptr);
 #else
-static const long (*bpf_probe_read_str)(void *dst, __u32 size, const void *unsafe_ptr) = (void *) 45;
+static long (*const bpf_probe_read_str)(void *dst, __u32 size, const void *unsafe_ptr) = (void *) 45;
 #endif
 /*
  * bpf_get_socket_cookie
@@ -1304,10 +1304,10 @@ static const long (*bpf_probe_read_str)(void *dst, __u32 size, const void *unsaf
  * 	A 8-byte long unique number on success, or 0 if the socket
  * 	field is missing inside *skb*.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u64 bpf_get_socket_cookie(void *ctx);
 #else
-static const __u64 (*bpf_get_socket_cookie)(void *ctx) = (void *) 46;
+static __u64 (*const bpf_get_socket_cookie)(void *ctx) = (void *) 46;
 #endif
 /*
  * bpf_get_socket_uid
@@ -1321,10 +1321,10 @@ static const __u64 (*bpf_get_socket_cookie)(void *ctx) = (void *) 46;
  * 	is returned (note that **overflowuid** might also be the actual
  * 	UID value for the socket).
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u32 bpf_get_socket_uid(struct __sk_buff *skb);
 #else
-static const __u32 (*bpf_get_socket_uid)(struct __sk_buff *skb) = (void *) 47;
+static __u32 (*const bpf_get_socket_uid)(struct __sk_buff *skb) = (void *) 47;
 #endif
 /*
  * bpf_set_hash
@@ -1335,10 +1335,10 @@ static const __u32 (*bpf_get_socket_uid)(struct __sk_buff *skb) = (void *) 47;
  * Returns
  * 	0
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_set_hash(struct __sk_buff *skb, __u32 hash);
 #else
-static const long (*bpf_set_hash)(struct __sk_buff *skb, __u32 hash) = (void *) 48;
+static long (*const bpf_set_hash)(struct __sk_buff *skb, __u32 hash) = (void *) 48;
 #endif
 /*
  * bpf_setsockopt
@@ -1378,10 +1378,10 @@ static const long (*bpf_set_hash)(struct __sk_buff *skb, __u32 hash) = (void *) 
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_setsockopt(void *bpf_socket, int level, int optname, void *optval, int optlen);
 #else
-static const long (*bpf_setsockopt)(void *bpf_socket, int level, int optname, void *optval, int optlen) = (void *) 49;
+static long (*const bpf_setsockopt)(void *bpf_socket, int level, int optname, void *optval, int optlen) = (void *) 49;
 #endif
 /*
  * bpf_skb_adjust_room
@@ -1437,10 +1437,10 @@ static const long (*bpf_setsockopt)(void *bpf_socket, int level, int optname, vo
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_skb_adjust_room(struct __sk_buff *skb, __s32 len_diff, __u32 mode, __u64 flags);
 #else
-static const long (*bpf_skb_adjust_room)(struct __sk_buff *skb, __s32 len_diff, __u32 mode, __u64 flags) = (void *) 50;
+static long (*const bpf_skb_adjust_room)(struct __sk_buff *skb, __s32 len_diff, __u32 mode, __u64 flags) = (void *) 50;
 #endif
 /*
  * bpf_redirect_map
@@ -1469,10 +1469,10 @@ static const long (*bpf_skb_adjust_room)(struct __sk_buff *skb, __s32 len_diff, 
  * 	**XDP_REDIRECT** on success, or the value of the two lower bits
  * 	of the *flags* argument on error.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_redirect_map(void *map, __u64 key, __u64 flags);
 #else
-static const long (*bpf_redirect_map)(void *map, __u64 key, __u64 flags) = (void *) 51;
+static long (*const bpf_redirect_map)(void *map, __u64 key, __u64 flags) = (void *) 51;
 #endif
 /*
  * bpf_sk_redirect_map
@@ -1487,10 +1487,10 @@ static const long (*bpf_redirect_map)(void *map, __u64 key, __u64 flags) = (void
  * Returns
  * 	**SK_PASS** on success, or **SK_DROP** on error.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_sk_redirect_map(struct __sk_buff *skb, void *map, __u32 key, __u64 flags);
 #else
-static const long (*bpf_sk_redirect_map)(struct __sk_buff *skb, void *map, __u32 key, __u64 flags) = (void *) 52;
+static long (*const bpf_sk_redirect_map)(struct __sk_buff *skb, void *map, __u32 key, __u64 flags) = (void *) 52;
 #endif
 /*
  * bpf_sock_map_update
@@ -1513,10 +1513,10 @@ static const long (*bpf_sk_redirect_map)(struct __sk_buff *skb, void *map, __u32
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_sock_map_update(struct bpf_sock_ops *skops, void *map, void *key, __u64 flags);
 #else
-static const long (*bpf_sock_map_update)(struct bpf_sock_ops *skops, void *map, void *key, __u64 flags) = (void *) 53;
+static long (*const bpf_sock_map_update)(struct bpf_sock_ops *skops, void *map, void *key, __u64 flags) = (void *) 53;
 #endif
 /*
  * bpf_xdp_adjust_meta
@@ -1549,10 +1549,10 @@ static const long (*bpf_sock_map_update)(struct bpf_sock_ops *skops, void *map, 
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_xdp_adjust_meta(struct xdp_md *xdp_md, int delta);
 #else
-static const long (*bpf_xdp_adjust_meta)(struct xdp_md *xdp_md, int delta) = (void *) 54;
+static long (*const bpf_xdp_adjust_meta)(struct xdp_md *xdp_md, int delta) = (void *) 54;
 #endif
 /*
  * bpf_perf_event_read_value
@@ -1606,10 +1606,10 @@ static const long (*bpf_xdp_adjust_meta)(struct xdp_md *xdp_md, int delta) = (vo
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_perf_event_read_value(void *map, __u64 flags, struct bpf_perf_event_value *buf, __u32 buf_size);
 #else
-static const long (*bpf_perf_event_read_value)(void *map, __u64 flags, struct bpf_perf_event_value *buf, __u32 buf_size) = (void *) 55;
+static long (*const bpf_perf_event_read_value)(void *map, __u64 flags, struct bpf_perf_event_value *buf, __u32 buf_size) = (void *) 55;
 #endif
 /*
  * bpf_perf_prog_read_value
@@ -1624,10 +1624,10 @@ static const long (*bpf_perf_event_read_value)(void *map, __u64 flags, struct bp
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_perf_prog_read_value(struct bpf_perf_event_data *ctx, struct bpf_perf_event_value *buf, __u32 buf_size);
 #else
-static const long (*bpf_perf_prog_read_value)(struct bpf_perf_event_data *ctx, struct bpf_perf_event_value *buf, __u32 buf_size) = (void *) 56;
+static long (*const bpf_perf_prog_read_value)(struct bpf_perf_event_data *ctx, struct bpf_perf_event_value *buf, __u32 buf_size) = (void *) 56;
 #endif
 /*
  * bpf_getsockopt
@@ -1654,10 +1654,10 @@ static const long (*bpf_perf_prog_read_value)(struct bpf_perf_event_data *ctx, s
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_getsockopt(void *bpf_socket, int level, int optname, void *optval, int optlen);
 #else
-static const long (*bpf_getsockopt)(void *bpf_socket, int level, int optname, void *optval, int optlen) = (void *) 57;
+static long (*const bpf_getsockopt)(void *bpf_socket, int level, int optname, void *optval, int optlen) = (void *) 57;
 #endif
 /*
  * bpf_override_return
@@ -1686,10 +1686,10 @@ static const long (*bpf_getsockopt)(void *bpf_socket, int level, int optname, vo
  * Returns
  * 	0
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_override_return(struct pt_regs *regs, __u64 rc);
 #else
-static const long (*bpf_override_return)(struct pt_regs *regs, __u64 rc) = (void *) 58;
+static long (*const bpf_override_return)(struct pt_regs *regs, __u64 rc) = (void *) 58;
 #endif
 /*
  * bpf_sock_ops_cb_flags_set
@@ -1737,10 +1737,10 @@ static const long (*bpf_override_return)(struct pt_regs *regs, __u64 rc) = (void
  * 	be set is returned (which comes down to 0 if all bits were set
  * 	as required).
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_sock_ops_cb_flags_set(struct bpf_sock_ops *bpf_sock, int argval);
 #else
-static const long (*bpf_sock_ops_cb_flags_set)(struct bpf_sock_ops *bpf_sock, int argval) = (void *) 59;
+static long (*const bpf_sock_ops_cb_flags_set)(struct bpf_sock_ops *bpf_sock, int argval) = (void *) 59;
 #endif
 /*
  * bpf_msg_redirect_map
@@ -1758,10 +1758,10 @@ static const long (*bpf_sock_ops_cb_flags_set)(struct bpf_sock_ops *bpf_sock, in
  * Returns
  * 	**SK_PASS** on success, or **SK_DROP** on error.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_msg_redirect_map(struct sk_msg_md *msg, void *map, __u32 key, __u64 flags);
 #else
-static const long (*bpf_msg_redirect_map)(struct sk_msg_md *msg, void *map, __u32 key, __u64 flags) = (void *) 60;
+static long (*const bpf_msg_redirect_map)(struct sk_msg_md *msg, void *map, __u32 key, __u64 flags) = (void *) 60;
 #endif
 /*
  * bpf_msg_apply_bytes
@@ -1799,10 +1799,10 @@ static const long (*bpf_msg_redirect_map)(struct sk_msg_md *msg, void *map, __u3
  * Returns
  * 	0
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_msg_apply_bytes(struct sk_msg_md *msg, __u32 bytes);
 #else
-static const long (*bpf_msg_apply_bytes)(struct sk_msg_md *msg, __u32 bytes) = (void *) 61;
+static long (*const bpf_msg_apply_bytes)(struct sk_msg_md *msg, __u32 bytes) = (void *) 61;
 #endif
 /*
  * bpf_msg_cork_bytes
@@ -1824,10 +1824,10 @@ static const long (*bpf_msg_apply_bytes)(struct sk_msg_md *msg, __u32 bytes) = (
  * Returns
  * 	0
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_msg_cork_bytes(struct sk_msg_md *msg, __u32 bytes);
 #else
-static const long (*bpf_msg_cork_bytes)(struct sk_msg_md *msg, __u32 bytes) = (void *) 62;
+static long (*const bpf_msg_cork_bytes)(struct sk_msg_md *msg, __u32 bytes) = (void *) 62;
 #endif
 /*
  * bpf_msg_pull_data
@@ -1862,10 +1862,10 @@ static const long (*bpf_msg_cork_bytes)(struct sk_msg_md *msg, __u32 bytes) = (v
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_msg_pull_data(struct sk_msg_md *msg, __u32 start, __u32 end, __u64 flags);
 #else
-static const long (*bpf_msg_pull_data)(struct sk_msg_md *msg, __u32 start, __u32 end, __u64 flags) = (void *) 63;
+static long (*const bpf_msg_pull_data)(struct sk_msg_md *msg, __u32 start, __u32 end, __u64 flags) = (void *) 63;
 #endif
 /*
  * bpf_bind
@@ -1887,10 +1887,10 @@ static const long (*bpf_msg_pull_data)(struct sk_msg_md *msg, __u32 start, __u32
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_bind(struct bpf_sock_addr *ctx, struct sockaddr *addr, int addr_len);
 #else
-static const long (*bpf_bind)(struct bpf_sock_addr *ctx, struct sockaddr *addr, int addr_len) = (void *) 64;
+static long (*const bpf_bind)(struct bpf_sock_addr *ctx, struct sockaddr *addr, int addr_len) = (void *) 64;
 #endif
 /*
  * bpf_xdp_adjust_tail
@@ -1908,10 +1908,10 @@ static const long (*bpf_bind)(struct bpf_sock_addr *ctx, struct sockaddr *addr, 
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_xdp_adjust_tail(struct xdp_md *xdp_md, int delta);
 #else
-static const long (*bpf_xdp_adjust_tail)(struct xdp_md *xdp_md, int delta) = (void *) 65;
+static long (*const bpf_xdp_adjust_tail)(struct xdp_md *xdp_md, int delta) = (void *) 65;
 #endif
 /*
  * bpf_skb_get_xfrm_state
@@ -1931,10 +1931,10 @@ static const long (*bpf_xdp_adjust_tail)(struct xdp_md *xdp_md, int delta) = (vo
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_skb_get_xfrm_state(struct __sk_buff *skb, __u32 index, struct bpf_xfrm_state *xfrm_state, __u32 size, __u64 flags);
 #else
-static const long (*bpf_skb_get_xfrm_state)(struct __sk_buff *skb, __u32 index, struct bpf_xfrm_state *xfrm_state, __u32 size, __u64 flags) = (void *) 66;
+static long (*const bpf_skb_get_xfrm_state)(struct __sk_buff *skb, __u32 index, struct bpf_xfrm_state *xfrm_state, __u32 size, __u64 flags) = (void *) 66;
 #endif
 
 /*
@@ -1982,10 +1982,10 @@ static const long (*bpf_skb_get_xfrm_state)(struct __sk_buff *skb, __u32 index, 
  * 	The non-negative copied *buf* length equal to or less than
  * 	*size* on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_get_stack(void *ctx, void *buf, __u32 size, __u64 flags);
 #else
-static const long (*bpf_get_stack)(void *ctx, void *buf, __u32 size, __u64 flags) = (void *) 67;
+static long (*const bpf_get_stack)(void *ctx, void *buf, __u32 size, __u64 flags) = (void *) 67;
 #endif
 /*
  * bpf_skb_load_bytes_relative
@@ -2011,10 +2011,10 @@ static const long (*bpf_get_stack)(void *ctx, void *buf, __u32 size, __u64 flags
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_skb_load_bytes_relative(const void *skb, __u32 offset, void *to, __u32 len, __u32 start_header);
 #else
-static const long (*bpf_skb_load_bytes_relative)(const void *skb, __u32 offset, void *to, __u32 len, __u32 start_header) = (void *) 68;
+static long (*const bpf_skb_load_bytes_relative)(const void *skb, __u32 offset, void *to, __u32 len, __u32 start_header) = (void *) 68;
 #endif
 /*
  * bpf_fib_lookup
@@ -2052,10 +2052,10 @@ static const long (*bpf_skb_load_bytes_relative)(const void *skb, __u32 offset, 
  * 	If lookup fails with BPF_FIB_LKUP_RET_FRAG_NEEDED, then the MTU
  * 	was exceeded and output params->mtu_result contains the MTU.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_fib_lookup(void *ctx, struct bpf_fib_lookup *params, int plen, __u32 flags);
 #else
-static const long (*bpf_fib_lookup)(void *ctx, struct bpf_fib_lookup *params, int plen, __u32 flags) = (void *) 69;
+static long (*const bpf_fib_lookup)(void *ctx, struct bpf_fib_lookup *params, int plen, __u32 flags) = (void *) 69;
 #endif
 /*
  * bpf_sock_hash_update
@@ -2078,10 +2078,10 @@ static const long (*bpf_fib_lookup)(void *ctx, struct bpf_fib_lookup *params, in
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_sock_hash_update(struct bpf_sock_ops *skops, void *map, void *key, __u64 flags);
 #else
-static const long (*bpf_sock_hash_update)(struct bpf_sock_ops *skops, void *map, void *key, __u64 flags) = (void *) 70;
+static long (*const bpf_sock_hash_update)(struct bpf_sock_ops *skops, void *map, void *key, __u64 flags) = (void *) 70;
 #endif
 /*
  * bpf_msg_redirect_hash
@@ -2099,10 +2099,10 @@ static const long (*bpf_sock_hash_update)(struct bpf_sock_ops *skops, void *map,
  * Returns
  * 	**SK_PASS** on success, or **SK_DROP** on error.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_msg_redirect_hash(struct sk_msg_md *msg, void *map, void *key, __u64 flags);
 #else
-static const long (*bpf_msg_redirect_hash)(struct sk_msg_md *msg, void *map, void *key, __u64 flags) = (void *) 71;
+static long (*const bpf_msg_redirect_hash)(struct sk_msg_md *msg, void *map, void *key, __u64 flags) = (void *) 71;
 #endif
 /*
  * bpf_sk_redirect_hash
@@ -2120,10 +2120,10 @@ static const long (*bpf_msg_redirect_hash)(struct sk_msg_md *msg, void *map, voi
  * Returns
  * 	**SK_PASS** on success, or **SK_DROP** on error.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_sk_redirect_hash(struct __sk_buff *skb, void *map, void *key, __u64 flags);
 #else
-static const long (*bpf_sk_redirect_hash)(struct __sk_buff *skb, void *map, void *key, __u64 flags) = (void *) 72;
+static long (*const bpf_sk_redirect_hash)(struct __sk_buff *skb, void *map, void *key, __u64 flags) = (void *) 72;
 #endif
 /*
  * bpf_lwt_push_encap
@@ -2164,10 +2164,10 @@ static const long (*bpf_sk_redirect_hash)(struct __sk_buff *skb, void *map, void
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_lwt_push_encap(struct __sk_buff *skb, __u32 type, void *hdr, __u32 len);
 #else
-static const long (*bpf_lwt_push_encap)(struct __sk_buff *skb, __u32 type, void *hdr, __u32 len) = (void *) 73;
+static long (*const bpf_lwt_push_encap)(struct __sk_buff *skb, __u32 type, void *hdr, __u32 len) = (void *) 73;
 #endif
 /*
  * bpf_lwt_seg6_store_bytes
@@ -2186,10 +2186,10 @@ static const long (*bpf_lwt_push_encap)(struct __sk_buff *skb, __u32 type, void 
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_lwt_seg6_store_bytes(struct __sk_buff *skb, __u32 offset, const void *from, __u32 len);
 #else
-static const long (*bpf_lwt_seg6_store_bytes)(struct __sk_buff *skb, __u32 offset, const void *from, __u32 len) = (void *) 74;
+static long (*const bpf_lwt_seg6_store_bytes)(struct __sk_buff *skb, __u32 offset, const void *from, __u32 len) = (void *) 74;
 #endif
 /*
  * bpf_lwt_seg6_adjust_srh
@@ -2209,10 +2209,10 @@ static const long (*bpf_lwt_seg6_store_bytes)(struct __sk_buff *skb, __u32 offse
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_lwt_seg6_adjust_srh(struct __sk_buff *skb, __u32 offset, __s32 delta);
 #else
-static const long (*bpf_lwt_seg6_adjust_srh)(struct __sk_buff *skb, __u32 offset, __s32 delta) = (void *) 75;
+static long (*const bpf_lwt_seg6_adjust_srh)(struct __sk_buff *skb, __u32 offset, __s32 delta) = (void *) 75;
 #endif
 /*
  * bpf_lwt_seg6_action
@@ -2245,10 +2245,10 @@ static const long (*bpf_lwt_seg6_adjust_srh)(struct __sk_buff *skb, __u32 offset
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_lwt_seg6_action(struct __sk_buff *skb, __u32 action, void *param, __u32 param_len);
 #else
-static const long (*bpf_lwt_seg6_action)(struct __sk_buff *skb, __u32 action, void *param, __u32 param_len) = (void *) 76;
+static long (*const bpf_lwt_seg6_action)(struct __sk_buff *skb, __u32 action, void *param, __u32 param_len) = (void *) 76;
 #endif
 /*
  * bpf_rc_repeat
@@ -2271,10 +2271,10 @@ static const long (*bpf_lwt_seg6_action)(struct __sk_buff *skb, __u32 action, vo
  * Returns
  * 	0
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_rc_repeat(void *ctx);
 #else
-static const long (*bpf_rc_repeat)(void *ctx) = (void *) 77;
+static long (*const bpf_rc_repeat)(void *ctx) = (void *) 77;
 #endif
 /*
  * bpf_rc_keydown
@@ -2304,10 +2304,10 @@ static const long (*bpf_rc_repeat)(void *ctx) = (void *) 77;
  * Returns
  * 	0
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_rc_keydown(void *ctx, __u32 protocol, __u64 scancode, __u32 toggle);
 #else
-static const long (*bpf_rc_keydown)(void *ctx, __u32 protocol, __u64 scancode, __u32 toggle) = (void *) 78;
+static long (*const bpf_rc_keydown)(void *ctx, __u32 protocol, __u64 scancode, __u32 toggle) = (void *) 78;
 #endif
 /*
  * bpf_skb_cgroup_id
@@ -2327,10 +2327,10 @@ static const long (*bpf_rc_keydown)(void *ctx, __u32 protocol, __u64 scancode, _
  * Returns
  * 	The id is returned or 0 in case the id could not be retrieved.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u64 bpf_skb_cgroup_id(struct __sk_buff *skb);
 #else
-static const __u64 (*bpf_skb_cgroup_id)(struct __sk_buff *skb) = (void *) 79;
+static __u64 (*const bpf_skb_cgroup_id)(struct __sk_buff *skb) = (void *) 79;
 #endif
 /*
  * bpf_get_current_cgroup_id
@@ -2342,10 +2342,10 @@ static const __u64 (*bpf_skb_cgroup_id)(struct __sk_buff *skb) = (void *) 79;
  * 	A 64-bit integer containing the current cgroup id based
  * 	on the cgroup within which the current task is running.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u64 bpf_get_current_cgroup_id(void);
 #else
-static const __u64 (*bpf_get_current_cgroup_id)(void) = (void *) 80;
+static __u64 (*const bpf_get_current_cgroup_id)(void) = (void *) 80;
 #endif
 /*
  * bpf_get_local_storage
@@ -2367,10 +2367,10 @@ static const __u64 (*bpf_get_current_cgroup_id)(void) = (void *) 80;
  * Returns
  * 	A pointer to the local storage area.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern void *bpf_get_local_storage(void *map, __u64 flags);
 #else
-static const void *(*bpf_get_local_storage)(void *map, __u64 flags) = (void *) 81;
+static void *(*const bpf_get_local_storage)(void *map, __u64 flags) = (void *) 81;
 #endif
 /*
  * bpf_sk_select_reuseport
@@ -2383,10 +2383,10 @@ static const void *(*bpf_get_local_storage)(void *map, __u64 flags) = (void *) 8
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_sk_select_reuseport(struct sk_reuseport_md *reuse, void *map, void *key, __u64 flags);
 #else
-static const long (*bpf_sk_select_reuseport)(struct sk_reuseport_md *reuse, void *map, void *key, __u64 flags) = (void *) 82;
+static long (*const bpf_sk_select_reuseport)(struct sk_reuseport_md *reuse, void *map, void *key, __u64 flags) = (void *) 82;
 #endif
 /*
  * bpf_skb_ancestor_cgroup_id
@@ -2408,10 +2408,10 @@ static const long (*bpf_sk_select_reuseport)(struct sk_reuseport_md *reuse, void
  * Returns
  * 	The id is returned or 0 in case the id could not be retrieved.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u64 bpf_skb_ancestor_cgroup_id(struct __sk_buff *skb, int ancestor_level);
 #else
-static const __u64 (*bpf_skb_ancestor_cgroup_id)(struct __sk_buff *skb, int ancestor_level) = (void *) 83;
+static __u64 (*const bpf_skb_ancestor_cgroup_id)(struct __sk_buff *skb, int ancestor_level) = (void *) 83;
 #endif
 /*
  * bpf_sk_lookup_tcp
@@ -2452,10 +2452,10 @@ static const __u64 (*bpf_skb_ancestor_cgroup_id)(struct __sk_buff *skb, int ance
  * 	result is from *reuse*\ **->socks**\ [] using the hash of the
  * 	tuple.
  */
-#ifdef __ccomp__
-extern struct f_sock*(*bpf_sk_lookup_tcp);
+#ifdef __helper_as_extern__
+extern struct f_sock*(*const bpf_sk_lookup_tcp);
 #else
-static const struct bpf_sock *(*bpf_sk_lookup_tcp)(void *ctx, struct bpf_sock_tuple *tuple, __u32 tuple_size, __u64 netns, __u64 flags) = (void *) 84;
+static struct bpf_sock *(*const bpf_sk_lookup_tcp)(void *ctx, struct bpf_sock_tuple *tuple, __u32 tuple_size, __u64 netns, __u64 flags) = (void *) 84;
 #endif
 
 /*
@@ -2497,10 +2497,10 @@ static const struct bpf_sock *(*bpf_sk_lookup_tcp)(void *ctx, struct bpf_sock_tu
  * 	result is from *reuse*\ **->socks**\ [] using the hash of the
  * 	tuple.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern struct f_sock*(*bpf_sk_lookup_udp);
 #else
-static const struct bpf_sock *(*bpf_sk_lookup_udp)(void *ctx, struct bpf_sock_tuple *tuple, __u32 tuple_size, __u64 netns, __u64 flags) = (void *) 85;
+static struct bpf_sock *(*const bpf_sk_lookup_udp)(void *ctx, struct bpf_sock_tuple *tuple, __u32 tuple_size, __u64 netns, __u64 flags) = (void *) 85;
 #endif
 
 /*
@@ -2513,10 +2513,10 @@ static const struct bpf_sock *(*bpf_sk_lookup_udp)(void *ctx, struct bpf_sock_tu
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_sk_release(void *sock);
 #else
-static const long (*bpf_sk_release)(void *sock) = (void *) 86;
+static long (*const bpf_sk_release)(void *sock) = (void *) 86;
 #endif
 /*
  * bpf_map_push_elem
@@ -2530,10 +2530,10 @@ static const long (*bpf_sk_release)(void *sock) = (void *) 86;
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_map_push_elem(void *map, const void *value, __u64 flags);
 #else
-static const long (*bpf_map_push_elem)(void *map, const void *value, __u64 flags) = (void *) 87;
+static long (*const bpf_map_push_elem)(void *map, const void *value, __u64 flags) = (void *) 87;
 #endif
 /*
  * bpf_map_pop_elem
@@ -2543,10 +2543,10 @@ static const long (*bpf_map_push_elem)(void *map, const void *value, __u64 flags
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_map_pop_elem(void *map, void *value);
 #else
-static const long (*bpf_map_pop_elem)(void *map, void *value) = (void *) 88;
+static long (*const bpf_map_pop_elem)(void *map, void *value) = (void *) 88;
 #endif
 /*
  * bpf_map_peek_elem
@@ -2556,10 +2556,10 @@ static const long (*bpf_map_pop_elem)(void *map, void *value) = (void *) 88;
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_map_peek_elem(void *map, void *value);
 #else
-static const long (*bpf_map_peek_elem)(void *map, void *value) = (void *) 89;
+static long (*const bpf_map_peek_elem)(void *map, void *value) = (void *) 89;
 #endif
 /*
  * bpf_msg_push_data
@@ -2579,10 +2579,10 @@ static const long (*bpf_map_peek_elem)(void *map, void *value) = (void *) 89;
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_msg_push_data(struct sk_msg_md *msg, __u32 start, __u32 len, __u64 flags);
 #else
-static const long (*bpf_msg_push_data)(struct sk_msg_md *msg, __u32 start, __u32 len, __u64 flags) = (void *) 90;
+static long (*const bpf_msg_push_data)(struct sk_msg_md *msg, __u32 start, __u32 len, __u64 flags) = (void *) 90;
 #endif
 /*
  * bpf_msg_pop_data
@@ -2598,10 +2598,10 @@ static const long (*bpf_msg_push_data)(struct sk_msg_md *msg, __u32 start, __u32
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_msg_pop_data(struct sk_msg_md *msg, __u32 start, __u32 len, __u64 flags);
 #else
-static const long (*bpf_msg_pop_data)(struct sk_msg_md *msg, __u32 start, __u32 len, __u64 flags) = (void *) 91;
+static long (*const bpf_msg_pop_data)(struct sk_msg_md *msg, __u32 start, __u32 len, __u64 flags) = (void *) 91;
 #endif
 /*
  * bpf_rc_pointer_rel
@@ -2619,10 +2619,10 @@ static const long (*bpf_msg_pop_data)(struct sk_msg_md *msg, __u32 start, __u32 
  * Returns
  * 	0
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_rc_pointer_rel(void *ctx, __s32 rel_x, __s32 rel_y);
 #else
-static const long (*bpf_rc_pointer_rel)(void *ctx, __s32 rel_x, __s32 rel_y) = (void *) 92;
+static long (*const bpf_rc_pointer_rel)(void *ctx, __s32 rel_x, __s32 rel_y) = (void *) 92;
 #endif
 /*
  * bpf_spin_lock
@@ -2674,10 +2674,10 @@ static const long (*bpf_rc_pointer_rel)(void *ctx, __s32 rel_x, __s32 rel_y) = (
  * Returns
  * 	0
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_spin_lock(struct bpf_spin_lock *lock);
 #else
-static const long (*bpf_spin_lock)(struct bpf_spin_lock *lock) = (void *) 93;
+static long (*const bpf_spin_lock)(struct bpf_spin_lock *lock) = (void *) 93;
 #endif
 /*
  * bpf_spin_unlock
@@ -2688,10 +2688,10 @@ static const long (*bpf_spin_lock)(struct bpf_spin_lock *lock) = (void *) 93;
  * Returns
  * 	0
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_spin_unlock(struct bpf_spin_lock *lock);
 #else
-static const long (*bpf_spin_unlock)(struct bpf_spin_lock *lock) = (void *) 94;
+static long (*const bpf_spin_unlock)(struct bpf_spin_lock *lock) = (void *) 94;
 #endif
 /*
  * bpf_sk_fullsock
@@ -2703,10 +2703,10 @@ static const long (*bpf_spin_unlock)(struct bpf_spin_lock *lock) = (void *) 94;
  * 	A **struct bpf_sock** pointer on success, or **NULL** in
  * 	case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern struct f_sock*(*bpf_sk_fullsock);
 #else
-static const struct bpf_sock *(*bpf_sk_fullsock)(struct bpf_sock *sk) = (void *) 95;
+static struct bpf_sock *(*const bpf_sk_fullsock)(struct bpf_sock *sk) = (void *) 95;
 #endif
 /*
  * bpf_tcp_sock
@@ -2718,10 +2718,10 @@ static const struct bpf_sock *(*bpf_sk_fullsock)(struct bpf_sock *sk) = (void *)
  * 	A **struct bpf_tcp_sock** pointer on success, or **NULL** in
  * 	case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern struct f_tcp_sock*(*bpf_tcp_sock);
 #else
-static const struct bpf_tcp_sock *(*bpf_tcp_sock)(struct bpf_sock *sk) = (void *) 96;
+static struct bpf_tcp_sock *(*const bpf_tcp_sock)(struct bpf_sock *sk) = (void *) 96;
 #endif
 /*
  * bpf_skb_ecn_set_ce
@@ -2735,10 +2735,10 @@ static const struct bpf_tcp_sock *(*bpf_tcp_sock)(struct bpf_sock *sk) = (void *
  * 	1 if the **CE** flag is set (either by the current helper call
  * 	or because it was already present), 0 if it is not set.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_skb_ecn_set_ce(struct __sk_buff *skb);
 #else
-static const long (*bpf_skb_ecn_set_ce)(struct __sk_buff *skb) = (void *) 97;
+static long (*const bpf_skb_ecn_set_ce)(struct __sk_buff *skb) = (void *) 97;
 #endif
 /*
  * bpf_get_listener_sock
@@ -2750,10 +2750,10 @@ static const long (*bpf_skb_ecn_set_ce)(struct __sk_buff *skb) = (void *) 97;
  * 	A **struct bpf_sock** pointer on success, or **NULL** in
  * 	case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern struct f_sock*(*bpf_get_listener_sock);
 #else
-static const struct bpf_sock *(*bpf_get_listener_sock)(struct bpf_sock *sk) = (void *) 98;
+static struct bpf_sock *(*const bpf_get_listener_sock)(struct bpf_sock *sk) = (void *) 98;
 #endif
 /*
  * bpf_skc_lookup_tcp
@@ -2776,10 +2776,10 @@ static const struct bpf_sock *(*bpf_get_listener_sock)(struct bpf_sock *sk) = (v
  * 	result is from *reuse*\ **->socks**\ [] using the hash of the
  * 	tuple.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern struct f_sock*(*bpf_skc_lookup_tcp);
 #else
-static const struct bpf_sock *(*bpf_skc_lookup_tcp)(void *ctx, struct bpf_sock_tuple *tuple, __u32 tuple_size, __u64 netns, __u64 flags) = (void *) 99;
+static struct bpf_sock *(*const bpf_skc_lookup_tcp)(void *ctx, struct bpf_sock_tuple *tuple, __u32 tuple_size, __u64 netns, __u64 flags) = (void *) 99;
 #endif
 
 /*
@@ -2800,10 +2800,10 @@ static const struct bpf_sock *(*bpf_skc_lookup_tcp)(void *ctx, struct bpf_sock_t
  * 	0 if *iph* and *th* are a valid SYN cookie ACK, or a negative
  * 	error otherwise.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_tcp_check_syncookie(void *sk, void *iph, __u32 iph_len, struct tcphdr *th, __u32 th_len);
 #else
-static const long (*bpf_tcp_check_syncookie)(void *sk, void *iph, __u32 iph_len, struct tcphdr *th, __u32 th_len) = (void *) 100;
+static long (*const bpf_tcp_check_syncookie)(void *sk, void *iph, __u32 iph_len, struct tcphdr *th, __u32 th_len) = (void *) 100;
 #endif
 /*
  * bpf_sysctl_get_name
@@ -2823,10 +2823,10 @@ static const long (*bpf_tcp_check_syncookie)(void *sk, void *iph, __u32 iph_len,
  * 	**-E2BIG** if the buffer wasn't big enough (*buf* will contain
  * 	truncated name in this case).
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_sysctl_get_name(struct bpf_sysctl *ctx, char *buf, unsigned long buf_len, __u64 flags);
 #else
-static const long (*bpf_sysctl_get_name)(struct bpf_sysctl *ctx, char *buf, unsigned long buf_len, __u64 flags) = (void *) 101;
+static long (*const bpf_sysctl_get_name)(struct bpf_sysctl *ctx, char *buf, unsigned long buf_len, __u64 flags) = (void *) 101;
 #endif
 /*
  * bpf_sysctl_get_current_value
@@ -2849,10 +2849,10 @@ static const long (*bpf_sysctl_get_name)(struct bpf_sysctl *ctx, char *buf, unsi
  * 	**-EINVAL** if current value was unavailable, e.g. because
  * 	sysctl is uninitialized and read returns -EIO for it.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_sysctl_get_current_value(struct bpf_sysctl *ctx, char *buf, unsigned long buf_len);
 #else
-static const long (*bpf_sysctl_get_current_value)(struct bpf_sysctl *ctx, char *buf, unsigned long buf_len) = (void *) 102;
+static long (*const bpf_sysctl_get_current_value)(struct bpf_sysctl *ctx, char *buf, unsigned long buf_len) = (void *) 102;
 #endif
 /*
  * bpf_sysctl_get_new_value
@@ -2873,10 +2873,10 @@ static const long (*bpf_sysctl_get_current_value)(struct bpf_sysctl *ctx, char *
  *
  * 	**-EINVAL** if sysctl is being read.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_sysctl_get_new_value(struct bpf_sysctl *ctx, char *buf, unsigned long buf_len);
 #else
-static const long (*bpf_sysctl_get_new_value)(struct bpf_sysctl *ctx, char *buf, unsigned long buf_len) = (void *) 103;
+static long (*const bpf_sysctl_get_new_value)(struct bpf_sysctl *ctx, char *buf, unsigned long buf_len) = (void *) 103;
 #endif
 /*
  * bpf_sysctl_set_new_value
@@ -2897,10 +2897,10 @@ static const long (*bpf_sysctl_get_new_value)(struct bpf_sysctl *ctx, char *buf,
  *
  * 	**-EINVAL** if sysctl is being read.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_sysctl_set_new_value(struct bpf_sysctl *ctx, const char *buf, unsigned long buf_len);
 #else
-static const long (*bpf_sysctl_set_new_value)(struct bpf_sysctl *ctx, const char *buf, unsigned long buf_len) = (void *) 104;
+static long (*const bpf_sysctl_set_new_value)(struct bpf_sysctl *ctx, const char *buf, unsigned long buf_len) = (void *) 104;
 #endif
 /*
  * bpf_strtol
@@ -2928,10 +2928,10 @@ static const long (*bpf_sysctl_set_new_value)(struct bpf_sysctl *ctx, const char
  *
  * 	**-ERANGE** if resulting value was out of range.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_strtol(const char *buf, unsigned long buf_len, __u64 flags, long *res);
 #else
-static const long (*bpf_strtol)(const char *buf, unsigned long buf_len, __u64 flags, long *res) = (void *) 105;
+static long (*const bpf_strtol)(const char *buf, unsigned long buf_len, __u64 flags, long *res) = (void *) 105;
 #endif
 /*
  * bpf_strtoul
@@ -2958,10 +2958,10 @@ static const long (*bpf_strtol)(const char *buf, unsigned long buf_len, __u64 fl
  *
  * 	**-ERANGE** if resulting value was out of range.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_strtoul(const char *buf, unsigned long buf_len, __u64 flags, unsigned long *res);
 #else
-static const long (*bpf_strtoul)(const char *buf, unsigned long buf_len, __u64 flags, unsigned long *res) = (void *) 106;
+static long (*const bpf_strtoul)(const char *buf, unsigned long buf_len, __u64 flags, unsigned long *res) = (void *) 106;
 #endif
 /*
  * bpf_sk_storage_get
@@ -2996,10 +2996,10 @@ static const long (*bpf_strtoul)(const char *buf, unsigned long buf_len, __u64 f
  * 	**NULL** if not found or there was an error in adding
  * 	a new bpf-local-storage.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern void *bpf_sk_storage_get(void *map, void *sk, void *value, __u64 flags);
 #else
-static const void *(*bpf_sk_storage_get)(void *map, void *sk, void *value, __u64 flags) = (void *) 107;
+static void *(*const bpf_sk_storage_get)(void *map, void *sk, void *value, __u64 flags) = (void *) 107;
 #endif
 /*
  * bpf_sk_storage_delete
@@ -3012,10 +3012,10 @@ static const void *(*bpf_sk_storage_get)(void *map, void *sk, void *value, __u64
  * 	**-ENOENT** if the bpf-local-storage cannot be found.
  * 	**-EINVAL** if sk is not a fullsock (e.g. a request_sock).
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_sk_storage_delete(void *map, void *sk);
 #else
-static const long (*bpf_sk_storage_delete)(void *map, void *sk) = (void *) 108;
+static long (*const bpf_sk_storage_delete)(void *map, void *sk) = (void *) 108;
 #endif
 /*
  * bpf_send_signal
@@ -3034,10 +3034,10 @@ static const long (*bpf_sk_storage_delete)(void *map, void *sk) = (void *) 108;
  *
  * 	**-EAGAIN** if bpf program can try again.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_send_signal(__u32 sig);
 #else
-static const long (*bpf_send_signal)(__u32 sig) = (void *) 109;
+static long (*const bpf_send_signal)(__u32 sig) = (void *) 109;
 #endif
 /*
  * bpf_tcp_gen_syncookie
@@ -3068,10 +3068,10 @@ static const long (*bpf_send_signal)(__u32 sig) = (void *) 109;
  *
  * 	**-EPROTONOSUPPORT** IP packet version is not 4 or 6
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __s64 bpf_tcp_gen_syncookie(void *sk, void *iph, __u32 iph_len, struct tcphdr *th, __u32 th_len);
 #else
-static const __s64 (*bpf_tcp_gen_syncookie)(void *sk, void *iph, __u32 iph_len, struct tcphdr *th, __u32 th_len) = (void *) 110;
+static __s64 (*const bpf_tcp_gen_syncookie)(void *sk, void *iph, __u32 iph_len, struct tcphdr *th, __u32 th_len) = (void *) 110;
 #endif
 /*
  * bpf_skb_output
@@ -3099,10 +3099,10 @@ static const __s64 (*bpf_tcp_gen_syncookie)(void *sk, void *iph, __u32 iph_len, 
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_skb_output(void *ctx, void *map, __u64 flags, void *data, __u64 size);
 #else
-static const long (*bpf_skb_output)(void *ctx, void *map, __u64 flags, void *data, __u64 size) = (void *) 111;
+static long (*const bpf_skb_output)(void *ctx, void *map, __u64 flags, void *data, __u64 size) = (void *) 111;
 #endif
 /*
  * bpf_probe_read_user
@@ -3113,10 +3113,10 @@ static const long (*bpf_skb_output)(void *ctx, void *map, __u64 flags, void *dat
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_probe_read_user(void *dst, __u32 size, const void *unsafe_ptr);
 #else
-static const long (*bpf_probe_read_user)(void *dst, __u32 size, const void *unsafe_ptr) = (void *) 112;
+static long (*const bpf_probe_read_user)(void *dst, __u32 size, const void *unsafe_ptr) = (void *) 112;
 #endif
 /*
  * bpf_probe_read_kernel
@@ -3127,10 +3127,10 @@ static const long (*bpf_probe_read_user)(void *dst, __u32 size, const void *unsa
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_probe_read_kernel(void *dst, __u32 size, const void *unsafe_ptr);
 #else
-static const long (*bpf_probe_read_kernel)(void *dst, __u32 size, const void *unsafe_ptr) = (void *) 113;
+static long (*const bpf_probe_read_kernel)(void *dst, __u32 size, const void *unsafe_ptr) = (void *) 113;
 #endif
 /*
  * bpf_probe_read_user_str
@@ -3178,10 +3178,10 @@ static const long (*bpf_probe_read_kernel)(void *dst, __u32 size, const void *un
  * 	including the trailing NUL character. On error, a negative
  * 	value.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_probe_read_user_str(void *dst, __u32 size, const void *unsafe_ptr);
 #else
-static const long (*bpf_probe_read_user_str)(void *dst, __u32 size, const void *unsafe_ptr) = (void *) 114;
+static long (*const bpf_probe_read_user_str)(void *dst, __u32 size, const void *unsafe_ptr) = (void *) 114;
 #endif
 /*
  * bpf_probe_read_kernel_str
@@ -3193,10 +3193,10 @@ static const long (*bpf_probe_read_user_str)(void *dst, __u32 size, const void *
  * 	On success, the strictly positive length of the string, including
  * 	the trailing NUL character. On error, a negative value.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_probe_read_kernel_str(void *dst, __u32 size, const void *unsafe_ptr);
 #else
-static const long (*bpf_probe_read_kernel_str)(void *dst, __u32 size, const void *unsafe_ptr) = (void *) 115;
+static long (*const bpf_probe_read_kernel_str)(void *dst, __u32 size, const void *unsafe_ptr) = (void *) 115;
 #endif
 /*
  * bpf_tcp_send_ack
@@ -3207,10 +3207,10 @@ static const long (*bpf_probe_read_kernel_str)(void *dst, __u32 size, const void
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_tcp_send_ack(void *tp, __u32 rcv_nxt);
 #else
-static const long (*bpf_tcp_send_ack)(void *tp, __u32 rcv_nxt) = (void *) 116;
+static long (*const bpf_tcp_send_ack)(void *tp, __u32 rcv_nxt) = (void *) 116;
 #endif
 /*
  * bpf_send_signal_thread
@@ -3228,10 +3228,10 @@ static const long (*bpf_tcp_send_ack)(void *tp, __u32 rcv_nxt) = (void *) 116;
  *
  * 	**-EAGAIN** if bpf program can try again.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_send_signal_thread(__u32 sig);
 #else
-static const long (*bpf_send_signal_thread)(__u32 sig) = (void *) 117;
+static long (*const bpf_send_signal_thread)(__u32 sig) = (void *) 117;
 #endif
 /*
  * bpf_jiffies64
@@ -3241,10 +3241,10 @@ static const long (*bpf_send_signal_thread)(__u32 sig) = (void *) 117;
  * Returns
  * 	The 64 bit jiffies
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u64 bpf_jiffies64(void);
 #else
-static const __u64 (*bpf_jiffies64)(void) = (void *) 118;
+static __u64 (*const bpf_jiffies64)(void) = (void *) 118;
 #endif
 /*
  * bpf_read_branch_records
@@ -3267,10 +3267,10 @@ static const __u64 (*bpf_jiffies64)(void) = (void *) 118;
  *
  * 	**-ENOENT** if architecture does not support branch records.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_read_branch_records(struct bpf_perf_event_data *ctx, void *buf, __u32 size, __u64 flags);
 #else
-static const long (*bpf_read_branch_records)(struct bpf_perf_event_data *ctx, void *buf, __u32 size, __u64 flags) = (void *) 119;
+static long (*const bpf_read_branch_records)(struct bpf_perf_event_data *ctx, void *buf, __u32 size, __u64 flags) = (void *) 119;
 #endif
 /*
  * bpf_get_ns_current_pid_tgid
@@ -3286,10 +3286,10 @@ static const long (*bpf_read_branch_records)(struct bpf_perf_event_data *ctx, vo
  *
  * 	**-ENOENT** if pidns does not exists for the current task.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_get_ns_current_pid_tgid(__u64 dev, __u64 ino, struct bpf_pidns_info *nsdata, __u32 size);
 #else
-static const long (*bpf_get_ns_current_pid_tgid)(__u64 dev, __u64 ino, struct bpf_pidns_info *nsdata, __u32 size) = (void *) 120;
+static long (*const bpf_get_ns_current_pid_tgid)(__u64 dev, __u64 ino, struct bpf_pidns_info *nsdata, __u32 size) = (void *) 120;
 #endif
 /*
  * bpf_xdp_output
@@ -3317,10 +3317,10 @@ static const long (*bpf_get_ns_current_pid_tgid)(__u64 dev, __u64 ino, struct bp
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_xdp_output(void *ctx, void *map, __u64 flags, void *data, __u64 size);
 #else
-static const long (*bpf_xdp_output)(void *ctx, void *map, __u64 flags, void *data, __u64 size) = (void *) 121;
+static long (*const bpf_xdp_output)(void *ctx, void *map, __u64 flags, void *data, __u64 size) = (void *) 121;
 #endif
 /*
  * bpf_get_netns_cookie
@@ -3337,10 +3337,10 @@ static const long (*bpf_xdp_output)(void *ctx, void *map, __u64 flags, void *dat
  * Returns
  * 	A 8-byte long opaque number.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u64 bpf_get_netns_cookie(void *ctx);
 #else
-static const __u64 (*bpf_get_netns_cookie)(void *ctx) = (void *) 122;
+static __u64 (*const bpf_get_netns_cookie)(void *ctx) = (void *) 122;
 #endif
 /*
  * bpf_get_current_ancestor_cgroup_id
@@ -3362,10 +3362,10 @@ static const __u64 (*bpf_get_netns_cookie)(void *ctx) = (void *) 122;
  * Returns
  * 	The id is returned or 0 in case the id could not be retrieved.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u64 bpf_get_current_ancestor_cgroup_id(int ancestor_level);
 #else
-static const __u64 (*bpf_get_current_ancestor_cgroup_id)(int ancestor_level) = (void *) 123;
+static __u64 (*const bpf_get_current_ancestor_cgroup_id)(int ancestor_level) = (void *) 123;
 #endif
 /*
  * bpf_sk_assign
@@ -3400,10 +3400,10 @@ static const __u64 (*bpf_get_current_ancestor_cgroup_id)(int ancestor_level) = (
  * 	**-ESOCKTNOSUPPORT** if the socket type is not supported
  * 	(reuseport).
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_sk_assign(void *ctx, void *sk, __u64 flags);
 #else
-static const long (*bpf_sk_assign)(void *ctx, void *sk, __u64 flags) = (void *) 124;
+static long (*const bpf_sk_assign)(void *ctx, void *sk, __u64 flags) = (void *) 124;
 #endif
 /*
  * bpf_ktime_get_boot_ns
@@ -3415,10 +3415,10 @@ static const long (*bpf_sk_assign)(void *ctx, void *sk, __u64 flags) = (void *) 
  * Returns
  * 	Current *ktime*.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u64 bpf_ktime_get_boot_ns(void);
 #else
-static const __u64 (*bpf_ktime_get_boot_ns)(void) = (void *) 125;
+static __u64 (*const bpf_ktime_get_boot_ns)(void) = (void *) 125;
 #endif
 /*
  * bpf_seq_printf
@@ -3451,10 +3451,10 @@ static const __u64 (*bpf_ktime_get_boot_ns)(void) = (void *) 125;
  *
  * 	**-EOVERFLOW** if an overflow happened: The same object will be tried again.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_seq_printf(struct seq_file *m, const char *fmt, __u32 fmt_size, const void *data, __u32 data_len);
 #else
-static const long (*bpf_seq_printf)(struct seq_file *m, const char *fmt, __u32 fmt_size, const void *data, __u32 data_len) = (void *) 126;
+static long (*const bpf_seq_printf)(struct seq_file *m, const char *fmt, __u32 fmt_size, const void *data, __u32 data_len) = (void *) 126;
 #endif
 /*
  * bpf_seq_write
@@ -3468,10 +3468,10 @@ static const long (*bpf_seq_printf)(struct seq_file *m, const char *fmt, __u32 f
  *
  * 	**-EOVERFLOW** if an overflow happened: The same object will be tried again.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_seq_write(struct seq_file *m, const void *data, __u32 len);
 #else
-static const long (*bpf_seq_write)(struct seq_file *m, const void *data, __u32 len) = (void *) 127;
+static long (*const bpf_seq_write)(struct seq_file *m, const void *data, __u32 len) = (void *) 127;
 #endif
 /*
  * bpf_sk_cgroup_id
@@ -3489,10 +3489,10 @@ static const long (*bpf_seq_write)(struct seq_file *m, const void *data, __u32 l
  * Returns
  * 	The id is returned or 0 in case the id could not be retrieved.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u64 bpf_sk_cgroup_id(void *sk);
 #else
-static const __u64 (*bpf_sk_cgroup_id)(void *sk) = (void *) 128;
+static __u64 (*const bpf_sk_cgroup_id)(void *sk) = (void *) 128;
 #endif
 /*
  * bpf_sk_ancestor_cgroup_id
@@ -3514,10 +3514,10 @@ static const __u64 (*bpf_sk_cgroup_id)(void *sk) = (void *) 128;
  * Returns
  * 	The id is returned or 0 in case the id could not be retrieved.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u64 bpf_sk_ancestor_cgroup_id(void *sk, int ancestor_level);
 #else
-static const __u64 (*bpf_sk_ancestor_cgroup_id)(void *sk, int ancestor_level) = (void *) 129;
+static __u64 (*const bpf_sk_ancestor_cgroup_id)(void *sk, int ancestor_level) = (void *) 129;
 #endif
 /*
  * bpf_ringbuf_output
@@ -3538,10 +3538,10 @@ static const __u64 (*bpf_sk_ancestor_cgroup_id)(void *sk, int ancestor_level) = 
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_ringbuf_output(void *ringbuf, void *data, __u64 size, __u64 flags);
 #else
-static const long (*bpf_ringbuf_output)(void *ringbuf, void *data, __u64 size, __u64 flags) = (void *) 130;
+static long (*const bpf_ringbuf_output)(void *ringbuf, void *data, __u64 size, __u64 flags) = (void *) 130;
 #endif
 /*
  * bpf_ringbuf_reserve
@@ -3553,10 +3553,10 @@ static const long (*bpf_ringbuf_output)(void *ringbuf, void *data, __u64 size, _
  * 	Valid pointer with *size* bytes of memory available; NULL,
  * 	otherwise.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern void *bpf_ringbuf_reserve(void *ringbuf, __u64 size, __u64 flags);
 #else
-static const void *(*bpf_ringbuf_reserve)(void *ringbuf, __u64 size, __u64 flags) = (void *) 131;
+static void *(*const bpf_ringbuf_reserve)(void *ringbuf, __u64 size, __u64 flags) = (void *) 131;
 #endif
 /*
  * bpf_ringbuf_submit
@@ -3574,10 +3574,10 @@ static const void *(*bpf_ringbuf_reserve)(void *ringbuf, __u64 size, __u64 flags
  * Returns
  * 	Nothing. Always succeeds.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern void bpf_ringbuf_submit(void *data, __u64 flags);
 #else
-static const void (*bpf_ringbuf_submit)(void *data, __u64 flags) = (void *) 132;
+static void (*const bpf_ringbuf_submit)(void *data, __u64 flags) = (void *) 132;
 #endif
 /*
  * bpf_ringbuf_discard
@@ -3595,10 +3595,10 @@ static const void (*bpf_ringbuf_submit)(void *data, __u64 flags) = (void *) 132;
  * Returns
  * 	Nothing. Always succeeds.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern void bpf_ringbuf_discard(void *data, __u64 flags);
 #else
-static const void (*bpf_ringbuf_discard)(void *data, __u64 flags) = (void *) 133;
+static void (*const bpf_ringbuf_discard)(void *data, __u64 flags) = (void *) 133;
 #endif
 /*
  * bpf_ringbuf_query
@@ -3619,10 +3619,10 @@ static const void (*bpf_ringbuf_discard)(void *data, __u64 flags) = (void *) 133
  * Returns
  * 	Requested value, or 0, if *flags* are not recognized.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u64 bpf_ringbuf_query(void *ringbuf, __u64 flags);
 #else
-static const __u64 (*bpf_ringbuf_query)(void *ringbuf, __u64 flags) = (void *) 134;
+static __u64 (*const bpf_ringbuf_query)(void *ringbuf, __u64 flags) = (void *) 134;
 #endif
 /*
  * bpf_csum_level
@@ -3658,10 +3658,10 @@ static const __u64 (*bpf_ringbuf_query)(void *ringbuf, __u64 flags) = (void *) 1
  * 	is returned or the error code -EACCES in case the skb is not
  * 	subject to CHECKSUM_UNNECESSARY.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_csum_level(struct __sk_buff *skb, __u64 level);
 #else
-static const long (*bpf_csum_level)(struct __sk_buff *skb, __u64 level) = (void *) 135;
+static long (*const bpf_csum_level)(struct __sk_buff *skb, __u64 level) = (void *) 135;
 #endif
 /*
  * bpf_skc_to_tcp6_sock
@@ -3671,10 +3671,10 @@ static const long (*bpf_csum_level)(struct __sk_buff *skb, __u64 level) = (void 
  * Returns
  * 	*sk* if casting is valid, or **NULL** otherwise.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern struct p6_sock*(*bpf_skc_to_tcp6_sock);
 #else
-static const struct tcp6_sock *(*bpf_skc_to_tcp6_sock)(void *sk) = (void *) 136;
+static struct tcp6_sock *(*const bpf_skc_to_tcp6_sock)(void *sk) = (void *) 136;
 #endif
 /*
  * bpf_skc_to_tcp_sock
@@ -3684,10 +3684,10 @@ static const struct tcp6_sock *(*bpf_skc_to_tcp6_sock)(void *sk) = (void *) 136;
  * Returns
  * 	*sk* if casting is valid, or **NULL** otherwise.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern struct p_sock*(*bpf_skc_to_tcp_sock);
 #else
-static const struct tcp_sock *(*bpf_skc_to_tcp_sock)(void *sk) = (void *) 137;
+static struct tcp_sock *(*const bpf_skc_to_tcp_sock)(void *sk) = (void *) 137;
 #endif
 /*
  * bpf_skc_to_tcp_timewait_sock
@@ -3697,10 +3697,10 @@ static const struct tcp_sock *(*bpf_skc_to_tcp_sock)(void *sk) = (void *) 137;
  * Returns
  * 	*sk* if casting is valid, or **NULL** otherwise.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern struct p_timewait_sock*(*bpf_skc_to_tcp_timewait_sock);
 #else
-static const struct tcp_timewait_sock *(*bpf_skc_to_tcp_timewait_sock)(void *sk) = (void *) 138;
+static struct tcp_timewait_sock *(*const bpf_skc_to_tcp_timewait_sock)(void *sk) = (void *) 138;
 #endif
 /*
  * bpf_skc_to_tcp_request_sock
@@ -3710,10 +3710,10 @@ static const struct tcp_timewait_sock *(*bpf_skc_to_tcp_timewait_sock)(void *sk)
  * Returns
  * 	*sk* if casting is valid, or **NULL** otherwise.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern struct p_request_sock*(*bpf_skc_to_tcp_request_sock);
 #else
-static const struct tcp_request_sock *(*bpf_skc_to_tcp_request_sock)(void *sk) = (void *) 139;
+static struct tcp_request_sock *(*const bpf_skc_to_tcp_request_sock)(void *sk) = (void *) 139;
 #endif
 /*
  * bpf_skc_to_udp6_sock
@@ -3723,10 +3723,10 @@ static const struct tcp_request_sock *(*bpf_skc_to_tcp_request_sock)(void *sk) =
  * Returns
  * 	*sk* if casting is valid, or **NULL** otherwise.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern struct p6_sock*(*bpf_skc_to_udp6_sock);
 #else
-static const struct udp6_sock *(*bpf_skc_to_udp6_sock)(void *sk) = (void *) 140;
+static struct udp6_sock *(*const bpf_skc_to_udp6_sock)(void *sk) = (void *) 140;
 #endif
 /*
  * bpf_get_task_stack
@@ -3762,10 +3762,10 @@ static const struct udp6_sock *(*bpf_skc_to_udp6_sock)(void *sk) = (void *) 140;
  * 	The non-negative copied *buf* length equal to or less than
  * 	*size* on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_get_task_stack(struct task_struct *task, void *buf, __u32 size, __u64 flags);
 #else
-static const long (*bpf_get_task_stack)(struct task_struct *task, void *buf, __u32 size, __u64 flags) = (void *) 141;
+static long (*const bpf_get_task_stack)(struct task_struct *task, void *buf, __u32 size, __u64 flags) = (void *) 141;
 #endif
 /*
  * bpf_load_hdr_opt
@@ -3832,10 +3832,10 @@ static const long (*bpf_get_task_stack)(struct task_struct *task, void *buf, __u
  * 	**-EPERM** if the helper cannot be used under the current
  * 	*skops*\ **->op**.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_load_hdr_opt(struct bpf_sock_ops *skops, void *searchby_res, __u32 len, __u64 flags);
 #else
-static const long (*bpf_load_hdr_opt)(struct bpf_sock_ops *skops, void *searchby_res, __u32 len, __u64 flags) = (void *) 142;
+static long (*const bpf_load_hdr_opt)(struct bpf_sock_ops *skops, void *searchby_res, __u32 len, __u64 flags) = (void *) 142;
 #endif
 /*
  * bpf_store_hdr_opt
@@ -3872,10 +3872,10 @@ static const long (*bpf_load_hdr_opt)(struct bpf_sock_ops *skops, void *searchby
  * 	**-EPERM** if the helper cannot be used under the current
  * 	*skops*\ **->op**.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_store_hdr_opt(struct bpf_sock_ops *skops, const void *from, __u32 len, __u64 flags);
 #else
-static const long (*bpf_store_hdr_opt)(struct bpf_sock_ops *skops, const void *from, __u32 len, __u64 flags) = (void *) 143;
+static long (*const bpf_store_hdr_opt)(struct bpf_sock_ops *skops, const void *from, __u32 len, __u64 flags) = (void *) 143;
 #endif
 /*
  * bpf_reserve_hdr_opt
@@ -3901,10 +3901,10 @@ static const long (*bpf_store_hdr_opt)(struct bpf_sock_ops *skops, const void *f
  * 	**-EPERM** if the helper cannot be used under the current
  * 	*skops*\ **->op**.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_reserve_hdr_opt(struct bpf_sock_ops *skops, __u32 len, __u64 flags);
 #else
-static const long (*bpf_reserve_hdr_opt)(struct bpf_sock_ops *skops, __u32 len, __u64 flags) = (void *) 144;
+static long (*const bpf_reserve_hdr_opt)(struct bpf_sock_ops *skops, __u32 len, __u64 flags) = (void *) 144;
 #endif
 /*
  * bpf_inode_storage_get
@@ -3936,10 +3936,10 @@ static const long (*bpf_reserve_hdr_opt)(struct bpf_sock_ops *skops, __u32 len, 
  * 	**NULL** if not found or there was an error in adding
  * 	a new bpf_local_storage.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern void *bpf_inode_storage_get(void *map, void *inode, void *value, __u64 flags);
 #else
-static const void *(*bpf_inode_storage_get)(void *map, void *inode, void *value, __u64 flags) = (void *) 145;
+static void *(*const bpf_inode_storage_get)(void *map, void *inode, void *value, __u64 flags) = (void *) 145;
 #endif
 /*
  * bpf_inode_storage_delete
@@ -3951,10 +3951,10 @@ static const void *(*bpf_inode_storage_get)(void *map, void *inode, void *value,
  *
  * 	**-ENOENT** if the bpf_local_storage cannot be found.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern int bpf_inode_storage_delete(void *map, void *inode);
 #else
-static const int (*bpf_inode_storage_delete)(void *map, void *inode) = (void *) 146;
+static int (*const bpf_inode_storage_delete)(void *map, void *inode) = (void *) 146;
 #endif
 /*
  * bpf_d_path
@@ -3970,10 +3970,10 @@ static const int (*bpf_inode_storage_delete)(void *map, void *inode) = (void *) 
  * 	including the trailing NUL character. On error, a negative
  * 	value.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_d_path(struct path *path, char *buf, __u32 sz);
 #else
-static const long (*bpf_d_path)(struct path *path, char *buf, __u32 sz) = (void *) 147;
+static long (*const bpf_d_path)(struct path *path, char *buf, __u32 sz) = (void *) 147;
 #endif
 /*
  * bpf_copy_from_user
@@ -3984,10 +3984,10 @@ static const long (*bpf_d_path)(struct path *path, char *buf, __u32 sz) = (void 
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_copy_from_user(void *dst, __u32 size, const void *user_ptr);
 #else
-static const long (*bpf_copy_from_user)(void *dst, __u32 size, const void *user_ptr) = (void *) 148;
+static long (*const bpf_copy_from_user)(void *dst, __u32 size, const void *user_ptr) = (void *) 148;
 #endif
 /*
  * bpf_snprintf_btf
@@ -4027,10 +4027,10 @@ static const long (*bpf_copy_from_user)(void *dst, __u32 size, const void *user_
  * 	written if output had to be truncated due to string size),
  * 	or a negative error in cases of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_snprintf_btf(char *str, __u32 str_size, struct btf_ptr *ptr, __u32 btf_ptr_size, __u64 flags);
 #else
-static const long (*bpf_snprintf_btf)(char *str, __u32 str_size, struct btf_ptr *ptr, __u32 btf_ptr_size, __u64 flags) = (void *) 149;
+static long (*const bpf_snprintf_btf)(char *str, __u32 str_size, struct btf_ptr *ptr, __u32 btf_ptr_size, __u64 flags) = (void *) 149;
 #endif
 /*
  * bpf_seq_printf_btf
@@ -4042,10 +4042,10 @@ static const long (*bpf_snprintf_btf)(char *str, __u32 str_size, struct btf_ptr 
  * Returns
  * 	0 on success or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_seq_printf_btf(struct seq_file *m, struct btf_ptr *ptr, __u32 ptr_size, __u64 flags);
 #else
-static const long (*bpf_seq_printf_btf)(struct seq_file *m, struct btf_ptr *ptr, __u32 ptr_size, __u64 flags) = (void *) 150;
+static long (*const bpf_seq_printf_btf)(struct seq_file *m, struct btf_ptr *ptr, __u32 ptr_size, __u64 flags) = (void *) 150;
 #endif
 /*
  * bpf_skb_cgroup_classid
@@ -4058,10 +4058,10 @@ static const long (*bpf_seq_printf_btf)(struct seq_file *m, struct btf_ptr *ptr,
  * Returns
  * 	The id is returned or 0 in case the id could not be retrieved.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u64 bpf_skb_cgroup_classid(struct __sk_buff *skb);
 #else
-static const __u64 (*bpf_skb_cgroup_classid)(struct __sk_buff *skb) = (void *) 151;
+static __u64 (*const bpf_skb_cgroup_classid)(struct __sk_buff *skb) = (void *) 151;
 #endif
 /*
  * bpf_redirect_neigh
@@ -4086,10 +4086,10 @@ static const __u64 (*bpf_skb_cgroup_classid)(struct __sk_buff *skb) = (void *) 1
  * 	The helper returns **TC_ACT_REDIRECT** on success or
  * 	**TC_ACT_SHOT** on error.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_redirect_neigh(__u32 ifindex, struct bpf_redir_neigh *params, int plen, __u64 flags);
 #else
-static const long (*bpf_redirect_neigh)(__u32 ifindex, struct bpf_redir_neigh *params, int plen, __u64 flags) = (void *) 152;
+static long (*const bpf_redirect_neigh)(__u32 ifindex, struct bpf_redir_neigh *params, int plen, __u64 flags) = (void *) 152;
 #endif
 /*
  * bpf_per_cpu_ptr
@@ -4097,7 +4097,7 @@ static const long (*bpf_redirect_neigh)(__u32 ifindex, struct bpf_redir_neigh *p
  * 	Take a pointer to a percpu ksym, *percpu_ptr*, and return a
  * 	pointer to the percpu kernel variable on *cpu*. A ksym is an
  * 	extern variable decorated with '__ksym'. For ksym, there is a
- * 	global var (either static const or global) defined of the same name
+ * 	global var (either static or global) defined of the same name
  * 	in the kernel. The ksym is percpu if the global var is percpu.
  * 	The returned pointer points to the global percpu var on *cpu*.
  *
@@ -4110,10 +4110,10 @@ static const long (*bpf_redirect_neigh)(__u32 ifindex, struct bpf_redir_neigh *p
  * 	A pointer pointing to the kernel percpu variable on *cpu*, or
  * 	NULL, if *cpu* is invalid.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern void *bpf_per_cpu_ptr(const void *percpu_ptr, __u32 cpu);
 #else
-static const void *(*bpf_per_cpu_ptr)(const void *percpu_ptr, __u32 cpu) = (void *) 153;
+static void *(*const bpf_per_cpu_ptr)(const void *percpu_ptr, __u32 cpu) = (void *) 153;
 #endif
 /*
  * bpf_this_cpu_ptr
@@ -4129,10 +4129,10 @@ static const void *(*bpf_per_cpu_ptr)(const void *percpu_ptr, __u32 cpu) = (void
  * Returns
  * 	A pointer pointing to the kernel percpu variable on this cpu.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern void *bpf_this_cpu_ptr(const void *percpu_ptr);
 #else
-static const void *(*bpf_this_cpu_ptr)(const void *percpu_ptr) = (void *) 154;
+static void *(*const bpf_this_cpu_ptr)(const void *percpu_ptr) = (void *) 154;
 #endif
 /*
  * bpf_redirect_peer
@@ -4152,10 +4152,10 @@ static const void *(*bpf_this_cpu_ptr)(const void *percpu_ptr) = (void *) 154;
  * 	The helper returns **TC_ACT_REDIRECT** on success or
  * 	**TC_ACT_SHOT** on error.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_redirect_peer(__u32 ifindex, __u64 flags);
 #else
-static const long (*bpf_redirect_peer)(__u32 ifindex, __u64 flags) = (void *) 155;
+static long (*const bpf_redirect_peer)(__u32 ifindex, __u64 flags) = (void *) 155;
 #endif
 /*
  * bpf_task_storage_get
@@ -4187,10 +4187,10 @@ static const long (*bpf_redirect_peer)(__u32 ifindex, __u64 flags) = (void *) 15
  * 	**NULL** if not found or there was an error in adding
  * 	a new bpf_local_storage.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern void *bpf_task_storage_get(void *map, struct task_struct *task, void *value, __u64 flags);
 #else
-static const void *(*bpf_task_storage_get)(void *map, struct task_struct *task, void *value, __u64 flags) = (void *) 156;
+static void *(*const bpf_task_storage_get)(void *map, struct task_struct *task, void *value, __u64 flags) = (void *) 156;
 #endif
 /*
  * bpf_task_storage_delete
@@ -4202,10 +4202,10 @@ static const void *(*bpf_task_storage_get)(void *map, struct task_struct *task, 
  *
  * 	**-ENOENT** if the bpf_local_storage cannot be found.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_task_storage_delete(void *map, struct task_struct *task);
 #else
-static const long (*bpf_task_storage_delete)(void *map, struct task_struct *task) = (void *) 157;
+static long (*const bpf_task_storage_delete)(void *map, struct task_struct *task) = (void *) 157;
 #endif
 /*
  * bpf_get_current_task_btf
@@ -4217,10 +4217,10 @@ static const long (*bpf_task_storage_delete)(void *map, struct task_struct *task
  * Returns
  * 	Pointer to the current task.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern struct sk_struct*(*bpf_get_current_task_btf);
 #else
-static const struct task_struct *(*bpf_get_current_task_btf)(void) = (void *) 158;
+static struct task_struct *(*const bpf_get_current_task_btf)(void) = (void *) 158;
 #endif
 /*
  * bpf_bprm_opts_set
@@ -4234,10 +4234,10 @@ static const struct task_struct *(*bpf_get_current_task_btf)(void) = (void *) 15
  * Returns
  * 	**-EINVAL** if invalid *flags* are passed, zero otherwise.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_bprm_opts_set(struct linux_binprm *bprm, __u64 flags);
 #else
-static const long (*bpf_bprm_opts_set)(struct linux_binprm *bprm, __u64 flags) = (void *) 159;
+static long (*const bpf_bprm_opts_set)(struct linux_binprm *bprm, __u64 flags) = (void *) 159;
 #endif
 /*
  * bpf_ktime_get_coarse_ns
@@ -4251,10 +4251,10 @@ static const long (*bpf_bprm_opts_set)(struct linux_binprm *bprm, __u64 flags) =
  * Returns
  * 	Current *ktime*.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u64 bpf_ktime_get_coarse_ns(void);
 #else
-static const __u64 (*bpf_ktime_get_coarse_ns)(void) = (void *) 160;
+static __u64 (*const bpf_ktime_get_coarse_ns)(void) = (void *) 160;
 #endif
 /*
  * bpf_ima_inode_hash
@@ -4268,10 +4268,10 @@ static const __u64 (*bpf_ktime_get_coarse_ns)(void) = (void *) 160;
  * 	**-EOPNOTSUP** if IMA is disabled or **-EINVAL** if
  * 	invalid arguments are passed.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_ima_inode_hash(struct inode *inode, void *dst, __u32 size);
 #else
-static const long (*bpf_ima_inode_hash)(struct inode *inode, void *dst, __u32 size) = (void *) 161;
+static long (*const bpf_ima_inode_hash)(struct inode *inode, void *dst, __u32 size) = (void *) 161;
 #endif
 /*
  * bpf_sock_from_file
@@ -4283,10 +4283,10 @@ static const long (*bpf_ima_inode_hash)(struct inode *inode, void *dst, __u32 si
  * 	A pointer to a struct socket on success or NULL if the file is
  * 	not a socket.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern struct cket*(*bpf_sock_from_file);
 #else
-static const struct socket *(*bpf_sock_from_file)(struct file *file) = (void *) 162;
+static struct socket *(*const bpf_sock_from_file)(struct file *file) = (void *) 162;
 #endif
 /*
  * bpf_check_mtu
@@ -4357,17 +4357,17 @@ static const struct socket *(*bpf_sock_from_file)(struct file *file) = (void *) 
  * 	* **BPF_MTU_CHK_RET_FRAG_NEEDED**
  * 	* **BPF_MTU_CHK_RET_SEGS_TOOBIG**
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_check_mtu(void *ctx, __u32 ifindex, __u32 *mtu_len, __s32 len_diff, __u64 flags);
 #else
-static const long (*bpf_check_mtu)(void *ctx, __u32 ifindex, __u32 *mtu_len, __s32 len_diff, __u64 flags) = (void *) 163;
+static long (*const bpf_check_mtu)(void *ctx, __u32 ifindex, __u32 *mtu_len, __s32 len_diff, __u64 flags) = (void *) 163;
 #endif
 /*
  * bpf_for_each_map_elem
  *
  * 	For each element in **map**, call **callback_fn** function with
  * 	**map**, **callback_ctx** and other map-specific parameters.
- * 	The **callback_fn** should be a static const function and
+ * 	The **callback_fn** should be a static function and
  * 	the **callback_ctx** should be a pointer to the stack.
  * 	The **flags** is used to control certain aspects of the helper.
  * 	Currently, the **flags** must be 0.
@@ -4393,10 +4393,10 @@ static const long (*bpf_check_mtu)(void *ctx, __u32 ifindex, __u32 *mtu_len, __s
  * 	The number of traversed map elements for success, **-EINVAL** for
  * 	invalid **flags**.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_for_each_map_elem(void *map, void *callback_fn, void *callback_ctx, __u64 flags);
 #else
-static const long (*bpf_for_each_map_elem)(void *map, void *callback_fn, void *callback_ctx, __u64 flags) = (void *) 164;
+static long (*const bpf_for_each_map_elem)(void *map, void *callback_fn, void *callback_ctx, __u64 flags) = (void *) 164;
 #endif
 /*
  * bpf_snprintf
@@ -4428,10 +4428,10 @@ static const long (*bpf_for_each_map_elem)(void *map, void *callback_fn, void *c
  *
  * 	Or **-EBUSY** if the per-CPU memory copy buffer is busy.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_snprintf(char *str, __u32 str_size, const char *fmt, __u64 *data, __u32 data_len);
 #else
-static const long (*bpf_snprintf)(char *str, __u32 str_size, const char *fmt, __u64 *data, __u32 data_len) = (void *) 165;
+static long (*const bpf_snprintf)(char *str, __u32 str_size, const char *fmt, __u64 *data, __u32 data_len) = (void *) 165;
 #endif
 /*
  * bpf_sys_bpf
@@ -4441,10 +4441,10 @@ static const long (*bpf_snprintf)(char *str, __u32 str_size, const char *fmt, __
  * Returns
  * 	A syscall result.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_sys_bpf(__u32 cmd, void *attr, __u32 attr_size);
 #else
-static const long (*bpf_sys_bpf)(__u32 cmd, void *attr, __u32 attr_size) = (void *) 166;
+static long (*const bpf_sys_bpf)(__u32 cmd, void *attr, __u32 attr_size) = (void *) 166;
 #endif
 /*
  * bpf_btf_find_by_name_kind
@@ -4454,10 +4454,10 @@ static const long (*bpf_sys_bpf)(__u32 cmd, void *attr, __u32 attr_size) = (void
  * Returns
  * 	Returns btf_id and btf_obj_fd in lower and upper 32 bits.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_btf_find_by_name_kind(char *name, int name_sz, __u32 kind, int flags);
 #else
-static const long (*bpf_btf_find_by_name_kind)(char *name, int name_sz, __u32 kind, int flags) = (void *) 167;
+static long (*const bpf_btf_find_by_name_kind)(char *name, int name_sz, __u32 kind, int flags) = (void *) 167;
 #endif
 /*
  * bpf_sys_close
@@ -4467,10 +4467,10 @@ static const long (*bpf_btf_find_by_name_kind)(char *name, int name_sz, __u32 ki
  * Returns
  * 	A syscall result.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_sys_close(__u32 fd);
 #else
-static const long (*bpf_sys_close)(__u32 fd) = (void *) 168;
+static long (*const bpf_sys_close)(__u32 fd) = (void *) 168;
 #endif
 /*
  * bpf_timer_init
@@ -4491,15 +4491,15 @@ static const long (*bpf_sys_close)(__u32 fd) = (void *) 168;
  * 	or pin such map in bpffs. When map is unpinned or file descriptor is
  * 	closed all timers in the map will be cancelled and freed.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_timer_init(struct bpf_timer *timer, void *map, __u64 flags);
 #else
-static const long (*bpf_timer_init)(struct bpf_timer *timer, void *map, __u64 flags) = (void *) 169;
+static long (*const bpf_timer_init)(struct bpf_timer *timer, void *map, __u64 flags) = (void *) 169;
 #endif
 /*
  * bpf_timer_set_callback
  *
- * 	Configure the timer to call *callback_fn* static const function.
+ * 	Configure the timer to call *callback_fn* static function.
  *
  * Returns
  * 	0 on success.
@@ -4509,10 +4509,10 @@ static const long (*bpf_timer_init)(struct bpf_timer *timer, void *map, __u64 fl
  * 	or pin such map in bpffs. When map is unpinned or file descriptor is
  * 	closed all timers in the map will be cancelled and freed.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_timer_set_callback(struct bpf_timer *timer, void *callback_fn);
 #else
-static const long (*bpf_timer_set_callback)(struct bpf_timer *timer, void *callback_fn) = (void *) 170;
+static long (*const bpf_timer_set_callback)(struct bpf_timer *timer, void *callback_fn) = (void *) 170;
 #endif
 /*
  * bpf_timer_start
@@ -4542,10 +4542,10 @@ static const long (*bpf_timer_set_callback)(struct bpf_timer *timer, void *callb
  * 	**-EINVAL** if *timer* was not initialized with bpf_timer_init() earlier
  * 	or invalid *flags* are passed.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_timer_start(struct bpf_timer *timer, __u64 nsecs, __u64 flags);
 #else
-static const long (*bpf_timer_start)(struct bpf_timer *timer, __u64 nsecs, __u64 flags) = (void *) 171;
+static long (*const bpf_timer_start)(struct bpf_timer *timer, __u64 nsecs, __u64 flags) = (void *) 171;
 #endif
 /*
  * bpf_timer_cancel
@@ -4559,10 +4559,10 @@ static const long (*bpf_timer_start)(struct bpf_timer *timer, __u64 nsecs, __u64
  * 	**-EDEADLK** if callback_fn tried to call bpf_timer_cancel() on its
  * 	own timer which would have led to a deadlock otherwise.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_timer_cancel(struct bpf_timer *timer);
 #else
-static const long (*bpf_timer_cancel)(struct bpf_timer *timer) = (void *) 172;
+static long (*const bpf_timer_cancel)(struct bpf_timer *timer) = (void *) 172;
 #endif
 /*
  * bpf_get_func_ip
@@ -4573,10 +4573,10 @@ static const long (*bpf_timer_cancel)(struct bpf_timer *timer) = (void *) 172;
  * 	Address of the traced function.
  * 	0 for kprobes placed within the function (not at the entry).
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u64 bpf_get_func_ip(void *ctx);
 #else
-static const __u64 (*bpf_get_func_ip)(void *ctx) = (void *) 173;
+static __u64 (*const bpf_get_func_ip)(void *ctx) = (void *) 173;
 #endif
 /*
  * bpf_get_attach_cookie
@@ -4595,10 +4595,10 @@ static const __u64 (*bpf_get_func_ip)(void *ctx) = (void *) 173;
  * 	Value specified by user at BPF link creation/attachment time
  * 	or 0, if it was not specified.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u64 bpf_get_attach_cookie(void *ctx);
 #else
-static const __u64 (*bpf_get_attach_cookie)(void *ctx) = (void *) 174;
+static __u64 (*const bpf_get_attach_cookie)(void *ctx) = (void *) 174;
 #endif
 /*
  * bpf_task_pt_regs
@@ -4608,10 +4608,10 @@ static const __u64 (*bpf_get_attach_cookie)(void *ctx) = (void *) 174;
  * Returns
  * 	A pointer to struct pt_regs.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_task_pt_regs(struct task_struct *task);
 #else
-static const long (*bpf_task_pt_regs)(struct task_struct *task) = (void *) 175;
+static long (*const bpf_task_pt_regs)(struct task_struct *task) = (void *) 175;
 #endif
 /*
  * bpf_get_branch_snapshot
@@ -4636,10 +4636,10 @@ static const long (*bpf_task_pt_regs)(struct task_struct *task) = (void *) 175;
  *
  * 	**-ENOENT** if architecture does not support branch records.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_get_branch_snapshot(void *entries, __u32 size, __u64 flags);
 #else
-static const long (*bpf_get_branch_snapshot)(void *entries, __u32 size, __u64 flags) = (void *) 176;
+static long (*const bpf_get_branch_snapshot)(void *entries, __u32 size, __u64 flags) = (void *) 176;
 #endif
 /*
  * bpf_trace_vprintk
@@ -4653,10 +4653,10 @@ static const long (*bpf_get_branch_snapshot)(void *entries, __u32 size, __u64 fl
  * 	The number of bytes written to the buffer, or a negative error
  * 	in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_trace_vprintk(const char *fmt, __u32 fmt_size, const void *data, __u32 data_len);
 #else
-static const long (*bpf_trace_vprintk)(const char *fmt, __u32 fmt_size, const void *data, __u32 data_len) = (void *) 177;
+static long (*const bpf_trace_vprintk)(const char *fmt, __u32 fmt_size, const void *data, __u32 data_len) = (void *) 177;
 #endif
 /*
  * bpf_skc_to_unix_sock
@@ -4666,10 +4666,10 @@ static const long (*bpf_trace_vprintk)(const char *fmt, __u32 fmt_size, const vo
  * Returns
  * 	*sk* if casting is valid, or **NULL** otherwise.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern struct ix_sock*(*bpf_skc_to_unix_sock);
 #else
-static const struct unix_sock *(*bpf_skc_to_unix_sock)(void *sk) = (void *) 178;
+static struct unix_sock *(*const bpf_skc_to_unix_sock)(void *sk) = (void *) 178;
 #endif
 /*
  * bpf_kallsyms_lookup_name
@@ -4688,17 +4688,17 @@ static const struct unix_sock *(*bpf_skc_to_unix_sock)(void *sk) = (void *) 178;
  *
  * 	**-EPERM** if caller does not have permission to obtain kernel address.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_kallsyms_lookup_name(const char *name, int name_sz, int flags, __u64 *res);
 #else
-static const long (*bpf_kallsyms_lookup_name)(const char *name, int name_sz, int flags, __u64 *res) = (void *) 179;
+static long (*const bpf_kallsyms_lookup_name)(const char *name, int name_sz, int flags, __u64 *res) = (void *) 179;
 #endif
 /*
  * bpf_find_vma
  *
  * 	Find vma of *task* that contains *addr*, call *callback_fn*
  * 	function with *task*, *vma*, and *callback_ctx*.
- * 	The *callback_fn* should be a static const function and
+ * 	The *callback_fn* should be a static function and
  * 	the *callback_ctx* should be a pointer to the stack.
  * 	The *flags* is used to control certain aspects of the helper.
  * 	Currently, the *flags* must be 0.
@@ -4714,17 +4714,17 @@ static const long (*bpf_kallsyms_lookup_name)(const char *name, int name_sz, int
  * 	**-EBUSY** if failed to try lock mmap_lock.
  * 	**-EINVAL** for invalid **flags**.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_find_vma(struct task_struct *task, __u64 addr, void *callback_fn, void *callback_ctx, __u64 flags);
 #else
-static const long (*bpf_find_vma)(struct task_struct *task, __u64 addr, void *callback_fn, void *callback_ctx, __u64 flags) = (void *) 180;
+static long (*const bpf_find_vma)(struct task_struct *task, __u64 addr, void *callback_fn, void *callback_ctx, __u64 flags) = (void *) 180;
 #endif
 /*
  * bpf_loop
  *
  * 	For **nr_loops**, call **callback_fn** function
  * 	with **callback_ctx** as the context parameter.
- * 	The **callback_fn** should be a static const function and
+ * 	The **callback_fn** should be a static function and
  * 	the **callback_ctx** should be a pointer to the stack.
  * 	The **flags** is used to control certain aspects of the helper.
  * 	Currently, the **flags** must be 0. Currently, nr_loops is
@@ -4745,10 +4745,10 @@ static const long (*bpf_find_vma)(struct task_struct *task, __u64 addr, void *ca
  * 	The number of loops performed, **-EINVAL** for invalid **flags**,
  * 	**-E2BIG** if **nr_loops** exceeds the maximum number of loops.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_loop(__u32 nr_loops, void *callback_fn, void *callback_ctx, __u64 flags);
 #else
-static const long (*bpf_loop)(__u32 nr_loops, void *callback_fn, void *callback_ctx, __u64 flags) = (void *) 181;
+static long (*const bpf_loop)(__u32 nr_loops, void *callback_fn, void *callback_ctx, __u64 flags) = (void *) 181;
 #endif
 /*
  * bpf_strncmp
@@ -4762,10 +4762,10 @@ static const long (*bpf_loop)(__u32 nr_loops, void *callback_fn, void *callback_
  * 	if the first **s1_sz** bytes of **s1** is found to be
  * 	less than, to match, or be greater than **s2**.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_strncmp(const char *s1, __u32 s1_sz, const char *s2);
 #else
-static const long (*bpf_strncmp)(const char *s1, __u32 s1_sz, const char *s2) = (void *) 182;
+static long (*const bpf_strncmp)(const char *s1, __u32 s1_sz, const char *s2) = (void *) 182;
 #endif
 /*
  * bpf_get_func_arg
@@ -4778,10 +4778,10 @@ static const long (*bpf_strncmp)(const char *s1, __u32 s1_sz, const char *s2) = 
  * 	0 on success.
  * 	**-EINVAL** if n >= argument register count of traced function.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_get_func_arg(void *ctx, __u32 n, __u64 *value);
 #else
-static const long (*bpf_get_func_arg)(void *ctx, __u32 n, __u64 *value) = (void *) 183;
+static long (*const bpf_get_func_arg)(void *ctx, __u32 n, __u64 *value) = (void *) 183;
 #endif
 /*
  * bpf_get_func_ret
@@ -4794,10 +4794,10 @@ static const long (*bpf_get_func_arg)(void *ctx, __u32 n, __u64 *value) = (void 
  * 	0 on success.
  * 	**-EOPNOTSUPP** for tracing programs other than BPF_TRACE_FEXIT or BPF_MODIFY_RETURN.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_get_func_ret(void *ctx, __u64 *value);
 #else
-static const long (*bpf_get_func_ret)(void *ctx, __u64 *value) = (void *) 184;
+static long (*const bpf_get_func_ret)(void *ctx, __u64 *value) = (void *) 184;
 #endif
 /*
  * bpf_get_func_arg_cnt
@@ -4809,10 +4809,10 @@ static const long (*bpf_get_func_ret)(void *ctx, __u64 *value) = (void *) 184;
  * Returns
  * 	The number of argument registers of the traced function.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_get_func_arg_cnt(void *ctx);
 #else
-static const long (*bpf_get_func_arg_cnt)(void *ctx) = (void *) 185;
+static long (*const bpf_get_func_arg_cnt)(void *ctx) = (void *) 185;
 #endif
 /*
  * bpf_get_retval
@@ -4825,10 +4825,10 @@ static const long (*bpf_get_func_arg_cnt)(void *ctx) = (void *) 185;
  * Returns
  * 	The BPF program's return value.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern int bpf_get_retval(void);
 #else
-static const int (*bpf_get_retval)(void) = (void *) 186;
+static int (*const bpf_get_retval)(void) = (void *) 186;
 #endif
 /*
  * bpf_set_retval
@@ -4851,10 +4851,10 @@ static const int (*bpf_get_retval)(void) = (void *) 186;
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern int bpf_set_retval(int retval);
 #else
-static const int (*bpf_set_retval)(int retval) = (void *) 187;
+static int (*const bpf_set_retval)(int retval) = (void *) 187;
 #endif
 /*
  * bpf_xdp_get_buff_len
@@ -4864,10 +4864,10 @@ static const int (*bpf_set_retval)(int retval) = (void *) 187;
  * Returns
  * 	The total size of a given xdp buffer.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u64 bpf_xdp_get_buff_len(struct xdp_md *xdp_md);
 #else
-static const __u64 (*bpf_xdp_get_buff_len)(struct xdp_md *xdp_md) = (void *) 188;
+static __u64 (*const bpf_xdp_get_buff_len)(struct xdp_md *xdp_md) = (void *) 188;
 #endif
 /*
  * bpf_xdp_load_bytes
@@ -4880,10 +4880,10 @@ static const __u64 (*bpf_xdp_get_buff_len)(struct xdp_md *xdp_md) = (void *) 188
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_xdp_load_bytes(struct xdp_md *xdp_md, __u32 offset, void *buf, __u32 len);
 #else
-static const long (*bpf_xdp_load_bytes)(struct xdp_md *xdp_md, __u32 offset, void *buf, __u32 len) = (void *) 189;
+static long (*const bpf_xdp_load_bytes)(struct xdp_md *xdp_md, __u32 offset, void *buf, __u32 len) = (void *) 189;
 #endif
 /*
  * bpf_xdp_store_bytes
@@ -4894,10 +4894,10 @@ static const long (*bpf_xdp_load_bytes)(struct xdp_md *xdp_md, __u32 offset, voi
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_xdp_store_bytes(struct xdp_md *xdp_md, __u32 offset, void *buf, __u32 len);
 #else
-static const long (*bpf_xdp_store_bytes)(struct xdp_md *xdp_md, __u32 offset, void *buf, __u32 len) = (void *) 190;
+static long (*const bpf_xdp_store_bytes)(struct xdp_md *xdp_md, __u32 offset, void *buf, __u32 len) = (void *) 190;
 #endif
 /*
  * bpf_copy_from_user_task
@@ -4911,10 +4911,10 @@ static const long (*bpf_xdp_store_bytes)(struct xdp_md *xdp_md, __u32 offset, vo
  * 	0 on success, or a negative error in case of failure. On error
  * 	*dst* buffer is zeroed out.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_copy_from_user_task(void *dst, __u32 size, const void *user_ptr, struct task_struct *tsk, __u64 flags);
 #else
-static const long (*bpf_copy_from_user_task)(void *dst, __u32 size, const void *user_ptr, struct task_struct *tsk, __u64 flags) = (void *) 191;
+static long (*const bpf_copy_from_user_task)(void *dst, __u32 size, const void *user_ptr, struct task_struct *tsk, __u64 flags) = (void *) 191;
 #endif
 /*
  * bpf_skb_set_tstamp
@@ -4948,10 +4948,10 @@ static const long (*bpf_copy_from_user_task)(void *dst, __u32 size, const void *
  * 	**-EINVAL** for invalid input
  * 	**-EOPNOTSUPP** for unsupported protocol
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_skb_set_tstamp(struct __sk_buff *skb, __u64 tstamp, __u32 tstamp_type);
 #else
-static const long (*bpf_skb_set_tstamp)(struct __sk_buff *skb, __u64 tstamp, __u32 tstamp_type) = (void *) 192;
+static long (*const bpf_skb_set_tstamp)(struct __sk_buff *skb, __u64 tstamp, __u32 tstamp_type) = (void *) 192;
 #endif
 /*
  * bpf_ima_file_hash
@@ -4965,10 +4965,10 @@ static const long (*bpf_skb_set_tstamp)(struct __sk_buff *skb, __u64 tstamp, __u
  * 	**-EOPNOTSUP** if the hash calculation failed or **-EINVAL** if
  * 	invalid arguments are passed.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_ima_file_hash(struct file *file, void *dst, __u32 size);
 #else
-static const long (*bpf_ima_file_hash)(struct file *file, void *dst, __u32 size) = (void *) 193;
+static long (*const bpf_ima_file_hash)(struct file *file, void *dst, __u32 size) = (void *) 193;
 #endif
 /*
  * bpf_kptr_xchg
@@ -4983,10 +4983,10 @@ static const long (*bpf_ima_file_hash)(struct file *file, void *dst, __u32 size)
  * 	corresponding release function, or moved into a BPF map before
  * 	program exit.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern void *bpf_kptr_xchg(void *map_value, void *ptr);
 #else
-static const void *(*bpf_kptr_xchg)(void *map_value, void *ptr) = (void *) 194;
+static void *(*const bpf_kptr_xchg)(void *map_value, void *ptr) = (void *) 194;
 #endif
 /*
  * bpf_map_lookup_percpu_elem
@@ -4998,10 +4998,10 @@ static const void *(*bpf_kptr_xchg)(void *map_value, void *ptr) = (void *) 194;
  * 	Map value associated to *key* on *cpu*, or **NULL** if no entry
  * 	was found or *cpu* is invalid.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern void *bpf_map_lookup_percpu_elem(void *map, const void *key, __u32 cpu);
 #else
-static const void *(*bpf_map_lookup_percpu_elem)(void *map, const void *key, __u32 cpu) = (void *) 195;
+static void *(*const bpf_map_lookup_percpu_elem)(void *map, const void *key, __u32 cpu) = (void *) 195;
 #endif
 /*
  * bpf_skc_to_mptcp_sock
@@ -5011,10 +5011,10 @@ static const void *(*bpf_map_lookup_percpu_elem)(void *map, const void *key, __u
  * Returns
  * 	*sk* if casting is valid, or **NULL** otherwise.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern struct tcp_sock*(*bpf_skc_to_mptcp_sock);
 #else
-static const struct mptcp_sock *(*bpf_skc_to_mptcp_sock)(void *sk) = (void *) 196;
+static struct mptcp_sock *(*const bpf_skc_to_mptcp_sock)(void *sk) = (void *) 196;
 #endif
 /*
  * bpf_dynptr_from_mem
@@ -5029,10 +5029,10 @@ static const struct mptcp_sock *(*bpf_skc_to_mptcp_sock)(void *sk) = (void *) 19
  * 	0 on success, -E2BIG if the size exceeds DYNPTR_MAX_SIZE,
  * 	-EINVAL if flags is not 0.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_dynptr_from_mem(void *data, __u32 size, __u64 flags, struct bpf_dynptr *ptr);
 #else
-static const long (*bpf_dynptr_from_mem)(void *data, __u32 size, __u64 flags, struct bpf_dynptr *ptr) = (void *) 197;
+static long (*const bpf_dynptr_from_mem)(void *data, __u32 size, __u64 flags, struct bpf_dynptr *ptr) = (void *) 197;
 #endif
 /*
  * bpf_ringbuf_reserve_dynptr
@@ -5047,10 +5047,10 @@ static const long (*bpf_dynptr_from_mem)(void *data, __u32 size, __u64 flags, st
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_ringbuf_reserve_dynptr(void *ringbuf, __u32 size, __u64 flags, struct bpf_dynptr *ptr);
 #else
-static const long (*bpf_ringbuf_reserve_dynptr)(void *ringbuf, __u32 size, __u64 flags, struct bpf_dynptr *ptr) = (void *) 198;
+static long (*const bpf_ringbuf_reserve_dynptr)(void *ringbuf, __u32 size, __u64 flags, struct bpf_dynptr *ptr) = (void *) 198;
 #endif
 /*
  * bpf_ringbuf_submit_dynptr
@@ -5065,10 +5065,10 @@ static const long (*bpf_ringbuf_reserve_dynptr)(void *ringbuf, __u32 size, __u64
  * Returns
  * 	Nothing. Always succeeds.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern void bpf_ringbuf_submit_dynptr(struct bpf_dynptr *ptr, __u64 flags);
 #else
-static const void (*bpf_ringbuf_submit_dynptr)(struct bpf_dynptr *ptr, __u64 flags) = (void *) 199;
+static void (*const bpf_ringbuf_submit_dynptr)(struct bpf_dynptr *ptr, __u64 flags) = (void *) 199;
 #endif
 /*
  * bpf_ringbuf_discard_dynptr
@@ -5082,10 +5082,10 @@ static const void (*bpf_ringbuf_submit_dynptr)(struct bpf_dynptr *ptr, __u64 fla
  * Returns
  * 	Nothing. Always succeeds.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern void bpf_ringbuf_discard_dynptr(struct bpf_dynptr *ptr, __u64 flags);
 #else
-static const void (*bpf_ringbuf_discard_dynptr)(struct bpf_dynptr *ptr, __u64 flags) = (void *) 200;
+static void (*const bpf_ringbuf_discard_dynptr)(struct bpf_dynptr *ptr, __u64 flags) = (void *) 200;
 #endif
 /*
  * bpf_dynptr_read
@@ -5099,10 +5099,10 @@ static const void (*bpf_ringbuf_discard_dynptr)(struct bpf_dynptr *ptr, __u64 fl
  * 	of *src*'s data, -EINVAL if *src* is an invalid dynptr or if
  * 	*flags* is not 0.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_dynptr_read(void *dst, __u32 len, const struct bpf_dynptr *src, __u32 offset, __u64 flags);
 #else
-static const long (*bpf_dynptr_read)(void *dst, __u32 len, const struct bpf_dynptr *src, __u32 offset, __u64 flags) = (void *) 201;
+static long (*const bpf_dynptr_read)(void *dst, __u32 len, const struct bpf_dynptr *src, __u32 offset, __u64 flags) = (void *) 201;
 #endif
 /*
  * bpf_dynptr_write
@@ -5116,17 +5116,17 @@ static const long (*bpf_dynptr_read)(void *dst, __u32 len, const struct bpf_dynp
  * 	of *dst*'s data, -EINVAL if *dst* is an invalid dynptr or if *dst*
  * 	is a read-only dynptr or if *flags* is not 0.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_dynptr_write(const struct bpf_dynptr *dst, __u32 offset, void *src, __u32 len, __u64 flags);
 #else
-static const long (*bpf_dynptr_write)(const struct bpf_dynptr *dst, __u32 offset, void *src, __u32 len, __u64 flags) = (void *) 202;
+static long (*const bpf_dynptr_write)(const struct bpf_dynptr *dst, __u32 offset, void *src, __u32 len, __u64 flags) = (void *) 202;
 #endif
 /*
  * bpf_dynptr_data
  *
  * 	Get a pointer to the underlying dynptr data.
  *
- * 	*len* must be a static constally known value. The returned data slice
+ * 	*len* must be a statically known value. The returned data slice
  * 	is invalidated whenever the dynptr is invalidated.
  *
  * Returns
@@ -5134,10 +5134,10 @@ static const long (*bpf_dynptr_write)(const struct bpf_dynptr *dst, __u32 offset
  * 	read-only, if the dynptr is invalid, or if the offset and length
  * 	is out of bounds.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern void *bpf_dynptr_data(const struct bpf_dynptr *ptr, __u32 offset, __u32 len);
 #else
-static const void *(*bpf_dynptr_data)(const struct bpf_dynptr *ptr, __u32 offset, __u32 len) = (void *) 203;
+static void *(*const bpf_dynptr_data)(const struct bpf_dynptr *ptr, __u32 offset, __u32 len) = (void *) 203;
 #endif
 /*
  * bpf_tcp_raw_gen_syncookie_ipv4
@@ -5161,10 +5161,10 @@ static const void *(*bpf_dynptr_data)(const struct bpf_dynptr *ptr, __u32 offset
  *
  * 	**-EINVAL** if *th_len* is invalid.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __s64 bpf_tcp_raw_gen_syncookie_ipv4(struct iphdr *iph, struct tcphdr *th, __u32 th_len);
 #else
-static const __s64 (*bpf_tcp_raw_gen_syncookie_ipv4)(struct iphdr *iph, struct tcphdr *th, __u32 th_len) = (void *) 204;
+static __s64 (*const bpf_tcp_raw_gen_syncookie_ipv4)(struct iphdr *iph, struct tcphdr *th, __u32 th_len) = (void *) 204;
 #endif
 /*
  * bpf_tcp_raw_gen_syncookie_ipv6
@@ -5190,10 +5190,10 @@ static const __s64 (*bpf_tcp_raw_gen_syncookie_ipv4)(struct iphdr *iph, struct t
  *
  * 	**-EPROTONOSUPPORT** if CONFIG_IPV6 is not builtin.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __s64 bpf_tcp_raw_gen_syncookie_ipv6(struct ipv6hdr *iph, struct tcphdr *th, __u32 th_len);
 #else
-static const __s64 (*bpf_tcp_raw_gen_syncookie_ipv6)(struct ipv6hdr *iph, struct tcphdr *th, __u32 th_len) = (void *) 205;
+static __s64 (*const bpf_tcp_raw_gen_syncookie_ipv6)(struct ipv6hdr *iph, struct tcphdr *th, __u32 th_len) = (void *) 205;
 #endif
 /*
  * bpf_tcp_raw_check_syncookie_ipv4
@@ -5212,10 +5212,10 @@ static const __s64 (*bpf_tcp_raw_gen_syncookie_ipv6)(struct ipv6hdr *iph, struct
  *
  * 	**-EACCES** if the SYN cookie is not valid.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_tcp_raw_check_syncookie_ipv4(struct iphdr *iph, struct tcphdr *th);
 #else
-static const long (*bpf_tcp_raw_check_syncookie_ipv4)(struct iphdr *iph, struct tcphdr *th) = (void *) 206;
+static long (*const bpf_tcp_raw_check_syncookie_ipv4)(struct iphdr *iph, struct tcphdr *th) = (void *) 206;
 #endif
 /*
  * bpf_tcp_raw_check_syncookie_ipv6
@@ -5236,10 +5236,10 @@ static const long (*bpf_tcp_raw_check_syncookie_ipv4)(struct iphdr *iph, struct 
  *
  * 	**-EPROTONOSUPPORT** if CONFIG_IPV6 is not builtin.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_tcp_raw_check_syncookie_ipv6(struct ipv6hdr *iph, struct tcphdr *th);
 #else
-static const long (*bpf_tcp_raw_check_syncookie_ipv6)(struct ipv6hdr *iph, struct tcphdr *th) = (void *) 207;
+static long (*const bpf_tcp_raw_check_syncookie_ipv6)(struct ipv6hdr *iph, struct tcphdr *th) = (void *) 207;
 #endif
 /*
  * bpf_ktime_get_tai_ns
@@ -5254,10 +5254,10 @@ static const long (*bpf_tcp_raw_check_syncookie_ipv6)(struct ipv6hdr *iph, struc
  * Returns
  * 	Current *ktime*.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern __u64 bpf_ktime_get_tai_ns(void);
 #else
-static const __u64 (*bpf_ktime_get_tai_ns)(void) = (void *) 208;
+static __u64 (*const bpf_ktime_get_tai_ns)(void) = (void *) 208;
 #endif
 /*
  * bpf_user_ringbuf_drain
@@ -5299,10 +5299,10 @@ static const __u64 (*bpf_ktime_get_tai_ns)(void) = (void *) 208;
  * 	larger than the size of the ring buffer, or which cannot fit
  * 	within a struct bpf_dynptr.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_user_ringbuf_drain(void *map, void *callback_fn, void *ctx, __u64 flags);
 #else
-static const long (*bpf_user_ringbuf_drain)(void *map, void *callback_fn, void *ctx, __u64 flags) = (void *) 209;
+static long (*const bpf_user_ringbuf_drain)(void *map, void *callback_fn, void *ctx, __u64 flags) = (void *) 209;
 #endif
 /*
  * bpf_cgrp_storage_get
@@ -5336,10 +5336,10 @@ static const long (*bpf_user_ringbuf_drain)(void *map, void *callback_fn, void *
  * 	**NULL** if not found or there was an error in adding
  * 	a new bpf_local_storage.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern void *bpf_cgrp_storage_get(void *map, struct cgroup *cgroup, void *value, __u64 flags);
 #else
-static const void *(*bpf_cgrp_storage_get)(void *map, struct cgroup *cgroup, void *value, __u64 flags) = (void *) 210;
+static void *(*const bpf_cgrp_storage_get)(void *map, struct cgroup *cgroup, void *value, __u64 flags) = (void *) 210;
 #endif
 /*
  * bpf_cgrp_storage_delete
@@ -5351,9 +5351,9 @@ static const void *(*bpf_cgrp_storage_get)(void *map, struct cgroup *cgroup, voi
  *
  * 	**-ENOENT** if the bpf_local_storage cannot be found.
  */
-#ifdef __ccomp__
+#ifdef __helper_as_extern__
 extern long bpf_cgrp_storage_delete(void *map, struct cgroup *cgroup);
 #else
-static const long (*bpf_cgrp_storage_delete)(void *map, struct cgroup *cgroup) = (void *) 211;
+static long (*const bpf_cgrp_storage_delete)(void *map, struct cgroup *cgroup) = (void *) 211;
 #endif
 
