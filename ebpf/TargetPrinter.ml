@@ -87,16 +87,20 @@ module Target : TARGET =
       | R0 -> "w0" | R1 -> "w1" | R2 -> "w2" | R3 -> "w3" | R4 -> "w4" | R5 -> "w5"
       | R6 -> "w6" | R7 -> "w7" | R8 -> "w8" | R9 -> "w9" | R10 -> "w10"(*| RA -> "wa"*)
 
-    let register_arch oc ireg =
-      output_string oc ((if Archi.ptr64 then register_name else register32_name) ireg)
+    let register w oc ireg =
+      output_string oc ((match w with
+                         | W32 -> register32_name
+                         | W64 -> register_name) ireg)
 
-    let register oc ireg = 
-      output_string oc (register_name ireg)
         
-    let immediate = coqint
+    let immediate oc i =
+      match i with
+      | Imm32 i -> coqint oc i
+      | Imm64 i -> coqint64 oc i
 
-    let register_or_immediate oc = function
-      | Datatypes.Coq_inl reg -> register_arch oc reg
+    let register_or_immediate w oc = function
+      | Datatypes.Coq_inl reg ->
+         register w oc reg
       | Datatypes.Coq_inr imm -> immediate oc imm
 
     let rec cmpOp = function
@@ -112,11 +116,11 @@ module Target : TARGET =
       | LE Signed -> "s<="
       | LE Unsigned -> "<="
 
-    and print_cmp oc op reg regimm =
-      fprintf oc "	%a (%s)= %a\n" register_arch reg (cmpOp op) register_or_immediate regimm
+    and print_cmp oc op reg w regimm =
+      fprintf oc "	%a (%s)= %a\n" (register w) reg (cmpOp op) (register_or_immediate w) regimm
 
-    and print_jump_cmp oc op reg regimm label =
-      fprintf oc "	if %a %s %a goto %a\n" register_arch  reg (cmpOp op) register_or_immediate regimm
+    and print_jump_cmp oc op w reg regimm label =
+      fprintf oc "	if %a %s %a goto %a\n" (register w)  reg (cmpOp op) (register_or_immediate w) regimm
         print_label label
 
 (* Names of sections *)
@@ -198,31 +202,39 @@ module Target : TARGET =
       if cmp >= 0 then fprintf oc "+ %ld" n
           else fprintf oc "- %ld" (Int32.abs n)
 
+
+    let  sizew (s:sizeOp) =
+           match s with
+           | Byte | HalfWord | Word | WordAny | SignedWord  -> W32
+           | DBWord | DBWordAny -> W64
+
+    let warchi = if Archi.ptr64 then W64 else W32
+    
     (* Printing of instructions *)
     let print_instruction oc = function
       | Pload (op, reg1, reg2, off) ->
 
-
-        fprintf oc "	%a = *(%a *)(%a %a)\n" register_arch  reg1 sizeOp op register reg2 coqint_as_offset off
+        fprintf oc "	%a = *(%a *)(%a %a)\n" (register (sizew op))  reg1 sizeOp op (register W64) reg2 coqint_as_offset off
 
       | Pstore (op, reg, regimm, off) ->
-        fprintf oc "	*(%a *)(%a %a) = %a\n" sizeOp op register reg  coqint_as_offset off register_or_immediate regimm
+         fprintf oc "	*(%a *)(%a %a) = %a\n" sizeOp op (register W64) reg  coqint_as_offset off
+           (register_or_immediate (sizew op)) regimm
 
-      | Palu (op, reg, regimm) ->
-        fprintf oc "	%a%a%a\n" register_arch reg operator op register_or_immediate  regimm
+      | Palu (op, w, reg, regimm) ->
+        fprintf oc "	%a%a%a\n" (register w) reg operator op (register_or_immediate w) regimm
 
-      | Pcmp (op, reg, regimm) -> print_cmp oc op reg regimm
+      | Pcmp (op, w, reg, regimm) -> print_cmp oc op reg w regimm
       | Pjmp goto -> fprintf oc "	goto %a\n" (print_sum print_label symbol) goto
-      | Pjmpcmp (op, reg, regimm, label) -> print_jump_cmp oc op reg regimm label
+      | Pjmpcmp (op, w, reg, regimm, label) -> print_jump_cmp oc op w reg regimm label
 
       | Pcall ((Datatypes.Coq_inr s), _) -> fprintf oc "	call %a\n" symbol s
-      | Pcall ((Datatypes.Coq_inl r), _) -> fprintf oc "	callx %a\n" register r
+      | Pcall ((Datatypes.Coq_inl r), _) -> fprintf oc "	callx %a\n" (register warchi) r
 
       | Pret -> fprintf oc "	exit\n"
 
       | Plabel label -> fprintf oc "%a:\n" print_label label
 
-      | Ploadsymbol(r,id,ofs) -> fprintf oc "	%a = \"%a\" + %a ll\n" register_arch r symbol id coqint ofs
+      | Ploadsymbol(r,id,ofs) -> fprintf oc "	%a = \"%a\" + %a ll\n" (register warchi) r symbol id coqint ofs
     
       | Pbuiltin _
       | Pallocframe _

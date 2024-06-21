@@ -157,8 +157,8 @@ Proof.
   intros. unfold transl_cbranch in H; destruct cond; TailNoLabel.
 Qed.
 
-Lemma transl_cond_op_as_jump_label : forall k c sg r1 r2,
-    tail_nolabel k (transl_cond_as_Pcmp c sg r1 r2 k).
+Lemma transl_cond_op_as_jump_label : forall k c w sg r1 r2,
+    tail_nolabel k (transl_cond_as_Pcmp c w sg r1 r2 k).
 Proof.
   unfold transl_cond_as_Pcmp.
   intros. TailNoLabel.

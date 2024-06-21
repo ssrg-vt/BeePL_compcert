@@ -49,10 +49,10 @@ Definition addptrofs (rd rs: ireg) (n: ptrofs) (k: code) :=
   else
     OK
       (if Ptrofs.eq_dec n Ptrofs.zero then
-         Palu MOV rd (inl rs) :: k
+         Palu MOV W32 rd (inl rs) :: k
        else
-         Palu MOV rd (inl rs) ::
-              Palu ADD rd (inr (Ptrofs.to_int n)) :: k).
+         Palu MOV W32 rd (inl rs) ::
+              Palu ADD W32 rd (inr (Imm32 (Ptrofs.to_int n))) :: k).
 
 (** Translation of conditional branches. *)
 
@@ -66,31 +66,31 @@ Definition transl_comparison (cmp:comparison) (sg:Ctypes.signedness) :=
   | Cge => GE sg
   end.
 
-Definition transl_cbranch_signed (cmp: comparison) (r1: ireg) (r2: ireg+imm) (lbl: label) :=
-  Pjmpcmp (transl_comparison cmp Ctypes.Signed) r1 r2 lbl.
+Definition transl_cbranch_signed (cmp: comparison) (w:width) (r1: ireg) (r2: ireg+immw w) (lbl: label) :=
+  Pjmpcmp (transl_comparison cmp Ctypes.Signed) w  r1 r2 lbl.
 
-Definition transl_cbranch_unsigned (cmp: comparison) (r1: ireg) (r2: ireg+imm) (lbl: label) :=
-  Pjmpcmp (transl_comparison cmp Ctypes.Unsigned) r1 r2 lbl.
+Definition transl_cbranch_unsigned (cmp: comparison) (w:width) (r1: ireg) (r2: ireg+immw w) (lbl: label) :=
+  Pjmpcmp (transl_comparison cmp Ctypes.Unsigned) w r1 r2 lbl.
 
 Definition transl_cbranch (cond: condition) (args: list mreg) (lbl: label) (k: code) :=
   match cond, args with
   | Ccomp c, a1 :: a2 :: nil =>
       do r1 <- ireg_of a1;
       do r2 <- ireg_of a2;
-      OK (transl_cbranch_signed c r1 (inl r2) lbl :: k)
+      OK (transl_cbranch_signed c W32 r1 (inl r2) lbl :: k)
 
   | Ccompu c, a1 :: a2 :: nil =>
       do r1 <- ireg_of a1;
       do r2 <- ireg_of a2;
-      OK (transl_cbranch_unsigned c r1 (inl r2) lbl :: k)
+      OK (transl_cbranch_unsigned c W32 r1 (inl r2) lbl :: k)
 
   | Ccompimm c n, a1 :: nil =>
       do r1 <- ireg_of a1;
-      OK (transl_cbranch_signed c r1 (inr n) lbl :: k)
+      OK (transl_cbranch_signed c W32 r1 (inr (Imm32 n)) lbl :: k)
 
   | Ccompuimm c n, a1 :: nil =>
       do r1 <- ireg_of a1;
-      OK (transl_cbranch_unsigned c r1 (inr n) lbl :: k)
+      OK (transl_cbranch_unsigned c W32 r1 (inr (Imm32 n)) lbl :: k)
 
   | Ccompf _, _
   | Cnotcompf _, _
@@ -100,8 +100,8 @@ Definition transl_cbranch (cond: condition) (args: list mreg) (lbl: label) (k: c
   | _, _ => Error(msg "Asmgen.transl_cbranch")
   end.
 
-Definition transl_cond_as_Pcmp (cond: comparison) (sg:Ctypes.signedness) (rd:ireg) (a:ireg+int)  (k:code) :=
-    Pcmp (transl_comparison cond sg) rd a :: k.
+Definition transl_cond_as_Pcmp (cond: comparison) (w:width) (sg:Ctypes.signedness) (rd:ireg) (a:ireg+immw w)  (k:code) :=
+    Pcmp (transl_comparison cond sg) w rd a :: k.
 
 
 
@@ -111,23 +111,23 @@ Definition transl_cond_op (cond: condition) (r: mreg) (args: list mreg) (k: code
       assertion (mreg_eq r a1);
       do r1 <- ireg_of a1;
       do r2 <- ireg_of a2;
-      OK (transl_cond_as_Pcmp c Ctypes.Signed r1 (inl r2) k)
+      OK (transl_cond_as_Pcmp c W32 Ctypes.Signed r1 (inl r2) k)
 
   | Ccompu c, a1 :: a2 :: nil =>
       assertion (mreg_eq r a1);
       do r1 <- ireg_of a1;
       do r2 <- ireg_of a2;
-      OK (transl_cond_as_Pcmp c Ctypes.Unsigned r1 (inl r2) k)
+      OK (transl_cond_as_Pcmp c W32 Ctypes.Unsigned r1 (inl r2) k)
 
   | Ccompimm c n, a1 :: nil =>
       assertion (mreg_eq r a1);
       do r1 <- ireg_of a1;
-      OK (transl_cond_as_Pcmp c Ctypes.Signed r1 (inr n) k)
+      OK (transl_cond_as_Pcmp c W32 Ctypes.Signed r1 (inr (Imm32 n)) k)
 
   | Ccompuimm c n, a1 :: nil =>
       assertion (mreg_eq r a1);
       do r1 <- ireg_of a1;
-      OK (transl_cond_as_Pcmp c Ctypes.Unsigned r1 (inr n) k)
+      OK (transl_cond_as_Pcmp c W32 Ctypes.Unsigned r1 (inr (Imm32 n)) k)
 
   | Ccompf c, _
   | Cnotcompf c, _
@@ -140,16 +140,26 @@ Definition transl_cond_op (cond: condition) (r: mreg) (args: list mreg) (k: code
 (** Translation of the arithmetic operation [r <- op(args)].
   The corresponding instructions are prepended to [k]. *)
 
+Definition warchi := if Archi.ptr64 then W64 else W32.
+
+
 Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
   match op, args with
   | Omove, a1 :: nil =>
       do r <- ireg_of res;
       do r1 <- ireg_of a1;
-      OK (Palu MOV r (inl r1) :: k)
+      OK (Palu MOV warchi r (inl r1) :: k)
 
   | Ointconst n, nil =>
       do r <- ireg_of res;
-      OK (Palu MOV r (inr n) :: k)
+      OK (Palu MOV W32 r (inr (Imm32 n)) :: k)
+
+  | Olongconst n, nil =>
+      do r <- ireg_of res;
+      if Int64.cmpu Cle n (Int64.repr Int.max_unsigned)
+      then
+        OK (Palu MOV W64 r (inr  (Imm64 n)) :: k)
+      else Error (msg "out-of-bound constant")
 
   | Oaddrstack n, nil =>
       do r <- ireg_of res;
@@ -159,127 +169,127 @@ Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
-      OK (Palu ADD r (inl r2) :: k)
+      OK (Palu ADD W32 r (inl r2) :: k)
 
   | Oaddimm n, a1 :: nil =>
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
-      OK (Palu ADD r (inr n) :: k)
+      OK (Palu ADD W32 r (inr (Imm32 n)) :: k)
 
   | Oneg, a1 :: nil =>
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
-      OK (Palu MUL r (inr (Int.repr (-1))) :: k)
+      OK (Palu MUL W32 r (inr (Imm32 (Int.repr (-1)))) :: k)
 
   | Osub, a1 :: a2 :: nil =>
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
-      OK (Palu SUB r (inl r2) :: k)
+      OK (Palu SUB W32 r (inl r2) :: k)
 
   | Osubimm n, a1 :: nil =>
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
-      OK (Palu SUB r (inr n) :: k)
+      OK (Palu SUB W32 r (inr (Imm32 n)) :: k)
 
   | Omul, a1 :: a2 :: nil =>
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
-      OK (Palu MUL r (inl r2) :: k)
+      OK (Palu MUL W32 r (inl r2) :: k)
 
   | Omulimm n, a1 :: nil =>
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
-      OK (Palu MUL r (inr n) :: k)
+      OK (Palu MUL W32 r (inr (Imm32 n)) :: k)
 
   | Odivu, a1 :: a2 :: nil =>
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
-      OK (Palu DIV r (inl r2) :: k)
+      OK (Palu DIV W32 r (inl r2) :: k)
 
   | Odivuimm n, a1 :: nil =>
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
-      OK (Palu DIV r (inr n) :: k)
+      OK (Palu DIV W32 r (inr (Imm32 n)) :: k)
 
   | Omodu, a1 :: a2 :: nil =>
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
-      OK (Palu MOD r (inl r2) :: k)
+      OK (Palu MOD W32 r (inl r2) :: k)
 
   | Omoduimm n, a1 :: nil =>
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
-      OK (Palu MOD r (inr n) :: k)
+      OK (Palu MOD W32 r (inr (Imm32 n)) :: k)
 
   | Oand, a1 :: a2 :: nil =>
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
-      OK (Palu AND r (inl r2) :: k)
+      OK (Palu AND W32 r (inl r2) :: k)
 
   | Oandimm n, a1 :: nil =>
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
-      OK (Palu AND r (inr n) :: k)
+      OK (Palu AND W32 r (inr (Imm32 n)) :: k)
 
   | Oor, a1 :: a2 :: nil =>
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
-      OK (Palu OR r (inl r2) :: k)
+      OK (Palu OR W32 r (inl r2) :: k)
 
   | Oorimm n, a1 :: nil =>
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
-      OK (Palu OR r (inr n) :: k)
+      OK (Palu OR W32 r (inr (Imm32 n)) :: k)
 
   | Oxor, a1 :: a2 :: nil =>
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
-      OK (Palu XOR r (inl r2) :: k)
+      OK (Palu XOR W32 r (inl r2) :: k)
 
   | Oxorimm n, a1 :: nil =>
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
-      OK (Palu XOR r (inr n) :: k)
+      OK (Palu XOR W32 r (inr (Imm32 n)) :: k)
 
   | Oshl, a1 :: a2 :: nil =>
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
-      OK (Palu LSH r (inl r2) :: k)
+      OK (Palu LSH W32 r (inl r2) :: k)
 
   | Oshlimm n, a1 :: nil =>
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
-      OK (Palu LSH r (inr n) :: k)
+      OK (Palu LSH W32 r (inr (Imm32 n)) :: k)
 
   | Oshr, a1 :: a2 :: nil =>
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
-      OK (Palu ARSH r (inl r2) :: k)
+      OK (Palu ARSH W32 r (inl r2) :: k)
 
   | Oshrimm n, a1 :: nil =>
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
-      OK (Palu ARSH r (inr n) :: k)
+      OK (Palu ARSH W32 r (inr (Imm32 n)) :: k)
 
   | Oshru, a1 :: a2 :: nil =>
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
-      OK (Palu RSH r (inl r2) :: k)
+      OK (Palu RSH W32 r (inl r2) :: k)
 
   | Oshruimm n, a1 :: nil =>
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
-      OK (Palu RSH r (inr n) :: k)
+      OK (Palu RSH W32 r (inr (Imm32 n)) :: k)
 
   | Ocmp cmp, _ =>
       transl_cond_op cmp res args k
@@ -292,79 +302,80 @@ Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
 | Ocast8signed, a1 :: nil =>
     do r <- ireg_of res;
     assertion (mreg_eq a1 res);
-    OK (Palu LSH r (inr (Int.repr 24)) :: Palu ARSH r (inr (Int.repr 24)) :: k)
+OK (Palu LSH W32 r (inr (Imm32 (Int.repr 24))) ::
+      Palu ARSH W32 r (inr (Imm32 (Int.repr 24))) :: k)
 | Ocast16signed, a1 :: nil =>
     do r <- ireg_of res;
     assertion (mreg_eq a1 res);
-    OK (Palu LSH r (inr (Int.repr 16)) :: Palu ARSH r (inr (Int.repr 16)) :: k)
+OK (Palu LSH W32 r (inr (Imm32 (Int.repr 16))) ::
+      Palu ARSH W32 r (inr (Imm32 (Int.repr 16))) :: k)
 
-  | Omulhs, a1 :: a2 :: nil => Error (msg "mulhs is not available in eBPF: pass -Os")
-  | Omulhu, a1 :: a2 :: nil => Error (msg "mulhu is not available in eBPF: pass -Os")
-  | Omod, a1 :: a2 :: nil => Error (msg "signed modulo is not available in eBPF")
+| Omulhs, a1 :: a2 :: nil => Error (msg "mulhs is not available in eBPF: pass -Os")
+| Omulhu, a1 :: a2 :: nil => Error (msg "mulhu is not available in eBPF: pass -Os")
+| Omod, a1 :: a2 :: nil => Error (msg "signed modulo is not available in eBPF")
 
-  | Oaddl , _
-  | Oaddlimm _ , _
-  | Onegl , _
-  | Osubl , _
-  | Osublimm _ , _
-  | Omull  , _
-  | Omullimm _ , _
-  | Odivlu    , _
-  | Odivluimm _ , _
-  | Omodlu      , _
-  | Omodluimm _ , _
-  | Oandl       , _
-  | Oandlimm  _ , _
-  | Oorl        , _
-  | Oorlimm   _ , _
-  | Oxorl       , _
-  | Oxorlimm _  , _
-  | Oshll       , _
-  | Oshllimm _  , _
-  | Oshrl       , _
-  | Oshrlimm _  , _
-  | Oshrlu      , _
-  | Oshrluimm _ , _ => Error (MSG "ebpf(64) does not support '" :: MSG (string_of_operation op) :: MSG "'" :: nil)
+| Oaddl , _
+| Oaddlimm _ , _
+| Onegl , _
+| Osubl , _
+| Osublimm _ , _
+| Omull  , _
+| Omullimm _ , _
+| Odivlu    , _
+| Odivluimm _ , _
+| Omodlu      , _
+| Omodluimm _ , _
+| Oandl       , _
+| Oandlimm  _ , _
+| Oorl        , _
+| Oorlimm   _ , _
+| Oxorl       , _
+| Oxorlimm _  , _
+| Oshll       , _
+| Oshllimm _  , _
+| Oshrl       , _
+| Oshrlimm _  , _
+| Oshrlu      , _
+| Oshrluimm _ , _ => Error (MSG "ebpf(64) does not support '" :: MSG (string_of_operation op) :: MSG "'" :: nil)
 
-  | Ofloatconst _, _
-  | Osingleconst _, nil
+| Ofloatconst _, _
+| Osingleconst _, nil
 
-  | Onegf, _
-  | Oabsf, _
-  | Oaddf, _
-  | Osubf, _
-  | Omulf, _
-  | Odivf, _
+| Onegf, _
+| Oabsf, _
+| Oaddf, _
+| Osubf, _
+| Omulf, _
+| Odivf, _
 
-  | Onegfs, _
-  | Oabsfs, _
-  | Oaddfs, _
-  | Osubfs, _
-  | Omulfs, _
-  | Odivfs, _
+| Onegfs, _
+| Oabsfs, _
+| Oaddfs, _
+| Osubfs, _
+| Omulfs, _
+| Odivfs, _
 
-  | Osingleoffloat, _
-  | Ofloatofsingle, _
+| Osingleoffloat, _
+| Ofloatofsingle, _
 
-  | Ointoffloat, _
-  | Ointuoffloat, _
-  | Ofloatofint, _
-  | Ofloatofintu, _
-  | Ointofsingle, _
-  | Ointuofsingle, _
-  | Osingleofint, _
-  | Osingleofintu, _
+| Ointoffloat, _
+| Ointuoffloat, _
+| Ofloatofint, _
+| Ofloatofintu, _
+| Ointofsingle, _
+| Ointuofsingle, _
+| Osingleofint, _
+| Osingleofintu, _
 
-  | Olongoffloat, _
-  | Olonguoffloat, _
-  | Ofloatoflong, _
-  | Ofloatoflongu, _
-  | Olongofsingle, _
-  | Olonguofsingle, _
-  | Osingleoflong, _
-  | Osingleoflongu, _ => Error (msg "Floating point conversions are not available in eBPF")
-
-| _, _ => Error (msg "Asmgen.transl_op")
+| Olongoffloat, _
+| Olonguoffloat, _
+| Ofloatoflong, _
+| Ofloatoflongu, _
+| Olongofsingle, _
+| Olonguofsingle, _
+| Osingleoflong, _
+| Osingleoflongu, _ => Error (msg "Floating point conversions are not available in eBPF")
+| o, _ => Error (MSG "Asmgen.transl_op"::MSG (string_of_operation o):: MSG " is not supported" :: nil)
   end.
 
 
@@ -407,10 +418,11 @@ Definition transl_load_indexed (chunk : memory_chunk) (d:ireg) (a:ireg) (ofs: pt
   | Mint32         => OK (Pload Word   d a ofs :: k)
   | Mint64         => if Archi.ptr64 then OK (Pload DBWord d a ofs :: k) else Error (msg "int64 is only available for eBPF-64")
   | Many64         => if Archi.ptr64 then OK (Pload DBWordAny d a ofs :: k) else Error (msg "int64 is only available for eBPF-64")
-  | Mint8signed    => OK (Pload Byte d a ofs :: Palu LSH d (inr (Int.repr 24)) :: Palu ARSH d (inr (Int.repr 24)) :: k)
-  | Mint16signed   => OK (Pload HalfWord d a ofs :: Palu LSH d (inr (Int.repr 16)) :: Palu ARSH d (inr (Int.repr 16)) :: k)
+  | Mint8signed    => OK (Pload Byte d a ofs :: Palu LSH W32 d (inr (Imm32 (Int.repr 24))) :: Palu ARSH W32 d (inr (Imm32 (Int.repr 24))) :: k)
+  | Mint16signed   => OK (Pload HalfWord d a ofs :: Palu LSH W32 d (inr (Imm32 (Int.repr 16))) :: Palu ARSH W32 d (inr (Imm32 (Int.repr 16))) :: k)
   | Mfloat32 | Mfloat64      => Error (msg "Floating point numbers are not supported by eBPF")
   end.
+
 
 
 Definition transl_load (chunk: memory_chunk) (addr: addressing)

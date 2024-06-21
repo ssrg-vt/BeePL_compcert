@@ -108,9 +108,9 @@ Qed.
 
 
 Lemma transl_comparison_signed_correct:
-  forall cmp r1 r2  (rs: regset) m b,
-  Val.cmp_bool cmp rs#(IR r1) (eval_reg_imm rs r2) = Some b ->
-  eval_cmp (transl_comparison cmp Ctypes.Signed) rs m r1 r2 = Some b.
+  forall cmp w r1 r2  (rs: regset) m b,
+  Val.cmp_bool cmp rs#(IR r1) (eval_reg_immw w rs r2) = Some b ->
+  eval_cmp (transl_comparison cmp Ctypes.Signed) w rs m r1 r2 = Some b.
 Proof.
   intros.
   unfold transl_comparison.
@@ -120,9 +120,9 @@ Proof.
 Qed.
 
 Lemma transl_comparison_unsigned_correct:
-  forall cmp r1 r2  (rs: regset) m b,
-  Val.cmpu_bool (Mem.valid_pointer m) cmp rs#(IR r1) (eval_reg_imm rs r2) = Some b ->
-  eval_cmp (transl_comparison cmp Ctypes.Unsigned) rs m r1 r2 = Some b.
+  forall cmp w r1 r2  (rs: regset) m b,
+  Val.cmpu_bool (Mem.valid_pointer m) cmp rs#(IR r1) (eval_reg_immw w rs r2) = Some b ->
+  eval_cmp (transl_comparison cmp Ctypes.Unsigned) w rs m r1 r2 = Some b.
 Proof.
   intros.
   unfold transl_comparison.
@@ -130,9 +130,9 @@ Proof.
 Qed.
 
 Lemma transl_cbranch_signed_correct:
-  forall cmp r1 r2 lbl (rs: regset) m b,
-  Val.cmp_bool cmp rs#(IR r1) (eval_reg_imm rs r2) = Some b ->
-  exec_instr ge fn (transl_cbranch_signed cmp r1 r2 lbl) rs m =
+  forall cmp w r1 r2 lbl (rs: regset) m b,
+  Val.cmp_bool cmp rs#(IR r1) (eval_reg_immw w rs r2) = Some b ->
+  exec_instr ge fn (transl_cbranch_signed cmp w r1 r2 lbl) rs m =
   exec_branch fn lbl rs m (Some b).
 Proof.
   intros.
@@ -143,9 +143,9 @@ Proof.
 Qed.
 
 Lemma transl_cbranch_unsigned_correct:
-  forall cmp r1 r2 lbl (rs: regset) m b,
-  Val.cmpu_bool (Mem.valid_pointer m) cmp rs#(IR r1) (eval_reg_imm rs r2) = Some b ->
-  exec_instr ge fn (transl_cbranch_unsigned cmp r1 r2 lbl) rs m =
+  forall cmp w r1 r2 lbl (rs: regset) m b,
+  Val.cmpu_bool (Mem.valid_pointer m) cmp rs#(IR r1) (eval_reg_immw w rs r2) = Some b ->
+  exec_instr ge fn (transl_cbranch_unsigned cmp w r1 r2 lbl) rs m =
   exec_branch fn lbl rs m (Some b).
 Proof.
   intros.
@@ -186,13 +186,13 @@ Proof.
   { apply eval_condition_lessdef with (map ms args) m; auto. eapply preg_vals; eauto. }
   clear EVAL MEXT AG.
   destruct cond; simpl in TRANSL; ArgsInv.
-  - exists rs, (transl_cbranch_signed c0 x (inl x0) lbl).
+  - exists rs, (transl_cbranch_signed c0 W32 x (inl x0) lbl).
     intuition auto. constructor. apply transl_cbranch_signed_correct; auto.
-  - exists rs, (transl_cbranch_unsigned c0 x (inl x0) lbl).
+  - exists rs, (transl_cbranch_unsigned c0 W32 x (inl x0) lbl).
     intuition auto. constructor. apply transl_cbranch_unsigned_correct; auto.
-  - exists rs, (transl_cbranch_signed c0 x (inr n) lbl).
+  - exists rs, (transl_cbranch_signed c0 W32 x (inr (Imm32 n)) lbl).
     intuition auto. constructor. apply transl_cbranch_signed_correct; auto.
-  - exists rs, (transl_cbranch_unsigned c0 x (inr n) lbl).
+  - exists rs, (transl_cbranch_unsigned c0 W32 x (inr (Imm32 n)) lbl).
     intuition auto. constructor. apply transl_cbranch_unsigned_correct; auto.
 Qed.
 
@@ -238,41 +238,41 @@ Ltac TranslCondSimpl :=
   | split; intros; Simpl ].
 
 Lemma transl_cond_signed_correct:
-  forall cmp r1 r2 k rs m,
+  forall cmp w r1 r2 k rs m,
   exists rs',
-     exec_straight ge fn (transl_cond_as_Pcmp cmp Ctypes.Signed r1 r2  k) rs m k rs' m
-  /\ Val.lessdef (Val.cmp cmp rs#r1 (eval_reg_imm rs r2)) rs'#r1
+     exec_straight ge fn (transl_cond_as_Pcmp cmp w Ctypes.Signed r1 r2  k) rs m k rs' m
+  /\ Val.lessdef (Val.cmp cmp rs#r1 (eval_reg_immw w rs r2)) rs'#r1
   /\ forall r, r <> PC -> r <> r1 -> rs'#r = rs#r.
 Proof.
   intros.
   unfold transl_cond_as_Pcmp.
   destruct cmp; simpl; TranslCondSimpl.
-  unfold eval_cmp; destruct (rs#r1); auto; destruct (eval_reg_imm rs r2); auto.
-  unfold eval_cmp; destruct (rs#r1); auto; destruct (eval_reg_imm rs r2); auto.
+  unfold eval_cmp; destruct (rs#r1); auto; destruct (eval_reg_immw w rs r2); auto.
+  unfold eval_cmp; destruct (rs#r1); auto; destruct (eval_reg_immw w rs r2); auto.
 Qed.
 
 Lemma transl_cond_unsigned_correct:
-  forall cmp r1 r2 k rs m,
+  forall cmp w r1 r2 k rs m,
   exists rs',
-     exec_straight ge fn (transl_cond_as_Pcmp cmp Ctypes.Unsigned r1 r2 k) rs m k rs' m
-  /\ Val.lessdef (Val.cmpu (Mem.valid_pointer m) cmp rs#r1 (eval_reg_imm rs r2)) rs'#r1
+     exec_straight ge fn (transl_cond_as_Pcmp cmp w Ctypes.Unsigned r1 r2 k) rs m k rs' m
+  /\ Val.lessdef (Val.cmpu (Mem.valid_pointer m) cmp rs#r1 (eval_reg_immw w rs r2)) rs'#r1
   /\ forall r, r <> PC -> r <> r1 -> rs'#r = rs#r.
 Proof.
   intros. destruct cmp; simpl; TranslCondSimpl.
 Qed.
 
 Lemma transl_cond_as_jump_correct:
-  forall cmp r1 r2 k rs m,
+  forall cmp w r1 r2 k rs m,
   exists rs',
-     exec_straight ge fn (transl_cond_as_Pcmp cmp Ctypes.Signed r1 r2 k) rs m k rs' m
-  /\ Val.lessdef (Val.cmp cmp rs#r1 (eval_reg_imm rs r2)) rs'#r1
+     exec_straight ge fn (transl_cond_as_Pcmp cmp w Ctypes.Signed r1 r2 k) rs m k rs' m
+  /\ Val.lessdef (Val.cmp cmp rs#r1 (eval_reg_immw w rs r2)) rs'#r1
   /\ forall r, r <> PC -> r <> r1 -> rs'#r = rs#r.
 Proof.
   intros.
   unfold transl_cond_as_Pcmp.
   destruct cmp; simpl; TranslCondSimpl.
-  unfold eval_cmp; destruct (rs#r1); auto; destruct (eval_reg_imm rs r2); auto.
-  unfold eval_cmp; destruct (rs#r1); auto; destruct (eval_reg_imm rs r2); auto.
+  unfold eval_cmp; destruct (rs#r1); auto; destruct (eval_reg_immw w rs r2); auto.
+  unfold eval_cmp; destruct (rs#r1); auto; destruct (eval_reg_immw w rs r2); auto.
 Qed.
 
 
@@ -325,7 +325,7 @@ Ltac TranslALUOpSimpl EV :=
 
 Lemma sign_ext_8 : forall x rs k  m,
   exists rs' : regset,
-    exec_straight ge fn (Palu LSH x (inr (Int.repr 24)) :: Palu ARSH x (inr (Int.repr 24)) :: k) rs m k rs' m /\
+    exec_straight ge fn (Palu LSH W32 x (inr (Imm32 (Int.repr 24))) :: Palu ARSH W32 x (inr (Imm32 (Int.repr 24))) :: k) rs m k rs' m /\
       Val.sign_ext 8 (rs x) = (rs' x) /\
       (forall r : preg, r <> PC -> r <> x  -> rs' r = rs r).
 Proof.
@@ -333,7 +333,7 @@ Proof.
   eexists.  split;[|split].
   - eapply exec_straight_two; reflexivity.
   - Simpl.
-    unfold eval_reg_imm.
+    unfold eval_reg_immw.
     destruct (rs x) ; simpl; auto.
     change (Int.ltu (Int.repr 24) Int.iwordsize) with true.
     simpl. change (Int.ltu (Int.repr 24) Int.iwordsize) with true.
@@ -344,7 +344,7 @@ Qed.
 
 Lemma sign_ext_16 : forall x rs k  m,
   exists rs' : regset,
-    exec_straight ge fn (Palu LSH x (inr (Int.repr 16)) :: Palu ARSH x (inr (Int.repr 16)) :: k) rs m k rs' m /\
+    exec_straight ge fn (Palu LSH W32 x (inr (Imm32 (Int.repr 16))) :: Palu ARSH W32 x (inr (Imm32 (Int.repr 16))) :: k) rs m k rs' m /\
       (Val.sign_ext 16 (rs x)) =  (rs' x) /\
       (forall r : preg, r <> PC -> r <> x  -> rs' r = rs r).
 Proof.
@@ -352,7 +352,7 @@ Proof.
   eexists.  split;[|split].
   - eapply exec_straight_two; reflexivity.
   - Simpl.
-    unfold eval_reg_imm.
+    unfold eval_reg_immw.
     destruct (rs x) ; simpl; auto.
     change (Int.ltu (Int.repr 16) Int.iwordsize) with true.
     simpl. change (Int.ltu (Int.repr 16) Int.iwordsize) with true.
@@ -375,6 +375,15 @@ Proof.
 Opaque Int.eq.
   intros until c; intros TR EV.
   unfold transl_op in TR; destruct op; ArgsInv; simpl in EV; SimplEval EV; try TranslOpSimpl.
+  - (* Olongconst *)
+    destruct (negb (Int64.ltu (Int64.repr Int.max_unsigned) n)); try discriminate.
+    inv EQ0.
+    econstructor; split.
+    apply exec_straight_one; reflexivity.
+    split.
+    + apply Val.lessdef_same; Simpl.
+    + intros.
+      Simpl.
   - (* addrstack *)
     exploit addptrofs_correct; eauto.
     intros (rs' & A & B & C).
@@ -384,7 +393,7 @@ Opaque Int.eq.
   apply exec_straight_one; reflexivity.
   split.
   + apply Val.lessdef_same; Simpl.
-    unfold Val.neg, Val.mul, eval_reg_imm.
+    unfold Val.neg, Val.mul, eval_reg_immw.
     destruct (rs x); try reflexivity.
     f_equal; symmetry; apply Int.mul_mone.
   + intros; Simpl.
@@ -681,7 +690,7 @@ Proof.
   - (* Mint8unsigned *)
     inv TR.
     econstructor. split.
-    apply exec_straight_one; simpl; unfold exec_store,store,eval_reg_imm.
+    apply exec_straight_one; simpl; unfold exec_store,store,eval_reg_immw.
     rewrite STORE. reflexivity.
     reflexivity.
     intros. Simplif.
@@ -699,13 +708,13 @@ Proof.
   -
     inv TR.
     econstructor. split.
-    apply exec_straight_one; simpl; unfold exec_store,store,eval_reg_imm.
+    apply exec_straight_one; simpl; unfold exec_store,store,eval_reg_immw.
     rewrite STORE. reflexivity.
     reflexivity.
     intros. Simplif.
   -     inv TR.
     econstructor. split.
-    apply exec_straight_one; simpl; unfold exec_store,store,eval_reg_imm.
+    apply exec_straight_one; simpl; unfold exec_store,store,eval_reg_immw.
     rewrite STORE. reflexivity.
     reflexivity.
     intros. Simplif.
@@ -713,7 +722,7 @@ Proof.
     destruct Archi.ptr64 eqn:ARCHI;[|discriminate].
     inv TR.
     econstructor. split.
-    apply exec_straight_one; simpl; unfold exec_store,store,eval_reg_imm.
+    apply exec_straight_one; simpl; unfold exec_store,store,eval_reg_immw.
     rewrite ARCHI.
     rewrite STORE. reflexivity.
     reflexivity.
@@ -723,7 +732,7 @@ Proof.
   -
     inv TR.
     econstructor. split.
-    apply exec_straight_one; simpl; unfold exec_store,store,eval_reg_imm.
+    apply exec_straight_one; simpl; unfold exec_store,store,eval_reg_immw.
     rewrite STORE. reflexivity.
     reflexivity.
     intros. Simplif.
@@ -731,7 +740,7 @@ Proof.
     destruct Archi.ptr64 eqn:ARCHI; [|discriminate].
     inv TR.
     econstructor. split.
-    apply exec_straight_one; simpl; unfold exec_store,store,eval_reg_imm.
+    apply exec_straight_one; simpl; unfold exec_store,store,eval_reg_immw.
     rewrite STORE. rewrite ARCHI. reflexivity.
     reflexivity.
     intros. Simplif.
