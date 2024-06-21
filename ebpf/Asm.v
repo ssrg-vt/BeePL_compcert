@@ -83,8 +83,17 @@ Notation "'RA'" := R9 (only parsing) : asm.
   code. *)
 
 Definition off := Ptrofs.int. (* 16 bits *)
-Definition imm := int. (* 20 bits *)
+Definition imm := int. (* 32 bits *)
 Definition label := positive.
+
+Inductive width := W32 | W64.
+
+Inductive immw : width -> Type :=
+| Imm32  : forall (i:int), immw W32
+| Imm64  : forall (i:int64), immw W64.
+
+
+Definition warchi := if Archi.ptr64 then W64 else W32.
 
 Inductive aluOp : Type :=
   | ADD   (**r dst += src *)
@@ -116,18 +125,25 @@ Inductive sizeOp : Type :=
 | HalfWord    (**r 2 bytes *)
 | Word        (**r 4 bytes *)
 | WordAny     (**r 4 bytes *)
-  (** 64 bits *)
 | SignedWord (**r 4 bytes (signed) *)
+(** 64 bits *)
 | DBWord     (**r 8 bytes *)
 | DBWordAny.  (**r 8 bytes *)
 
+
+Definition sizew (s:sizeOp) :=
+  match s with
+  | Byte | HalfWord | Word | WordAny | SignedWord  => W32
+  | DBWord | DBWordAny => W64
+  end.
+
 Inductive instruction : Type :=
-  | Pload : sizeOp -> ireg -> ireg -> off -> instruction        (**r dereference load *)
-  | Pstore : sizeOp -> ireg -> ireg+imm -> off -> instruction   (**r dereference store *)
-  | Palu : aluOp -> ireg -> ireg+imm -> instruction             (**r arithmetics *)
-  | Pcmp : cmpOp -> ireg -> ireg+imm -> instruction             (**r comparison without branching: eBPF extension *)
+  | Pload : forall (sz:sizeOp) (dst:ireg) (src:ireg) (offset:off), instruction        (** dst = * (size) (src + offset) *)
+  | Pstore : forall (sz:sizeOp) (dst:ireg) (src:ireg+immw (sizew sz)) (offset:off), instruction   (**r * (size) (dst + offset) = src *)
+  | Palu : forall (o:aluOp) (w:width) (r:ireg) (a:ireg+immw w), instruction    (**r arithmetics *)
+  | Pcmp : forall (o:cmpOp) (w:width) (r:ireg) (a:ireg+immw w), instruction             (**r comparison without branching: eBPF extension *)
   | Pjmp : ident+label -> instruction                           (**r unconditional jump *)
-  | Pjmpcmp : cmpOp -> ireg -> ireg+imm -> label -> instruction (**r conditional jump with comparison *)
+  | Pjmpcmp : forall (o:cmpOp) (w:width) (r:ireg) (a:ireg+immw w) (l:label), instruction (**r conditional jump with comparison *)
   | Pcall : ireg+ident -> signature -> instruction              (**r function call *)
   | Pret : instruction                                          (**r function return *)
 
@@ -249,46 +265,51 @@ Definition goto_label (f: function) (lbl: label) (rs: regset) (m: mem) :=
       end
   end.
 
-Definition eval_reg_imm (rs : regset) (ri: ireg+imm) : val :=
+
+Definition eval_reg_immw (w:width) (rs : regset) (ri: ireg+immw w) : val :=
   match ri with
-  | inl r => rs#r
-  | inr i => Vint i
+  | inl i => (fun i0 : ireg => rs i0) i
+  | inr i =>
+      match i with
+      | Imm32 i => Vint i
+      | Imm64 i => Vlong i
+      end
   end.
 
 (** Evaluation of [Palu] operands *)
 
-Definition eval_alu (b: aluOp) (v1 v2: val) : option val :=
+Definition eval_alu (b: aluOp) (w:width) (v1 v2: val) : option val :=
   match b with
-  | ADD => Some (Val.add v1 v2)
-  | SUB => Some (Val.sub v1 v2)
-  | MUL => Some (Val.mul v1 v2)
-  | DIV => Val.divu v1 v2
-  | OR  => Some (Val.or v1 v2)
-  | AND => Some (Val.and v1 v2)
-  | LSH => Some (Val.shl v1 v2)
-  | RSH => Some (Val.shru v1 v2)
-  | NEG => Some (Val.neg v2)
-  | MOD => Val.modu v1 v2
-  | XOR => Some (Val.xor v1 v2)
+  | ADD => Some (if w then Val.add v1 v2 else Val.addl v1 v2)
+  | SUB => Some (if w then Val.sub v1 v2 else Val.subl v1 v2)
+  | MUL => Some (if w then Val.mul v1 v2 else Val.mull v1 v2)
+  | DIV => if w then Val.divu v1 v2 else Val.divlu v1 v2
+  | OR  => Some (if w then Val.or v1 v2 else Val.orl v1 v2)
+  | AND => Some (if w then Val.and v1 v2 else Val.andl v1 v2)
+  | LSH => Some (if w then Val.shl v1 v2 else Val.shll v1 v2)
+  | RSH => Some (if w then Val.shru v1 v2 else Val.shrlu v1 v2)
+  | NEG => Some (if w then Val.neg v2 else Val.negl v2)
+  | MOD => if w then Val.modu v1 v2 else Val.modlu v1 v2
+  | XOR => Some (if w then Val.xor v1 v2 else Val.xorl v1 v2)
   | MOV => Some v2
-  | ARSH => Some (Val.shr v1 v2)
+  | ARSH => Some (if w then Val.shr v1 v2 else Val.shrl v1 v2)
   end.
 
 (** Evaluation of [Pcmp] and [Pjmpcmp] operands *)
 
-Definition eval_cmp (op: cmpOp) (rs: regset) (m: mem) (r: ireg) (ri: ireg+imm) : option bool :=
+Definition eval_cmp (op: cmpOp) (w:width) (rs: regset) (m: mem) (r: ireg) (ri: ireg+immw w) : option bool :=
   match op with
-  | EQ          => Val.cmpu_bool (Mem.valid_pointer m) Ceq (rs#r) (eval_reg_imm rs ri)
-  | GT Signed   => Val.cmp_bool Cgt (rs#r) (eval_reg_imm rs ri)
-  | GT Unsigned => Val.cmpu_bool (Mem.valid_pointer m) Cgt (rs#r) (eval_reg_imm rs ri)
-  | GE Signed   => Val.cmp_bool Cge (rs#r) (eval_reg_imm rs ri)
-  | GE Unsigned => Val.cmpu_bool (Mem.valid_pointer m) Cge (rs#r) (eval_reg_imm rs ri)
-  | LT Signed   => Val.cmp_bool Clt (rs#r) (eval_reg_imm rs ri)
-  | LT Unsigned => Val.cmpu_bool (Mem.valid_pointer m) Clt (rs#r) (eval_reg_imm rs ri)
-  | LE Signed   => Val.cmp_bool Cle (rs#r) (eval_reg_imm rs ri)
-  | LE Unsigned => Val.cmpu_bool (Mem.valid_pointer m) Cle (rs#r) (eval_reg_imm rs ri)
-  | SET         => Val.cmpu_bool (Mem.valid_pointer m) Cne (Val.and (rs#r) (eval_reg_imm rs ri)) (Vint Int.zero)
-  | NE          => Val.cmpu_bool (Mem.valid_pointer m) Cne (rs#r) (eval_reg_imm rs ri)
+  | EQ          => Val.cmpu_bool (Mem.valid_pointer m) Ceq (rs#r) (eval_reg_immw w rs ri)
+  | GT Signed   => Val.cmp_bool Cgt (rs#r) (eval_reg_immw w rs ri)
+  | GT Unsigned => Val.cmpu_bool (Mem.valid_pointer m) Cgt (rs#r) (eval_reg_immw w rs ri)
+  | GE Signed   => Val.cmp_bool Cge (rs#r) (eval_reg_immw w rs ri)
+  | GE Unsigned => Val.cmpu_bool (Mem.valid_pointer m) Cge (rs#r) (eval_reg_immw w rs ri)
+  | LT Signed   => Val.cmp_bool Clt (rs#r) (eval_reg_immw w rs ri)
+  | LT Unsigned => Val.cmpu_bool (Mem.valid_pointer m) Clt (rs#r) (eval_reg_immw w rs ri)
+  | LE Signed   => Val.cmp_bool Cle (rs#r) (eval_reg_immw w rs ri)
+  | LE Unsigned => Val.cmpu_bool (Mem.valid_pointer m) Cle (rs#r) (eval_reg_immw w rs ri)
+  | SET         => Val.cmpu_bool (Mem.valid_pointer m) Cne (Val.and (rs#r) (eval_reg_immw w rs ri)) (Vint Int.zero)
+  | NE          => Val.cmpu_bool (Mem.valid_pointer m) Cne (rs#r) (eval_reg_immw w rs ri)
   end.
 
 
@@ -346,14 +367,14 @@ Definition store (k: sizeOp) (addr:val) (v:val) (m:mem) :=
   end.
 
 
-Definition exec_store (k: sizeOp) (r:ireg) (ri:ireg+imm) (o:Ptrofs.int) (rs: regset) (m:mem) :=
-  match store  k (Val.offset_ptr rs#r o) (eval_reg_imm rs ri) m with
+Definition exec_store (k: sizeOp) (r:ireg) (ri:ireg+immw (sizew k)) (o:Ptrofs.int) (rs: regset) (m:mem) :=
+  match store  k (Val.offset_ptr rs#r o) (eval_reg_immw (sizew k) rs ri) m with
   | None => Stuck
   | Some m' => Next (nextinstr rs) m'
   end.
 
-Definition exec_alu (o: aluOp)  (r: ireg) (ri: ireg+imm) (rs: regset) (m: mem) :=
-  match eval_alu o (rs#r) (eval_reg_imm rs ri) with
+Definition exec_alu (o: aluOp) (w:width) (r: ireg) (ri: ireg+immw w) (rs: regset) (m: mem) :=
+  match eval_alu o w (rs#r) (eval_reg_immw w rs ri) with
   | None => Stuck
   | Some v => Next (nextinstr (rs#r <- v)) m
   end.
@@ -379,11 +400,11 @@ Definition exec_instr (f: function) (i: instruction) (rs:regset) (m: mem) : outc
   match i with
   | Pload k r r' o   => exec_load k r r' o rs m
   | Pstore k r ri o  => exec_store k r ri o rs m
-  | Palu o r ri      => exec_alu o r ri rs m
-  | Pcmp o r ri      => exec_cmp r rs m (eval_cmp o rs m r ri)
+  | Palu o w r ri      => exec_alu o w r ri rs m
+  | Pcmp o w r ri      => exec_cmp r rs m (eval_cmp o w rs m r ri)
   | Pjmp (inl l)     => goto_label f l rs m
   | Pjmp (inr id)    => Next (rs#PC <- (Genv.symbol_address ge id Ptrofs.zero)) m
-  | Pjmpcmp o r ri l => exec_branch f l rs m (eval_cmp o rs m r ri)
+  | Pjmpcmp o w r ri l => exec_branch f l rs m (eval_cmp o w rs m r ri)
   | Pcall (inr s) sg => Next (rs#RA <- (Val.offset_ptr rs#PC Ptrofs.one)
                                 #PC <- (Genv.symbol_address ge s Ptrofs.zero)
                           ) m

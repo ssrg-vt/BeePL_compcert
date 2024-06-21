@@ -23,24 +23,35 @@ exception Error of string
 let ra = R9
 let sp = R10
 
+let warchi = if Archi.ptr64 then W64 else W32
+
+let cast w z =
+  match w with
+  | W32 -> Imm32 (Integers.Int.repr z)
+  | W64 -> Imm64 (Integers.Int64.repr z)
+
+let chunk_of_pointer = if Archi.ptr64 then DBWord else Word
+
 (* Expansion of instructions *)
 let expand_alloc_frame sz ofs_ra ofs_link =
+  let sz = cast warchi sz in
   Datatypes.(
   (* RO := SP *)
-  emit (Palu(MOV,R0,Coq_inl sp));
+  emit (Palu(MOV,warchi,R0,Coq_inl sp));
   (* SP := SP - sz *)
-  emit (Palu(SUB,sp,Coq_inr sz));
+  emit (Palu(SUB,warchi,sp,Coq_inr sz));
   (* *(SP+ofs_link) := R0 *)
-  emit (Pstore(Word,sp,Coq_inl R0,ofs_link));
+  emit (Pstore(chunk_of_pointer,sp,Coq_inl R0,ofs_link));
   (* *(SP+ofs_ra) := RA *)
-  emit (Pstore(Word,sp,Coq_inl ra,ofs_ra)))
+  emit (Pstore(chunk_of_pointer,sp,Coq_inl ra,ofs_ra)))
 
 let expand_free_frame sz ofs_ra ofs_link =
+  let sz = cast warchi sz in
   Datatypes.(
   (* RA := *(SP+ofs_ra) *)
-  emit (Pload(Word,ra,sp,ofs_ra));
+  emit (Pload(chunk_of_pointer,ra,sp,ofs_ra));
   (* SP := SP + sz *)
-  emit (Palu(ADD,sp,Coq_inr sz)))
+  emit (Palu(ADD,warchi,sp,Coq_inr sz)))
 
 
 let expand_instruction instr =
@@ -48,18 +59,18 @@ let expand_instruction instr =
   | Pbuiltin _ -> failwith "Builtin are not supported"
   | Pallocframe(sz,ofs_ra,ofs_link) -> expand_alloc_frame sz ofs_ra ofs_link
   | Pfreeframe(sz,ofs_ra,ofs_link)  -> expand_free_frame sz ofs_ra ofs_link
-  | Pcmp(cmp,reg,regimm) ->
+  | Pcmp(cmp,w,reg,regimm) ->
     (* reg := reg cmp regimm *)
     Datatypes.(
       let label_true = new_label () in
       let label_end   = new_label () in 
       (* if reg cmp regimm Goto goto_true *)
-      emit (Pjmpcmp(cmp,reg,regimm, label_true));
+      emit (Pjmpcmp(cmp,w,reg,regimm, label_true));
       (* else reg := false *)
-      emit (Palu(MOV,reg, Coq_inr Integers.Int.zero));
+      emit (Palu(MOV,W64,reg, Coq_inr (Imm64 Integers.Int.zero)));
       emit (Pjmp (Coq_inl label_end));
       emit (Plabel label_true);
-      emit  (Palu(MOV,reg, Coq_inr Integers.Int.one));
+      emit  (Palu(MOV,W64,reg, Coq_inr (Imm64 Integers.Int.one)));
     emit (Plabel label_end))
   | _ -> emit instr
 
