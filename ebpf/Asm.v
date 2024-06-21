@@ -128,7 +128,7 @@ Inductive instruction : Type :=
   | Pcmp : cmpOp -> ireg -> ireg+imm -> instruction             (**r comparison without branching: eBPF extension *)
   | Pjmp : ident+label -> instruction                           (**r unconditional jump *)
   | Pjmpcmp : cmpOp -> ireg -> ireg+imm -> label -> instruction (**r conditional jump with comparison *)
-  | Pcall : ident -> signature -> instruction                   (**r function call *)
+  | Pcall : ireg+ident -> signature -> instruction              (**r function call *)
   | Pret : instruction                                          (**r function return *)
 
   (* Pseudo-instructions *)
@@ -368,7 +368,6 @@ Definition exec_branch (f: function) (l: label) (rs: regset) (m: mem) (res: opti
   | None => Stuck
   end.
 
-
 (** Execution of a single instruction [i] in initial state
     [rs] and [m].  Return updated state.  For instructions
     that correspond to actual eBPF instructions, the cases are
@@ -385,9 +384,11 @@ Definition exec_instr (f: function) (i: instruction) (rs:regset) (m: mem) : outc
   | Pjmp (inl l)     => goto_label f l rs m
   | Pjmp (inr id)    => Next (rs#PC <- (Genv.symbol_address ge id Ptrofs.zero)) m
   | Pjmpcmp o r ri l => exec_branch f l rs m (eval_cmp o rs m r ri)
-  | Pcall s sg       => Next (rs#RA <- (Val.offset_ptr rs#PC Ptrofs.one)
+  | Pcall (inr s) sg => Next (rs#RA <- (Val.offset_ptr rs#PC Ptrofs.one)
                                 #PC <- (Genv.symbol_address ge s Ptrofs.zero)
                           ) m
+  | Pcall (inl r) sg => Next (rs#RA <- (Val.offset_ptr rs#PC Ptrofs.one)
+                               #PC  <- (rs#r)) m
   | Pret             => Next (rs#PC <- (rs#RA)) m
 
   (** Pseudo-instructions *)

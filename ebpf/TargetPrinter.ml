@@ -215,7 +215,8 @@ module Target : TARGET =
       | Pjmp goto -> fprintf oc "	goto %a\n" (print_sum print_label symbol) goto
       | Pjmpcmp (op, reg, regimm, label) -> print_jump_cmp oc op reg regimm label
 
-      | Pcall (s, _) -> fprintf oc "	call %a\n" symbol s
+      | Pcall ((Datatypes.Coq_inr s), _) -> fprintf oc "	call %a\n" symbol s
+      | Pcall ((Datatypes.Coq_inl r), _) -> fprintf oc "	callx %a\n" register r
 
       | Pret -> fprintf oc "	exit\n"
 
