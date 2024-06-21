@@ -490,13 +490,13 @@ Definition transl_instr (f: Mach.function) (i: Mach.instruction)
 
   | Mstore chunk addr args src => transl_store chunk addr args src k
 
-  | Mcall sig (inr symb) => OK (Pcall symb sig :: k)
+  | Mcall sig (inr symb) => OK (Pcall (inr symb) sig :: k)
+  | Mcall sig (inl r) => do r1 <- ireg_of r ; OK (Pcall (inl r1) sig :: k)
 
   | Mtailcall sig (inr symb) =>
       OK (Pfreeframe f.(fn_stacksize) f.(fn_retaddr_ofs) f.(fn_link_ofs) :: Pjmp (inr symb) :: k)
 
-  | Mcall sig (inl r)
-  | Mtailcall sig (inl r) => Error (msg "Indirect calls are not available in eBPF")
+  | Mtailcall sig (inl r) => Error (msg "Indirect (tail) calls are not implemented")
 
   | Mbuiltin ef args res => Error (MSG "Builtin ":: MSG (name_of_builtin ef) :: MSG " is not supported by eBPF"::nil)
 

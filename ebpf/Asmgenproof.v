@@ -589,11 +589,31 @@ Local Transparent destroyed_by_op.
   assert (f0 = f) by congruence.  subst f0.
   inv AT.
   assert (NOOV: list_length_z tf.(fn_code) <= Ptrofs.max_unsigned).
-    eapply transf_function_no_overflow; eauto.
+  { eapply transf_function_no_overflow; eauto. }
   destruct ros as [rf|fid]; simpl in H; monadInv H5.
-  generalize (code_tail_next_int _ _ _ _ NOOV H6). intro CT1.
+  + generalize (code_tail_next_int _ _ _ _ NOOV H6). intro CT1.
   assert (TCA: transl_code_at_pc ge (Vptr fb (Ptrofs.add ofs Ptrofs.one)) fb f c false tf x).
-    econstructor; eauto.
+  { econstructor; eauto. }
+  exploit return_address_offset_correct; eauto. intros; subst ra.
+  left; econstructor; split.
+  apply plus_one. eapply exec_step_internal. eauto.
+  eapply functions_transl; eauto. eapply find_instr_tail; eauto.
+  simpl. reflexivity.
+  econstructor; eauto.
+  econstructor; eauto.
+  eapply agree_sp_def; eauto.
+  simpl. eapply agree_exten; eauto. intros. Simpl.
+  Simpl.
+  eapply ireg_val in EQ1;eauto.
+  destruct (rs rf); try discriminate.
+  destruct (Ptrofs.eq i Ptrofs.zero) eqn:Z;try discriminate.
+  inv EQ1. inv Z.
+  apply Ptrofs.same_if_eq  in H7. congruence.
+  Simpl. rewrite <- H2.
+  reflexivity.
+  + generalize (code_tail_next_int _ _ _ _ NOOV H6). intro CT1.
+  assert (TCA: transl_code_at_pc ge (Vptr fb (Ptrofs.add ofs Ptrofs.one)) fb f c false tf x).
+  { econstructor; eauto. }
   exploit return_address_offset_correct; eauto. intros; subst ra.
   left; econstructor; split.
   apply plus_one. eapply exec_step_internal. eauto.
