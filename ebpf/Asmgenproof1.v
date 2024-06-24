@@ -375,15 +375,6 @@ Proof.
 Opaque Int.eq.
   intros until c; intros TR EV.
   unfold transl_op in TR; destruct op; ArgsInv; simpl in EV; SimplEval EV; try TranslOpSimpl.
-  - (* Olongconst *)
-    destruct (negb (Int64.ltu (Int64.repr Int.max_unsigned) n)); try discriminate.
-    inv EQ0.
-    econstructor; split.
-    apply exec_straight_one; reflexivity.
-    split.
-    + apply Val.lessdef_same; Simpl.
-    + intros.
-      Simpl.
   - (* addrstack *)
     exploit addptrofs_correct; eauto.
     intros (rs' & A & B & C).

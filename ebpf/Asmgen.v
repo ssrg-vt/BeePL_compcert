@@ -156,11 +156,7 @@ Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
 
   | Olongconst n, nil =>
       do r <- ireg_of res;
-      if Int64.cmpu Cle n (Int64.repr Int.max_unsigned)
-      then
         OK (Palu MOV W64 r (inr  (Imm64 n)) :: k)
-      else Error (msg "out-of-bound constant")
-
   | Oaddrstack n, nil =>
       do r <- ireg_of res;
       addptrofs r SP n k
