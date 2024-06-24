@@ -388,22 +388,15 @@ Opaque Int.eq.
     exploit addptrofs_correct; eauto.
     intros (rs' & A & B & C).
     exists rs'; split; [ exact A | auto with asmgen ].
-- (* neg *)
-  econstructor; split.
-  apply exec_straight_one; reflexivity.
-  split.
-  + apply Val.lessdef_same; Simpl.
-    unfold Val.neg, Val.mul, eval_reg_immw.
-    destruct (rs x); try reflexivity.
-    f_equal; symmetry; apply Int.mul_mone.
-  + intros; Simpl.
-
   (* divu, divuimm, modu, moduimm *)
 - TranslALUOpSimpl EV.
 - TranslALUOpSimpl EV.
 - TranslALUOpSimpl EV.
 - TranslALUOpSimpl EV.
-
+- TranslALUOpSimpl EV.
+- TranslALUOpSimpl EV.
+- TranslALUOpSimpl EV.
+- TranslALUOpSimpl EV.
 - (* cond *)
   exploit transl_cond_op_correct; eauto. intros (rs' & A & B & C).
   exists rs'; split. eexact A. eauto with asmgen.

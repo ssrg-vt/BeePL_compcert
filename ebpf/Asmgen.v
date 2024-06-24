@@ -179,7 +179,7 @@ Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
   | Oneg, a1 :: nil =>
       assertion (mreg_eq a1 res);
       do r <- ireg_of res;
-      OK (Palu MUL W32 r (inr (Imm32 (Int.repr (-1)))) :: k)
+      OK (Palu NEG W32 r (inl r) :: k)
 
   | Osub, a1 :: a2 :: nil =>
       assertion (mreg_eq a1 res);
@@ -314,27 +314,119 @@ OK (Palu LSH W32 r (inr (Imm32 (Int.repr 16))) ::
 | Omulhu, a1 :: a2 :: nil => Error (msg "mulhu is not available in eBPF: pass -Os")
 | Omod, a1 :: a2 :: nil => Error (msg "signed modulo is not available in eBPF")
 
-| Oaddl , _
-| Oaddlimm _ , _
-| Onegl , _
-| Osubl , _
-| Osublimm _ , _
-| Omull  , _
-| Omullimm _ , _
-| Odivlu    , _
-| Odivluimm _ , _
-| Omodlu      , _
-| Omodluimm _ , _
-| Oandl       , _
-| Oandlimm  _ , _
-| Oorl        , _
-| Oorlimm   _ , _
-| Oxorl       , _
-| Oxorlimm _  , _
-| Oshll       , _
-| Oshllimm _  , _
-| Oshrl       , _
-| Oshrlimm _  , _
+| Oaddl , a1 ::a2 ::nil =>
+    assertion (mreg_eq a1 res);
+    do r <- ireg_of res;
+    do r2 <- ireg_of a2;
+    OK (Palu ADD W64 r (inl r2) :: k)
+| Oaddlimm n , a1 :: nil =>
+    assertion (mreg_eq a1 res);
+    do r <- ireg_of res;
+    OK (Palu ADD W64 r (inr (Imm64 n)) :: k)
+| Onegl , a1:: nil =>
+    assertion (mreg_eq a1 res);
+    do r <- ireg_of res;
+    OK (Palu NEG W64 r (inl r) :: k)
+
+| Osubl , a1 ::a2 ::nil =>
+    assertion (mreg_eq a1 res);
+    do r <- ireg_of res;
+    do r2 <- ireg_of a2;
+    OK (Palu SUB W64 r (inl r2) :: k)
+
+| Osublimm n , a1::nil =>
+    assertion (mreg_eq a1 res);
+    do r <- ireg_of res;
+    OK (Palu SUB W64 r (inr (Imm64 n)) :: k)
+
+| Omull  , a1 :: a2 :: nil =>
+    assertion (mreg_eq a1 res);
+    do r <- ireg_of res;
+    do r2 <- ireg_of a2;
+    OK (Palu MUL W64 r (inl r2) :: k)
+
+| Omullimm n , a1::nil =>
+    assertion (mreg_eq a1 res);
+    do r <- ireg_of res;
+    OK (Palu MUL W64 r (inr (Imm64 n)) :: k)
+
+| Odivlu,  a1 :: a2 :: nil =>
+      assertion (mreg_eq a1 res);
+      do r <- ireg_of res;
+      do r2 <- ireg_of a2;
+      OK (Palu DIV W64 r (inl r2) :: k)
+
+| Odivluimm  n, a1 :: nil =>
+      assertion (mreg_eq a1 res);
+      do r <- ireg_of res;
+      OK (Palu DIV W64 r (inr (Imm64 n)) :: k)
+
+| Omodlu, a1 :: a2 :: nil =>
+      assertion (mreg_eq a1 res);
+      do r <- ireg_of res;
+      do r2 <- ireg_of a2;
+      OK (Palu MOD W64 r (inl r2) :: k)
+
+| Omodluimm  n, a1 :: nil =>
+      assertion (mreg_eq a1 res);
+      do r <- ireg_of res;
+      OK (Palu MOD W64 r (inr (Imm64 n)) :: k)
+
+| Oandl, a1 :: a2 :: nil =>
+      assertion (mreg_eq a1 res);
+      do r <- ireg_of res;
+      do r2 <- ireg_of a2;
+      OK (Palu AND W64 r (inl r2) :: k)
+
+| Oandlimm n, a1 :: nil =>
+      assertion (mreg_eq a1 res);
+      do r <- ireg_of res;
+      OK (Palu AND W64 r (inr (Imm64 n)) :: k)
+
+  | Oorl, a1 :: a2 :: nil =>
+      assertion (mreg_eq a1 res);
+      do r <- ireg_of res;
+      do r2 <- ireg_of a2;
+      OK (Palu OR W64 r (inl r2) :: k)
+
+  | Oorlimm n, a1 :: nil =>
+      assertion (mreg_eq a1 res);
+      do r <- ireg_of res;
+      OK (Palu OR W64 r (inr (Imm64 n)) :: k)
+
+| Oxorl, a1 :: a2 :: nil =>
+      assertion (mreg_eq a1 res);
+      do r <- ireg_of res;
+      do r2 <- ireg_of a2;
+      OK (Palu XOR W64 r (inl r2) :: k)
+
+  | Oxorlimm n, a1 :: nil =>
+      assertion (mreg_eq a1 res);
+      do r <- ireg_of res;
+      OK (Palu XOR W64 r (inr (Imm64 n)) :: k)
+
+  | Oshll, a1 :: a2 :: nil =>
+      assertion (mreg_eq a1 res);
+      do r <- ireg_of res;
+      do r2 <- ireg_of a2;
+      OK (Palu LSH W64 r (inl r2) :: k)
+
+  | Oshllimm n, a1 :: nil =>
+      assertion (mreg_eq a1 res);
+      do r <- ireg_of res;
+      OK (Palu LSH W64 r (inr (Imm64 n)) :: k)
+
+  | Oshrl, a1 :: a2 :: nil =>
+      assertion (mreg_eq a1 res);
+      do r <- ireg_of res;
+      do r2 <- ireg_of a2;
+      OK (Palu ARSH W64 r (inl r2) :: k)
+
+  | Oshrlimm n, a1 :: nil =>
+      assertion (mreg_eq a1 res);
+      do r <- ireg_of res;
+      OK (Palu ARSH W64 r (inr (Imm64 n)) :: k)
+
 | Oshrlu      , _
 | Oshrluimm _ , _ => Error (MSG "ebpf(64) does not support '" :: MSG (string_of_operation op) :: MSG "'" :: nil)
 
