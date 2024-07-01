@@ -765,6 +765,7 @@ Ltac TailNoLabel :=
   | [ |- tail_nolabel _ (_ :: _) ] => apply tail_nolabel_cons; [auto; exact I | TailNoLabel]
   | [ H: Error _ = OK _ |- _ ] => discriminate
   | [ H: assertion_failed = OK _ |- _ ] => discriminate
+  | [ H: failwith _ = OK _ |- _ ] => discriminate
   | [ H: OK _ = OK _ |- _ ] => inv H; TailNoLabel
   | [ H: bind _ _ = OK _ |- _ ] => monadInv H;  TailNoLabel
   | [ H: (if ?x then _ else _) = OK _ |- _ ] => destruct x; TailNoLabel

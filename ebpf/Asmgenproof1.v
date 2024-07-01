@@ -163,12 +163,17 @@ Qed.
 
 Ltac ArgsInv :=
   repeat (match goal with
-  | [ H: Error _ = OK _ |- _ ] => discriminate
-  | [ H: match ?args with nil => _ | _ :: _ => _ end = OK _ |- _ ] => destruct args
-  | [ H: bind _ _ = OK _ |- _ ] => monadInv H
-  | [ H: match _ with left _ => _ | right _ => assertion_failed end = OK _ |- _ ] => monadInv H; ArgsInv
-  | [ H: match _ with true => _ | false => assertion_failed end = OK _ |- _ ] => monadInv H; ArgsInv
-  end);
+          | [ H: Error _ = OK _ |- _ ] => discriminate
+          | [ H: match ?args with nil => _ | _ :: _ => _ end = OK _ |- _ ] => destruct args
+          | [ H: bind _ _ = OK _ |- _ ] => monadInv H
+          | [ H: match _ with left _ => _ | right _ => assertion_failed end = OK _ |- _ ] => monadInv H; ArgsInv
+          | [ H: match _ with left _ => _ | right _ => assertion_failed end = OK _ |- _ ] => monadInv H; ArgsInv
+          | [ H: match _ with true => _ | false => assertion_failed end = OK _ |- _ ] => monadInv H; ArgsInv
+          | [ H: match _ with left _ => _ | right _ => failwith _ end = OK _ |- _ ] => monadInv H; ArgsInv
+          | [ H: match _ with left _ => _ | right _ => failwith _ end = OK _ |- _ ] => monadInv H; ArgsInv
+          | [ H: match _ with true => _ | false => failwith _ end = OK _ |- _ ] => monadInv H; ArgsInv
+
+          end);
   subst;
   repeat (match goal with
   | [ H: ireg_of _ = OK _ |- _ ] => simpl in *; rewrite (ireg_of_eq _ _ H) in *
@@ -245,6 +250,7 @@ Ltac TranslCondSimpl :=
 
 Lemma transl_cond_signed_correct:
   forall cmp w r1 r2 k rs m,
+
   exists rs',
      exec_straight ge fn (transl_cond_as_Pcmp cmp w Ctypes.Signed r1 r2  k) rs m k rs' m
   /\ Val.lessdef (Val.cmp cmp rs#r1 (eval_reg_immw w rs r2)) rs'#r1
