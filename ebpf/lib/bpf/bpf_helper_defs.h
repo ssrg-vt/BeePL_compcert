@@ -53,7 +53,7 @@ struct ipv6hdr;
  * 	Map value associated to *key*, or **NULL** if no entry was
  * 	found.
  */
-#ifdef __helper_as_extern__
+#ifdef __bpf_helper_as_extern__
 extern void bpf_map_lookup_elem(void *map, const void *key);
 #else
 static void *(*const bpf_map_lookup_elem)(void *map, const void *key) = (void *) 1;
@@ -79,7 +79,7 @@ static void *(*const bpf_map_lookup_elem)(void *map, const void *key) = (void *)
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __helper_as_extern__
+#ifdef __bpf_helper_as_extern__
 extern long bpf_map_update_elem(void *map, const void *key, const void *value, __u64 flags);
 #else
 static long (*const bpf_map_update_elem)(void *map, const void *key, const void *value, __u64 flags) = (void *) 2;
@@ -92,7 +92,7 @@ static long (*const bpf_map_update_elem)(void *map, const void *key, const void 
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __helper_as_extern__
+#ifdef __bpf_helper_as_extern__
 extern long bpf_map_delete_elem(void *map, const void *key);
 #else
 static long (*const bpf_map_delete_elem)(void *map, const void *key) = (void *) 3;
@@ -109,7 +109,7 @@ static long (*const bpf_map_delete_elem)(void *map, const void *key) = (void *) 
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-#ifdef __helper_as_extern__
+#ifdef __bpf_helper_as_extern__
 extern long bpf_probe_read(void *dst, __u32 size, const void *unsafe_ptr);
 #else
 static long (*const bpf_probe_read)(void *dst, __u32 size, const void *unsafe_ptr) = (void *) 4;
@@ -125,7 +125,7 @@ static long (*const bpf_probe_read)(void *dst, __u32 size, const void *unsafe_pt
  * Returns
  * 	Current *ktime*.
  */
-#ifdef __helper_as_extern__
+#ifdef __bpf_helper_as_extern__
 extern __u64 bpf_ktime_get_ns(void);
 #else
 static __u64 (*const bpf_ktime_get_ns)(void) = (void *) 5;
