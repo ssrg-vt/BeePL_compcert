@@ -110,28 +110,27 @@ Definition transl_cond_as_Pcmp (cond: comparison) (w:width) (sg:Ctypes.signednes
     Pcmp (transl_comparison cond sg) w rd a :: k.
 
 
-
 Definition transl_cond_op (cond: condition) (r: mreg) (args: list mreg) (k: code) :=
   match cond, args with
   | Ccomp c, a1 :: a2 :: nil =>
-      assertion (mreg_eq r a1);
+      assertion_str [ "Ccomp" ] (mreg_eq r a1);
       do r1 <- ireg_of a1;
       do r2 <- ireg_of a2;
       OK (transl_cond_as_Pcmp c W32 Ctypes.Signed r1 (inl r2) k)
 
   | Ccompu c, a1 :: a2 :: nil =>
-      assertion (mreg_eq r a1);
+      assertion_str [ "Ccompu"] (mreg_eq r a1);
       do r1 <- ireg_of a1;
       do r2 <- ireg_of a2;
       OK (transl_cond_as_Pcmp c W32 Ctypes.Unsigned r1 (inl r2) k)
 
   | Ccompimm c n, a1 :: nil =>
-      assertion (mreg_eq r a1);
+      assertion_str [ "Ccompimm" ] (mreg_eq r a1);
       do r1 <- ireg_of a1;
       OK (transl_cond_as_Pcmp c W32 Ctypes.Signed r1 (inr (Imm32 n)) k)
 
   | Ccompuimm c n, a1 :: nil =>
-      assertion (mreg_eq r a1);
+      assertion_str [ "Ccompuimm" ] (mreg_eq r a1);
       do r1 <- ireg_of a1;
       OK (transl_cond_as_Pcmp c W32 Ctypes.Unsigned r1 (inr (Imm32 n)) k)
 
@@ -165,147 +164,146 @@ Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
       addptrofs r SP n k
 
   | Oadd, a1 :: a2 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oadd"] (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
       OK (Palu ADD W32 r (inl r2) :: k)
 
   | Oaddimm n, a1 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oaddimm"] (mreg_eq a1 res);
       do r <- ireg_of res;
       OK (Palu ADD W32 r (inr (Imm32 n)) :: k)
 
   | Oneg, a1 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oneg"] (mreg_eq a1 res);
       do r <- ireg_of res;
       OK (Palu NEG W32 r (inl r) :: k)
 
   | Osub, a1 :: a2 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Osub"] (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
       OK (Palu SUB W32 r (inl r2) :: k)
 
   | Osubimm n, a1 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Osubimm"] (mreg_eq a1 res);
       do r <- ireg_of res;
       OK (Palu SUB W32 r (inr (Imm32 n)) :: k)
 
   | Omul, a1 :: a2 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Omul"] (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
       OK (Palu MUL W32 r (inl r2) :: k)
 
   | Omulimm n, a1 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Omulimm"] (mreg_eq a1 res);
       do r <- ireg_of res;
       OK (Palu MUL W32 r (inr (Imm32 n)) :: k)
 
   | Odivu, a1 :: a2 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Odivu"] (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
       OK (Palu DIV W32 r (inl r2) :: k)
 
   | Odivuimm n, a1 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Odivuimm"] (mreg_eq a1 res);
       do r <- ireg_of res;
       OK (Palu DIV W32 r (inr (Imm32 n)) :: k)
 
   | Omodu, a1 :: a2 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Omodu"] (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
       OK (Palu MOD W32 r (inl r2) :: k)
 
   | Omoduimm n, a1 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Omoduimm"] (mreg_eq a1 res);
       do r <- ireg_of res;
       OK (Palu MOD W32 r (inr (Imm32 n)) :: k)
 
   | Oand, a1 :: a2 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oand"] (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
       OK (Palu AND W32 r (inl r2) :: k)
 
   | Oandimm n, a1 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oandimm"] (mreg_eq a1 res);
       do r <- ireg_of res;
       OK (Palu AND W32 r (inr (Imm32 n)) :: k)
 
   | Oor, a1 :: a2 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oor"] (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
       OK (Palu OR W32 r (inl r2) :: k)
 
   | Oorimm n, a1 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oorimm"] (mreg_eq a1 res);
       do r <- ireg_of res;
       OK (Palu OR W32 r (inr (Imm32 n)) :: k)
 
   | Oxor, a1 :: a2 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oxor"] (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
       OK (Palu XOR W32 r (inl r2) :: k)
 
   | Oxorimm n, a1 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oxorimm"] (mreg_eq a1 res);
       do r <- ireg_of res;
       OK (Palu XOR W32 r (inr (Imm32 n)) :: k)
 
   | Oshl, a1 :: a2 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oshl"] (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
       OK (Palu LSH W32 r (inl r2) :: k)
 
   | Oshlimm n, a1 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oshlimm"] (mreg_eq a1 res);
       do r <- ireg_of res;
       OK (Palu LSH W32 r (inr (Imm32 n)) :: k)
 
   | Oshr, a1 :: a2 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oshr"] (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
       OK (Palu ARSH W32 r (inl r2) :: k)
 
   | Oshrimm n, a1 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oshrimm"] (mreg_eq a1 res);
       do r <- ireg_of res;
       OK (Palu ARSH W32 r (inr (Imm32 n)) :: k)
 
   | Oshru, a1 :: a2 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oshru"] (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
       OK (Palu RSH W32 r (inl r2) :: k)
 
   | Oshruimm n, a1 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oshruimm"] (mreg_eq a1 res);
       do r <- ireg_of res;
       OK (Palu RSH W32 r (inr (Imm32 n)) :: k)
 
   | Ocmp cmp, _ =>
       transl_cond_op cmp res args k
 
-  (*c Following operations are not available in eBPF, and will throw errors in this step *)
 | Oaddrsymbol s ofs, nil =>
     do r <- ireg_of res;
       OK (Ploadsymbol r s ofs :: k)
 
 | Ocast8signed, a1 :: nil =>
     do r <- ireg_of res;
-    assertion (mreg_eq a1 res);
+    assertion_str ["Ocast8signed"] (mreg_eq a1 res);
 OK (Palu LSH W32 r (inr (Imm32 (Int.repr 24))) ::
       Palu ARSH W32 r (inr (Imm32 (Int.repr 24))) :: k)
 | Ocast16signed, a1 :: nil =>
     do r <- ireg_of res;
-    assertion (mreg_eq a1 res);
+    assertion_str ["Ocast16signed"] (mreg_eq a1 res);
 OK (Palu LSH W32 r (inr (Imm32 (Int.repr 16))) ::
       Palu ARSH W32 r (inr (Imm32 (Int.repr 16))) :: k)
 
@@ -314,118 +312,117 @@ OK (Palu LSH W32 r (inr (Imm32 (Int.repr 16))) ::
 | Omod, a1 :: a2 :: nil => Error (msg "signed modulo is not available in eBPF")
 
 | Oaddl , a1 ::a2 ::nil =>
-    assertion (mreg_eq a1 res);
+    assertion_str ["Oaddl"] (mreg_eq a1 res);
     do r <- ireg_of res;
     do r2 <- ireg_of a2;
     OK (Palu ADD W64 r (inl r2) :: k)
 | Oaddlimm n , a1 :: nil =>
-    assertion (mreg_eq a1 res);
+    assertion_str ["Oaddlimm"] (mreg_eq a1 res);
     do r <- ireg_of res;
     OK (Palu ADD W64 r (inr (Imm64 n)) :: k)
 | Onegl , a1:: nil =>
-    assertion (mreg_eq a1 res);
+    assertion_str ["Onegl"] (mreg_eq a1 res);
     do r <- ireg_of res;
     OK (Palu NEG W64 r (inl r) :: k)
 
 | Osubl , a1 ::a2 ::nil =>
-    assertion (mreg_eq a1 res);
+    assertion_str ["Osubl"] (mreg_eq a1 res);
     do r <- ireg_of res;
     do r2 <- ireg_of a2;
     OK (Palu SUB W64 r (inl r2) :: k)
 
 | Osublimm n , a1::nil =>
-    assertion (mreg_eq a1 res);
+    assertion_str ["Osublimm"] (mreg_eq a1 res);
     do r <- ireg_of res;
     OK (Palu SUB W64 r (inr (Imm64 n)) :: k)
 
 | Omull  , a1 :: a2 :: nil =>
-    assertion (mreg_eq a1 res);
+    assertion_str ["Omull"] (mreg_eq a1 res);
     do r <- ireg_of res;
     do r2 <- ireg_of a2;
     OK (Palu MUL W64 r (inl r2) :: k)
 
 | Omullimm n , a1::nil =>
-    assertion (mreg_eq a1 res);
+    assertion_str ["Omullimm"] (mreg_eq a1 res);
     do r <- ireg_of res;
     OK (Palu MUL W64 r (inr (Imm64 n)) :: k)
 
 | Odivlu,  a1 :: a2 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Odivlu"] (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
       OK (Palu DIV W64 r (inl r2) :: k)
 
 | Odivluimm  n, a1 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Odivluimm"] (mreg_eq a1 res);
       do r <- ireg_of res;
       OK (Palu DIV W64 r (inr (Imm64 n)) :: k)
 
 | Omodlu, a1 :: a2 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Omodlu"] (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
       OK (Palu MOD W64 r (inl r2) :: k)
 
 | Omodluimm  n, a1 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Omodluimm"] (mreg_eq a1 res);
       do r <- ireg_of res;
       OK (Palu MOD W64 r (inr (Imm64 n)) :: k)
 
 | Oandl, a1 :: a2 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oandl"] (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
       OK (Palu AND W64 r (inl r2) :: k)
 
 | Oandlimm n, a1 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oandlimm"] (mreg_eq a1 res);
       do r <- ireg_of res;
       OK (Palu AND W64 r (inr (Imm64 n)) :: k)
 
-  | Oorl, a1 :: a2 :: nil =>
-      assertion (mreg_eq a1 res);
+| Oorl, a1 :: a2 :: nil =>
+      assertion_str ["Oorl"] (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
       OK (Palu OR W64 r (inl r2) :: k)
 
   | Oorlimm n, a1 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oorlimm"] (mreg_eq a1 res);
       do r <- ireg_of res;
       OK (Palu OR W64 r (inr (Imm64 n)) :: k)
 
 | Oxorl, a1 :: a2 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oxorl"] (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
       OK (Palu XOR W64 r (inl r2) :: k)
 
   | Oxorlimm n, a1 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oxorlimm"] (mreg_eq a1 res);
       do r <- ireg_of res;
       OK (Palu XOR W64 r (inr (Imm64 n)) :: k)
 
   | Oshll, a1 :: a2 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oshll"] (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
       OK (Palu LSH W64 r (inl r2) :: k)
 
   | Oshllimm n, a1 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oshllimm"] (mreg_eq a1 res);
       do r <- ireg_of res;
       OK (Palu LSH W64 r (inr (Imm64 n)) :: k)
 
   | Oshrl, a1 :: a2 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oshrl"] (mreg_eq a1 res);
       do r <- ireg_of res;
       do r2 <- ireg_of a2;
       OK (Palu ARSH W64 r (inl r2) :: k)
 
   | Oshrlimm n, a1 :: nil =>
-      assertion (mreg_eq a1 res);
+      assertion_str ["Oshrlimm"] (mreg_eq a1 res);
       do r <- ireg_of res;
       OK (Palu ARSH W64 r (inr (Imm64 n)) :: k)
-
 | Oshrlu      , _
 | Oshrluimm _ , _ => Error (MSG "ebpf(64) does not support '" :: MSG (string_of_operation op) :: MSG "'" :: nil)
 

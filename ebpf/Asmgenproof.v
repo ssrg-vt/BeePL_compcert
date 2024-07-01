@@ -167,8 +167,9 @@ Remark transl_cond_op_label:
   forall cond args r k c,
   transl_cond_op cond r args k = OK c -> tail_nolabel k c.
 Proof.
-  intros. unfold transl_cond_op in H; destruct cond; TailNoLabel;
-  apply transl_cond_op_as_jump_label.
+  intros. unfold transl_cond_op in H;
+    destruct cond; TailNoLabel;
+    apply transl_cond_op_as_jump_label.
 Qed.
 
 Remark transl_op_label:

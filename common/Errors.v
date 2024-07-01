@@ -105,6 +105,14 @@ Notation "'assertion' A ; B" := (if A then B else assertion_failed)
   (at level 200, A at level 100, B at level 200)
   : error_monad_scope.
 
+Definition failwith {A: Type} (s:string) : res A := Error (msg s).
+
+Notation "'assertion_str' [ S ] A ; B" := (if A then B else failwith S)
+  (at level 200, S at level 100, A at level 100, B at level 200)
+  : error_monad_scope.
+
+
+
 (** This is the familiar monadic map iterator. *)
 
 Local Open Scope error_monad_scope.
@@ -175,6 +183,14 @@ Ltac monadInv1 H :=
       destruct X as [] eqn:?; simpl negb in H; [discriminate | try (monadInv1 H)]
   | (match ?X with true => _ | false => assertion_failed end = OK _) =>
       destruct X as [] eqn:?; [try (monadInv1 H) | discriminate]
+  (* failwith *)
+  | (match ?X with left _ => _ | right _ => failwith _ end = OK _) =>
+      destruct X; [try (monadInv1 H) | discriminate]
+  | (match (negb ?X) with true => _ | false => failwith _ end = OK _) =>
+      destruct X as [] eqn:?; simpl negb in H; [discriminate | try (monadInv1 H)]
+  | (match ?X with true => _ | false => failwith _ end = OK _) =>
+      destruct X as [] eqn:?; [try (monadInv1 H) | discriminate]
+  (*/failwith *)
   | (mmap ?F ?L = OK ?M) =>
       generalize (mmap_inversion F L H); intro
   end.

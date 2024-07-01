@@ -170,6 +170,7 @@ Global Opaque
 
 Definition two_address_op (op: operation) : bool :=
   match op with
+    (* 32 bits *)
   | Oadd | Oaddimm _ | Oneg | Osub | Osubimm _
   | Omul | Omulimm _ | Odivu | Omodu
   | Oand | Oandimm _ | Oor | Oorimm _
@@ -178,7 +179,13 @@ Definition two_address_op (op: operation) : bool :=
   | Ocmp (Ccomp _ | Ccompu _ | Ccompimm _ _ | Ccompuimm _ _)
   | Odivuimm _ | Omoduimm _
   | Omulhs | Omulhu | Omod
-                        | Ocast8signed | Ocast16signed => true
+  | Ocast8signed | Ocast16signed => true
+    (* 64 bits *)
+  | Oaddl | Oaddlimm _ | Onegl | Osubl | Osublimm _
+  | Omull | Omullimm _ | Odivlu | Omodlu
+  | Oandl | Oandlimm _ | Oorl | Oorlimm _
+  | Oxorl | Oxorlimm _ | Oshll | Oshllimm _
+  | Oshrl | Oshrlimm _ | Oshrlu | Oshrluimm _ => true
   | _ => false
   end.
 
