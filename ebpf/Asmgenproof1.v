@@ -62,18 +62,24 @@ Lemma addptrofs_correct:
   /\ forall r, r <> PC -> r <> rd -> rs'#r = rs#r.
 Proof.
   unfold addptrofs; intros.
-  destruct Archi.ptr64 eqn:A; try discriminate.
-  - (* Archi.ptr64 = false *)
-    inv H.
-    destruct (Ptrofs.eq_dec n Ptrofs.zero).
-    + subst n. econstructor; split.
-      apply exec_straight_one. simpl; constructor. auto.
-      split. Simpl. simpl. destruct (rs r1); simpl; auto. rewrite Ptrofs.add_zero; auto.
-      intros; Simpl.
-    + eexists; split.
-      eapply exec_straight_two; reflexivity.
-      split; intros; Simpl.
-      simpl.
+  inv H.
+  destruct (Ptrofs.eq_dec n Ptrofs.zero).
+  + subst n. econstructor; split.
+    apply exec_straight_one. simpl; constructor. auto.
+    split. Simpl. simpl. destruct (rs r1); simpl; auto. rewrite Ptrofs.add_zero; auto.
+    intros; Simpl.
+  + eexists; split.
+    eapply exec_straight_two; reflexivity.
+    unfold warchi,wimm.
+    destruct Archi.ptr64 eqn:A;simpl.
+    * split; intros; Simpl.
+      unfold Val.addl, Val.offset_ptr.
+      destruct (rs r1); try constructor.
+      rewrite A.
+      apply Val.lessdef_same; f_equal; f_equal.
+      rewrite Ptrofs.of_int64_to_int64 by auto.
+      reflexivity.
+    * split; intros; Simpl.
       unfold Val.add, Val.offset_ptr.
       destruct (rs r1); try constructor.
       rewrite A.

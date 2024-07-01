@@ -43,16 +43,22 @@ Definition freg_of (r: mreg) : res freg :=
 
 (** Smart constructors for arithmetic operations. *)
 
+Definition warchib (b:bool) := if b then W64 else W32.
+
+Definition warchi := warchib Archi.ptr64.
+
+Definition wimm (n:ptrofs) : immw warchi:=
+ if Archi.ptr64 as b0 return (immw (warchib b0))
+ then Imm64 (Ptrofs.to_int64 n)
+ else Imm32 (Ptrofs.to_int n).
+
 Definition addptrofs (rd rs: ireg) (n: ptrofs) (k: code) :=
-  if Archi.ptr64
-  then Error (msg "ebpf64 is not supported yet")
-  else
     OK
       (if Ptrofs.eq_dec n Ptrofs.zero then
-         Palu MOV W32 rd (inl rs) :: k
+         Palu MOV warchi rd (inl rs) :: k
        else
-         Palu MOV W32 rd (inl rs) ::
-              Palu ADD W32 rd (inr (Imm32 (Ptrofs.to_int n))) :: k).
+         Palu MOV warchi rd (inl rs) ::
+              Palu ADD warchi rd (inr (wimm n)) :: k).
 
 (** Translation of conditional branches. *)
 
@@ -139,9 +145,6 @@ Definition transl_cond_op (cond: condition) (r: mreg) (args: list mreg) (k: code
 
 (** Translation of the arithmetic operation [r <- op(args)].
   The corresponding instructions are prepended to [k]. *)
-
-Definition warchi := if Archi.ptr64 then W64 else W32.
-
 
 Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
   match op, args with

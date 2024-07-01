@@ -121,8 +121,6 @@ Remark addptrofs_label:
     tail_nolabel k k'.
 Proof.
   unfold addptrofs; intros.
-  destruct Archi.ptr64; try discriminate.
-  inv H.
   destruct (Ptrofs.eq_dec n Ptrofs.zero); TailNoLabel.
 Qed.
 Hint Resolve addptrofs_label: labels.
