@@ -98,6 +98,11 @@ module Target : TARGET =
       | Imm32 i -> coqint oc i
       | Imm64 i -> coqint64 oc i
 
+    let ptrofs w oc ofs =
+      match w with
+      | W32 -> coqint oc ofs
+      | W64 -> fprintf oc "%a ll" coqint ofs
+    
     let register_or_immediate w oc = function
       | Datatypes.Coq_inl reg ->
          register w oc reg
@@ -247,7 +252,8 @@ module Target : TARGET =
 
       | Plabel label -> fprintf oc "%a:\n" print_label label
 
-      | Ploadsymbol(r,id,ofs) -> fprintf oc "	%a = \"%a\" + %a ll\n" (register warchi) r symbol id coqint ofs
+      | Ploadsymbol(r,id,ofs) -> (* ebpf addresses are 64 bits... *)
+         fprintf oc "	%a = \"%a\" + %a\n" (register W64) r symbol id (ptrofs W64) ofs
     
       | Pbuiltin _
       | Pallocframe _
