@@ -103,6 +103,18 @@ module Target : TARGET =
          register w oc reg
       | Datatypes.Coq_inr imm -> immediate oc imm
 
+    let immediate_ll oc i =
+      match i with
+      | Imm32 i -> coqint oc i
+      | Imm64 i -> Printf.fprintf oc "%a ll" coqint64 i
+
+    
+    let register_or_immediate_ll w oc = function
+      | Datatypes.Coq_inl reg ->
+         register w oc reg
+      | Datatypes.Coq_inr imm -> immediate_ll oc imm
+
+    
     let rec cmpOp = function
       | EQ -> "=="
       | NE -> "!="
@@ -220,6 +232,7 @@ module Target : TARGET =
          fprintf oc "	*(%a *)(%a %a) = %a\n" sizeOp op (register W64) reg  coqint_as_offset off
            (register_or_immediate (sizew op)) regimm
 
+      | Palu (MOV,W64,reg,regimm) -> fprintf oc "	%a = %a\n" (register W64) reg (register_or_immediate_ll W64) regimm
       | Palu (op, w, reg, regimm) ->
         fprintf oc "	%a%a%a\n" (register w) reg operator op (register_or_immediate w) regimm
 
