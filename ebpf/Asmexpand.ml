@@ -25,16 +25,12 @@ let sp = R10
 
 let warchi = if Archi.ptr64 then W64 else W32
 
-let cast w z =
-  match w with
-  | W32 -> Imm32 (Integers.Int.repr z)
-  | W64 -> Imm64 (Integers.Int64.repr z)
 
 let chunk_of_pointer = if Archi.ptr64 then DBWord else Word
 
 (* Expansion of instructions *)
 let expand_alloc_frame sz ofs_ra ofs_link =
-  let sz = cast warchi sz in
+  let sz = Integers.Int.repr sz in
   Datatypes.(
   (* RO := SP *)
   emit (Palu(MOV,warchi,R0,Coq_inl sp));
@@ -46,7 +42,7 @@ let expand_alloc_frame sz ofs_ra ofs_link =
   emit (Pstore(chunk_of_pointer,sp,Coq_inl ra,ofs_ra)))
 
 let expand_free_frame sz ofs_ra ofs_link =
-  let sz = cast warchi sz in
+  let sz = Integers.Int.repr sz in
   Datatypes.(
   (* RA := *(SP+ofs_ra) *)
   emit (Pload(chunk_of_pointer,ra,sp,ofs_ra));
@@ -67,10 +63,10 @@ let expand_instruction instr =
       (* if reg cmp regimm Goto goto_true *)
       emit (Pjmpcmp(cmp,w,reg,regimm, label_true));
       (* else reg := false *)
-      emit (Palu(MOV,W64,reg, Coq_inr (Imm64 Integers.Int.zero)));
+      emit (Palu(MOV,W64,reg, Coq_inr Integers.Int.zero));
       emit (Pjmp (Coq_inl label_end));
       emit (Plabel label_true);
-      emit  (Palu(MOV,W64,reg, Coq_inr (Imm64 Integers.Int.one)));
+      emit  (Palu(MOV,W64,reg, Coq_inr Integers.Int.one));
     emit (Plabel label_end))
   | _ -> emit instr
 

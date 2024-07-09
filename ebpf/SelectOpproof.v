@@ -16,7 +16,7 @@ Require Import Coqlib Zbits.
 Require Import AST Integers Floats.
 Require Import Values Memory Builtins Globalenvs.
 Require Import Cminor Op CminorSel.
-Require Import SelectOp.
+Require Import SelectOp SelectLong.
 
 Local Open Scope cminorsel_scope.
 
@@ -757,6 +757,7 @@ Proof.
   TrivialExists.
 Qed.
 
+
 Theorem eval_cast8unsigned: unary_constructor_sound cast8unsigned (Val.zero_ext 8).
 Proof.
   red; intros until x. unfold cast8unsigned.
@@ -772,9 +773,10 @@ Qed.
 
 Theorem eval_cast16unsigned: unary_constructor_sound cast16unsigned (Val.zero_ext 16).
 Proof.
-  red; intros until x. unfold cast8unsigned.
+  red; intros until x. unfold cast16unsigned.
   rewrite Val.zero_ext_and. apply eval_andimm. lia.
 Qed.
+
 
 Theorem eval_intoffloat:
   forall le a x y,

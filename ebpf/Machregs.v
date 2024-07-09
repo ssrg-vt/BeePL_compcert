@@ -181,6 +181,7 @@ Definition two_address_op (op: operation) : bool :=
   | Omulhs | Omulhu | Omod
   | Ocast8signed | Ocast16signed => true
     (* 64 bits *)
+  | Ocast32unsigned | Ocast32signed | Olowlong
   | Oaddl | Oaddlimm _ | Onegl | Osubl | Osublimm _
   | Omull | Omullimm _ | Odivlu | Omodlu
   | Oandl | Oandlimm _ | Oorl | Oorlimm _

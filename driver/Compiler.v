@@ -76,6 +76,7 @@ Require Import Compopts.
 (** Pretty-printers (defined in Caml). *)
 Parameter print_Clight: Clight.program -> unit.
 Parameter print_Cminor: Cminor.program -> unit.
+Parameter print_CminorSel: CminorSel.program -> unit.
 Parameter print_RTL: Z -> RTL.program -> unit.
 Parameter print_LTL: LTL.program -> unit.
 Parameter print_Mach: Mach.program -> unit.
@@ -150,6 +151,7 @@ Definition transf_cminor_program (p: Cminor.program) : res Asm.program :=
    OK p
    @@ print print_Cminor
   @@@ time "Instruction selection" Selection.sel_program
+   @@ print print_CminorSel
   @@@ time "RTL generation" RTLgen.transl_program
   @@@ transf_rtl_program.
 

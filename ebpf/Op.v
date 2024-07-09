@@ -30,24 +30,25 @@ Require Import Values Memory Globalenvs Events.
 
 Set Implicit Arguments.
 
+
 (** Conditions (boolean-valued operators). *)
 
 Inductive condition : Type :=
-  | Ccomp (c: comparison)               (**r signed integer comparison *)
-  | Ccompu (c: comparison)              (**r unsigned integer comparison *)
-  | Ccompimm (c: comparison) (n: int)   (**r signed integer comparison with a constant *)
-  | Ccompuimm (c: comparison) (n: int)  (**r unsigned integer comparison with a constant *)
+| Ccomp (c: comparison)               (**r signed integer comparison *)
+| Ccompu (c: comparison)              (**r unsigned integer comparison *)
+| Ccompimm (c: comparison) (n: int)   (**r signed integer comparison with a constant *)
+| Ccompuimm (c: comparison) (n: int)  (**r unsigned integer comparison with a constant *)
 
 | Ccompl  (c: comparison)              (**r signed integer comparison *)
 | Ccomplu (c: comparison)              (**r unsigned integer comparison *)
-  | Ccomplimm (c: comparison) (n: int64)   (**r signed integer comparison with a constant *)
-  | Ccompluimm (c: comparison) (n: int64)  (**r unsigned integer comparison with a constant *)
+| Ccomplimm (c: comparison) (n: int64)   (**r signed integer comparison with a constant *)
+| Ccompluimm (c: comparison) (n: int64)  (**r unsigned integer comparison with a constant *)
 
 
-  | Ccompf (c: comparison)              (**r 64-bit floating-point comparison *)
-  | Cnotcompf (c: comparison)           (**r negation of a floating-point comparison *)
-  | Ccompfs (c: comparison)             (**r 32-bit floating-point comparison *)
-  | Cnotcompfs (c: comparison).         (**r negation of a floating-point comparison *)
+| Ccompf (c: comparison)              (**r 64-bit floating-point comparison *)
+| Cnotcompf (c: comparison)           (**r negation of a floating-point comparison *)
+| Ccompfs (c: comparison)             (**r 32-bit floating-point comparison *)
+| Cnotcompfs (c: comparison).         (**r negation of a floating-point comparison *)
 
 (** Arithmetic and logical operations.  In the descriptions, [rd] is the
   result of the operation and [r1], [r2], etc, are the arguments. *)
@@ -102,11 +103,11 @@ Inductive operation : Type :=
   | Oxorl                     (**r [rd ^= r2] *)
   | Oxorlimm (n: int64)         (**r [rd ^= n] *)
   | Oshll                     (**r [rd <<= r2] *)
-  | Oshllimm (n: int64)         (**r [rd <<= n] *)
+  | Oshllimm (n: int)         (**r [rd <<= n] *)
   | Oshrl                     (**r [rd >>= r2] (signed) *)
-  | Oshrlimm (n: int64)         (**r [rd >>= n] (signed) *)
+  | Oshrlimm (n: int)         (**r [rd >>= n] (signed) *)
   | Oshrlu                    (**r [rd >>= r2] (unsigned) *)
-  | Oshrluimm (n: int64)        (**r [rd >>= n] (unsigned) *)
+  | Oshrluimm (n: int)        (**r [rd >>= n] (unsigned) *)
 
 (*c Boolean tests: *)
   | Ocmp (cond: condition)   (**r [rd = 1] if condition holds, [rd = 0] otherwise. *)
@@ -125,6 +126,8 @@ Inductive operation : Type :=
   | Omod                     (**r [rd = r1 % r2] (signed) *)
 (*  | Oshrximm (n: int)        (**r [rd = r1 / 2^n] (signed) *) *)
 
+| Ocast32unsigned          (**r [rd] is 32-bit zero extension of [r1]*)
+| Ocast32signed          (**r [rd] is 32-bit sign extension of [r1]*)
   | Omakelong                (**r [rd = r1 << 32 | r2] *)
   | Olowlong                 (**r [rd = low-word(r1)] *)
   | Ohighlong                (**r [rd = high-word(r1)] *)
@@ -192,6 +195,8 @@ Definition string_of_operation (o:operation) : string :=
   | Oshruimm _   => "Oshruimm"
 
 (*c 64-bit integer arithmetic: *)
+  | Ocast32unsigned => "Ocast32unsigned"
+  | Ocast32signed => "Ocast32signed"
   | Oaddl        => "Oaddl"
   | Oaddlimm _   => "Oaddlimm"
   | Onegl        => "Onegl"
@@ -367,19 +372,20 @@ Definition eval_operation
   | Oshru, v1 :: v2 :: nil => Some (Val.shru v1 v2)
   | Oshruimm n, v1 :: nil => Some (Val.shru v1 (Vint n))
   | Ocmp c, _ => Some (Val.of_optbool (eval_condition c vl m))
-
   (* 64 bits *)
+  | Ocast32unsigned, v1 :: nil => Some (Val.longofintu v1)
+  | Ocast32signed, v1 :: nil => Some (Val.longofint v1)
   | Oaddl, v1 :: v2 :: nil => Some (Val.addl v1 v2)
-  | Oaddlimm n, v1 :: nil => Some (Val.addl v1 (Vlong n))
+  | Oaddlimm n, v1 :: nil => Some (Val.addl v1 (Vlong  n))
   | Onegl, v1 :: nil => Some (Val.negl v1)
   | Osubl, v1 :: v2 :: nil => Some (Val.subl v1 v2)
   | Osublimm n, v1 :: nil => Some (Val.subl v1 (Vlong n))
   | Omull, v1 :: v2 :: nil => Some (Val.mull v1 v2)
   | Omullimm n, v1 :: nil => Some (Val.mull v1 (Vlong n))
   | Odivlu, v1 :: v2 :: nil => Val.divlu v1 v2
-  | Odivluimm n, v1 :: nil => Val.divlu v1 (Vlong n)
+  | Odivluimm n, v1 :: nil => Val.divlu v1 (Vlong  n)
   | Omodlu, v1 :: v2 :: nil => Val.modlu v1 v2
-  | Omodluimm n, v1 :: nil => Val.modlu v1 (Vlong n)
+  | Omodluimm n, v1 :: nil => Val.modlu v1 (Vlong  n)
   | Oandl, v1 :: v2 :: nil => Some (Val.andl v1 v2)
   | Oandlimm n, v1 :: nil => Some (Val.andl v1 (Vlong n))
   | Oorl, v1 :: v2 :: nil => Some (Val.orl v1 v2)
@@ -387,11 +393,11 @@ Definition eval_operation
   | Oxorl, v1 :: v2 :: nil => Some (Val.xorl v1 v2)
   | Oxorlimm n, v1 :: nil => Some (Val.xorl v1 (Vlong n))
   | Oshll, v1 :: v2 :: nil => Some (Val.shll v1 v2)
-  | Oshllimm n, v1 :: nil => Some (Val.shll v1 (Vlong n))
+  | Oshllimm n, v1 :: nil => Some (Val.shll v1 (Vint n))
   | Oshrl, v1 :: v2 :: nil => Some (Val.shrl v1 v2)
-  | Oshrlimm n, v1 :: nil => Some (Val.shrl v1 (Vlong n))
+  | Oshrlimm n, v1 :: nil => Some (Val.shrl v1 (Vint n))
   | Oshrlu, v1 :: v2 :: nil => Some (Val.shrlu v1 v2)
-  | Oshrluimm n, v1 :: nil => Some (Val.shrlu v1 (Vlong n))
+  | Oshrluimm n, v1 :: nil => Some (Val.shrlu v1 (Vint n))
 
   (* Operations not available in eBPF *)
   | Ofloatconst n, nil => Some (Vfloat n)
@@ -528,6 +534,8 @@ Definition type_of_operation (op: operation) : list typ * typ :=
   | Oshruimm _ => (Tint :: nil, Tint)
 
   (* 64 bits *)
+  | Ocast32unsigned => (Tint :: nil , Tlong)
+  | Ocast32signed => (Tint :: nil , Tlong)
   | Oaddl => (Tlong :: Tlong :: nil, Tlong)
   | Oaddlimm _ => (Tlong :: nil, Tlong)
   | Onegl => (Tlong :: nil, Tlong)
@@ -545,11 +553,11 @@ Definition type_of_operation (op: operation) : list typ * typ :=
   | Oorlimm _ => (Tlong :: nil, Tlong)
   | Oxorl => (Tlong :: Tlong :: nil, Tlong)
   | Oxorlimm _ => (Tlong :: nil, Tlong)
-  | Oshll => (Tlong :: Tlong :: nil, Tlong)
+  | Oshll => (Tlong :: Tint :: nil, Tlong)
   | Oshllimm _ => (Tlong :: nil, Tlong)
-  | Oshrl => (Tlong :: Tlong :: nil, Tlong)
+  | Oshrl => (Tlong :: Tint :: nil, Tlong)
   | Oshrlimm _ => (Tlong :: nil, Tlong)
-  | Oshrlu => (Tlong :: Tlong :: nil, Tlong)
+  | Oshrlu => (Tlong :: Tint :: nil, Tlong)
   | Oshrluimm _ => (Tlong :: nil, Tlong)
 
   (* Operations not available in eBPF *)
@@ -667,7 +675,7 @@ Proof with (try exact I; try reflexivity; auto using Val.Vptr_has_type).
   - (* modlu *)  destruct v0,v1 ; simpl in H0; inv H0.
      destruct (Int64.eq i0 Int64.zero); try congruence. inv H2...
   - (* modlu *)  destruct v0 ; simpl in H0; inv H0.
-    destruct (Int64.eq n Int64.zero); try congruence. inv H2...
+    destruct (Int64.eq  n Int64.zero); try congruence. inv H2...
   - (* cmp *)
     destruct (eval_condition cond vl m)... destruct b...
   (* addrsymbol *)
@@ -1080,12 +1088,14 @@ Proof.
   (* shl, shlimm *)
   - inv H4; inv H2; simpl; auto. destruct (Int.ltu i0 Int64.iwordsize'); auto.
   - inv H4; simpl; auto.
+    destruct (Int.ltu n Int64.iwordsize'); auto.
   (* shr, shrimm *)
   - inv H4; inv H2; simpl; auto. destruct (Int.ltu i0 Int64.iwordsize'); auto.
   - inv H4; simpl; auto.
+    destruct (Int.ltu n Int64.iwordsize'); auto.
   (* shru, shruimm *)
   - inv H4; inv H2; simpl; auto. destruct (Int.ltu i0 Int64.iwordsize'); auto.
-  - inv H4; simpl; auto.
+  - inv H4; simpl; auto. destruct (Int.ltu n Int64.iwordsize'); auto.
 
   (* cmp *)
   - subst v1. destruct (eval_condition cond vl1 m1) eqn:?.
@@ -1108,6 +1118,10 @@ Proof.
     destruct (Int.eq i0 Int.zero
                      || Int.eq i (Int.repr Int.min_signed) && Int.eq i0 Int.mone); inv H2.
     TrivialExists.
+  - (*longofintu *)
+    inv H4;simpl;auto.
+  - (*longofint *)
+    inv H4;simpl;auto.
   (* makelong, highlong, lowlong *)
   - inv H4; inv H2; simpl; auto.
   - inv H4; simpl; auto.
