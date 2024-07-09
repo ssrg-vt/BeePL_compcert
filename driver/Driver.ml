@@ -47,6 +47,7 @@ let compile_c_file sourcename ifile ofile =
   set_dest PrintCsyntax.destination option_dcmedium ".compcert.c";
   set_dest PrintClight.destination option_dclight ".light.c";
   set_dest PrintCminor.destination option_dcminor ".cm";
+  set_dest PrintCminorSel.destination option_dcminorsel ".cms";
   set_dest PrintRTL.destination option_drtl ".rtl";
   set_dest Regalloc.destination_alloctrace option_dalloctrace ".alloctrace";
   set_dest PrintLTL.destination option_dltl ".ltl";
@@ -340,6 +341,7 @@ let cmdline_actions =
     option_dcmedium := true;
     option_dclight := true;
     option_dcminor := true;
+    option_dcminorsel := true;
     option_drtl := true;
     option_dltl := true;
     option_dalloctrace := true;

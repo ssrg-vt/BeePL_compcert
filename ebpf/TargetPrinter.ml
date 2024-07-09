@@ -77,6 +77,7 @@ module Target : TARGET =
         | ADD -> " += " | SUB -> " -= " | MUL -> " *= " | DIV -> " /= "
         | OR -> " |= " | AND -> " &= " | LSH -> " <<= " | RSH -> " >>= "
         | NEG -> " -" | MOD -> " %= " | XOR -> " ^= " | MOV -> " = " | ARSH -> " s>>= "
+        | CONV _ -> " = " 
       in output_string oc (operator_name op)
 
     let register_name = function
@@ -93,10 +94,7 @@ module Target : TARGET =
                          | W64 -> register_name) ireg)
 
         
-    let immediate oc i =
-      match i with
-      | Imm32 i -> coqint oc i
-      | Imm64 i -> coqint64 oc i
+    let immediate oc i = coqint oc i
 
     let ptrofs w oc ofs =
       match w with
@@ -108,16 +106,6 @@ module Target : TARGET =
          register w oc reg
       | Datatypes.Coq_inr imm -> immediate oc imm
 
-    let immediate_ll oc i =
-      match i with
-      | Imm32 i -> coqint oc i
-      | Imm64 i -> Printf.fprintf oc "%a ll" coqint64 i
-
-    
-    let register_or_immediate_ll w oc = function
-      | Datatypes.Coq_inl reg ->
-         register w oc reg
-      | Datatypes.Coq_inr imm -> immediate_ll oc imm
 
     
     let rec cmpOp = function
@@ -133,8 +121,8 @@ module Target : TARGET =
       | LE Signed -> "s<="
       | LE Unsigned -> "<="
 
-    and print_cmp oc op reg w regimm =
-      fprintf oc "	%a (%s)= %a\n" (register w) reg (cmpOp op) (register_or_immediate w) regimm
+(*    and print_cmp oc op reg w regimm =
+      fprintf oc "	%a (%s)= %a\n" (register w) reg (cmpOp op) (register_or_immediate w) regimm *)
 
     and print_jump_cmp oc op w reg regimm label =
       fprintf oc "	if %a %s %a goto %a\n" (register w)  reg (cmpOp op) (register_or_immediate w) regimm
@@ -230,31 +218,42 @@ module Target : TARGET =
     (* Printing of instructions *)
     let print_instruction oc = function
       | Pload (op, reg1, reg2, off) ->
-
-        fprintf oc "	%a = *(%a *)(%a %a)\n" (register (sizew op))  reg1 sizeOp op (register W64) reg2 coqint_as_offset off
+        fprintf oc "\t%a = *(%a *)(%a %a)\n" (register (sizew op))  reg1 sizeOp op (register W64) reg2 coqint_as_offset off
 
       | Pstore (op, reg, regimm, off) ->
-         fprintf oc "	*(%a *)(%a %a) = %a\n" sizeOp op (register W64) reg  coqint_as_offset off
+         fprintf oc "\t*(%a *)(%a %a) = %a\n" sizeOp op (register W64) reg  coqint_as_offset off
            (register_or_immediate (sizew op)) regimm
 
-      | Palu (MOV,W64,reg,regimm) -> fprintf oc "	%a = %a\n" (register W64) reg (register_or_immediate_ll W64) regimm
-      | Palu (op, w, reg, regimm) ->
-        fprintf oc "	%a%a%a\n" (register w) reg operator op (register_or_immediate w) regimm
+      | Palu (MOV,w,reg,regimm) -> fprintf oc "\t%a = %a\n" (register w) reg (register_or_immediate w) regimm
 
-      | Pcmp (op, w, reg, regimm) -> print_cmp oc op reg w regimm
-      | Pjmp goto -> fprintf oc "	goto %a\n" (print_sum print_label symbol) goto
+      | Palu (CONV DWOFW,_,reg,regimm)        -> (* longofintu clears the upper bits.
+                                                    could be a nop?
+                                                  *)
+         assert (regimm = Datatypes.Coq_inr BinNums.Z0);
+         fprintf oc "\t%a &= %a\n" (register W64) reg coqint Integers.Int.max_unsigned
+
+      | Palu (CONV WOFDW,_,reg,regimm)        -> (* loword clears the upper bits *)
+         assert (regimm = Datatypes.Coq_inr BinNums.Z0);
+         fprintf oc "\t%a &= %a\n" (register W64) reg coqint Integers.Int.max_unsigned
+
+      | Palu (op, w, reg, regimm) ->
+        fprintf oc "\t%a%a%a\n" (register w) reg operator op (register_or_immediate w) regimm
+
+      | Pcmp (op, w, reg, regimm) -> assert false (*print_cmp oc op reg w regimm*)
+      | Pjmp goto -> fprintf oc "\tgoto %a\n" (print_sum print_label symbol) goto
       | Pjmpcmp (op, w, reg, regimm, label) -> print_jump_cmp oc op w reg regimm label
 
-      | Pcall ((Datatypes.Coq_inr s), _) -> fprintf oc "	call %a\n" symbol s
-      | Pcall ((Datatypes.Coq_inl r), _) -> fprintf oc "	callx %a\n" (register warchi) r
+      | Pcall ((Datatypes.Coq_inr s), _) -> fprintf oc "\tcall %a\n" symbol s
+      | Pcall ((Datatypes.Coq_inl r), _) -> fprintf oc "\tcallx %a\n" (register warchi) r
 
-      | Pret -> fprintf oc "	exit\n"
+      | Pret -> fprintf oc "\texit\n"
 
       | Plabel label -> fprintf oc "%a:\n" print_label label
 
       | Ploadsymbol(r,id,ofs) -> (* ebpf addresses are 64 bits... *)
-         fprintf oc "	%a = \"%a\" + %a\n" (register W64) r symbol id (ptrofs W64) ofs
+         fprintf oc "\t%a = \"%a\" + %a\n" (register W64) r symbol id (ptrofs W64) ofs
     
+      | Pmov(r,l) -> fprintf oc "\t%a = %a\n" (register W64) r coqint64 l
       | Pbuiltin _
       | Pallocframe _
       | Pfreeframe _ -> assert false

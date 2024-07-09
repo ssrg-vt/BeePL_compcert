@@ -21,6 +21,7 @@ open Printf
 open Camlcoq
 open Integers
 open Op
+(*open PrintCminor*)
 
 let comparison_name = function
   | Ceq -> "=="
@@ -78,6 +79,7 @@ let print_operation reg pp = function
   | Ocmp c, args -> print_condition reg pp (c, args)
   | Ocast8signed, [r1] -> fprintf pp "(8s) %a" reg r1
   | Ocast16signed, [r1] -> fprintf pp "(16s) %a" reg r1
+  | Ocast32unsigned, [r1] -> fprintf pp "(32u) %a" reg r1
   | Omulhs , [r1;r2]    -> fprintf pp "mulhs(%a,%a)" reg r1 reg r2
   | Omulhu , [r1;r2]    -> fprintf pp "mulhu(%a,%a)" reg r1 reg r2
   | Omod , [r1;r2]    -> fprintf pp "%a mod %a)" reg r1 reg r2
@@ -116,7 +118,32 @@ let print_operation reg pp = function
   | Osingleoflongu,[r]-> fprintf pp "singleoflongu(%a)" reg r
   | Ofloatconst n , [] -> fprintf pp "%F" (camlfloat_of_coqfloat n)
   | Osingleconst n, [] -> fprintf pp "%Ff" (camlfloat_of_coqfloat32 n)
-  | _ -> fprintf pp "<bad operator>"
+  (* 64bits *)
+  | Oaddl, [r1;r2] -> fprintf pp "%a + %a" reg r1 reg r2
+  | Oaddlimm n, [r1] -> fprintf pp "%a + %ld" reg r1 (camlint_of_coqint n)
+  | Onegl, [r1] -> fprintf pp "-(%a)" reg r1
+  | Osubl, [r1;r2] -> fprintf pp "%a - %a" reg r1 reg r2
+  | Osublimm n, [r1] -> fprintf pp "%a - %ld" reg r1 (camlint_of_coqint n)
+  | Omull, [r1;r2] -> fprintf pp "%a * %a" reg r1 reg r2
+  | Omullimm n, [r1] -> fprintf pp "%a * %ld" reg r1 (camlint_of_coqint n)
+  | Odivlu, [r1;r2] -> fprintf pp "%a /u %a" reg r1 reg r2
+  | Odivluimm n, [r1] -> fprintf pp "%a /u %ld" reg r1 (camlint_of_coqint n)
+  | Omodlu, [r1;r2] -> fprintf pp "%a %%u %a" reg r1 reg r2
+  | Omodluimm n, [r1] -> fprintf pp "%a %%u %ld" reg r1 (camlint_of_coqint n)
+  | Oandl, [r1;r2] -> fprintf pp "%a & %a" reg r1 reg r2
+  | Oandlimm n, [r1] -> fprintf pp "%a & %ld" reg r1 (camlint_of_coqint n)
+  | Oorl, [r1;r2] -> fprintf pp "%a | %a" reg r1 reg r2
+  | Oorlimm n, [r1] ->  fprintf pp "%a | %ld" reg r1 (camlint_of_coqint n)
+  | Oxorl, [r1;r2] -> fprintf pp "%a ^ %a" reg r1 reg r2
+  | Oxorlimm n, [r1] -> fprintf pp "%a ^ %ld" reg r1 (camlint_of_coqint n)
+  | Oshll, [r1;r2] -> fprintf pp "%a << %a" reg r1 reg r2
+  | Oshllimm n, [r1] -> fprintf pp "%a << %ld" reg r1 (camlint_of_coqint n)
+  | Oshrl, [r1;r2] -> fprintf pp "%a >>s %a" reg r1 reg r2
+  | Oshrlimm n, [r1] -> fprintf pp "%a >>s %ld" reg r1 (camlint_of_coqint n)
+  | Oshrlu, [r1;r2] -> fprintf pp "%a >>u %a" reg r1 reg r2
+  | Oshrluimm n, [r1] -> fprintf pp "%a >>u %ld" reg r1 (camlint_of_coqint n)
+  | (op,_)             -> fprintf pp "<bad operator %s>" (camlstring_of_coqstring (string_of_operation op))
+
 
 let print_addressing reg pp = function
   | Aindexed n, [r1] -> fprintf pp "%a + %Ld" reg r1 (camlint64_of_ptrofs n)

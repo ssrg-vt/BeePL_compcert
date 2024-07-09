@@ -120,6 +120,7 @@ Extract Constant Compopts.jump_tables =>
 (* Compiler *)
 Extract Constant Compiler.print_Clight => "PrintClight.print_if".
 Extract Constant Compiler.print_Cminor => "PrintCminor.print_if".
+Extract Constant Compiler.print_CminorSel => "PrintCminorSel.print_if".
 Extract Constant Compiler.print_RTL => "PrintRTL.print_if".
 Extract Constant Compiler.print_LTL => "PrintLTL.print_if".
 Extract Constant Compiler.print_Mach => "PrintMach.print_if".

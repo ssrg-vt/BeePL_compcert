@@ -83,6 +83,8 @@ Definition eval_static_operation (op: operation) (vl: list aval): aval :=
   | Ohighlong, v1::nil => hiword v1
 
 (* 64 bits *)
+  | Ocast32unsigned, v1 ::nil => longofintu v1
+  | Ocast32signed, v1 ::nil => longofint v1
   | Oaddl, v1::v2::nil => addl v1 v2
   | Oaddlimm n, v1::nil => addl v1 (L n)
   | Onegl, v1::nil => negl v1
@@ -101,11 +103,11 @@ Definition eval_static_operation (op: operation) (vl: list aval): aval :=
   | Oxorl, v1::v2::nil => xorl v1 v2
   | Oxorlimm n, v1::nil => xorl v1 (L n)
   | Oshll, v1::v2::nil => shll v1 v2
-  | Oshllimm n, v1::nil => shll v1 (L n)
+  | Oshllimm n, v1::nil => shll v1 (I n)
   | Oshrl, v1::v2::nil => shrl v1 v2
-  | Oshrlimm n, v1::nil => shrl v1 (L n)
+  | Oshrlimm n, v1::nil => shrl v1 (I n)
   | Oshrlu, v1::v2::nil => shrlu v1 v2
-  | Oshrluimm n, v1::nil => shrlu v1 (L n)
+  | Oshrluimm n, v1::nil => shrlu v1 (I n)
 
  (* floats *)
   | Onegf, v1::nil => negf v1
@@ -210,10 +212,10 @@ Theorem eval_static_operation_sound:
 Proof.
   unfold eval_operation, eval_static_operation; intros;
   destruct op; InvHyps; eauto with va.
-  rewrite Ptrofs.add_zero_l; eauto with va.
-  apply of_optbool_sound. eapply eval_static_condition_sound; eauto.
-  destruct (propagate_float_constants tt); constructor.
-  destruct (propagate_float_constants tt); constructor.
+  - rewrite Ptrofs.add_zero_l; eauto with va.
+  - apply of_optbool_sound. eapply eval_static_condition_sound; eauto.
+  - destruct (propagate_float_constants tt); constructor.
+  - destruct (propagate_float_constants tt); constructor.
 Qed.
 
 End SOUNDNESS.
