@@ -31,7 +31,7 @@ Require Import Op.
 Inductive mreg: Type :=
   (** Allocatable integer regs *)
   | I0: mreg | I1: mreg | I2: mreg | I3: mreg | I4: mreg
-  | I5: mreg | I6: mreg | I7: mreg | I8: mreg (*| I9: mreg reserved for RA *)
+  | I5: mreg | I6: mreg | I7: mreg | I8: mreg | I9: mreg
   (** Dummy double-precision float regs *)
   | D0: mreg | D1: mreg | D2: mreg.
 
@@ -40,7 +40,7 @@ Proof. decide equality. Defined.
 Global Opaque mreg_eq.
 
 Definition all_mregs :=
-  I0 :: I1 :: I2 :: I3 :: I4 :: I5 :: I6 :: I7 :: I8 :: (*I9 ::*) D0 :: D1 :: D2 :: nil.
+  I0 :: I1 :: I2 :: I3 :: I4 :: I5 :: I6 :: I7 :: I8 :: I9 :: D0 :: D1 :: D2 :: nil.
 
 Lemma all_mregs_complete:
   forall (r: mreg), In r all_mregs.
@@ -72,7 +72,7 @@ Module IndexedMreg <: INDEXED_TYPE.
   Definition index (r: mreg): positive :=
     match r with
     | I0 => 1 | I1 => 2 | I2 => 3 | I3 => 4 | I4 => 5
-    | I5 => 6 | I6 => 7 | I7 => 8 | I8 => 9 (*|I9 => 10*)
+    | I5 => 6 | I6 => 7 | I7 => 8 | I8 => 9 |I9 => 10
     | D0  => 11 | D1 => 12 | D2 => 13
     end.
 
