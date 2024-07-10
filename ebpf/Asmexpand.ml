@@ -37,15 +37,18 @@ let expand_alloc_frame sz ofs_ra ofs_link =
   (* SP := SP - sz *)
   emit (Palu(SUB,warchi,sp,Coq_inr sz));
   (* *(SP+ofs_link) := R0 *)
-  emit (Pstore(chunk_of_pointer,sp,Coq_inl R0,ofs_link));
-  (* *(SP+ofs_ra) := RA *)
-  emit (Pstore(chunk_of_pointer,sp,Coq_inl ra,ofs_ra)))
+  emit (Pstore(chunk_of_pointer,sp,Coq_inl R0,ofs_link)))
+  (*  (* *(SP+ofs_ra) := RA *)
+  (* This is assumed to be done by the call instruction *)
+  emit (Pstore(chunk_of_pointer,sp,Coq_inl ra,ofs_ra))) *)
 
 let expand_free_frame sz ofs_ra ofs_link =
-  let sz = Integers.Int.repr sz in
-  Datatypes.(
-  (* RA := *(SP+ofs_ra) *)
-  emit (Pload(chunk_of_pointer,ra,sp,ofs_ra));
+    let sz = Integers.Int.repr sz in
+  Datatypes.( 
+(*  (* RA := *(SP+ofs_ra) *)
+    emit (Pload(chunk_of_pointer,ra,sp,ofs_ra));
+    (* This is assumed to be done by the return instruction  *)
+ *)
   (* SP := SP + sz *)
   emit (Palu(ADD,warchi,sp,Coq_inr sz)))
 
