@@ -275,11 +275,8 @@ Definition goto_label (f: function) (lbl: label) (rs: regset) (m: mem) :=
       end
   end.
 
-Definition int64_of_intu (i:int) := Int64.repr (Int.unsigned i).
 
-Definition int64_is_intu (n:int64) :=
-  let i := Int64.unsigned n in
-  Z.leb i Int.max_unsigned.
+Definition int64_of_int (i:int) := Int64.repr (Int.signed i).
 
 
 Definition map_sum_left {A B A': Type} (F: A -> A')  (x: A+B) : A'+B :=
@@ -288,12 +285,16 @@ Definition map_sum_left {A B A': Type} (F: A -> A')  (x: A+B) : A'+B :=
   | inr i => inr i
   end.
 
+(**
+   https://docs.cilium.io/en/latest/bpf/architecture/#instruction-set
+ imm(ediate) is of signed type *)
+
 Definition eval_reg_immw (w:width) (rs : regset) (ri: ireg+int) : val :=
   match ri with
   | inl i => rs i
   | inr i => match w with
              | W32 => Vint i
-             | W64 => Vlong (int64_of_intu i)
+             | W64 => Vlong (int64_of_int i)
              end
   end.
 
@@ -303,7 +304,8 @@ Definition eval_val_int (w:width)  (ri: val+int) : val :=
   | inl i =>  i
   | inr i => match w with
              | W32 => Vint i
-             | W64 => Vlong (int64_of_intu i) (* constant are given an unsigned interpretation *)
+             | W64 => Vlong (int64_of_int i)
+                            (* constant are given a signed interpretation *)
              end
   end.
 

@@ -38,9 +38,9 @@ module Target : TARGET =
     let label         = elf_label
 
 
-    let print_sum  (f1:out_channel -> 'a -> unit) (f2:out_channel -> 'b -> unit) (oc: out_channel) = function
+    (*let print_sum  (f1:out_channel -> 'a -> unit) (f2:out_channel -> 'b -> unit) (oc: out_channel) = function
       | Datatypes.Coq_inl a -> f1 oc a
-      | Datatypes.Coq_inr a -> f2 oc a
+      | Datatypes.Coq_inr a -> f2 oc a *)
 
     
     let  print_label oc lbl = label oc (transl_label lbl)
@@ -76,7 +76,7 @@ module Target : TARGET =
       let operator_name = function
         | ADD -> " += " | SUB -> " -= " | MUL -> " *= " | DIV -> " /= "
         | OR -> " |= " | AND -> " &= " | LSH -> " <<= " | RSH -> " >>= "
-        | NEG -> " -" | MOD -> " %= " | XOR -> " ^= " | MOV -> " = " | ARSH -> " s>>= "
+        | NEG -> "= -" | MOD -> " %= " | XOR -> " ^= " | MOV -> " = " | ARSH -> " s>>= "
         | CONV _ -> " = " 
       in output_string oc (operator_name op)
 
@@ -230,7 +230,11 @@ module Target : TARGET =
                                                     could be a nop?
                                                   *)
          assert (regimm = Datatypes.Coq_inr BinNums.Z0);
-         fprintf oc "\t%a &= %a\n" (register W64) reg coqint Integers.Int.max_unsigned
+         () (* https://docs.cilium.io/en/latest/bpf/architecture/#instruction-set
+               "The 32 bit lower subregisters zero-extend into 64 bit when they are being written to."
+               i.e. the upper bits contain zeros
+             *)
+      (*fprintf oc "\t%a &= %a\n" (register W64) reg coqint Integers.Int.max_unsigned *)
 
       | Palu (CONV WOFDW,_,reg,regimm)        -> (* loword clears the upper bits *)
          assert (regimm = Datatypes.Coq_inr BinNums.Z0);
@@ -239,10 +243,15 @@ module Target : TARGET =
       | Palu (op, w, reg, regimm) ->
         fprintf oc "\t%a%a%a\n" (register w) reg operator op (register_or_immediate w) regimm
 
-      | Pcmp (op, w, reg, regimm) -> assert false (*print_cmp oc op reg w regimm*)
-      | Pjmp goto -> fprintf oc "\tgoto %a\n" (print_sum print_label symbol) goto
+      | Pcmp (op, w, reg, regimm) -> assert false
+      (* compiled into jumps by Asmexpand *) 
+      (*print_cmp oc op reg w regimm*)
       | Pjmpcmp (op, w, reg, regimm, label) -> print_jump_cmp oc op w reg regimm label
-
+      | Pjmp (Datatypes.Coq_inr s) ->
+         fprintf stdout "Warning: goto %a may not be supported by assembler" symbol s;
+         fprintf oc "\tgoto %a\n"  symbol s
+      | Pjmp (Datatypes.Coq_inl l) ->
+         fprintf oc "\tgoto %a\n"  print_label l
       | Pcall ((Datatypes.Coq_inr s), _) -> fprintf oc "\tcall %a\n" symbol s
       | Pcall ((Datatypes.Coq_inl r), _) -> fprintf oc "\tcallx %a\n" (register warchi) r
 

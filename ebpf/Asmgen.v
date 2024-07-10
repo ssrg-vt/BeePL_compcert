@@ -49,7 +49,9 @@ Definition warchi := warchib Archi.ptr64.
 
 Definition ptrofs_is_int (n:ptrofs) :=
   if negb Archi.ptr64 then true
-  else Z.leb (Ptrofs.unsigned n) Int.max_unsigned.
+  else
+    let i := Ptrofs.signed n in
+    Z.leb Int.min_signed i && Z.leb i Int.max_signed.
 
 Definition addptrofs (rd rs: ireg) (n: ptrofs) (k: code) :=
   if Ptrofs.eq_dec n Ptrofs.zero then
@@ -59,10 +61,19 @@ Definition addptrofs (rd rs: ireg) (n: ptrofs) (k: code) :=
   then  OK (Palu MOV warchi rd (inl rs) :: Palu ADD warchi rd (inr (Ptrofs.to_int n)) :: k)
   else  Error (msg "offset is not representable").
 
+Definition errcode_of_Z (z:Z) :=
+  match z with
+  | Z0 => MSG "0" :: nil
+  | Zpos p => POS p :: nil
+  | Zneg p => MSG "-" :: POS p :: nil
+  end.
+
+
 Definition get_int (n:int64) :=
-  let i := Int64.unsigned n in
-  if Z.leb  i Int.max_unsigned
-  then OK (Int.repr i) else Error (msg "constant is not representable").
+  let i := Int64.signed n in
+  if Z.leb Int.min_signed i && Z.leb i Int.max_signed
+  then OK (Int.repr i)
+  else Error ((MSG "Constant ")::(errcode_of_Z (Int64.unsigned n))++ (MSG " is not representable")::nil).
 
 (** Translation of conditional branches. *)
 
