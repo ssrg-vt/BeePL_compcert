@@ -31,14 +31,16 @@ Proof.
   intros. apply ireg_of_not_R10 in H. congruence.
 Qed.
 
-Lemma get_int_inv : forall n x, get_int n = OK x -> (Int.repr (Int64.unsigned n)) =  x /\ Int.unsigned x = Int64.unsigned n.
+Lemma get_int_inv : forall n x, get_int n = OK x -> (Int.repr (Int64.signed n)) =  x /\ Int.signed x = Int64.signed n.
 Proof.
   unfold get_int. intros.
-  destruct (Int64.unsigned n <=? Int.max_unsigned) eqn:LE; try discriminate.
+  match goal with
+  | H : (if ?C then _ else _) = _ |- _ => destruct C eqn:LE ; try discriminate
+  end.
+  rewrite andb_true_iff in LE. destruct LE as (LE1 & LE2).
+  apply Zle_bool_imp_le in LE1. apply Zle_bool_imp_le in LE2.
   inv H. split; auto.
-  rewrite Int.unsigned_repr; auto.
-  apply Zle_bool_imp_le in LE.
-  generalize (Int64.unsigned_range_2 n). lia.
+  rewrite Int.signed_repr; auto.
 Qed.
 
 Global Hint Resolve ireg_of_not_R10 ireg_of_not_R10': asmgen.
@@ -93,25 +95,40 @@ Lemma lessdef_offset_ptr_addl :
          (BND: ptrofs_is_int n = true)
          (ARCH : Archi.ptr64 = true),
     Val.lessdef (Val.offset_ptr v n)
-      (Val.addl v (Vlong (int64_of_intu (Ptrofs.to_int n)))).
+      (Val.addl v (Vlong (int64_of_int (Ptrofs.to_int n)))).
 Proof.
   unfold Val.offset_ptr.
   destruct v; auto.
   simpl. intros. rewrite ARCH.
-  replace ((Ptrofs.of_int64 (int64_of_intu (Ptrofs.to_int n)))) with n;auto.
+  replace ((Ptrofs.of_int64 (int64_of_int (Ptrofs.to_int n)))) with n;auto.
   unfold ptrofs_is_int in BND.
   rewrite ARCH in BND. simpl in BND.
-  apply  Zle_bool_imp_le in BND.
-  unfold int64_of_intu,Ptrofs.of_int,Ptrofs.to_int.
-  pose proof (Ptrofs.unsigned_range_2 n) as R.
-  rewrite Int.unsigned_repr by lia.
+  rewrite andb_true_iff in BND.
+  destruct BND as (BND1 & BND2).
+  apply  Zle_bool_imp_le in BND1. apply  Zle_bool_imp_le in BND2.
+  unfold int64_of_int,Ptrofs.of_int,Ptrofs.to_int.
+  (*pose proof (Ptrofs.signed_range n) as R.*)
   unfold Ptrofs.of_int64.
-  apply Ptrofs.agree64_repr with (i:=(Ptrofs.unsigned n)) in ARCH.
-  unfold Ptrofs.agree64 in ARCH. rewrite <- ARCH.
-  rewrite! Ptrofs.repr_unsigned;auto.
+  rewrite <- Ptrofs.agree64_repr by auto.
+  rewrite Ptrofs.repr_unsigned.
+  assert (Int.repr (Ptrofs.unsigned n) = Int.repr (Ptrofs.signed n)).
+  {
+    unfold Ptrofs.signed.
+    destruct (zlt (Ptrofs.unsigned n) Ptrofs.half_modulus).
+    auto.
+    apply Int.eqm_samerepr.
+    unfold Int.eqm. unfold eqmod.
+    assert (Ptrofs.modulus = Int.modulus * Int.modulus).
+    { rewrite Ptrofs.modulus_eq64 by auto.
+      reflexivity.
+    }
+    exists (Int.modulus).
+    lia.
+  }
+  rewrite H.
+  rewrite Int.signed_repr by lia.
+  rewrite Ptrofs.repr_signed. reflexivity.
 Qed.
-
-
 
 Lemma addptrofs_correct:
   forall rd r1 n k k' rs m,
@@ -303,11 +320,11 @@ Proof.
     get_int_inv.
     intuition auto. constructor.
     apply transl_cbranch_signed_correct; auto. simpl.
-    unfold int64_of_intu. rewrite H0. rewrite Int64.repr_unsigned. auto.
+    unfold int64_of_int. rewrite H0. rewrite Int64.repr_signed. auto.
   - exists rs, (transl_cbranch_unsigned c0 W64 x (inr x0) lbl).
     get_int_inv.
     intuition auto. constructor. apply transl_cbranch_unsigned_correct; auto.
-    simpl. unfold int64_of_intu. rewrite H0. rewrite Int64.repr_unsigned. auto.
+    simpl. unfold int64_of_int. rewrite H0. rewrite Int64.repr_signed. auto.
 Qed.
 
 Lemma transl_cbranch_correct_true:
@@ -451,15 +468,15 @@ Proof.
     intros (rs' & A & B & C). exists rs'.
     split. apply A.
     split;auto. simpl in B.
-    unfold int64_of_intu in B. rewrite H0 in B.
-    rewrite Int64.repr_unsigned in B;auto.
+    unfold int64_of_int in B. rewrite H0 in B.
+    rewrite Int64.repr_signed in B;auto.
   - get_int_inv.
     exploit transl_cond_unsigned_correct; eauto.
     intros (rs' & A & B & C). exists rs'.
     split. apply A.
     split;auto. simpl in B.
-    unfold int64_of_intu in B. rewrite H0 in B.
-    rewrite Int64.repr_unsigned in B;auto.
+    unfold int64_of_int in B. rewrite H0 in B.
+    rewrite Int64.repr_signed in B;auto.
 Qed.
 
 
@@ -479,12 +496,12 @@ Ltac TranslOpSimpl :=
 
 Ltac TranslALUOpSimpl EV :=
   econstructor; split;
-  [ apply exec_straight_one; [ unfold exec_instr, exec_alu, int64_of_intu;simpl; rewrite EV; try reflexivity | reflexivity]
+  [ apply exec_straight_one; [ unfold exec_instr, exec_alu, int64_of_int;simpl; rewrite EV; try reflexivity | reflexivity]
   | split; [ apply Val.lessdef_same; Simpl; fail | intros; Simpl; fail ] ].
 
 Ltac TranslALU64OpSimpl EV :=
   econstructor; split;
-  [ apply exec_straight_one; [ unfold exec_instr, exec_alu;simpl; unfold int64_of_intu; try rewrite EV ; try reflexivity | reflexivity]
+  [ apply exec_straight_one; [ unfold exec_instr, exec_alu;simpl; unfold int64_of_int; try rewrite EV ; try reflexivity | reflexivity]
   | split; [ apply Val.lessdef_same; Simpl | intros; Simpl ] ].
 
 
@@ -594,33 +611,33 @@ Opaque Int.eq.
 - TranslALUOpSimpl EV.
 - TranslALUOpSimpl EV.
 - TranslALU64OpSimpl EQ.
-  rewrite H0. rewrite Int64.repr_unsigned. reflexivity.
+  rewrite H0. rewrite Int64.repr_signed. reflexivity.
 - TranslALU64OpSimpl EQ.
-  rewrite H0. rewrite Int64.repr_unsigned. reflexivity.
+  rewrite H0. rewrite Int64.repr_signed. reflexivity.
 - TranslALU64OpSimpl EQ.
-  rewrite H0. rewrite Int64.repr_unsigned. reflexivity.
+  rewrite H0. rewrite Int64.repr_signed. reflexivity.
 - TranslALU64OpSimpl EV.
 - clear H.
   get_int_inv.
   econstructor; split.
-  + apply exec_straight_one; unfold exec_instr, exec_alu;simpl; unfold int64_of_intu.
-    rewrite H0. rewrite Int64.repr_unsigned. rewrite EV. reflexivity.
+  + apply exec_straight_one; unfold exec_instr, exec_alu;simpl; unfold int64_of_int.
+    rewrite H0. rewrite Int64.repr_signed. rewrite EV. reflexivity.
     Simpl.
   + split; [ apply Val.lessdef_same; Simpl | intros; Simpl ].
 - TranslALU64OpSimpl EV.
 - clear H.
   get_int_inv.
   econstructor; split.
-  + apply exec_straight_one; unfold exec_instr, exec_alu;simpl; unfold int64_of_intu.
-    rewrite H0. rewrite Int64.repr_unsigned. rewrite EV. reflexivity.
+  + apply exec_straight_one; unfold exec_instr, exec_alu;simpl; unfold int64_of_int.
+    rewrite H0. rewrite Int64.repr_signed. rewrite EV. reflexivity.
     Simpl.
   + split; [ apply Val.lessdef_same; Simpl | intros; Simpl ].
 - TranslALU64OpSimpl EQ1.
-  rewrite H0. rewrite Int64.repr_unsigned. reflexivity.
+  rewrite H0. rewrite Int64.repr_signed. reflexivity.
 - TranslALU64OpSimpl EQ1.
-  rewrite H0. rewrite Int64.repr_unsigned. reflexivity.
+  rewrite H0. rewrite Int64.repr_signed. reflexivity.
 - TranslALU64OpSimpl EQ1.
-  rewrite H0. rewrite Int64.repr_unsigned. reflexivity.
+  rewrite H0. rewrite Int64.repr_signed. reflexivity.
 - (* cond *)
   exploit transl_cond_op_correct; eauto. intros (rs' & A & B & C).
   exists rs'; split. eexact A. eauto with asmgen.
