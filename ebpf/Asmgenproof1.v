@@ -14,7 +14,7 @@ Require Import Coqlib Errors Maps.
 Require Import AST Zbits Integers Floats Values Memory Globalenvs.
 Require Import Op Locations Mach Conventions.
 Require Import Events Smallstep.
-Require Import Asm Asmgen Asmgenproof0.
+Require Import Asm Asmgen Mulh Asmgenproof0.
 
 
 (** Properties of registers *)
@@ -588,6 +588,49 @@ Proof.
 Qed.
 
 
+Lemma mulhu_exec :
+  forall x x' rs k  m
+         (ALIAS : x <> x')
+         (REG1 : x  <> R1)
+         (REG2 : x' <> R1),
+exists rs' : regset,
+    exec_straight ge fn
+      (Palu MOV W32 R1 (inl x')
+     :: Palu (CONV DWOFW) W64 R1 (inr Int.zero)
+        :: Palu (CONV DWOFW) W64 x (inr Int.zero)
+           :: Palu MUL W64 x (inl R1)
+              :: Palu ARSH W64 x (inr (Int.repr 32))
+                 :: Palu (CONV WOFDW) W64 x (inr Int.zero) :: k) rs m k rs' m /\
+    Val.lessdef (Val.mulhu (rs x) (rs x')) (rs' x) /\
+    (forall r : preg, data_preg r = true -> r <> x -> preg_notin r (destroyed_by_op Omulhu) -> rs' r = rs r).
+Proof.
+  intros.
+  eexists.  split;[|split].
+  -
+    eapply exec_straight_step; try reflexivity.
+    eapply exec_straight_step; try reflexivity.
+    eapply exec_straight_step; try reflexivity.
+    eapply exec_straight_three; eauto; try reflexivity.
+  -
+    unfold map_sum_left,eval_val_int.
+    Simpl.
+    destruct (rs x),(rs x') ; auto.
+    unfold Val.mulhu.
+    rewrite mulhu_eq.
+    apply Val.lessdef_same.
+    unfold Val.longofintu.
+    unfold Val.mull. unfold Val.shrl.
+    change (Int.ltu (Int.repr 32) Int64.iwordsize') with true.
+    cbv iota.
+    unfold Val.loword.
+    unfold mulhu'.
+    rewrite hiword_shrl.
+    reflexivity.
+  - intros. Simpl.
+Qed.
+
+
+
 Lemma transl_op_correct:
   forall op args res k (rs: regset) m v c,
   transl_op op args res k = OK c ->
@@ -651,6 +694,14 @@ Opaque Int.eq.
   intros (rs' & EXEC & LD & RS).
   eexists. split;[eauto|split]; eauto.
   intros. apply RS; auto. intro. subst. discriminate.
+- (* mulhu *)
+  destruct (ireg_eq x0 R1); try discriminate.
+  destruct (ireg_eq x R1); try discriminate.
+  destruct (ireg_eq x x0); try discriminate.
+  simpl in *.
+  generalize (mulhu_exec _ _ rs k m n1 n0 n).
+  intros (rs' & EXEC & LD & RS).
+  eexists. split;[eauto|split]; eauto.
 - (* sign_ext 32 *)
   exploit sign_ext_32.
   intros (rs' & EXEC & LD & RS).

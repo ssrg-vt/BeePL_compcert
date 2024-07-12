@@ -106,6 +106,7 @@ Definition register_by_name (s: string) : option mreg :=
 
 Definition destroyed_by_op (op: operation): list mreg :=
   match op with
+  | Omulhu => I1::nil
   | Omove
   | _ => nil
   end.
@@ -145,13 +146,7 @@ Definition temp_for_parent_frame: mreg := I0.
 Definition destroyed_at_indirect_call: list mreg := nil.
 
 Definition mregs_for_operation (op: operation): list (option mreg) * option mreg :=
-  if Archi.rbpf
-  then
-    match op with
-    | Odivu => (Some I0 :: Some I1 :: nil, Some I0)
-    | _ => (nil, None)
-    end
-  else (nil,None).
+  (nil,None).
 
 Definition mregs_for_builtin (ef: external_function): list (option mreg) * list(option mreg) :=
   match ef with
@@ -178,7 +173,7 @@ Definition two_address_op (op: operation) : bool :=
   | Oshr | Oshrimm _ | Oshru | Oshruimm _
   | Ocmp (Ccomp _ | Ccompu _ | Ccompimm _ _ | Ccompuimm _ _)
   | Odivuimm _ | Omoduimm _
-  | Omulhs | Omulhu | Omod
+  (*| Omulhs*) | Omulhu |  Omod
   | Ocast8signed | Ocast16signed => true
     (* 64 bits *)
   | Ocast32unsigned | Ocast32signed | Olowlong
