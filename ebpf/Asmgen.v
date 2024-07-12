@@ -379,7 +379,22 @@ OK (Palu (CONV DWOFW) W64 r (inr Int.zero) :: (Palu LSH W64 r (inr (Int.repr 32)
     assertion_str ["Olowlong"] (mreg_eq a1 res);
 OK (Palu (CONV WOFDW) W64 r (inr Int.zero)  :: k)
 | Omulhs, a1 :: a2 :: nil => Error (msg "mulhs is not available in eBPF: pass -Os")
-| Omulhu, a1 :: a2 :: nil => Error (msg "mulhu is not available in eBPF: pass -Os")
+| Omulhu, a1 :: a2 :: nil =>
+    (* This is slow, usually hardware have this instruction.
+       builtin would be better? *)
+    do r <- ireg_of res;
+    do r2 <- ireg_of a2;
+    assertion_str ["Omulhu"] (mreg_eq a1 res);
+   assertion_str ["Omulhu a1 is aliased with destroyed register"] (negb (preg_eq r2 R1));
+   assertion_str ["Omulhu a2 is aliased with destroyed register"] (negb (preg_eq r R1));
+   (* Unsure whether this may happen. *)
+   assertion_str ["Omulhu a1 a2 are aliased"] (negb (preg_eq r r2));
+OK (
+    (Palu MOV W32 R1 (inl r2)) ::
+      (Palu (CONV DWOFW) W64 R1 (inr Int.zero)) ::
+      (Palu (CONV DWOFW) W64 r (inr Int.zero)) ::
+      (Palu MUL W64 r (inl R1)) :: (Palu ARSH W64 r (inr (Int.repr 32))) ::
+      (Palu (CONV WOFDW) W64 r (inr Int.zero)) :: k)
 | Omod, a1 :: a2 :: nil => Error (msg "signed modulo is not available in eBPF")
 
 | Oaddl , a1 ::a2 ::nil =>
