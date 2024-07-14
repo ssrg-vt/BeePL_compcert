@@ -24,7 +24,13 @@ Require Import Op.
 (** * Abstract syntax *)
 
 (** Registers. *)
-
+(* eBPF has 10 general purpose registers and R10 reserved for 
+   read-only frame pointer register: size 32/64 bits *)
+(* R0 : Return value 
+   R1 - R5 : Arguments for the function (caller-saved)
+   R6 - R9 : Callee-saved registers that the function calls will preserve 
+   R10 : Read-only frame pointer to access stack 
+   R0-R5 can be spilled to stack in case of less number of available registers *)
 Inductive ireg: Type := R0 | R1 | R2 | R3 | R4 | R5 | R6 | R7 | R8 | R9 | R10.
 
 Inductive freg: Type := F0 | F1 | F2.
@@ -74,7 +80,11 @@ Definition preg_of (r: mreg) : preg :=
 Declare Scope asm.
 
 (** Conventional names for stack pointer ([SP]) *)
-
+(** Can BPF programs access stack pointer ?
+    A: NO. Only frame pointer (register R10) is accessible. 
+       From compiler point of view it’s necessary to have stack pointer. 
+       For example, LLVM defines register R11 as stack pointer in its BPF backend, 
+       but it makes sure that generated code never uses it.*)
 Notation "'SP'" := R10 (only parsing) : asm.
 
 
@@ -156,6 +166,12 @@ Inductive instruction : Type :=
   | Pjmp : ident+label -> instruction                           (**r unconditional jump *)
   | Pjmpcmp : forall (o:cmpOp) (w:width) (r:ireg) (a:ireg+int) (l:label), instruction (**r conditional jump with comparison *)
   | Pcall : ireg+ident -> signature -> instruction              (**r function call *)
+    (** Three kinds of call:
+        - call helper functions by address (this is taken care by ident) 
+        - call functions at location pc+offset (this is taken care by ireg)
+        - call helper function by BTF id:  
+          BTF ID encoded in the imm field, 
+          where the BTF ID identifies the helper name and type (this is taken care by ident)*)
   | Pret : instruction                                          (**r function return *)
 
   (* Pseudo-instructions *)
@@ -188,7 +204,7 @@ Notation "a # b <- c" := (Pregmap.set b c a) (at level 1, b at next level) : asm
 Open Scope asm.
 
 (** Undefining some registers *)
-
+(* This should undefine R0 to R5 as R1 to R5 are caller save registers and R0 is the return value *)
 Fixpoint undef_regs (l: list preg) (rs: regset) : regset :=
   match l with
   | nil => rs
