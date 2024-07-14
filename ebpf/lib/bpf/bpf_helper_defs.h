@@ -54,7 +54,7 @@ struct ipv6hdr;
  * 	found.
  */
 #ifdef __bpf_helper_as_extern__
-extern void bpf_map_lookup_elem(void *map, const void *key);
+extern void *bpf_map_lookup_elem(void *map, const void *key);
 #else
 static void *(*const bpf_map_lookup_elem)(void *map, const void *key) = (void *) 1;
 #endif

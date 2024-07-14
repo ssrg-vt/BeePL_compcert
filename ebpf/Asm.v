@@ -31,6 +31,7 @@ Require Import Op.
    R6 - R9 : Callee-saved registers that the function calls will preserve 
    R10 : Read-only frame pointer to access stack 
    R0-R5 can be spilled to stack in case of less number of available registers *)
+(* The context argument to an eBPF program is loaded into R1 before its execution begins.*)
 Inductive ireg: Type := R0 | R1 | R2 | R3 | R4 | R5 | R6 | R7 | R8 | R9 | R10.
 
 Inductive freg: Type := F0 | F1 | F2.
