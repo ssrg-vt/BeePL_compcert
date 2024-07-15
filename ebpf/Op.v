@@ -842,7 +842,7 @@ Qed.
 Definition is_trivial_op (op: operation) : bool :=
   match op with
   | Omove => true
-  | Ointconst n => Int.eq (Int.sign_ext 12 n) n
+  | Ointconst n => true
   | Oaddrstack _ => true
   | _ => false
   end.
