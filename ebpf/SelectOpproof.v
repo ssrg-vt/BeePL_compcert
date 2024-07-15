@@ -16,7 +16,7 @@ Require Import Coqlib Zbits.
 Require Import AST Integers Floats.
 Require Import Values Memory Builtins Globalenvs.
 Require Import Cminor Op CminorSel.
-Require Import SelectOp SelectLong.
+Require Import Mulh SelectOp SelectLong.
 
 Local Open Scope cminorsel_scope.
 
@@ -349,13 +349,30 @@ Qed.
 
 Theorem eval_mulhs: binary_constructor_sound mulhs Val.mulhs.
 Proof.
-  red; intros; TrivialExists.
+  red; intros.
+  unfold mulhs.
+  exists (Val.mulhs x y); split;auto.
+  unfold unop,binop. EvalOp.
+  repeat econstructor;eauto.
+  unfold eval_operation. destruct x,y; try reflexivity.
+  unfold Val.mulhs.
+  rewrite mulhs_eq.
+  reflexivity.
 Qed.
 
 Theorem eval_mulhu: binary_constructor_sound mulhu Val.mulhu.
 Proof.
-  red; intros; TrivialExists.
+  red; intros.
+  unfold mulhu.
+  exists (Val.mulhu x y); split;auto.
+  unfold unop,binop. EvalOp.
+  repeat econstructor;eauto.
+  unfold eval_operation. destruct x,y; try reflexivity.
+  unfold Val.mulhu.
+  rewrite mulhu_eq.
+  reflexivity.
 Qed.
+
 
 Theorem eval_andimm:
   forall n, unary_constructor_sound (andimm n) (fun x => Val.and x (Vint n)).

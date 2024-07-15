@@ -17,6 +17,7 @@ Require Import Maps.
 Require Import AST.
 Require Import Integers.
 Require Import Op.
+Require Size.
 
 (** ** Machine registers *)
 
@@ -106,7 +107,7 @@ Definition register_by_name (s: string) : option mreg :=
 
 Definition destroyed_by_op (op: operation): list mreg :=
   match op with
-  | Omulhu => I1::nil
+(*  | Omulhu => I1::nil*)
   | Omove
   | _ => nil
   end.
@@ -173,10 +174,10 @@ Definition two_address_op (op: operation) : bool :=
   | Oshr | Oshrimm _ | Oshru | Oshruimm _
   | Ocmp (Ccomp _ | Ccompu _ | Ccompimm _ _ | Ccompuimm _ _)
   | Odivuimm _ | Omoduimm _
-  (*| Omulhs*) | Omulhu |  Omod
+  (*| Omulhs | Omulhu *) |  Omod
   | Ocast8signed | Ocast16signed => true
     (* 64 bits *)
-  | Ocast32unsigned | Ocast32signed | Olowlong
+  | Ocast32unsigned | Ocast32signed | Olowlong | Ohighlong
   | Ocmp (Ccompl _ | Ccomplu _ | Ccomplimm _ _ | Ccompluimm _ _)
   | Oaddl | Oaddlimm _ | Onegl | Osubl | Osublimm _
   | Omull | Omullimm _ | Odivlu | Omodlu

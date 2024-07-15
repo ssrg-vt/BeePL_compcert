@@ -92,7 +92,7 @@ Qed.
 
 Lemma lessdef_offset_ptr_addl :
   forall v n
-         (BND: ptrofs_is_int n = true)
+         (BND: Size.Ptrofs.is_int n = true)
          (ARCH : Archi.ptr64 = true),
     Val.lessdef (Val.offset_ptr v n)
       (Val.addl v (Vlong (int64_of_int (Ptrofs.to_int n)))).
@@ -101,7 +101,7 @@ Proof.
   destruct v; auto.
   simpl. intros. rewrite ARCH.
   replace ((Ptrofs.of_int64 (int64_of_int (Ptrofs.to_int n)))) with n;auto.
-  unfold ptrofs_is_int in BND.
+  unfold Size.Ptrofs.is_int in BND.
   rewrite ARCH in BND. simpl in BND.
   rewrite andb_true_iff in BND.
   destruct BND as (BND1 & BND2).
@@ -145,7 +145,7 @@ Proof.
     split. Simpl. simpl. destruct (rs r1); simpl; auto. rewrite Ptrofs.add_zero; auto.
     intros; Simpl.
   +
-    destruct (ptrofs_is_int n) eqn:C; try discriminate.
+    destruct (Size.Ptrofs.is_int n) eqn:C; try discriminate.
     inv H.
     eexists; split.
     eapply exec_straight_two; reflexivity.
@@ -153,7 +153,7 @@ Proof.
     * Simpl.
       destruct warchi eqn:WARCH.
       { simpl.
-        unfold ptrofs_is_int in C.
+        unfold Size.Ptrofs.is_int in C.
         unfold warchi in WARCH. destruct Archi.ptr64 eqn:ARCH ; try discriminate.
         simpl in WARCH.
         apply lessdef_offset_ptr_add; auto.
@@ -587,48 +587,26 @@ Proof.
   - intros. Simpl.
 Qed.
 
-
-Lemma mulhu_exec :
-  forall x x' rs k  m
-         (ALIAS : x <> x')
-         (REG1 : x  <> R1)
-         (REG2 : x' <> R1),
-exists rs' : regset,
-    exec_straight ge fn
-      (Palu MOV W32 R1 (inl x')
-     :: Palu (CONV DWOFW) W64 R1 (inr Int.zero)
-        :: Palu (CONV DWOFW) W64 x (inr Int.zero)
-           :: Palu MUL W64 x (inl R1)
-              :: Palu ARSH W64 x (inr (Int.repr 32))
-                 :: Palu (CONV WOFDW) W64 x (inr Int.zero) :: k) rs m k rs' m /\
-    Val.lessdef (Val.mulhu (rs x) (rs x')) (rs' x) /\
-    (forall r : preg, data_preg r = true -> r <> x -> preg_notin r (destroyed_by_op Omulhu) -> rs' r = rs r).
+Lemma ohighlong : forall x rs  m k,
+  exists rs' : regset,
+    exec_straight ge fn (Palu ARSH W64 x (inr (Int.repr 32)) :: Palu (CONV WOFDW) W64 x (inr Int.zero) :: k) rs m k rs' m /\
+    Val.lessdef (Val.hiword (rs x)) (rs' x) /\
+    (forall r : preg, data_preg r = true -> r <> x -> preg_notin r (destroyed_by_op Ohighlong) -> rs' r = rs r).
 Proof.
   intros.
   eexists.  split;[|split].
-  -
-    eapply exec_straight_step; try reflexivity.
-    eapply exec_straight_step; try reflexivity.
-    eapply exec_straight_step; try reflexivity.
-    eapply exec_straight_three; eauto; try reflexivity.
-  -
-    unfold map_sum_left,eval_val_int.
-    Simpl.
-    destruct (rs x),(rs x') ; auto.
-    unfold Val.mulhu.
-    rewrite mulhu_eq.
-    apply Val.lessdef_same.
-    unfold Val.longofintu.
-    unfold Val.mull. unfold Val.shrl.
+  - eapply exec_straight_two; reflexivity.
+  - Simpl.
+    unfold map_sum_left. unfold eval_val_int.
+    destruct (rs x) ; auto.
+    simpl.
     change (Int.ltu (Int.repr 32) Int64.iwordsize') with true.
     cbv iota.
-    unfold Val.loword.
-    unfold mulhu'.
+    simpl.
     rewrite hiword_shrl.
-    reflexivity.
+    auto.
   - intros. Simpl.
 Qed.
-
 
 
 Lemma transl_op_correct:
@@ -694,19 +672,12 @@ Opaque Int.eq.
   intros (rs' & EXEC & LD & RS).
   eexists. split;[eauto|split]; eauto.
   intros. apply RS; auto. intro. subst. discriminate.
-- (* mulhu *)
-  destruct (ireg_eq x0 R1); try discriminate.
-  destruct (ireg_eq x R1); try discriminate.
-  destruct (ireg_eq x x0); try discriminate.
-  simpl in *.
-  generalize (mulhu_exec _ _ rs k m n1 n0 n).
-  intros (rs' & EXEC & LD & RS).
-  eexists. split;[eauto|split]; eauto.
 - (* sign_ext 32 *)
   exploit sign_ext_32.
   intros (rs' & EXEC & LD & RS).
   eexists. split;[eauto|split]; eauto.
   intros. apply RS; auto. intro. subst. discriminate.
+-  apply ohighlong.
 Qed.
 
 Lemma loadind_correct:
@@ -800,18 +771,18 @@ Proof.
   - intros; Simpl.
 Qed.
 
-Lemma transl_load_indexed_correct:
+Lemma transl_load_indexed_in_range_correct:
   forall chunk k i  (x x0: ireg) (rs: regset) m a v kl,
   Val.offset_ptr (rs x0) i = a ->
   Mem.loadv chunk m a = Some v ->
-  transl_load_indexed chunk x x0 i k = OK kl ->
+  transl_load_indexed_in_range chunk x x0 i k = OK kl ->
   exists rs',
      exec_straight ge fn kl rs m k rs' m
   /\ Val.lessdef v (rs'#x)
   /\ forall r, r <> PC -> r <> x -> rs'#r = rs#r.
 Proof.
   intros until v. intros KL EV LOAD TR.
-  unfold transl_load_indexed in TR.
+  unfold transl_load_indexed_in_range in TR.
   destruct a; try discriminate.
   unfold Mem.loadv in LOAD.
   destruct chunk.
@@ -926,6 +897,84 @@ Proof.
       Simpl.
 Qed.
 
+Lemma transl_load_indexed_correct:
+  forall chunk k i  (x x0: ireg) (rs: regset) m a v kl,
+  Val.offset_ptr (rs x0) i = a ->
+  Mem.loadv chunk m a = Some v ->
+  transl_load_indexed chunk x x0 i k = OK kl ->
+  exists rs',
+     exec_straight ge fn kl rs m k rs' m
+  /\ Val.lessdef v (rs'#x)
+  /\ forall r, r <> PC -> r <> x -> rs'#r = rs#r.
+Proof.
+  intros until v. intros KL EV LOAD TR.
+  unfold transl_load_indexed in TR.
+  destruct (Size.Ptrofs.is_16_signed i) eqn:OFS.
+  - eapply transl_load_indexed_in_range_correct;eauto.
+  - destruct (Size.Ptrofs.is_int i) eqn:OFS'; try discriminate.
+    monadInv TR.
+    destruct warchi eqn:ARCH.
+    {
+      set (rs1 := (nextinstr (nextinstr rs # x <- (rs x0)) # x <- (Val.add (rs x0) (Vint (Ptrofs.to_int i))))).
+      eapply transl_load_indexed_in_range_correct with (rs:= rs1) (m:=m) (v:=v) in EQ; eauto.
+      destruct EQ as (rs2 & EXEC & LD & EQ).
+      exists rs2.
+      split.
+      econstructor;try reflexivity;auto.
+      econstructor;try reflexivity;auto.
+      unfold eval_val_int,map_sum_left.
+      Simpl.
+      split ; auto.
+      intros.
+      rewrite EQ by auto.
+      unfold rs1.
+      Simpl.
+      unfold rs1. Simpl.
+      unfold warchi in ARCH. destruct (Archi.ptr64) eqn:ARCH'; try discriminate.
+      pose proof (lessdef_offset_ptr_add (rs x0) i ARCH') as LD.
+      inv LD.
+      rewrite H1 in LOAD.
+      destruct (rs x0) ; try discriminate.
+      rewrite Val.offset_ptr_assoc.
+      rewrite Ptrofs.add_zero.
+      simpl in LOAD.
+      rewrite ARCH' in LOAD.
+      simpl in LOAD. rewrite Ptrofs.of_int_to_int in LOAD by auto.
+      apply LOAD.
+      rewrite <- H0 in LOAD ; discriminate.
+    }
+    {
+    set (rs1 := (nextinstr (nextinstr rs # x <- (rs x0)) # x <- (Val.addl (rs x0) (Vlong (int64_of_int (Ptrofs.to_int i)))))).
+    eapply transl_load_indexed_in_range_correct with (rs:= rs1) (m:=m) (v:=v) in EQ; eauto.
+    destruct EQ as (rs2 & EXEC & LD & EQ).
+    exists rs2.
+    split.
+    econstructor;try reflexivity;auto.
+    econstructor;try reflexivity;auto.
+    unfold eval_val_int,map_sum_left.
+    Simpl.
+    split ; auto.
+    intros.
+    rewrite EQ by auto.
+    unfold rs1.
+    Simpl.
+    unfold rs1. Simpl.
+    destruct (Archi.ptr64) eqn:ARCH'; try discriminate.
+    {
+      exploit (lessdef_offset_ptr_addl (rs x0) i); eauto.
+      intros.
+      inv H.
+      rewrite Val.offset_ptr_assoc.
+      rewrite Ptrofs.add_zero.
+      congruence.
+      rewrite <- H1 in LOAD.
+      discriminate.
+    }
+    unfold warchi in ARCH. rewrite ARCH' in ARCH. discriminate.
+    }
+Qed.
+
+
 Lemma transl_load_correct:
   forall chunk addr args dst k c (rs: regset) m a v,
   transl_load chunk addr args dst k = OK c ->
@@ -944,11 +993,11 @@ Proof.
     congruence.
 Qed.
 
-Lemma transl_store_common_correct:
+Lemma transl_store_in_range_correct:
   forall chunk k i k' (x x0: ireg) (rs: regset) m m' a,
   Val.offset_ptr (rs x0) i = a ->
   Mem.storev chunk m a (rs x) = Some m' ->
-  transl_store_indexed chunk x0 i x k = OK k' ->
+  transl_store_indexed_in_range  chunk x0 i x k = OK k' ->
   exists rs',
      exec_straight ge fn k' rs m k rs' m'
   /\ forall r, r <> PC -> rs'#r = rs#r.
@@ -1036,6 +1085,27 @@ Proof.
     intros. Simplif.
 Qed.
 
+
+Lemma transl_store_common_correct:
+  forall chunk k i k' (x x0: ireg) (rs: regset) m m' a,
+  Val.offset_ptr (rs x0) i = a ->
+  Mem.storev chunk m a (rs x) = Some m' ->
+  transl_store_indexed  chunk x0 i x k = OK k' ->
+  exists rs',
+     exec_straight ge fn k' rs m k rs' m'
+  /\ forall r, data_preg r = true -> rs'#r = rs#r.
+Proof.
+  intros until a. intros EV STORE TR.
+  unfold transl_store_indexed in TR.
+  destruct (Size.Ptrofs.is_16_signed i) eqn:SMALL.
+  - exploit transl_store_in_range_correct; eauto.
+    intros (rs' & EXEC & EQ).
+    exists rs'; split;auto.
+    intros; apply EQ; auto with asmgen.
+  - discriminate.
+Qed.
+
+
 Lemma transl_store_correct:
   forall chunk addr args src k c (rs: regset) m a m',
   transl_store chunk addr args src k = OK c ->
@@ -1043,14 +1113,18 @@ Lemma transl_store_correct:
   Mem.storev chunk m a rs#(preg_of src) = Some m' ->
   exists rs',
      exec_straight ge fn c rs m k rs' m'
-  /\ forall r, r <> PC -> rs'#r = rs#r.
+  /\   forall r, data_preg r = true -> preg_notin r (destroyed_by_store chunk addr) -> rs'#r = rs#r.
 Proof.
   intros until m'; intros TR EV STORE.
   destruct addr, args; simpl in TR; ArgsInv.
-  - exploit transl_store_common_correct;eauto.
-    congruence.
-  - exploit transl_store_common_correct;eauto.
-    congruence.
+  - inv EV.
+    exploit transl_store_common_correct;eauto.
+    intros (RS' & EXEC & REGS).
+    exists RS';split;auto.
+  -inv EV.
+    exploit transl_store_common_correct;eauto.
+    intros (RS' & EXEC & REGS).
+    exists RS';split;auto.
 Qed.
 
 End CONSTRUCTORS.

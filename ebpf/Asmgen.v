@@ -16,6 +16,7 @@ Require Archi.
 Require Import Coqlib Errors.
 Require Import AST Integers Memdata.
 Require Import Op Locations Mach Asm.
+Require Size.
 
 Local Open Scope string_scope.
 Local Open Scope error_monad_scope.
@@ -47,17 +48,12 @@ Definition warchib (b:bool) := if b then W64 else W32.
 
 Definition warchi := warchib Archi.ptr64.
 
-Definition ptrofs_is_int (n:ptrofs) :=
-  if negb Archi.ptr64 then true
-  else
-    let i := Ptrofs.signed n in
-    Z.leb Int.min_signed i && Z.leb i Int.max_signed.
 
 Definition addptrofs (rd rs: ireg) (n: ptrofs) (k: code) :=
   if Ptrofs.eq_dec n Ptrofs.zero then
     OK (Palu MOV warchi rd (inl rs) :: k)
   else
-  if ptrofs_is_int n
+  if Size.Ptrofs.is_int n
   then  OK (Palu MOV warchi rd (inl rs) :: Palu ADD warchi rd (inr (Ptrofs.to_int n)) :: k)
   else  Error (msg "offset is not representable").
 
@@ -378,23 +374,11 @@ OK (Palu (CONV DWOFW) W64 r (inr Int.zero) :: (Palu LSH W64 r (inr (Int.repr 32)
     do r <- ireg_of res;
     assertion_str ["Olowlong"] (mreg_eq a1 res);
 OK (Palu (CONV WOFDW) W64 r (inr Int.zero)  :: k)
-| Omulhs, a1 :: a2 :: nil => Error (msg "mulhs is not available in eBPF: pass -Os")
-| Omulhu, a1 :: a2 :: nil =>
-    (* This is slow, usually hardware have this instruction.
-       builtin would be better? *)
+| Ohighlong, a1 :: nil =>
     do r <- ireg_of res;
-    do r2 <- ireg_of a2;
-    assertion_str ["Omulhu"] (mreg_eq a1 res);
-   assertion_str ["Omulhu a1 is aliased with destroyed register"] (negb (preg_eq r2 R1));
-   assertion_str ["Omulhu a2 is aliased with destroyed register"] (negb (preg_eq r R1));
-   (* Unsure whether this may happen. *)
-   assertion_str ["Omulhu a1 a2 are aliased"] (negb (preg_eq r r2));
-OK (
-    (Palu MOV W32 R1 (inl r2)) ::
-      (Palu (CONV DWOFW) W64 R1 (inr Int.zero)) ::
-      (Palu (CONV DWOFW) W64 r (inr Int.zero)) ::
-      (Palu MUL W64 r (inl R1)) :: (Palu ARSH W64 r (inr (Int.repr 32))) ::
-      (Palu (CONV WOFDW) W64 r (inr Int.zero)) :: k)
+    assertion_str ["Olowlong"] (mreg_eq a1 res);
+  OK (Palu ARSH W64 r (inr (Int.repr 32)) :: (Palu (CONV WOFDW) W64 r (inr Int.zero))  :: k)
+
 | Omod, a1 :: a2 :: nil => Error (msg "signed modulo is not available in eBPF")
 
 | Oaddl , a1 ::a2 ::nil =>
@@ -604,19 +588,29 @@ Definition storeind (base: ireg) (ofs: ptrofs) (ty: typ) (src: mreg) (k: code): 
   do size <- transl_typ ty;
   OK (Pstore size base (inl r) ofs :: k).
 
+Definition transl_load_indexed_in_range (chunk : memory_chunk) (d:ireg) (a:ireg) (ofs: ptrofs) (k:code) : res (list instruction) :=
+      match chunk with
+      | Mbool          => OK (Pload Byte d a ofs :: k)
+      | Mint8unsigned  => OK (Pload Byte d a ofs :: k)
+      | Mint16unsigned => OK (Pload HalfWord d a ofs :: k)
+      | Many32         => OK (Pload WordAny d a ofs :: k)
+      | Mint32         => OK (Pload Word   d a ofs :: k)
+      | Mint64         => if Archi.ptr64 then OK (Pload DBWord d a ofs :: k) else Error (msg "int64 is only available for eBPF-64")
+      | Many64         => if Archi.ptr64 then OK (Pload DBWordAny d a ofs :: k) else Error (msg "int64 is only available for eBPF-64")
+      | Mint8signed    => OK (Pload Byte d a ofs :: Palu LSH W32 d (inr (Int.repr 24)) :: Palu ARSH W32 d (inr (Int.repr 24)) :: k)
+      | Mint16signed   => OK (Pload HalfWord d a ofs :: Palu LSH W32 d (inr (Int.repr 16)) :: Palu ARSH W32 d (inr (Int.repr 16)) :: k)
+      | Mfloat32 | Mfloat64      => Error (msg "Floating point numbers are not supported by eBPF")
+      end.
+
 Definition transl_load_indexed (chunk : memory_chunk) (d:ireg) (a:ireg) (ofs: ptrofs) (k:code) : res (list instruction) :=
-  match chunk with
-  | Mbool          => OK (Pload Byte d a ofs :: k)
-  | Mint8unsigned  => OK (Pload Byte d a ofs :: k)
-  | Mint16unsigned => OK (Pload HalfWord d a ofs :: k)
-  | Many32         => OK (Pload WordAny d a ofs :: k)
-  | Mint32         => OK (Pload Word   d a ofs :: k)
-  | Mint64         => if Archi.ptr64 then OK (Pload DBWord d a ofs :: k) else Error (msg "int64 is only available for eBPF-64")
-  | Many64         => if Archi.ptr64 then OK (Pload DBWordAny d a ofs :: k) else Error (msg "int64 is only available for eBPF-64")
-  | Mint8signed    => OK (Pload Byte d a ofs :: Palu LSH W32 d (inr (Int.repr 24)) :: Palu ARSH W32 d (inr (Int.repr 24)) :: k)
-  | Mint16signed   => OK (Pload HalfWord d a ofs :: Palu LSH W32 d (inr (Int.repr 16)) :: Palu ARSH W32 d (inr (Int.repr 16)) :: k)
-  | Mfloat32 | Mfloat64      => Error (msg "Floating point numbers are not supported by eBPF")
-  end.
+  if Size.Ptrofs.is_16_signed ofs
+  then transl_load_indexed_in_range chunk d a ofs k
+  else
+    if Size.Ptrofs.is_int ofs
+    then 
+      do c <- transl_load_indexed_in_range chunk d d Ptrofs.zero k ;
+      OK (Palu MOV warchi d (inl a) :: Palu ADD warchi d (inr (Ptrofs.to_int ofs)) :: c)
+    else Error (msg ("Offset is not representable")).
 
 
 
@@ -634,7 +628,7 @@ Definition transl_load (chunk: memory_chunk) (addr: addressing)
   | _, _ => Error(msg "Asmgen.transl_load")
   end.
 
-Definition transl_store_indexed (chunk : memory_chunk) (d:ireg) (ofs: ptrofs) (a:ireg)  (k:code) : res (list instruction) :=
+Definition transl_store_indexed_in_range (chunk : memory_chunk) (d:ireg) (ofs: ptrofs) (a:ireg)  (k:code) : res (list instruction) :=
   match chunk with
   | Mbool          => OK (Pstore Byte d (inl a) ofs :: k)
   | Mint8unsigned  => OK (Pstore Byte d (inl a) ofs :: k)
@@ -647,6 +641,12 @@ Definition transl_store_indexed (chunk : memory_chunk) (d:ireg) (ofs: ptrofs) (a
   | Mint16signed   => OK (Pstore HalfWord d (inl a) ofs  :: k)
   | Mfloat32 | Mfloat64      => Error (msg "Floating point numbers are not supported by eBPF")
   end.
+
+Definition transl_store_indexed (chunk : memory_chunk) (d:ireg) (ofs: ptrofs) (a:ireg)  (k:code) : res (list instruction) :=
+  if Size.Ptrofs.is_16_signed ofs
+  then transl_store_indexed_in_range chunk d ofs a  k
+  else Error (msg ("Offset is not representable")).
+
 
 Definition transl_store (chunk: memory_chunk) (addr: addressing)
            (args: list mreg) (src: mreg) (k: code): res (list instruction) :=
