@@ -44,6 +44,10 @@ Require Import Op CminorSel.
 
 Local Open Scope cminorsel_scope.
 
+Definition binop (o:operation) (e1 e2:expr) := Eop o (e1:::e2:::Enil).
+
+Definition unop (o:operation) (e1:expr) := Eop o (e1:::Enil).
+
 (** ** Constants **)
 
 Definition addrsymbol (id: ident) (ofs: ptrofs) :=
@@ -181,8 +185,11 @@ Nondetfunction mul (e1: expr) (e2: expr) :=
   | _, _ => Eop Omul (e1:::e2:::Enil)
   end.
 
-Definition mulhs (e1: expr) (e2: expr) := Eop Omulhs (e1 ::: e2 ::: Enil).
-Definition mulhu (e1: expr) (e2: expr) := Eop Omulhu (e1 ::: e2 ::: Enil).
+Definition mulhs (e1: expr) (e2: expr) :=
+  unop Ohighlong (binop Omull (unop Ocast32signed e1) (unop Ocast32signed e2)).
+
+Definition mulhu (e1: expr) (e2: expr) :=
+  unop Ohighlong (binop Omull (unop Ocast32unsigned e1) (unop Ocast32unsigned e2)).
 
 (** ** Bitwise and, or, xor *)
 
@@ -265,10 +272,6 @@ Definition mods_base (e1: expr) (e2: expr) := Eop Omod (e1:::e2:::Enil).
 
 
 Definition divu_base (e1: expr) (e2: expr) := Eop Odivu (e1:::e2:::Enil).
-
-Definition binop (o:operation) (e1 e2:expr) := Eop o (e1:::e2:::Enil).
-
-Definition unop (o:operation) (e1:expr) := Eop o (e1:::Enil).
 
 Definition modu_base (e1: expr) (e2: expr) :=
   if Archi.has_modu

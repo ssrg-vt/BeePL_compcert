@@ -30,7 +30,6 @@ Require Import Values Memory Globalenvs Events.
 
 Set Implicit Arguments.
 
-
 (** Conditions (boolean-valued operators). *)
 
 Inductive condition : Type :=
@@ -121,8 +120,6 @@ Inductive operation : Type :=
   | Ocast8signed             (**r [rd] is 8-bit sign extension of [r1] *)
   | Ocast16signed            (**r [rd] is 16-bit sign extension of [r1] *)
 
-  | Omulhs                   (**r [rd = high part of r1 * r2, signed] *)
-  | Omulhu                   (**r [rd = high part of r1 * r2, unsigned] *)
   | Omod                     (**r [rd = r1 % r2] (signed) *)
 (*  | Oshrximm (n: int)        (**r [rd = r1 / 2^n] (signed) *) *)
 
@@ -228,8 +225,6 @@ Definition string_of_operation (o:operation) : string :=
   | Oaddrsymbol _ _ => "Oaddrsymbol"
   | Ocast8signed    => "Ocast8signed"
   | Ocast16signed   => "Ocast16signed"
-  | Omulhs          => "Omulhs"
-  | Omulhu          => "Omulhu"
   | Omod            => "Omod"
   | Omakelong       => "Omakelong"
   | Olowlong        => "Olowlong"
@@ -402,8 +397,6 @@ Definition eval_operation
   (* Operations not available in eBPF *)
   | Ofloatconst n, nil => Some (Vfloat n)
   | Osingleconst n, nil => Some (Vsingle n)
-  | Omulhs, v1::v2::nil => Some (Val.mulhs v1 v2)
-  | Omulhu, v1::v2::nil => Some (Val.mulhu v1 v2)
   | Omod, v1 :: v2 :: nil => Val.mods v1 v2
 (*  | Oshrximm n, v1::nil => Val.shrx v1 (Vint n)*)
   | Omakelong, v1::v2::nil => Some (Val.longofwords v1 v2)
@@ -563,8 +556,6 @@ Definition type_of_operation (op: operation) : list typ * typ :=
   (* Operations not available in eBPF *)
   | Ofloatconst f => (nil, Tfloat)
   | Osingleconst f => (nil, Tsingle)
-  | Omulhs => (Tint :: Tint :: nil, Tint)
-  | Omulhu => (Tint :: Tint :: nil, Tint)
   | Omod => (Tint :: Tint :: nil, Tint)
 (*  | Oshrximm _ => (Tint :: nil, Tint)*)
   | Omakelong => (Tint :: Tint :: nil, Tlong)
@@ -1110,9 +1101,6 @@ Proof.
   (* castsigned *)
   - inv H4; simpl; auto.
   - inv H4; simpl; auto.
-  (* mulhs, mulhu *)
-  - inv H4; inv H2; simpl; auto.
-  - inv H4; inv H2; simpl; auto.
   (* mod *)
   - inv H4; inv H3; simpl in H1; inv H1. simpl.
     destruct (Int.eq i0 Int.zero

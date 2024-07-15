@@ -80,8 +80,6 @@ let print_operation reg pp = function
   | Ocast8signed, [r1] -> fprintf pp "(8s) %a" reg r1
   | Ocast16signed, [r1] -> fprintf pp "(16s) %a" reg r1
   | Ocast32unsigned, [r1] -> fprintf pp "(32u) %a" reg r1
-  | Omulhs , [r1;r2]    -> fprintf pp "mulhs(%a,%a)" reg r1 reg r2
-  | Omulhu , [r1;r2]    -> fprintf pp "mulhu(%a,%a)" reg r1 reg r2
   | Omod , [r1;r2]    -> fprintf pp "%a mod %a)" reg r1 reg r2
   | Omakelong, [r1;r2]   -> fprintf pp "makelong(%a,%a)" reg r1 reg r2
   | Olowlong, [r1]       -> fprintf pp "lowlong(%a)" reg r1

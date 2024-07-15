@@ -202,10 +202,10 @@ module Target : TARGET =
     (* let offset oc = function _ -> "offset" *)
 
     let coqint_as_offset oc n =
-      let n = camlint_of_coqint n in
-      let cmp = Int32.compare n Int32.zero in
-      if cmp >= 0 then fprintf oc "+ %ld" n
-          else fprintf oc "- %ld" (Int32.abs n)
+      let n = camlint64_of_coqint (Integers.Ptrofs.signed n) in
+      let cmp = Int64.compare n Int64.zero in
+      if cmp >= 0 then fprintf oc "+ %Ld" n
+          else fprintf oc "- %Ld" (Int64.abs n)
 
 
     let  sizew (s:sizeOp) =
