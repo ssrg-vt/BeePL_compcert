@@ -27,6 +27,14 @@ Local Open Scope error_monad_scope.
   types.  These properties are true by construction, but it's easier to
   recheck them during code generation and fail if they do not hold. *)
 
+Definition errcode_of_Z (n:Z) : list errcode :=
+  match n with
+  | Z0 => MSG "0" :: nil
+  | Zpos p => POS p :: nil
+  | Zneg p => MSG "-" ::POS p :: nil
+  end.
+
+
 (** Extracting integer registers. *)
 
 Definition ireg_of (r: mreg) : res ireg :=
@@ -55,15 +63,7 @@ Definition addptrofs (rd rs: ireg) (n: ptrofs) (k: code) :=
   else
   if Size.Ptrofs.is_int n
   then  OK (Palu MOV warchi rd (inl rs) :: Palu ADD warchi rd (inr (Ptrofs.to_int n)) :: k)
-  else  Error (msg "offset is not representable").
-
-Definition errcode_of_Z (z:Z) :=
-  match z with
-  | Z0 => MSG "0" :: nil
-  | Zpos p => POS p :: nil
-  | Zneg p => MSG "-" :: POS p :: nil
-  end.
-
+  else  Error (MSG "Offset "::(errcode_of_Z (Ptrofs.signed n))++MSG " is not representable"::nil).
 
 Definition get_int (n:int64) :=
   let i := Int64.signed n in
@@ -610,7 +610,7 @@ Definition transl_load_indexed (chunk : memory_chunk) (d:ireg) (a:ireg) (ofs: pt
     then 
       do c <- transl_load_indexed_in_range chunk d d Ptrofs.zero k ;
       OK (Palu MOV warchi d (inl a) :: Palu ADD warchi d (inr (Ptrofs.to_int ofs)) :: c)
-    else Error (msg ("Offset is not representable")).
+    else Error (MSG "Offset ":: errcode_of_Z (Ptrofs.signed ofs) ++ MSG " is not representable"::nil).
 
 
 
@@ -645,7 +645,7 @@ Definition transl_store_indexed_in_range (chunk : memory_chunk) (d:ireg) (ofs: p
 Definition transl_store_indexed (chunk : memory_chunk) (d:ireg) (ofs: ptrofs) (a:ireg)  (k:code) : res (list instruction) :=
   if Size.Ptrofs.is_16_signed ofs
   then transl_store_indexed_in_range chunk d ofs a  k
-  else Error (msg ("Offset is not representable")).
+  else Error (MSG "Offset " :: errcode_of_Z (Ptrofs.signed ofs) ++ MSG " is not representable"::nil).
 
 
 Definition transl_store (chunk: memory_chunk) (addr: addressing)
