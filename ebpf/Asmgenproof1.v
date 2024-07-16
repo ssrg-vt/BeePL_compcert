@@ -103,6 +103,7 @@ Proof.
   replace ((Ptrofs.of_int64 (int64_of_int (Ptrofs.to_int n)))) with n;auto.
   unfold Size.Ptrofs.is_int in BND.
   rewrite ARCH in BND. simpl in BND.
+  unfold Size.is_int in BND.
   rewrite andb_true_iff in BND.
   destruct BND as (BND1 & BND2).
   apply  Zle_bool_imp_le in BND1. apply  Zle_bool_imp_le in BND2.

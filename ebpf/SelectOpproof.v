@@ -909,9 +909,22 @@ Proof.
   - exists (@nil val);  split. eauto with evalexpr. simpl. auto.
   - exists (Vptr b ofs0 :: nil); split.
     constructor. EvalOp. simpl. congruence. constructor. simpl. rewrite Ptrofs.add_zero. congruence.
-  - exists (v1 :: nil); split. eauto with evalexpr. simpl.
+  - destruct (Size.Int.is_16_signed n) eqn:sz.
+    + exists (v1 :: nil); split. eauto with evalexpr. simpl.
     destruct v1; simpl in H; try discriminate. destruct Archi.ptr64 eqn:SF; inv H.
     simpl. auto.
+    + exists (Vptr b ofs:: nil);  split.
+      repeat econstructor;eauto with evalexpr.
+      simpl. congruence.
+      simpl. rewrite Ptrofs.add_zero. reflexivity.
+  - destruct (Size.Int64.is_16_signed n) eqn:sz.
+    + exists (v1 :: nil); split. eauto with evalexpr. simpl.
+    destruct v1; simpl in H; try discriminate. destruct Archi.ptr64 eqn:SF; inv H.
+    simpl. auto.
+    + exists (Vptr b ofs:: nil);  split.
+      repeat econstructor;eauto with evalexpr.
+      simpl. congruence.
+      simpl. rewrite Ptrofs.add_zero. reflexivity.
   - exists (v :: nil);  split. eauto with evalexpr. subst. simpl. rewrite Ptrofs.add_zero; auto.
 Qed.
 

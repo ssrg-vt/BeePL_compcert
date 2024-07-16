@@ -196,7 +196,10 @@ Nondetfunction addr_strength_reduction
                 (addr: addressing) (args: list reg) (vl: list aval) :=
   match addr, args, vl with
   | Aindexed n, r1 :: nil, Ptr(Stk n1) :: nil =>
-      (Ainstack (Ptrofs.add n1 n), nil)
+      let n' := Ptrofs.add n1 n in
+      if Size.Ptrofs.is_16_signed n'
+      then (Ainstack n', nil)
+      else (addr,args)
   | _, _, _ =>
       (addr, args)
   end.

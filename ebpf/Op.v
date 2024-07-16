@@ -27,6 +27,7 @@
 Require Import BoolEqual Coqlib.
 Require Import AST Integers Floats.
 Require Import Values Memory Globalenvs Events.
+Require Size.
 
 Set Implicit Arguments.
 
@@ -290,6 +291,15 @@ Proof.
   generalize Int.eq_dec Int64.eq_dec Ptrofs.eq_dec Float.eq_dec Float32.eq_dec ident_eq eq_condition; intros.
   decide equality.
 Defined.
+
+Definition offset_in_range (n:ptrofs) := Size.Ptrofs.is_16_signed n.
+
+Definition addressing_valid (a: addressing) : bool :=
+    match a with
+    | Aindexed n |Ainstack n => offset_in_range n
+    end.
+
+
 
 (* Alternate definition: 
 Definition beq_operation: forall (x y: operation), bool.
