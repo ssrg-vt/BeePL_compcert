@@ -145,7 +145,8 @@ Proof.
   simpl. rewrite H7. simpl.
   rewrite Ptrofs.add_assoc. auto.
 -   UseGetSound. simpl. rewrite <- H0. destruct v; auto.
-    simpl. rewrite H7. simpl.
+    simpl. rewrite andb_true_iff in H7. destruct H7 as [H7 _].
+    rewrite H7. simpl.
     rewrite Ptrofs.add_assoc. auto.
 Qed.
 

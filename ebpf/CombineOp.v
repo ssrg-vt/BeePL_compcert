@@ -81,7 +81,9 @@ Function combine_addr (addr: addressing) (args: list valnum) : option(addressing
       | Some(Op (Oaddimm m) ys) =>
           if Archi.ptr64 then None else Some(Aindexed (Ptrofs.add (Ptrofs.of_int m) n), ys)
       | Some(Op (Oaddlimm m) ys) =>
-          if Archi.ptr64 then Some(Aindexed (Ptrofs.add (Ptrofs.of_int64 m) n), ys) else None
+          let n' := (Ptrofs.add (Ptrofs.of_int64 m) n) in
+          if Archi.ptr64 && Size.Ptrofs.is_16_signed n'
+          then Some(Aindexed n', ys) else None
       | _ => None
       end
   | _, _ => None

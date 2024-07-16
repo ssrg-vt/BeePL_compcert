@@ -498,12 +498,14 @@ Lemma addr_strength_reduction_correct:
   exists res', eval_addressing ge (Vptr sp Ptrofs.zero) addr' e##args' = Some res' /\ Val.lessdef res res'.
 Proof.
   intros until res. unfold addr_strength_reduction.
-  destruct (addr_strength_reduction_match addr args vl); simpl;
-  intros VL EA; InvApproxRegs; SimplVM; try (inv EA).
-- rewrite Ptrofs.add_zero_l. econstructor; split; eauto.
-  change (Vptr sp (Ptrofs.add n1 n)) with (Val.offset_ptr (Vptr sp n1) n).
-  inv H0; simpl; auto.
-- exists res; auto.
+  destruct (addr_strength_reduction_match addr args vl); simpl.
+  - destruct (Size.Ptrofs.is_16_signed (Ptrofs.add n1 n)); simpl.
+  + intros VL EA; InvApproxRegs; SimplVM; try (inv EA).
+    rewrite Ptrofs.add_zero_l. econstructor; split; eauto.
+    change (Vptr sp (Ptrofs.add n1 n)) with (Val.offset_ptr (Vptr sp n1) n).
+    inv H0; simpl; auto.
+  + exists res; auto.
+  - exists res; auto.
 Qed.
 
 End STRENGTH_REDUCTION.
