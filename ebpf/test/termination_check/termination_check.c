@@ -4,9 +4,9 @@
 #include <stdint.h>
 //#include <linux/bpf.h>
 //#include <bpf/bpf_helpers.h>
+#include <stdio.h>
 #include </home/swarnp/research/compcert_bpf/CompCert/ebpf/lib/bpf.h>
 #include </home/swarnp/research/compcert_bpf/CompCert/ebpf/lib/bpf/bpf_helpers.h>
-
 /*
 #undef bpf_printk
 #define bpf_printk(fmt, ...)                           \
@@ -16,31 +16,16 @@
                          ##__VA_ARGS__);                \
 }*/
 
-#undef SEC
-#define SEC(A) __attribute__ ((section(A),used))
-
-char LICENSE[] SEC("license") = "Dual BSD/GPL";
-
-int my_pid = 0;
-
-SEC("tp/syscalls/sys_enter_write")
-int handle_tp(void *ctx)
-{   
-	bpf_printk("Hello from minimal!")
-	int pid = bpf_get_current_pid_tgid() >> 32;
-
-	if (pid != my_pid)
-		return 0;
-
-	bpf_printk("BPF triggered from PID %d.\n", pid);
-
-	return 0;
-}
 
 int main() {
-	handle_tp(NULL);
+    int i = 1;
+    while(i < 2) {
+        bpf_printk("temination_check");
+        i++;
+    }
     return 0;
 }
 
-// ./ccomp -D __bpf_helper_as_extern__ -S -o ebpf/test/minimal/minimal.s ebpf/test/minimal/minimal.c 
+// ./ccomp -D __bpf_helper_as_extern__ -S -o ebpf/test/termination_check/termination_check.s ebpf/test/termination_check/termination_check.c 
 
+// ./ccomp -D __bpf_helper_as_extern__ -interp ebpf/test/termination_check/termination_check.c

@@ -6,15 +6,16 @@
 //#include <linux/bpf.h>
 //#include <bpf/bpf_helpers.h>
 #include </home/swarnp/research/compcert_bpf/CompCert/ebpf/lib/bpf.h>
+#include </home/swarnp/research/compcert_bpf/CompCert/ebpf/lib/bpf/bpf_helper_defs.h>
 #include </home/swarnp/research/compcert_bpf/CompCert/ebpf/lib/bpf/bpf_helpers.h>
-
+/*
 #undef bpf_printk
 #define bpf_printk(fmt, ...)                           \
 {                                                      \
         char ____fmt[] = fmt;                           \
         bpf_trace_printk(____fmt, sizeof(____fmt),      \
                          ##__VA_ARGS__);                \
-}
+}*/
 
 #undef SEC
 #define SEC(A) __attribute__ ((section(A),used))
@@ -32,7 +33,7 @@ struct {
 
 SEC("ksyscall/execve")
 
-int hello(void *ctx) {
+int hello(/*void *ctx*/) {
     uint64_t uid;
     uint64_t counter = 0;
     uint64_t *p;
@@ -49,6 +50,12 @@ int hello(void *ctx) {
     bpf_map_update_elem(&counter_table, &uid, &counter, 0);
     return 0;
 }
+
+int main() {
+    hello();
+    return 0;
+}
+
 
 // ./ccomp -D __bpf_helper_as_extern__ -S -o ebpf/test/hash_map_example1/hash_map_example1.s ebpf/test/hash_map_example1/hash_map_example1.c 
 

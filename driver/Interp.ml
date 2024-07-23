@@ -393,6 +393,38 @@ let do_external_function id sg ge w args m =
       flush stdout;
       convert_external_args ge args sg.sig_args >>= fun eargs ->
       Some(((w, [Event_syscall(id, eargs, EVint len)]), Vint len), m)
+  | "bpf_printk", Vptr(b, ofs) :: args' -> 
+      extract_string m b ofs >>= fun fmt ->
+      let fmt' = do_printf m fmt args' in
+      let len = coqint_of_camlint (Int32.of_int (String.length fmt')) in
+      Format.print_string fmt';
+      flush stdout;
+      convert_external_args ge args sg.sig_args >>= fun eargs ->
+      Some(((w, [Event_syscall(id, eargs, EVint len)]), Vint len), m)
+  | "bpf_trace_printk", Vptr(b, ofs) :: args' -> 
+        extract_string m b ofs >>= fun fmt ->
+        let fmt' = do_printf m fmt args' in
+        let len = coqint_of_camlint (Int32.of_int (String.length fmt')) in
+        Format.print_string fmt';
+        flush stdout;
+        convert_external_args ge args sg.sig_args >>= fun eargs ->
+        Some(((w, [Event_syscall(id, eargs, EVint len)]), Vint len), m)
+  | "bpf_get_current_uid_gid", Vptr(b, ofs) :: args' -> 
+        extract_string m b ofs >>= fun fmt -> 
+        let fmt' = do_printf m fmt args' in 
+        let len = coqint_of_camlint (Int32.of_int (String.length fmt')) in
+        Format.print_string fmt'; 
+        flush stdout;
+        convert_external_args ge args sg.sig_args >>= fun eargs ->
+        Some(((w, [Event_syscall(id, eargs, EVint len)]), Vint len), m)
+  | "bpf_get_current_pid_tgid", Vptr(b, ofs) :: args' -> 
+        extract_string m b ofs >>= fun fmt -> 
+        let fmt' = do_printf m fmt args' in 
+        let len = coqint_of_camlint (Int32.of_int (String.length fmt')) in
+        Format.print_string fmt'; 
+        flush stdout;
+        convert_external_args ge args sg.sig_args >>= fun eargs ->
+        Some(((w, [Event_syscall(id, eargs, EVint len)]), Vint len), m)
   | _ ->
       None
 
@@ -497,6 +529,7 @@ let do_step p prog ge time s w =
       end
   | None ->
       let l = Cexec.do_step ge do_external_function do_inline_assembly w s in
+      (*fprintf p "length of l is %d" (List.length l);*)
       if l = []
       || List.exists (fun (Cexec.TR(r,t,s)) -> s = Stuckstate) l
       then begin
