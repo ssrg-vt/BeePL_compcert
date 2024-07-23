@@ -40,6 +40,7 @@ let print_id_ofs p (id, ofs) =
   then fprintf p " %s" id
   else fprintf p " %s%+ld" id ofs
 
+(* Prints the event val: camlint_of_coq_ converts coq type to caml type *)
 let print_eventval p = function
   | EVint n -> fprintf p "%ld" (camlint_of_coqint n)
   | EVfloat f -> fprintf p "%.15F" (camlfloat_of_coqfloat f)
@@ -47,12 +48,14 @@ let print_eventval p = function
   | EVlong n -> fprintf p "%LdLL" (camlint64_of_coqint n)
   | EVptr_global(id, ofs) -> fprintf p "&%a" print_id_ofs (id, ofs)
 
+(* Prints the list of event vals *)
 let print_eventval_list p = function
   | [] -> ()
   | v1 :: vl ->
       print_eventval p v1;
       List.iter (fun v -> fprintf p ",@ %a" print_eventval v) vl
 
+(* Prints the event *)
 let print_event p = function
   | Event_syscall(id, args, res) ->
       fprintf p "extcall %s(%a) -> %a"
@@ -359,6 +362,8 @@ let do_printf m fmt args =
     end
   in scan 0 args; Buffer.contents b
 
+let do_bpf_get_current_pid_tgid m fmt args = "foo"
+
 (* Implementation of external functions *)
 
 let (>>=) opt f = match opt with None -> None | Some arg -> f arg
@@ -409,22 +414,9 @@ let do_external_function id sg ge w args m =
         flush stdout;
         convert_external_args ge args sg.sig_args >>= fun eargs ->
         Some(((w, [Event_syscall(id, eargs, EVint len)]), Vint len), m)
-  | "bpf_get_current_uid_gid", Vptr(b, ofs) :: args' -> 
-        extract_string m b ofs >>= fun fmt -> 
-        let fmt' = do_printf m fmt args' in 
-        let len = coqint_of_camlint (Int32.of_int (String.length fmt')) in
-        Format.print_string fmt'; 
-        flush stdout;
-        convert_external_args ge args sg.sig_args >>= fun eargs ->
-        Some(((w, [Event_syscall(id, eargs, EVint len)]), Vint len), m)
-  | "bpf_get_current_pid_tgid", Vptr(b, ofs) :: args' -> 
-        extract_string m b ofs >>= fun fmt -> 
-        let fmt' = do_printf m fmt args' in 
-        let len = coqint_of_camlint (Int32.of_int (String.length fmt')) in
-        Format.print_string fmt'; 
-        flush stdout;
-        convert_external_args ge args sg.sig_args >>= fun eargs ->
-        Some(((w, [Event_syscall(id, eargs, EVint len)]), Vint len), m)
+  | "bpf_get_current_pid_tgid", [] -> 
+        let len = coqint_of_camlint (Int32.of_int (String.length "abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh")) in
+        Some(((w, [Event_syscall(id, [], EVint len)]), Vint len), m)
   | _ ->
       None
 
@@ -531,11 +523,12 @@ let do_step p prog ge time s w =
       let l = Cexec.do_step ge do_external_function do_inline_assembly w s in
       (*fprintf p "length of l is %d" (List.length l);*)
       if l = []
-      || List.exists (fun (Cexec.TR(r,t,s)) -> s = Stuckstate) l
+      || List.exists (fun (Cexec.TR(r,t,s)) -> s = Stuckstate) l;
       then begin
         pp_set_max_boxes p 1000;
         fprintf p "@[<hov 2>Stuck state: %a@]@." print_state (prog, ge, s);
         diagnose_stuck_state p ge w s;
+        fprintf p "state is not stuck";
         fprintf p "ERROR: Undefined behavior@.";
         exit 126
       end else begin

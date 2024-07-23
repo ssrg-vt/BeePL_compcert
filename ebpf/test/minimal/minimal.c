@@ -26,7 +26,7 @@ int my_pid = 0;
 SEC("tp/syscalls/sys_enter_write")
 int handle_tp(void *ctx)
 {   
-	bpf_printk("Hello from minimal!")
+	bpf_printk("Hello from minimal!");
 	int pid = bpf_get_current_pid_tgid() >> 32;
 
 	if (pid != my_pid)
