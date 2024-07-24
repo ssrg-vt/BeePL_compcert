@@ -362,8 +362,6 @@ let do_printf m fmt args =
     end
   in scan 0 args; Buffer.contents b
 
-let do_bpf_get_current_pid_tgid m fmt args = "foo"
-
 (* Implementation of external functions *)
 
 let (>>=) opt f = match opt with None -> None | Some arg -> f arg
@@ -402,6 +400,7 @@ let do_external_function id sg ge w args m =
       extract_string m b ofs >>= fun fmt ->
       let fmt' = do_printf m fmt args' in
       let len = coqint_of_camlint (Int32.of_int (String.length fmt')) in
+      (* Need to find a way to put the string in kernel buffer *)
       Format.print_string fmt';
       flush stdout;
       convert_external_args ge args sg.sig_args >>= fun eargs ->
@@ -410,6 +409,7 @@ let do_external_function id sg ge w args m =
         extract_string m b ofs >>= fun fmt ->
         let fmt' = do_printf m fmt args' in
         let len = coqint_of_camlint (Int32.of_int (String.length fmt')) in
+        (* Need to find a way to put the string in kernel buffer *)
         Format.print_string fmt';
         flush stdout;
         convert_external_args ge args sg.sig_args >>= fun eargs ->
@@ -528,7 +528,7 @@ let do_step p prog ge time s w =
         pp_set_max_boxes p 1000;
         fprintf p "@[<hov 2>Stuck state: %a@]@." print_state (prog, ge, s);
         diagnose_stuck_state p ge w s;
-        fprintf p "state is not stuck";
+        fprintf p "state is stuck here";
         fprintf p "ERROR: Undefined behavior@.";
         exit 126
       end else begin
