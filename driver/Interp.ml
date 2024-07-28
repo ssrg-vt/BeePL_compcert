@@ -362,6 +362,36 @@ let do_printf m fmt args =
     end
   in scan 0 args; Buffer.contents b
 
+let do_bpf_printf m fmt args =
+
+  let b = Buffer.create 80 in
+  let len = String.length fmt in
+
+  let opt_search_forward pos =
+    try Some(Str.search_forward re_conversion fmt pos)
+    with Not_found -> None in
+
+  let rec scan pos args =
+    if pos < len then begin
+    match opt_search_forward pos with
+    | None ->
+        Buffer.add_substring b fmt pos (len - pos)
+    | Some pos1 ->
+        Buffer.add_substring b fmt pos (pos1 - pos);
+        let flags = Str.matched_group 1 fmt in 
+        let length = Str.matched_group 3 fmt in 
+        let conv = Str.matched_group 4 fmt in 
+        let pos' = Str.match_end() in
+        match args with
+        | [] ->
+            Buffer.add_string b "<missing argument>";
+            scan pos' []
+        | arg :: args' ->
+            Buffer.add_string b (format_value m flags length conv arg); 
+            scan pos' args'
+    end
+  in scan 0 args; Buffer.contents b
+
 (* Implementation of external functions *)
 
 let (>>=) opt f = match opt with None -> None | Some arg -> f arg
@@ -386,6 +416,12 @@ let rec convert_external_args ge vl tl =
       convert_external_args ge vl tl >>= fun el -> Some (e1 :: el)
   | _, _ -> None
 
+let extract_hd_tl l = 
+  match l with 
+  | [] -> []
+  | h :: t -> match t with 
+              | [] -> [h]
+              | t1 :: t2 -> h :: t2 
 let do_external_function id sg ge w args m =
   match camlstring_of_coqstring id, args with
   | "printf", Vptr(b, ofs) :: args' ->
@@ -396,27 +432,33 @@ let do_external_function id sg ge w args m =
       flush stdout;
       convert_external_args ge args sg.sig_args >>= fun eargs ->
       Some(((w, [Event_syscall(id, eargs, EVint len)]), Vint len), m)
-  | "bpf_printk", Vptr(b, ofs) :: args' -> 
-      extract_string m b ofs >>= fun fmt ->
-      let fmt' = do_printf m fmt args' in
-      let len = coqint_of_camlint (Int32.of_int (String.length fmt')) in
-      (* Need to find a way to put the string in kernel buffer *)
-      Format.print_string fmt';
-      flush stdout;
-      convert_external_args ge args sg.sig_args >>= fun eargs ->
-      Some(((w, [Event_syscall(id, eargs, EVint len)]), Vint len), m)
-  | "bpf_trace_printk", Vptr(b, ofs) :: args' -> 
+  | "bpf_printk", Vptr(b, ofs) :: alen :: args' -> 
         extract_string m b ofs >>= fun fmt ->
-        let fmt' = do_printf m fmt args' in
+        let fmt' = do_bpf_printf m fmt args' in
         let len = coqint_of_camlint (Int32.of_int (String.length fmt')) in
         (* Need to find a way to put the string in kernel buffer *)
         Format.print_string fmt';
         flush stdout;
         convert_external_args ge args sg.sig_args >>= fun eargs ->
         Some(((w, [Event_syscall(id, eargs, EVint len)]), Vint len), m)
+  | "bpf_trace_printk", Vptr(b, ofs) :: alen :: args' -> 
+      extract_string m b ofs >>= fun fmt ->
+      let fmt' = do_bpf_printf m fmt args' in
+      let len = coqint_of_camlint (Int32.of_int (String.length fmt')) in
+      (* Need to find a way to put the string in kernel buffer *)
+      Format.print_string fmt';
+      flush stdout;
+      convert_external_args ge args sg.sig_args >>= fun eargs ->
+      Some(((w, [Event_syscall(id, eargs, EVint len)]), Vint len), m)
   | "bpf_get_current_pid_tgid", [] -> 
-        let len = coqint_of_camlint (Int32.of_int (String.length "abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh")) in
-        Some(((w, [Event_syscall(id, [], EVint len)]), Vint len), m)
+        (* The return value is hardcoded to 64, which is not correct *)
+        Some(((w, [Event_syscall(id, [], EVlong (coqint_of_camlint64(64L)))]), Vlong (coqint_of_camlint64(64L))), m)
+  | "bpf_get_current_uid_gid", [] -> 
+        (* The return value is hardcoded to 64, which is not correct *)
+        Some(((w, [Event_syscall(id, [], EVlong (coqint_of_camlint64(64L)))]), Vlong (coqint_of_camlint64(64L))), m)
+  | "bpf_map_lookup_elem", [Vptr(b1, ofs1); Vptr(b2, pfs)] ->
+        convert_external_args ge args sg.sig_args >>= fun eargs ->
+        Some(((w, [Event_syscall(id, eargs, EVlong (coqint_of_camlint64(64L)))]), Vlong (coqint_of_camlint64(64L))), m)
   | _ ->
       None
 
@@ -528,7 +570,6 @@ let do_step p prog ge time s w =
         pp_set_max_boxes p 1000;
         fprintf p "@[<hov 2>Stuck state: %a@]@." print_state (prog, ge, s);
         diagnose_stuck_state p ge w s;
-        fprintf p "state is stuck here";
         fprintf p "ERROR: Undefined behavior@.";
         exit 126
       end else begin

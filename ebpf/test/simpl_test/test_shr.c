@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include<stdint.h>
+#include <stdint.h>
 
 /*
 int main() {
@@ -10,11 +10,16 @@ int main() {
     return 0;
 }*/
 
-int64_t main() {
+int main() {
     int64_t val1 = 64;
     int64_t val2 = 32;
     int64_t result = val1 >> val2;
+    __builtin_annot("The result should be 0");
     printf("The result is %lld", result);
+    if (result == 0) {
+        printf("The result is 0!");
+    }
+    else printf("The result is not 0!");
     return 0;
 }
 

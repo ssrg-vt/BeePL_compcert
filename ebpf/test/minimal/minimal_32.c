@@ -26,11 +26,9 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 SEC("tp/syscalls/sys_enter_write")
 int handle_tp(void *ctx)
 {   
-	int64_t my_pid = 0;
-	printf("Hello from minimal!");
+	int my_pid = 0;
 	bpf_printk("Hello from minimal!");
-	int64_t pid =  (int64_t)bpf_get_current_pid_tgid() >> (int64_t)32;
-	__builtin_annot("pid is evaulated to 0"); // treated as observable events in the program execution
+	int pid =  bpf_get_current_pid_tgid() >> 32;
 	//bpf_printk("The value of pid is %lld", pid);
 
 	if (pid == my_pid) {
@@ -38,9 +36,8 @@ int handle_tp(void *ctx)
 	
 	else { return 0; }
 	
-    printf("Printing from printf %lld", pid);
-    bpf_printk("BPF triggered from PID" /*%lld", pid*/);
-	//bpf_printk("BPF triggered from PID %lld", pid);
+
+	bpf_printk("BPF triggered from PID %d.\n", pid);
 
 	return 0;
 }
@@ -50,4 +47,4 @@ int main() {
     return 0;
 }
 
-// ./ccomp -D __bpf_helper_as_extern__ -S -o ebpf/test/minimal/minimal.s ebpf/test/minimal/minimal.c 
+// ./ccomp -D __bpf_helper_as_extern__ -S -o ebpf/test/minimal/minimal_32.s ebpf/test/minimal/minimal_32.c 

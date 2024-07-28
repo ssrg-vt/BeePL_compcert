@@ -33,14 +33,16 @@ struct {
 
 SEC("ksyscall/execve")
 
-int hello(/*void *ctx*/) {
+int hello(void *ctx) {
     uint64_t uid;
     uint64_t counter = 0;
     uint64_t *p;
     uint64_t mask = 0xFFFFFFFF;
-    uid = bpf_get_current_uid_gid() & mask;   //returns a 64 bits integer containing the current GID and UID
+    uint64_t uid_gid = bpf_get_current_uid_gid();
+    uid =  uid_gid & mask;   //returns a 64 bits integer containing the current GID and UID
                                                     //gets the user id that is running the process that trigegered this krpobe event. 
                                                     //user-id is held in lowest 32 bits of the 64-bit value that gets returned. (top 32 holds the group id)
+    bpf_printk("Hello after bpf call to get uid and gid");
     p = (uint64_t *)bpf_map_lookup_elem(&counter_table, (&uid)); //returns a pointer to the corresponding value in the hash table 
     if (p!= 0) {
         counter = *p;
@@ -52,7 +54,7 @@ int hello(/*void *ctx*/) {
 }
 
 int main() {
-    hello();
+    hello(NULL);
     return 0;
 }
 

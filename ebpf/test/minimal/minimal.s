@@ -23,91 +23,110 @@ LICENSE:
 	.balign 4
 	.globl	my_pid
 my_pid:
-	.long	0
+	.long	0x0, 0x0
 	.type	my_pid, @object
 	.size	my_pid, . - my_pid
+	.section	.rodata
+	.balign 1
+____fmt:
+	.byte	72
+	.byte	101
+	.byte	108
+	.byte	108
+	.byte	111
+	.byte	32
+	.byte	102
+	.byte	114
+	.byte	111
+	.byte	109
+	.byte	32
+	.byte	109
+	.byte	105
+	.byte	110
+	.byte	105
+	.byte	109
+	.byte	97
+	.byte	108
+	.byte	33
+	.byte	0
+	.type	____fmt, @object
+	.size	____fmt, . - ____fmt
+	.section	.rodata
+	.balign 1
+____fmt__1:
+	.byte	66
+	.byte	80
+	.byte	70
+	.byte	32
+	.byte	116
+	.byte	114
+	.byte	105
+	.byte	103
+	.byte	103
+	.byte	101
+	.byte	114
+	.byte	101
+	.byte	100
+	.byte	32
+	.byte	102
+	.byte	114
+	.byte	111
+	.byte	109
+	.byte	32
+	.byte	80
+	.byte	73
+	.byte	68
+	.byte	32
+	.byte	37
+	.byte	100
+	.byte	46
+	.byte	10
+	.byte	0
+	.type	____fmt__1, @object
+	.size	____fmt__1, . - ____fmt__1
 	.text
 	.balign 2
 	.globl handle_tp
 handle_tp:
 	.cfi_startproc
 	r0 = r10
-	r10 -= 48
+	r10 -= 16
 	*(u64 *)(r10 + 0) = r0
+	r1 = "____fmt" + 0 ll
+	w2 = 20
+	call bpf_trace_printk
 	call bpf_get_current_pid_tgid
 	r3 = r0
-	r3 >>= 32
-	r3 &= -1
-	r5 = "my_pid" + 0 ll
-	w5 = *(u32 *)(r5 + 0)
-	if w3 == w5 goto .L100
+	r3 s>>= 32
+	r4 = "my_pid" + 0 ll
+	r1 = *(u64 *)(r4 + 0)
+	if r3 == r1 goto .L100
 	w0 = 0
 	goto .L101
 .L100:
-	w2 = 66
-	*(u8 *)(r10 + 8) = w2
-	w4 = 80
-	*(u8 *)(r10 + 9) = w4
-	w1 = 70
-	*(u8 *)(r10 + 10) = w1
-	w1 = 32
-	*(u8 *)(r10 + 11) = w1
-	w4 = 116
-	*(u8 *)(r10 + 12) = w4
-	w2 = 114
-	*(u8 *)(r10 + 13) = w2
-	w5 = 105
-	*(u8 *)(r10 + 14) = w5
-	w2 = 103
-	*(u8 *)(r10 + 15) = w2
-	w2 = 103
-	*(u8 *)(r10 + 16) = w2
-	w5 = 101
-	*(u8 *)(r10 + 17) = w5
-	w4 = 114
-	*(u8 *)(r10 + 18) = w4
-	w1 = 101
-	*(u8 *)(r10 + 19) = w1
-	w0 = 100
-	*(u8 *)(r10 + 20) = w0
-	w4 = 32
-	*(u8 *)(r10 + 21) = w4
-	w0 = 102
-	*(u8 *)(r10 + 22) = w0
-	w4 = 114
-	*(u8 *)(r10 + 23) = w4
-	w2 = 111
-	*(u8 *)(r10 + 24) = w2
-	w1 = 109
-	*(u8 *)(r10 + 25) = w1
-	w5 = 32
-	*(u8 *)(r10 + 26) = w5
-	w4 = 80
-	*(u8 *)(r10 + 27) = w4
-	w4 = 73
-	*(u8 *)(r10 + 28) = w4
-	w4 = 68
-	*(u8 *)(r10 + 29) = w4
-	w0 = 32
-	*(u8 *)(r10 + 30) = w0
-	w4 = 37
-	*(u8 *)(r10 + 31) = w4
-	w0 = 100
-	*(u8 *)(r10 + 32) = w0
-	w0 = 46
-	*(u8 *)(r10 + 33) = w0
-	w0 = 10
-	*(u8 *)(r10 + 34) = w0
-	w1 = 0
-	*(u8 *)(r10 + 35) = w1
-	r1 = r10
-	r1 += 8
+	r1 = "____fmt__1" + 0 ll
 	w2 = 28
 	call bpf_trace_printk
 	w0 = 0
 .L101:
-	r10 += 48
+	r10 += 16
 	exit
 	.cfi_endproc
 	.type	handle_tp, @function
 	.size	handle_tp, . - handle_tp
+	.text
+	.balign 2
+	.globl main
+main:
+	.cfi_startproc
+	r0 = r10
+	r10 -= 16
+	*(u64 *)(r10 + 0) = r0
+	r1 = 0
+	call handle_tp
+	w0 = 0
+	r10 += 16
+	exit
+	.cfi_endproc
+	.type	main, @function
+	.size	main, . - main
