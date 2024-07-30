@@ -17,7 +17,7 @@ return -1;
 int main() {
     int tbl[100] = { 0 };
 	bsearch(tbl, 2);
-    return 0;
+    return 0.0;
 }
 
 // ./ccomp -D __bpf_helper_as_extern__ -S -o ebpf/test/simpl_test/bsearch.s ebpf/test/simpl_test/bsearch.c

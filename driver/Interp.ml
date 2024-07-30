@@ -456,9 +456,11 @@ let do_external_function id sg ge w args m =
   | "bpf_get_current_uid_gid", [] -> 
         (* The return value is hardcoded to 64, which is not correct *)
         Some(((w, [Event_syscall(id, [], EVlong (coqint_of_camlint64(64L)))]), Vlong (coqint_of_camlint64(64L))), m)
-  | "bpf_map_lookup_elem", [Vptr(b1, ofs1); Vptr(b2, pfs)] ->
-        convert_external_args ge args sg.sig_args >>= fun eargs ->
-        Some(((w, [Event_syscall(id, eargs, EVlong (coqint_of_camlint64(64L)))]), Vlong (coqint_of_camlint64(64L))), m)
+  | "bpf_map_lookup_elem", args ->
+        (* It only captures the first argument, which is a pointer to a global data *)
+        (* Not sure if it is always the case that maps are defined as global variable in ebpf *)
+        convert_external_arg ge (List.hd args) sg.sig_args >>= fun eargs ->
+        Some(((w, [Event_syscall(id, [eargs], EVlong (coqint_of_camlint64(64L)))]), Vlong (coqint_of_camlint64(64L))), m)
   | _ ->
       None
 
