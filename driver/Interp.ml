@@ -55,13 +55,32 @@ let print_eventval_list p = function
       print_eventval p v1;
       List.iter (fun v -> fprintf p ",@ %a" print_eventval v) vl
 
+(* Prints the typ (abstract type used in all intermediate language) *)
+let print_typ p = function 
+    | AST.Tint -> fprintf p "Tint"         
+    | AST.Tfloat -> fprintf p "Tfloat"     
+    | AST.Tlong -> fprintf p "Tlong"       
+    | AST.Tsingle -> fprintf p "Tsingle"   
+    | AST.Tany32 -> fprintf p "Tany32"     
+    | AST.Tany64 -> fprintf p "Tany64"     
+
+(* Prints the list of argument types *)
+let print_typ_list p = function
+  | [] -> ()
+  | v1 :: vl ->
+      print_typ p v1;
+      List.iter (fun v -> fprintf p ",@ %a" print_typ v) vl
+
+
 (* Prints the event *)
 let print_event p = function
-  | Event_syscall(id, args, res) ->
-      fprintf p "extcall %s(%a) -> %a"
+  | Event_syscall(id, args, argst, res, rest) ->
+      fprintf p "extcall %s(%a)(%a) -> (%a)(%a)"
                 (camlstring_of_coqstring id)
                 print_eventval_list args
+                print_typ_list argst 
                 print_eventval res
+                print_typ rest
   | Event_vload(chunk, id, ofs, res) ->
       fprintf p "volatile load %s[&%s%+ld] -> %a"
                 (PrintAST.name_of_chunk chunk)
@@ -431,7 +450,8 @@ let do_external_function id sg ge w args m =
       Format.print_string fmt';
       flush stdout;
       convert_external_args ge args sg.sig_args >>= fun eargs ->
-      Some(((w, [Event_syscall(id, eargs, EVint len)]), Vint len), m)
+      let teargs = eventvals_type eargs in 
+      Some(((w, [Event_syscall(id, eargs, teargs, EVint len, AST.Tint)]), Vint len), m)
   | "bpf_printk", Vptr(b, ofs) :: alen :: args' -> 
         extract_string m b ofs >>= fun fmt ->
         let fmt' = do_bpf_printf m fmt args' in
@@ -440,7 +460,8 @@ let do_external_function id sg ge w args m =
         Format.print_string fmt';
         flush stdout;
         convert_external_args ge args sg.sig_args >>= fun eargs ->
-        Some(((w, [Event_syscall(id, eargs, EVint len)]), Vint len), m)
+        let teargs = eventvals_type eargs in 
+        Some(((w, [Event_syscall(id, eargs, teargs, EVint len, AST.Tint)]), Vint len), m)
   | "bpf_trace_printk", Vptr(b, ofs) :: alen :: args' -> 
       extract_string m b ofs >>= fun fmt ->
       let fmt' = do_bpf_printf m fmt args' in
@@ -449,18 +470,25 @@ let do_external_function id sg ge w args m =
       Format.print_string fmt';
       flush stdout;
       convert_external_args ge args sg.sig_args >>= fun eargs ->
-      Some(((w, [Event_syscall(id, eargs, EVint len)]), Vint len), m)
+      let teargs = eventvals_type eargs in 
+      Some(((w, [Event_syscall(id, eargs, teargs, EVint len, AST.Tint)]), Vint len), m)
   | "bpf_get_current_pid_tgid", [] -> 
         (* The return value is hardcoded to 64, which is not correct *)
-        Some(((w, [Event_syscall(id, [], EVlong (coqint_of_camlint64(64L)))]), Vlong (coqint_of_camlint64(64L))), m)
+        Some(((w, [Event_syscall(id, [], [], EVlong (coqint_of_camlint64(64L)), AST.Tlong)]), Vlong (coqint_of_camlint64(64L))), m)
   | "bpf_get_current_uid_gid", [] -> 
         (* The return value is hardcoded to 64, which is not correct *)
-        Some(((w, [Event_syscall(id, [], EVlong (coqint_of_camlint64(64L)))]), Vlong (coqint_of_camlint64(64L))), m)
+        Some(((w, [Event_syscall(id, [], [], EVlong (coqint_of_camlint64(64L)), AST.Tlong)]), Vlong (coqint_of_camlint64(64L))), m)
   | "bpf_map_lookup_elem", args ->
+        (* It captures the arguments if both map and key are represented as global data *)
+        (* It won't work for all programs *)
+        convert_external_args ge args sg.sig_args >>= fun eargs ->
+        let teargs = eventvals_type eargs in 
+        Some(((w, [Event_syscall(id, eargs, teargs, EVlong (coqint_of_camlint64(64L)), AST.Tlong)]), Vlong (coqint_of_camlint64(64L))), m)
+  (* | "bpf_map_lookup_elem", args ->
         (* It only captures the first argument, which is a pointer to a global data *)
-        (* Not sure if it is always the case that maps are defined as global variable in ebpf *)
         convert_external_arg ge (List.hd args) sg.sig_args >>= fun eargs ->
         Some(((w, [Event_syscall(id, [eargs], EVlong (coqint_of_camlint64(64L)))]), Vlong (coqint_of_camlint64(64L))), m)
+  *)
   | _ ->
       None
 

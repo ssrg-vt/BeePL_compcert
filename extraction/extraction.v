@@ -35,6 +35,7 @@ Require Clight.
 Require Compiler.
 Require Parser.
 Require Initializers.
+Require Events.
 
 (* Standard lib *)
 Require Import ExtrOcamlBasic.
@@ -159,6 +160,7 @@ Separate Extraction
    Ctypes.merge_attributes Ctypes.remove_attributes 
    Ctypes.build_composite_env Ctypes.layout_struct
    Initializers.transl_init Initializers.constval
+   Events.eventval_type Events.eventvals_type
    Csyntax.Eindex Csyntax.Epreincr Csyntax.Eselection
    Ctyping.typecheck_program
    Ctyping.epostincr Ctyping.epostdecr Ctyping.epreincr Ctyping.epredecr

@@ -26,6 +26,8 @@ Require Import Values.
 Require Import Memory.
 Require Import Globalenvs.
 Require Import Builtins.
+Require Extraction.
+
 
 (** Backwards compatibility for Hint Rewrite locality attributes. *)
 Set Warnings "-unsupported-attributes".
@@ -67,7 +69,7 @@ Inductive eventval: Type :=
   | EVptr_global: ident -> ptrofs -> eventval.
 
 Inductive event: Type :=
-  | Event_syscall: string -> list eventval -> eventval -> event
+  | Event_syscall: string -> list eventval -> list typ -> eventval -> typ -> event
   | Event_vload: memory_chunk -> ident -> ptrofs -> eventval -> event
   | Event_vstore: memory_chunk -> ident -> ptrofs -> eventval -> event
   | Event_annot: string -> list eventval -> event.
@@ -274,11 +276,11 @@ Variable ge: Senv.t.
 
 Inductive eventval_match: eventval -> typ -> val -> Prop :=
   | ev_match_int: forall i,
-      eventval_match (EVint i) Tint (Vint i)
+      eventval_match (EVint i) AST.Tint (Vint i)
   | ev_match_long: forall i,
-      eventval_match (EVlong i) Tlong (Vlong i)
+      eventval_match (EVlong i) AST.Tlong (Vlong i)
   | ev_match_float: forall f,
-      eventval_match (EVfloat f) Tfloat (Vfloat f)
+      eventval_match (EVfloat f) AST.Tfloat (Vfloat f)
   | ev_match_single: forall f,
       eventval_match (EVsingle f) Tsingle (Vsingle f)
   | ev_match_ptr: forall id b ofs,
@@ -361,11 +363,17 @@ Definition eventval_valid (ev: eventval) : Prop :=
 
 Definition eventval_type (ev: eventval) : typ :=
   match ev with
-  | EVint _ => Tint
-  | EVlong _ => Tlong
-  | EVfloat _ => Tfloat
-  | EVsingle _ => Tsingle
+  | EVint _ => AST.Tint
+  | EVlong _ => AST.Tlong
+  | EVfloat _ => AST.Tfloat
+  | EVsingle _ => AST.Tsingle
   | EVptr_global id ofs => Tptr
+  end.
+
+Fixpoint eventvals_type (ev : list eventval) : list typ := 
+  match ev with 
+  | nil => nil
+  | e1 :: e1s => eventval_type e1 :: eventvals_type e1s
   end.
 
 Lemma eventval_match_receptive:
@@ -510,9 +518,9 @@ Variable ge: Senv.t.
 Inductive match_traces: trace -> trace -> Prop :=
   | match_traces_E0:
       match_traces nil nil
-  | match_traces_syscall: forall id args res1 res2,
+  | match_traces_syscall: forall id args argst res1 rest res2,
       eventval_valid ge res1 -> eventval_valid ge res2 -> eventval_type res1 = eventval_type res2 ->
-      match_traces (Event_syscall id args res1 :: nil) (Event_syscall id args res2 :: nil)
+      match_traces (Event_syscall id args argst res1 rest :: nil) (Event_syscall id args argst res2 rest :: nil)
   | match_traces_vload: forall chunk id ofs res1 res2,
       eventval_valid ge res1 -> eventval_valid ge res2 -> eventval_type res1 = eventval_type res2 ->
       match_traces (Event_vload chunk id ofs res1 :: nil) (Event_vload chunk id ofs res2 :: nil)
@@ -545,7 +553,7 @@ End MATCH_TRACES_INV.
 
 Definition output_event (ev: event) : Prop :=
   match ev with
-  | Event_syscall _ _ _ => False
+  | Event_syscall _ _ _ _ _ => False
   | Event_vload _ _ _ _ => False
   | Event_vstore _ _ _ _ => True
   | Event_annot _ _ => True
@@ -1780,4 +1788,6 @@ Proof.
 Qed.
 
 End EVAL_BUILTIN_ARG_LESSDEF.
+
+
 

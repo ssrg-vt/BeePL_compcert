@@ -69,9 +69,9 @@ Definition nextworld_vstore (w: world) (chunk: memory_chunk) (id: ident) (ofs: p
 *)
 
 Inductive possible_event: world -> event -> world -> Prop :=
-  | possible_event_syscall: forall w1 evname evargs evres w2,
+  | possible_event_syscall: forall w1 evname evargs targs evres tres w2,
       nextworld_io w1 evname evargs = Some (evres, w2) ->
-      possible_event w1 (Event_syscall evname evargs evres) w2
+      possible_event w1 (Event_syscall evname evargs targs evres tres) w2
   | possible_event_vload: forall w1 chunk id ofs evres w2,
       nextworld_vload w1 chunk id ofs = Some (evres, w2) ->
       possible_event w1 (Event_vload chunk id ofs evres) w2
@@ -116,7 +116,8 @@ Lemma match_possible_traces:
 Proof.
   intros. inv H; inv H1; inv H0.
   auto.
-  inv H7; inv H6. inv H9; inv H10. split; congruence.
+  inv H7; inv H6. inv H9; inv H10. inv H13; inv H12. rewrite H0 in H1. 
+  inv H1. split;congruence.
   inv H7; inv H6. inv H9; inv H10. split; congruence.
   inv H4; inv H3. inv H6; inv H7. split; congruence.
   inv H4; inv H3. inv H7; inv H6. auto.
