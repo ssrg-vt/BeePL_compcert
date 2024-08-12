@@ -26,3 +26,5 @@ int main() {
 // 1527
 // hex(1527) '0x5f7'
 // ./ccomp -D __bpf_helper_as_extern__ -S -o ebpf/test/simpl_test/test_shr.s ebpf/test/simpl_test/test_shr.c 
+// make clightgen
+// ./clightgen -normalize ebpf/test/simpl_test/test_shr.c  
