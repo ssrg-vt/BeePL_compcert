@@ -28,3 +28,12 @@ int main() {
 // ./ccomp -D __bpf_helper_as_extern__ -S -o ebpf/test/simpl_test/test_shr.s ebpf/test/simpl_test/test_shr.c 
 // make clightgen
 // ./clightgen -normalize ebpf/test/simpl_test/test_shr.c  
+
+/*
+Time 27: observable event: annotation "The result should be 0" 
+The result is 0Time 36: observable event: extcall printf(& __stringlit_1,
+                 0LL)(Tlong, Tlong) -> (15)(Tint)
+The result is 0!Time 48: observable event:
+                  extcall printf(& __stringlit_3)(Tlong) -> (16)(Tint)
+Time 53: program terminated (exit code = 0) 
+*/

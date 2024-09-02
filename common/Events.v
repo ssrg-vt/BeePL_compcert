@@ -67,7 +67,7 @@ Inductive eventval: Type :=
   | EVfloat: float -> eventval
   | EVsingle: float32 -> eventval
   | EVptr_global: ident -> ptrofs -> eventval.
-
+  
 Inductive event: Type :=
   | Event_syscall: string -> list eventval -> list typ -> eventval -> typ -> event
   | Event_vload: memory_chunk -> ident -> ptrofs -> eventval -> event

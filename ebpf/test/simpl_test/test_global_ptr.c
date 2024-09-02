@@ -2,12 +2,13 @@
 
 #include <stdlib.h>
 
+
 volatile int gb = 5; 
 
-int main(int argc, char *argv[]) {
+int main() {
     int x = gb + 1;
-    gb = gb + argc;
-    printf("This is will trigger an event %d and %d\n", x, gb);
+    gb = gb + 1;
+    printf("This will trigger an event %d and %d\n", x, gb);
     return 0;
 }
 
@@ -16,11 +17,27 @@ Time 6: observable event: volatile load int32[&gb+0] -> 5
 Time 14: observable event: volatile load int32[&gb+0] -> 5
 Time 16: observable event: volatile store int32[&gb+0] <- 6
 Time 27: observable event: volatile load int32[&gb+0] -> 6
-This is will trigger an event 6 and 6
+This will trigger an event 6 and 6
 
 Time 28: observable event: extcall printf(& __stringlit_1, 6, 6) -> 38
 Time 33: program terminated (exit code = 0)
 */
+
+/*
+int main() {
+    int gb = 5;
+    int x = gb + 1;
+    gb = gb + 1;
+    printf("This will trigger an event %d and %d\n", x, gb);
+    return 0;
+}*/
+
+/*
+This will trigger an event 6 and 6
+
+Time 34: observable event: extcall printf(& __stringlit_1, 6, 6)(Tlong, Tint,
+  Tint) -> (35)(Tint)
+Time 39: program terminated (exit code = 0) */
 
 // int main() { 
 //     int* ptr; 
