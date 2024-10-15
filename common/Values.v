@@ -2207,11 +2207,11 @@ Proof.
   rewrite add_commut.
   unfold offset_ptr.
   destruct sp; try constructor.
-  simpl. destruct Archi.ptr64.
+  (*simpl. destruct Archi.ptr64.
   constructor.
   rewrite Ptrofs.add_assoc.
   rewrite (Ptrofs.add_commut n2).
-  constructor.
+  constructor.*)
 Qed.
 
 Lemma lessdef_normalize:
