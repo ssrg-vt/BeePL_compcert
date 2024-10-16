@@ -4,14 +4,12 @@ Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST.
 
 Inductive effect_label : Type :=
 | Panic : effect_label               (* exception effect *)
-| Divergence : effect_label               (* divergence effect *)
-| Hst : ident -> effect_label      (* heap effect *).
+| Divergence : effect_label          (* divergence effect *)
+| Read : ident -> effect_label       (* read heap effect *)
+| Write : ident -> effect_label      (* write heap effect *)
+| Alloc : ident -> effect_label      (* allocation heap effect *).
 
-Inductive effect : Type :=
-| Empty : effect                           (* empty effect *)
-| Esingle : effect_label -> effect         (* single effect *)
-| Erow : effect -> effect -> effect        (* row of effects *)
-| Evar : ident -> effect                   (* effect variable *).
+Definition effect := list effect_label.  (* row of effects *)
 
 Inductive primitive_type : Type :=
 | Tunit : primitive_type
@@ -19,14 +17,12 @@ Inductive primitive_type : Type :=
 | Tbool : primitive_type.
 
 Inductive basic_type : Type :=
-| Bprim : primitive_type -> basic_type 
-| Bpair : nat -> list basic_type -> basic_type    (* pair of types *).
+| Bprim : primitive_type -> basic_type.
 
 Inductive type : Type :=
-| Btype : basic_type -> type                              (* basic types *)
-| Ftype : list type -> nat -> effect -> type -> type      (* function/arrow type *)
+| Ptype : primitive_type -> type                          (* primitive types *)
 | Reftype : ident -> basic_type -> type                   (* reference type ref<h,int> *)
-| Ptype : nat -> list type -> type                        (* pair type *). 
+| Ftype : list type -> nat -> effect -> type -> type      (* function/arrow type *).
 
 
 (* Equality on types *)
@@ -34,16 +30,16 @@ Definition eq_effect_label (e1 e2 : effect_label) : bool :=
 match e1, e2 with 
 | Panic, Panic => true 
 | Divergence, Divergence => true 
-| Hst id1, Hst id2 => (id1 =? id2)%positive
+| Read id1, Read id2 => (id1 =? id2)%positive
+| Write id1, Read id2 => (id1 =? id2)%positive
+| Alloc id1, Alloc id2 => (id1 =? id2)%positive
 | _, _ => false
 end.
 
-Fixpoint eq_effect (e1 e2 : effect) : bool :=
-match e1, e2 with 
-| Empty, Empty => true 
-| Esingle e, Esingle e' => eq_effect_label e e'
-| Erow e es, Erow e' es' => eq_effect e e' && eq_effect es es'
-| Evar id1, Evar id2 => (id1 =? id2)%positive
+Fixpoint eq_effect (es1 es2 : effect) : bool :=
+match es1, es2 with 
+| nil, nil => true 
+| e :: es, e' :: es' => eq_effect_label e e' && eq_effect es es'
 | _, _ => false
 end.
 
@@ -71,8 +67,6 @@ End Eq_basic_types.
 Fixpoint eq_basic_type (b1 b2 : basic_type) : bool :=
 match b1, b2 with 
 | Bprim p1, Bprim p2 => eq_primitive_type p1 p2
-| Bpair n1 es1, Bpair n2 es2 => (n1 =? n2) && eq_basic_types eq_basic_type es1 es2
-| _, _ => false
 end.
 
 Section Eq_types.
@@ -90,11 +84,10 @@ End Eq_types.
 
 Fixpoint eq_type (t1 t2 : type) : bool :=
 match t1,t2 with 
-| Btype b1, Btype b2 => eq_basic_type b1 b2
+| Ptype b1, Ptype b2 => eq_primitive_type b1 b2
 | Ftype ts1 n1 e1 t1, Ftype ts2 n2 e2 t2 => 
   eq_types eq_type ts1 ts2 && (n1 =? n2)%nat && eq_effect e1 e2 && eq_type t1 t2
 | Reftype e1 b1, Reftype e2 b2 => (e1 =? e2)%positive && eq_basic_type b1 b2 
-| Ptype n1 ts1, Ptype n2 ts2 => (n1 =? n2)%nat && eq_types eq_type ts1 ts2
 | _, _ => false
 end.
 

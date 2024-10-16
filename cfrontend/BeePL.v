@@ -4,7 +4,7 @@ Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps.
 Require Import BeeTypes.
 
 Inductive constant : Type :=
-| ConsInt : Z -> constant
+| ConsInt : int -> constant
 | ConsBool : bool -> constant
 | ConsUnit : constant.
 
@@ -29,9 +29,9 @@ Inductive bop : Type :=
 
 Inductive val : Type :=
 | Vunit : val
-| Vint : Z -> val
+| Vint : int -> val
 | Vbool : bool -> val
-| Vloc : nat -> val.
+| Vloc : positive -> val.
 
 Definition vals := list val.
 
@@ -76,28 +76,40 @@ Inductive builtin : Type :=
                                 reduces to e captures the essence of state isolation 
                                 and reduces to a value discarding the heap *)
 | Uop : uop -> builtin       (* unary operator *)
-| Bop : bop -> builtin       (* binary operator *)
-| Extfun : builtin.          (* external function *)
+| Bop : bop -> builtin.       (* binary operator *)
 
 (* The source language never exposes the heap binding construct hpφ.e directly to the user 
    but during evaluation the reductions on heap operations create heaps and use them. *)
 Inductive expr : Type :=
-| Var : type -> ident -> expr                             (* variable *)
-| Const : constant -> expr                                (* constant *)
-| App : expr -> nat -> list type -> list expr -> expr     (* function application *)
-| Bfun : builtin -> list type -> list expr -> expr        (* builtin functions *)
-| Lexpr : ident -> type -> expr -> expr -> expr           (* let binding *)
-| Cond : expr -> expr -> expr -> expr                     (* if e then e else e *)
+| Var : ident -> type -> expr                                   (* variable *)
+| Const : constant -> type -> expr                              (* constant *)
+| App : expr -> nat -> list expr -> list type -> expr           (* function application *)
+| Bfun : builtin -> nat -> list expr -> list type -> expr       (* builtin functions *)
+| Lexpr : ident -> type -> expr -> expr -> expr                 (* let binding *)
+| Cond : expr -> type -> expr -> expr -> type -> expr           (* if e then e else e *)
 (* not intended to be written by programmers:*)
-| Addr : basic_type -> loc -> expr                        (* address *)
-| Hexpr : heap -> expr -> expr                            (* heap effect *).
+| Addr : loc -> basic_type -> expr                              (* address *)
+| Hexpr : heap -> expr -> type -> expr                          (* heap effect *).
 
-Inductive declaration : Type :=
-| TAlias : ident -> type -> declaration
-| Gval : ident -> constant -> declaration
-| Fdecl : ident -> list (ident * type) -> expr -> declaration.
+ 
+Inductive decl : Type :=
+| TAlias : ident -> type -> decl
+| Gval : ident -> constant -> decl
+| Fdecl : ident -> list (ident * type) -> expr -> decl.
 
-Definition genv := list (loc * declaration).
+Definition genv := list (loc * decl).
+
+Fixpoint get_decl (ge : genv) (l : loc) : option decl :=
+match ge with 
+| nil => None
+| g :: gs => if (l =? fst(g))%positive then Some (snd(g)) else get_decl gs l
+end.
+
+Fixpoint get_declv (ge : genv) (v : val) : option decl :=
+match v with 
+| Vloc p => get_decl ge p 
+| _ => None
+end.
 
 Section FTVS.
 
@@ -114,25 +126,24 @@ End FTVS.
 (* Free variable with respect to types *)
 Fixpoint free_variables_type (t : type) : list ident :=
 match t with 
-| Btype t => nil
+| Ptype t => nil
 | Ftype ts n ef t => free_variables_types free_variables_type ts ++ free_variables_type t
 | Reftype h t => h :: nil
-| Ptype n ts => free_variables_types free_variables_type ts
 end.
 
 Definition free_variables_effect_label (ef : effect_label) : list ident :=
 match ef with 
 | Panic => nil 
 | Divergence => nil
-| Hst h => h :: nil
+| Read h => h :: nil
+| Write h => h :: nil
+| Alloc h => h :: nil
 end.
 
-Fixpoint free_variables_effect (ef : effect) : list ident :=
+Fixpoint free_variables_effect (ef : effect) : list ident := 
 match ef with 
-| Empty => nil 
-| Esingle el => free_variables_effect_label el 
-| Erow ef ef' => free_variables_effect ef ++ free_variables_effect ef' 
-| Evar h => h :: nil
+| nil => nil
+| e :: es => free_variables_effect_label e ++ free_variables_effect es
 end.
 
 (* For now, we take it as empty but once we introduce polymorphism the free variables needs to be tracked to ensure 
@@ -241,17 +252,29 @@ end.
 
 End Subs.
 
+Fixpoint unzip1 {A} {B} (es : list (A * B)) : list A :=
+match es with 
+| nil => nil
+| e :: es => fst(e) :: unzip1 es
+end.
+
+Fixpoint unzip2 {A} {B} (es : list (A * B)) : list B :=
+match es with 
+| nil => nil
+| e :: es => snd(e) :: unzip2 es
+end.
+
 (* Substitution *)
 Fixpoint subst (x:ident) (e':expr) (e:expr) : expr :=
 match e with
-| Var t y => if (x =? y)%positive then e' else e
-| Const c => Const c
-| App e n ts es => App (subst x e' e) n ts (substs subst x e' es)
-| Bfun b ts es => Bfun b ts (substs subst x e' es)
+| Var y t => if (x =? y)%positive then e' else e
+| Const c t => Const c t
+| App e n es ts => App (subst x e' e) n (substs subst x e' es) ts
+| Bfun b n es ts => Bfun b n (substs subst x e' es) ts
 | Lexpr y t e1 e2 => if (x =? y)%positive then Lexpr y t e1 e2 else Lexpr y t e1 (subst x e' e2)
-| Cond e1 e2 e3 => Cond (subst x e' e1) (subst x e' e2) (subst x e' e3)
-| Addr t l => Addr t l 
-| Hexpr h e => Hexpr h (subst x e' e)
+| Cond e1 t1 e2 e3 t2 => Cond (subst x e' e1) t1 (subst x e' e2) (subst x e' e3) t2
+| Addr l t => Addr l t 
+| Hexpr h e t => Hexpr h (subst x e' e) t
 end.
 
 (* Substitution of multiple variables *)
@@ -264,24 +287,35 @@ match xs with
              end
 end.
 
-Fixpoint domain_heap (h : heap) : list loc :=
-match h with 
-| nil => nil
-| x :: h => fst(x) :: domain_heap h
-end.
-
 (* Operational Semantics *)
 Inductive sem_expr : genv -> state -> expr -> state -> val -> Prop :=
 | sem_var : forall ge st x t vm v,
             get_vmap st = vm ->
             get_val_var vm x = Some v ->
-            sem_expr ge st (Var t x) st v
+            sem_expr ge st (Var x t) st v
 | sem_const_int : forall ge st i,
-                  sem_expr ge st (Const (ConsInt i)) st (Vint i)
+                  sem_expr ge st (Const (ConsInt i) (Ptype Tint)) st (Vint i)
 | sem_const_bool : forall ge st b,
-                   sem_expr ge st (Const (ConsBool b)) st (Vbool b)
+                   sem_expr ge st (Const (ConsBool b) (Ptype Tbool)) st (Vbool b)
 | sem_const_uint : forall ge st,
-                   sem_expr ge st (Const (ConsUnit)) st (Vunit).
+                   sem_expr ge st (Const (ConsUnit) (Ptype Tunit)) st (Vunit)
+| sem_appv : forall ge st e n es ts ve st' fd fn xs fb vs st'',
+             sem_expr ge st e st' ve ->
+             get_declv ge ve = Some fd ->
+             fd = Fdecl fn xs fb ->
+             sem_exprs ge st' es st'' vs ->
+             (*(substs_multi (unzip1 xs) vs e) = e' ->*)
+             sem_expr ge st (App e n es ts) st'' (Vunit)
+with sem_exprs : genv -> state -> list expr -> state -> list val -> Prop :=
+| sem_nil : forall ge st,
+            sem_exprs ge st nil st nil
+| sem_cons : forall ge st e es st' v st'' vs,
+             sem_expr ge st e st' v ->
+             sem_exprs ge st' es st'' vs ->
+             sem_exprs ge st (e :: es) st'' (v :: vs).         
+
+
+
 (*| sem_app_abs : forall st n1 xs e n2 vs,
                 values vs ->
                 n1 = n2 ->
