@@ -89,8 +89,8 @@ Notation " \ b " := (Bop b)(at level 70, no associativity).
 Inductive expr : Type :=
 | Var : ident -> type -> expr                                   (* variable *)
 | Const : constant -> type -> expr                              (* constant *)
-| App : expr -> nat -> list expr -> list type -> expr           (* function application *)
-| Bfun : builtin -> nat -> list expr -> list type -> expr       (* builtin functions *)
+| App : expr -> nat -> list expr -> type -> expr                        (* function application *)
+| Bfun : builtin -> nat -> list expr -> list type -> type -> expr       (* builtin functions *)
 | Mbind : ident -> type -> expr -> expr -> expr                 (* let binding *)
 | Cond : expr -> type -> expr -> expr -> type -> expr           (* if e then e else e *)
 (* not intended to be written by programmers:*)
@@ -146,8 +146,8 @@ Definition f_add : decl := Fdecl 4%positive
                            ((x, (Ptype Tint)) :: (y, (Ptype Tint)) :: nil) 
                            (Mbind r (Ptype Tint) (Bfun (Bop Plus) 2 
                                                               ((x : (Ptype Tint)) :: (y : (Ptype Tint)) :: nil) 
-                                                        (Ptype Tint :: Ptype Tint :: nil))  (r : (Ptype Tint))). 
-
+                                                        (Ptype Tint :: Ptype Tint :: nil)
+                                                        (Ftype (Ptype Tint :: Ptype Tint :: nil) 2 nil (Ptype Tint))) (r : (Ptype Tint))). 
 
 Definition f_main : decl := Fdecl 5%positive
                             nil
@@ -156,10 +156,9 @@ Definition f_main : decl := Fdecl 5%positive
                                  ((App (4%positive : (Ptype Tint))
                                        2 
                                       (Const (ConsInt (Int.repr 1)) (Ptype Tint):: Const (ConsInt (Int.repr 2)) (Ptype Tint) :: nil)
-                                      (Ptype Tint :: Ptype Tint :: nil)) ::
+                                      (Ftype (Ptype Tint :: Ptype Tint :: nil) 2 nil (Ptype Tint))) ::
                                  (Const (ConsInt (Int.repr 5)) (Ptype Tint) :: nil))
-                               (Ftype (Ptype Tint :: Ptype Tint :: nil) 2 nil (Ptype Tint) 
-                             :: Ptype Tint :: nil)).
+                               (Ftype (Ptype Tint :: Ptype Tint :: nil) 2 nil (Ptype Tint))).
 
 Definition mexample1 : module := ((f_add :: f_main :: nil), (Var 5%positive (Ptype Tint))).
                           
@@ -321,8 +320,8 @@ Fixpoint subst (x:ident) (e':expr) (e:expr) : expr :=
 match e with
 | Var y t => if (x =? y)%positive then e' else e
 | Const c t => Const c t
-| App e n es ts => App (subst x e' e) n (substs subst x e' es) ts
-| Bfun b n es ts => Bfun b n (substs subst x e' es) ts
+| App e n es t => App (subst x e' e) n (substs subst x e' es) t
+| Bfun b n es ts t => Bfun b n (substs subst x e' es) ts t
 | Mbind y t e1 e2 => if (x =? y)%positive then Mbind y t e1 e2 else Mbind y t e1 (subst x e' e2)
 | Cond e1 t1 e2 e3 t2 => Cond (subst x e' e1) t1 (subst x e' e2) (subst x e' e3) t2
 | Addr l t => Addr l t 
