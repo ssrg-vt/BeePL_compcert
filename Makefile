@@ -139,7 +139,7 @@ CFRONTEND=BeeTypes.v BeePL.v Ctypes.v Cop.v Csyntax.v Csem.v Ctyping.v Cstrategy
   Initializers.v Initializersproof.v \
   SimplExpr.v SimplExprspec.v SimplExprproof.v \
   Clight.v ClightBigstep.v SimplLocals.v SimplLocalsproof.v \
-  Cshmgen.v Cshmgenproof.v \
+  BeePL_Csyntax.v Cshmgen.v Cshmgenproof.v \
   Csharpminor.v Cminorgen.v Cminorgenproof.v
 
 # Parser

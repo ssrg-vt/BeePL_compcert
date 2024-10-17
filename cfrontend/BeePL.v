@@ -87,15 +87,15 @@ Notation " \ b " := (Bop b)(at level 70, no associativity).
 (* The source language never exposes the heap binding construct hpφ.e directly to the user 
    but during evaluation the reductions on heap operations create heaps and use them. *)
 Inductive expr : Type :=
-| Var : ident -> type -> expr                                   (* variable *)
-| Const : constant -> type -> expr                              (* constant *)
-| App : expr -> nat -> list expr -> type -> expr                        (* function application *)
-| Bfun : builtin -> nat -> list expr -> list type -> type -> expr       (* builtin functions *)
-| Mbind : ident -> type -> expr -> expr -> expr                 (* let binding *)
-| Cond : expr -> type -> expr -> expr -> type -> expr           (* if e then e else e *)
+| Var : ident -> type -> expr                                      (* variable *)
+| Const : constant -> type -> expr                                 (* constant *)
+| App : expr -> nat -> list expr -> type -> expr                   (* function application *)
+| Bfun : builtin -> nat -> list expr -> list type -> type -> expr  (* builtin functions *)
+| Mbind : ident -> type -> expr -> expr -> type -> expr            (* let binding *)
+| Cond : expr -> expr -> expr -> type -> expr                      (* if e then e else e *)
 (* not intended to be written by programmers:*)
-| Addr : loc -> basic_type -> expr                              (* address *)
-| Hexpr : heap -> expr -> type -> expr                          (* heap effect *).
+| Addr : loc -> basic_type -> expr                                 (* address *)
+| Hexpr : heap -> expr -> type -> expr                             (* heap effect *).
 
 Notation "x ':' t" := (Var x t) (at level 70, no associativity).
 Notation "c '~' t" := (Const c t) (at level 80, no associativity).
@@ -103,6 +103,20 @@ Notation "'val' x ':' t '=' e ';' e'" := (Mbind x t e e') (at level 60, right as
 Notation "'bfun' b ( n , es , ts )" := (Bfun b n es ts)(at level 50, right associativity).
 Notation "'fun' \ f ( n , es , ts )" := (App f n es ts)(at level 50, right associativity).
 Notation "'If' e ':' t 'then' e' 'else' e'' ':' t'" := (Cond e t e' e'' t')(at level 40, left associativity).
+
+Definition typeof (e : expr) : type :=
+match e with 
+| Var x t => t
+| Const x t => t
+| App e n ts t => t
+| Bfun b n es ts t => t
+| Mbind x t e e' t' => t'
+| Cond e e' e'' t => t
+| Addr l t => match t with 
+              | Bprim tb => (Ptype tb)
+              end
+| Hexpr h e t => t
+end.
 
  
 Inductive decl : Type :=
@@ -147,7 +161,8 @@ Definition f_add : decl := Fdecl 4%positive
                            (Mbind r (Ptype Tint) (Bfun (Bop Plus) 2 
                                                               ((x : (Ptype Tint)) :: (y : (Ptype Tint)) :: nil) 
                                                         (Ptype Tint :: Ptype Tint :: nil)
-                                                        (Ftype (Ptype Tint :: Ptype Tint :: nil) 2 nil (Ptype Tint))) (r : (Ptype Tint))). 
+                                                        (Ftype (Ptype Tint :: Ptype Tint :: nil) 2 nil (Ptype Tint))) (r : (Ptype Tint)) 
+                           (Ptype Tunit)). 
 
 Definition f_main : decl := Fdecl 5%positive
                             nil
@@ -322,8 +337,8 @@ match e with
 | Const c t => Const c t
 | App e n es t => App (subst x e' e) n (substs subst x e' es) t
 | Bfun b n es ts t => Bfun b n (substs subst x e' es) ts t
-| Mbind y t e1 e2 => if (x =? y)%positive then Mbind y t e1 e2 else Mbind y t e1 (subst x e' e2)
-| Cond e1 t1 e2 e3 t2 => Cond (subst x e' e1) t1 (subst x e' e2) (subst x e' e3) t2
+| Mbind y t e1 e2 t' => if (x =? y)%positive then Mbind y t e1 e2 t' else Mbind y t e1 (subst x e' e2) t'
+| Cond e1 e2 e3 t => Cond (subst x e' e1) (subst x e' e2) (subst x e' e3) t
 | Addr l t => Addr l t 
 | Hexpr h e t => Hexpr h (subst x e' e) t
 end.
