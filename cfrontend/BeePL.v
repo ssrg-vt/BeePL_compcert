@@ -3,6 +3,10 @@ Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat Pe
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps.
 Require Import BeeTypes.
 
+Set Implicit Arguments.
+Unset Strict Implicit.
+Unset Printing Implicit Defensive.
+
 Inductive constant : Type :=
 | ConsInt : int -> constant
 | ConsBool : bool -> constant
@@ -27,39 +31,39 @@ Inductive bop : Type :=
 | Gt : bop
 | Gte : bop. 
 
-Inductive val : Type :=
-| Vunit : val
-| Vint : int -> val
-| Vbool : bool -> val
-| Vloc : positive -> val.
+Inductive value : Type :=
+| Vunit : value
+| Vint : int -> value
+| Vbool : bool -> value
+| Vloc : positive -> value.
 
-Definition vals := list val.
+Definition vals := list value.
 
 Definition loc := positive. 
 
-Definition heap := list (loc * val).
+Definition heap := list (loc * value).
 
-Definition vmap := list (ident * val).
+Definition vmap := list (ident * value).
 
-Fixpoint update_heap (h : heap) (k : loc) (v : val) : heap := 
+Fixpoint update_heap (h : heap) (k : loc) (v : value) : heap := 
 match h with 
 | nil => (k, v) :: nil
 | h :: t => if (k =? fst(h))%positive then (k, v) :: t else h :: update_heap t k v
 end.
 
-Fixpoint update_vmap (h : vmap) (k : ident) (v : val) : vmap := 
+Fixpoint update_vmap (h : vmap) (k : ident) (v : value) : vmap := 
 match h with 
 | nil => (k, v) :: nil
 | h :: t => if (k =? fst(h))%positive then (k, v) :: t else h :: update_vmap t k v
 end.
 
-Fixpoint get_val_loc (h : heap) (k : loc) : option val :=
+Fixpoint get_val_loc (h : heap) (k : loc) : option value :=
 match h with 
 | nil => None 
 | v :: vm => if (k =? fst(v))%positive then Some (snd(v)) else get_val_loc vm k
 end.
 
-Fixpoint get_val_var (h : vmap) (k : ident) : option val :=
+Fixpoint get_val_var (h : vmap) (k : ident) : option value :=
 match h with 
 | nil => None 
 | v :: vm => if (k =? fst(v))%positive then Some (snd(v)) else get_val_var vm k
@@ -78,6 +82,8 @@ Inductive builtin : Type :=
 | Uop : uop -> builtin       (* unary operator *)
 | Bop : bop -> builtin.       (* binary operator *)
 
+Notation " \ b " := (Bop b)(at level 70, no associativity).
+
 (* The source language never exposes the heap binding construct hpφ.e directly to the user 
    but during evaluation the reductions on heap operations create heaps and use them. *)
 Inductive expr : Type :=
@@ -85,16 +91,23 @@ Inductive expr : Type :=
 | Const : constant -> type -> expr                              (* constant *)
 | App : expr -> nat -> list expr -> list type -> expr           (* function application *)
 | Bfun : builtin -> nat -> list expr -> list type -> expr       (* builtin functions *)
-| Lexpr : ident -> type -> expr -> expr -> expr                 (* let binding *)
+| Mbind : ident -> type -> expr -> expr -> expr                 (* let binding *)
 | Cond : expr -> type -> expr -> expr -> type -> expr           (* if e then e else e *)
 (* not intended to be written by programmers:*)
 | Addr : loc -> basic_type -> expr                              (* address *)
 | Hexpr : heap -> expr -> type -> expr                          (* heap effect *).
 
+Notation "x ':' t" := (Var x t) (at level 70, no associativity).
+Notation "c '~' t" := (Const c t) (at level 80, no associativity).
+Notation "'val' x ':' t '=' e ';' e'" := (Mbind x t e e') (at level 60, right associativity).
+Notation "'bfun' b ( n , es , ts )" := (Bfun b n es ts)(at level 50, right associativity).
+Notation "'fun' \ f ( n , es , ts )" := (App f n es ts)(at level 50, right associativity).
+Notation "'If' e ':' t 'then' e' 'else' e'' ':' t'" := (Cond e t e' e'' t')(at level 40, left associativity).
+
  
 Inductive decl : Type :=
 | TAlias : ident -> type -> decl
-| Gval : ident -> constant -> decl
+| Gval : ident -> type -> constant -> decl
 | Fdecl : ident -> list (ident * type) -> expr -> decl.
 
 Definition genv := list (loc * decl).
@@ -105,12 +118,51 @@ match ge with
 | g :: gs => if (l =? fst(g))%positive then Some (snd(g)) else get_decl gs l
 end.
 
-Fixpoint get_declv (ge : genv) (v : val) : option decl :=
+Fixpoint get_declv (ge : genv) (v : value) : option decl :=
 match v with 
 | Vloc p => get_decl ge p 
 | _ => None
 end.
 
+Definition module := prod (list decl) expr.
+
+
+(***** Example1 *****)
+(* #include <stdio.h>
+
+   int add(int x, int y) {
+        return  x + y;
+   }
+
+   int main() {
+        add(add(1,2), 5);
+        return 0;
+   }
+*) 
+Definition x : ident := 1%positive.
+Definition y : ident := 2%positive.
+Definition r : ident := 3%positive.
+Definition f_add : decl := Fdecl 4%positive 
+                           ((x, (Ptype Tint)) :: (y, (Ptype Tint)) :: nil) 
+                           (Mbind r (Ptype Tint) (Bfun (Bop Plus) 2 
+                                                              ((x : (Ptype Tint)) :: (y : (Ptype Tint)) :: nil) 
+                                                        (Ptype Tint :: Ptype Tint :: nil))  (r : (Ptype Tint))). 
+
+
+Definition f_main : decl := Fdecl 5%positive
+                            nil
+                            (App (Var 4%positive (Ptype Tint)) 
+                                 2 
+                                 ((App (4%positive : (Ptype Tint))
+                                       2 
+                                      (Const (ConsInt (Int.repr 1)) (Ptype Tint):: Const (ConsInt (Int.repr 2)) (Ptype Tint) :: nil)
+                                      (Ptype Tint :: Ptype Tint :: nil)) ::
+                                 (Const (ConsInt (Int.repr 5)) (Ptype Tint) :: nil))
+                               (Ftype (Ptype Tint :: Ptype Tint :: nil) 2 nil (Ptype Tint) 
+                             :: Ptype Tint :: nil)).
+
+Definition mexample1 : module := ((f_add :: f_main :: nil), (Var 5%positive (Ptype Tint))).
+                          
 Section FTVS.
 
 Variable free_variables_type : type -> list ident.
@@ -271,7 +323,7 @@ match e with
 | Const c t => Const c t
 | App e n es ts => App (subst x e' e) n (substs subst x e' es) ts
 | Bfun b n es ts => Bfun b n (substs subst x e' es) ts
-| Lexpr y t e1 e2 => if (x =? y)%positive then Lexpr y t e1 e2 else Lexpr y t e1 (subst x e' e2)
+| Mbind y t e1 e2 => if (x =? y)%positive then Mbind y t e1 e2 else Mbind y t e1 (subst x e' e2)
 | Cond e1 t1 e2 e3 t2 => Cond (subst x e' e1) t1 (subst x e' e2) (subst x e' e3) t2
 | Addr l t => Addr l t 
 | Hexpr h e t => Hexpr h (subst x e' e) t
@@ -288,7 +340,7 @@ match xs with
 end.
 
 (* Operational Semantics *)
-Inductive sem_expr : genv -> state -> expr -> state -> val -> Prop :=
+Inductive sem_expr : genv -> state -> expr -> state -> value -> Prop :=
 | sem_var : forall ge st x t vm v,
             get_vmap st = vm ->
             get_val_var vm x = Some v ->
@@ -306,7 +358,7 @@ Inductive sem_expr : genv -> state -> expr -> state -> val -> Prop :=
              sem_exprs ge st' es st'' vs ->
              (*(substs_multi (unzip1 xs) vs e) = e' ->*)
              sem_expr ge st (App e n es ts) st'' (Vunit)
-with sem_exprs : genv -> state -> list expr -> state -> list val -> Prop :=
+with sem_exprs : genv -> state -> list expr -> state -> list value -> Prop :=
 | sem_nil : forall ge st,
             sem_exprs ge st nil st nil
 | sem_cons : forall ge st e es st' v st'' vs,
