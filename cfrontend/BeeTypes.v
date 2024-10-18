@@ -22,7 +22,7 @@ Inductive basic_type : Type :=
 Inductive type : Type :=
 | Ptype : primitive_type -> type                          (* primitive types *)
 | Reftype : ident -> basic_type -> type                   (* reference type ref<h,int> *)
-| Ftype : list type -> nat -> effect -> type -> type      (* function/arrow type *).
+| Ftype : list type -> effect -> type -> type             (* function/arrow type *).
 
 
 (* Equality on types *)
@@ -85,8 +85,8 @@ End Eq_types.
 Fixpoint eq_type (t1 t2 : type) : bool :=
 match t1,t2 with 
 | Ptype b1, Ptype b2 => eq_primitive_type b1 b2
-| Ftype ts1 n1 e1 t1, Ftype ts2 n2 e2 t2 => 
-  eq_types eq_type ts1 ts2 && (n1 =? n2)%nat && eq_effect e1 e2 && eq_type t1 t2
+| Ftype ts1 e1 t1, Ftype ts2 e2 t2 => 
+  eq_types eq_type ts1 ts2 && eq_effect e1 e2 && eq_type t1 t2
 | Reftype e1 b1, Reftype e2 b2 => (e1 =? e2)%positive && eq_basic_type b1 b2 
 | _, _ => false
 end.

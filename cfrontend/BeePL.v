@@ -89,9 +89,9 @@ Notation " \ b " := (Bop b)(at level 70, no associativity).
 Inductive expr : Type :=
 | Var : ident -> type -> expr                                      (* variable *)
 | Const : constant -> type -> expr                                 (* constant *)
-| App : expr -> nat -> list expr -> type -> expr                   (* function application *)
-| Bfun : builtin -> nat -> list expr -> list type -> type -> expr  (* builtin functions *)
-| Mbind : ident -> type -> expr -> expr -> type -> expr            (* let binding *)
+| App : expr -> list expr -> type -> expr                          (* function application *)
+| Prim : builtin -> type -> expr                                   (* primitive functions: arrow *)
+| Bind : ident -> type -> expr -> expr -> type -> expr             (* let binding: type of continuation *)
 | Cond : expr -> expr -> expr -> type -> expr                      (* if e then e else e *)
 (* not intended to be written by programmers:*)
 | Addr : loc -> basic_type -> expr                                 (* address *)
@@ -99,8 +99,8 @@ Inductive expr : Type :=
 
 Notation "x ':' t" := (Var x t) (at level 70, no associativity).
 Notation "c '~' t" := (Const c t) (at level 80, no associativity).
-Notation "'val' x ':' t '=' e ';' e'" := (Mbind x t e e') (at level 60, right associativity).
-Notation "'bfun' b ( n , es , ts )" := (Bfun b n es ts)(at level 50, right associativity).
+Notation "'val' x ':' t '=' e ';' e'" := (Bind x t e e') (at level 60, right associativity).
+Notation "'prim' b ( n , es , ts )" := (Prim b n es ts)(at level 50, right associativity).
 Notation "'fun' \ f ( n , es , ts )" := (App f n es ts)(at level 50, right associativity).
 Notation "'If' e ':' t 'then' e' 'else' e'' ':' t'" := (Cond e t e' e'' t')(at level 40, left associativity).
 
@@ -108,9 +108,9 @@ Definition typeof (e : expr) : type :=
 match e with 
 | Var x t => t
 | Const x t => t
-| App e n ts t => t
-| Bfun b n es ts t => t
-| Mbind x t e e' t' => t'
+| App e ts t => t
+| Prim b t => t
+| Bind x t e e' t' => t'
 | Cond e e' e'' t => t
 | Addr l t => match t with 
               | Bprim tb => (Ptype tb)
@@ -155,25 +155,23 @@ Definition module := prod (list decl) expr.
 *) 
 Definition x : ident := 1%positive.
 Definition y : ident := 2%positive.
-Definition r : ident := 3%positive.
+Definition r : ident := 3%positive. 
 Definition f_add : decl := Fdecl 4%positive 
                            ((x, (Ptype Tint)) :: (y, (Ptype Tint)) :: nil) 
-                           (Mbind r (Ptype Tint) (Bfun (Bop Plus) 2 
-                                                              ((x : (Ptype Tint)) :: (y : (Ptype Tint)) :: nil) 
-                                                        (Ptype Tint :: Ptype Tint :: nil)
-                                                        (Ftype (Ptype Tint :: Ptype Tint :: nil) 2 nil (Ptype Tint))) (r : (Ptype Tint)) 
+                           (Bind r (Ptype Tint) (App (Prim (Bop Plus) (Ftype (Ptype Tint :: Ptype Tint :: nil) nil (Ptype Tint))) 
+                                                           ((x : (Ptype Tint)) :: (y : (Ptype Tint)) :: nil) 
+                                                        (Ptype Tint))
+                                    (r : (Ptype Tint)) 
                            (Ptype Tunit)). 
 
 Definition f_main : decl := Fdecl 5%positive
                             nil
-                            (App (Var 4%positive (Ptype Tint)) 
-                                 2 
-                                 ((App (4%positive : (Ptype Tint))
-                                       2 
+                            (App (Var 4%positive (Ptype Tint))  
+                                 ((App (4%positive : (Ptype Tint)) 
                                       (Const (ConsInt (Int.repr 1)) (Ptype Tint):: Const (ConsInt (Int.repr 2)) (Ptype Tint) :: nil)
-                                      (Ftype (Ptype Tint :: Ptype Tint :: nil) 2 nil (Ptype Tint))) ::
+                                      (Ptype Tint)) ::
                                  (Const (ConsInt (Int.repr 5)) (Ptype Tint) :: nil))
-                               (Ftype (Ptype Tint :: Ptype Tint :: nil) 2 nil (Ptype Tint))).
+                               (Ftype (Ptype Tint :: Ptype Tint :: nil) nil (Ptype Tint))).
 
 Definition mexample1 : module := ((f_add :: f_main :: nil), (Var 5%positive (Ptype Tint))).
                           
@@ -193,7 +191,7 @@ End FTVS.
 Fixpoint free_variables_type (t : type) : list ident :=
 match t with 
 | Ptype t => nil
-| Ftype ts n ef t => free_variables_types free_variables_type ts ++ free_variables_type t
+| Ftype ts ef t => free_variables_types free_variables_type ts ++ free_variables_type t
 | Reftype h t => h :: nil
 end.
 
@@ -335,9 +333,9 @@ Fixpoint subst (x:ident) (e':expr) (e:expr) : expr :=
 match e with
 | Var y t => if (x =? y)%positive then e' else e
 | Const c t => Const c t
-| App e n es t => App (subst x e' e) n (substs subst x e' es) t
-| Bfun b n es ts t => Bfun b n (substs subst x e' es) ts t
-| Mbind y t e1 e2 t' => if (x =? y)%positive then Mbind y t e1 e2 t' else Mbind y t e1 (subst x e' e2) t'
+| App e es t => App (subst x e' e) (substs subst x e' es) t
+| Prim b t => Prim b t 
+| Bind y t e1 e2 t' => if (x =? y)%positive then Bind y t e1 e2 t' else Bind y t e1 (subst x e' e2) t'
 | Cond e1 e2 e3 t => Cond (subst x e' e1) (subst x e' e2) (subst x e' e3) t
 | Addr l t => Addr l t 
 | Hexpr h e t => Hexpr h (subst x e' e) t
@@ -365,13 +363,13 @@ Inductive sem_expr : genv -> state -> expr -> state -> value -> Prop :=
                    sem_expr ge st (Const (ConsBool b) (Ptype Tbool)) st (Vbool b)
 | sem_const_uint : forall ge st,
                    sem_expr ge st (Const (ConsUnit) (Ptype Tunit)) st (Vunit)
-| sem_appv : forall ge st e n es ts ve st' fd fn xs fb vs st'',
+| sem_appv : forall ge st e es t ve st' fd fn xs fb vs st'',
              sem_expr ge st e st' ve ->
              get_declv ge ve = Some fd ->
              fd = Fdecl fn xs fb ->
              sem_exprs ge st' es st'' vs ->
              (*(substs_multi (unzip1 xs) vs e) = e' ->*)
-             sem_expr ge st (App e n es ts) st'' (Vunit)
+             sem_expr ge st (App e es t) st'' (Vunit)
 with sem_exprs : genv -> state -> list expr -> state -> list value -> Prop :=
 | sem_nil : forall ge st,
             sem_exprs ge st nil st nil
