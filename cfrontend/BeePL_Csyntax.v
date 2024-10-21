@@ -1,7 +1,8 @@
-Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
+Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx Coq.Strings.BinaryString.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes.
 Require Import BeePL Csyntax.
+
 
 (****** Translation from BeePL to Csyntax ******)
 
@@ -136,17 +137,24 @@ match e with
 | Hexpr h e t => Eval (Values.Vundef) Tvoid (* FIX ME *)
 end.
 
+Definition check_var_const (e : BeePL.expr) : bool :=
+match e with 
+| Var x t => true 
+| Const c t => true 
+| _ => false
+end.
+
 Fixpoint transBeePL_expr_st (e : BeePL.expr) : Csyntax.statement :=
 match e with 
-| Var x t => Sdo (Evar x (transBeePL_type t))
-| Const c t => Sdo (match c with 
-                    | ConsInt i => Eval (Values.Vint i) 
-                              (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |})
-                    | ConsBool b => Eval (Values.Vint (bool_to_int b))
-                               (Tint I8 Signed {| attr_volatile := false; attr_alignas := Some 1%N |})
-                    | ConsUnit => Eval (Values.Vint (Int.repr 0)) 
-                                  (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |})
-                    end)
+| Var x t => Sreturn (Some (Evalof (Evar x (transBeePL_type t)) (transBeePL_type t)))
+| Const c t => Sreturn (Some (Evalof (match c with 
+                                      | ConsInt i => Eval (Values.Vint i) 
+                                                       (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |})
+                                      | ConsBool b => Eval (Values.Vint (bool_to_int b))
+                                                        (Tint I8 Signed {| attr_volatile := false; attr_alignas := Some 1%N |})
+                                      | ConsUnit => Eval (Values.Vint (Int.repr 0)) 
+                                                      (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |})
+                                      end) (transBeePL_type t)))
 | App e es t => Sdo (Ecall (transBeePL_expr_expr e) (transBeePL_expr_exprs transBeePL_expr_expr es) (transBeePL_type t))  
 | Prim b es t => match b with 
                  | Ref => Sdo (Eval (Values.Vundef) Tvoid) (* Fix me *)
@@ -177,153 +185,37 @@ match e with
                             (transBeePL_type t))
                  end 
 | Bind x t e e' t' => match e' with 
-                    | Var x' t' => Ssequence (Sdo (Eassign (Evar x (transBeePL_type t)) (transBeePL_expr_expr e) Tvoid)) 
-                                   (Sreturn (Some (Evalof (transBeePL_expr_expr e') (transBeePL_type (BeePL.typeof (e'))))))
-                    | Const c t => Ssequence (Sdo (Eassign (Evar x (transBeePL_type t)) (transBeePL_expr_expr e) Tvoid)) 
-                                   (Sreturn (Some (transBeePL_expr_expr e')))
-                    | _ => Ssequence (Sdo (Eassign (Evar x (transBeePL_type t)) (transBeePL_expr_expr e) Tvoid)) 
-                                   (Sdo (transBeePL_expr_expr e'))
+                      (* no side-effect case *)
+                      | Var x' t' => Ssequence (Sdo (Eassign (Evar x (transBeePL_type t)) 
+                                                            (transBeePL_expr_expr e) 
+                                                    Tvoid)) 
+                                               (Sreturn (Some (Evalof (transBeePL_expr_expr e') (transBeePL_type (BeePL.typeof (e'))))))
+                      | Const c t => Ssequence (Sdo (Eassign (Evar x (transBeePL_type t)) (transBeePL_expr_expr e) Tvoid)) 
+                                               (Sreturn (Some (transBeePL_expr_expr e')))
+                      (* can produce side-effects *)
+                      | _ => Ssequence (Sdo (Eassign (Evar x (transBeePL_type t)) (transBeePL_expr_expr e) Tvoid)) 
+                                       (Sdo (transBeePL_expr_expr e'))
                     end
-| Cond e e' e'' t' => Sifthenelse (transBeePL_expr_expr e) (Sdo (transBeePL_expr_expr e')) (Sdo (transBeePL_expr_expr e''))
+| Cond e e' e'' t' => if (check_var_const e' && check_var_const e'') (* check for expressions with side-effects *)
+                      then Sifthenelse (transBeePL_expr_expr e) 
+                                       (Sreturn (Some (Evalof (transBeePL_expr_expr e') (transBeePL_type t')))) 
+                                       (Sreturn (Some (Evalof (transBeePL_expr_expr e'') (transBeePL_type t'))))
+                      else if (check_var_const e') then Sifthenelse (transBeePL_expr_expr e) 
+                                                        (Sreturn (Some (Evalof (transBeePL_expr_expr e')(transBeePL_type t')))) 
+                                                        (Sdo (transBeePL_expr_expr e''))
+                                                   else if (check_var_const e'') 
+                                                        then Sifthenelse (transBeePL_expr_expr e) 
+                                                                         (Sdo (transBeePL_expr_expr e')) 
+                                                                         (Sreturn (Some (Evalof (transBeePL_expr_expr e'') 
+                                                                                                 (transBeePL_type t'))))
+                                                        else Sifthenelse (transBeePL_expr_expr e) 
+                                                                         (Sdo (transBeePL_expr_expr e'))
+                                                                         (Sdo (transBeePL_expr_expr e''))
+                      
 | Addr l t => Sdo (Eval (Values.Vptr l (Ptrofs.of_ints (Int.repr 0))) (Tpointer (Tint I32 Signed {| attr_volatile := false; 
                                                                                            attr_alignas := Some 4%N |})
                                                                  {| attr_volatile := false; attr_alignas := Some 4%N |}))
 | Hexpr h e t => Sdo (Eval (Values.Vundef) Tvoid) (* FIX ME *)
 end.
 
-(******** Example1 ********) 
-(* #include <stdio.h>
-   void main() {
-        int x;
-   } 
-*)
 
-Definition x := 2%positive.
-Compute (transBeePL_expr_st (Var 2%positive (BeeTypes.Ptype (BeeTypes.Tint)))).
-
-(* Sdo
-         (Evar 2%positive
-            (Tint I32 Signed
-               {| attr_volatile := false; attr_alignas := Some 4%N |}))
-     : statement *)
-
-(******** Example2 **********)
-(* #include <stdio.h>
-   int main() {
-    int x;
-    x = 2;
-    return x;
-   } 
-*)
-Definition bpl2 := (Bind x (BeeTypes.Ptype (BeeTypes.Tint)) (Const (ConsInt (Int.repr 2)) (BeeTypes.Ptype BeeTypes.Tint)) 
-                    (Var x (BeeTypes.Ptype (BeeTypes.Tint))) (BeeTypes.Ptype BeeTypes.Tunit)). 
-
-Compute (transBeePL_expr_st bpl2). 
-
-(* 
-     = Ssequence
-         (Sdo
-            (Eassign
-               (Evar 2%positive
-                  (Tint I32 Signed
-                     {|
-                       attr_volatile := false;
-                       attr_alignas := Some 4%N
-                     |}))
-               (Eval
-                  (Values.Vint
-                     {|
-                       Int.intval := 2;
-                       Int.intrange :=
-                         Int.Z_mod_modulus_range' 2
-                     |})
-                  (Tint I32 Signed
-                     {|
-                       attr_volatile := false;
-                       attr_alignas := Some 4%N
-                     |})) Tvoid))
-         (Sreturn
-            (Some
-               (Evalof
-                  (Evar 2%positive
-                     (Tint I32 Signed
-                        {|
-                          attr_volatile := false;
-                          attr_alignas := Some 4%N
-                        |}))
-                  (Tint I32 Signed
-                     {|
-                       attr_volatile := false;
-                       attr_alignas := Some 4%N
-                     |}))))
-     : statement
- *)
-
-(* Generated by compcert:
-   Definition f_main := {|
-   fn_return := tint;
-   fn_callconv := cc_default;
-   fn_params := nil;
-   fn_vars := ((_x, tint) :: nil);
-   fn_body :=
-   (Ssequence
-    (Ssequence
-     (Sdo (Eassign (Evar _x tint) (Eval (Vint (Int.repr 2)) tint) tint))
-     (Sreturn (Some (Evalof (Evar _x tint) tint))))
-   (Sreturn (Some (Eval (Vint (Int.repr 0)) tint))))
-|}.
-*) 
-
-(********* Example3 ***********)
-(* #include<stdio.h>
-   int main() {
-    int x = 2;
-    int y = 3;
-    int r = 0;
-    if (x > y) {                           
-       r = x; }
-     else r = y;
-    return r;
-   }
-
-val x = 2; val y = 3; if (x > y: Bfun) then x else y
-
-Definition y := 3%positive.
-Definition r := 4%positive.
-Definition bpl3 := (Mbind x (BeeTypes.Ptype (BeeTypes.Tint)) (Const (ConsInt (Int.repr 2)) (BeeTypes.Ptype BeeTypes.Tint)) 
-                    (Mbind y (BeeTypes.Ptype (BeeTypes.Tint)) (Const (ConsInt (Int.repr 3)) (BeeTypes.Ptype BeeTypes.Tint))
-                     (Mbind r (BeeTypes.Ptype (BeeTypes.Tint)) (Const (ConsInt (Int.repr 0)) (BeeTypes.Ptype BeeTypes.Tint))
-                       (BeePL.Cond (Const (ConsUnit) (BeeTypes.Ptype BeeTypes.Tunit)) (* FIX ME: BUILTIN *) 
-                                   (Mbind r (BeeTypes.Ptype (BeeTypes.Tint)) 
-                                     (Var x (BeeTypes.Ptype (BeeTypes.Tint))) (Const (ConsUnit) (BeeTypes.Ptype BeeTypes.Tunit)) 
-                                     (BeeTypes.Ptype BeeTypes.Tunit))
-                                   (Mbind r (BeeTypes.Ptype (BeeTypes.Tint)) 
-                                     (Var y (BeeTypes.Ptype (BeeTypes.Tint))) (Const (ConsUnit) (BeeTypes.Ptype BeeTypes.Tunit)) 
-                                     (BeeTypes.Ptype BeeTypes.Tunit)) 
-                                   (BeeTypes.Ptype BeeTypes.Tunit))
-                        (BeeTypes.Ptype BeeTypes.Tunit)) (BeeTypes.Ptype BeeTypes.Tunit)) (BeeTypes.Ptype BeeTypes.Tunit)).
-
-
-Compute (transBeePL_expr_st bpl3). *)
-(*
-(Definition f_main := {|
-  fn_return := tint;
-  fn_callconv := cc_default;
-  fn_params := nil;
-  fn_vars := ((_x, tint) :: (_y, tint) :: (_r, tint) :: nil);
-  fn_body :=
-(Ssequence
-  (Ssequence
-    (Sdo (Eassign (Evar _x tint) (Eval (Vint (Int.repr 2)) tint) tint))
-    (Ssequence
-      (Sdo (Eassign (Evar _y tint) (Eval (Vint (Int.repr 3)) tint) tint))
-      (Ssequence
-        (Sdo (Eassign (Evar _r tint) (Eval (Vint (Int.repr 0)) tint) tint))
-        (Ssequence
-          (Sifthenelse (Ebinop Ogt (Evalof (Evar _x tint) tint)
-                         (Evalof (Evar _y tint) tint) tint)
-            (Sdo (Eassign (Evar _r tint) (Evalof (Evar _x tint) tint) tint))
-            (Sdo (Eassign (Evar _r tint) (Evalof (Evar _y tint) tint) tint)))
-          (Sreturn (Some (Evalof (Evar _r tint) tint)))))))
-  (Sreturn (Some (Eval (Vint (Int.repr 0)) tint))))
-|}.*)

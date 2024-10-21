@@ -5,6 +5,6 @@
     int r = 0;
     if (x > y) {
        r = x; }
-     else r = y;;
+     else r = y;
     return r;
    } 
