@@ -55,6 +55,38 @@ end.
 
 End transBeePL_exprs.
 
+Definition transBeePL_uop_uop (uop : BeePL.uop) : Cop.unary_operation :=
+match uop with 
+| Notbool => Cop.Onotbool 
+| Notint => Cop.Onotint
+| Neg => Cop.Oneg
+end.
+
+Definition transBeePL_bop_bop (bop : BeePL.bop) : Cop.binary_operation :=
+match bop with 
+| Plus => Cop.Oadd
+| Minus => Cop.Osub
+| Mult => Cop.Omul
+| Div => Cop.Odiv
+| And => Cop.Oand
+| Or => Cop.Oor
+| Xor => Cop.Oxor
+| Shl => Cop.Oshl
+| Shr => Cop.Oshr
+| Eq => Cop.Oeq
+| Neq => Cop.One
+| Lt => Cop.Olt
+| Lte => Cop.Ole
+| Gt => Cop.Ogt
+| Gte => Cop.Oge
+end.
+
+Fixpoint exprlist_list_expr (es: Csyntax.exprlist) : list expr :=
+match es with 
+| Enil => nil 
+| Econs e1 es => (e1 :: exprlist_list_expr es)
+end.
+
 Fixpoint transBeePL_expr_expr (e : BeePL.expr) : Csyntax.expr := 
 match e with 
 | Var x t => Evar x (transBeePL_type t)
@@ -63,12 +95,41 @@ match e with
                               (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |})
                | ConsBool b => Eval (Values.Vint (bool_to_int b))
                                (Tint I8 Signed {| attr_volatile := false; attr_alignas := Some 1%N |})
-               | ConsUnit => Eval (Values.Vundef) Tvoid (* FIX ME *)
+               | ConsUnit => Eval (Values.Vint (Int.repr 0)) 
+                              (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |})
                end
 | App e es t => Ecall (transBeePL_expr_expr e) (transBeePL_expr_exprs transBeePL_expr_expr es) (transBeePL_type t)  
-| Prim b t => Eval (Values.Vundef) Tvoid (* FIX ME *)
-| Bind x t e e' t' => Ecomma (Eassign (Evar x (transBeePL_type t)) (transBeePL_expr_expr e) Tvoid) (transBeePL_expr_expr e') Tvoid
-| Cond e e' e'' t => Econdition (transBeePL_expr_expr e) (transBeePL_expr_expr e') (transBeePL_expr_expr e'') Tvoid
+| Prim b es t => match b with 
+                 | Ref => Eval (Values.Vundef) Tvoid (* Fix me *)
+                 | Deref => Ederef (hd  (Eval (Values.Vint (Int.repr 0))
+                                        (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |}))
+                                    (exprlist_list_expr (transBeePL_expr_exprs transBeePL_expr_expr es))) 
+                           (transBeePL_type t)   
+                 | Massgn => Eassign (hd  (Eval (Values.Vint (Int.repr 0))
+                                         (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |}))
+                                         (exprlist_list_expr (transBeePL_expr_exprs transBeePL_expr_expr es)))
+                                    (hd  (Eval (Values.Vint (Int.repr 0))
+                                       (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |}))
+                                 (tl (exprlist_list_expr (transBeePL_expr_exprs transBeePL_expr_expr es))))
+                             (transBeePL_type t)
+                 | Run h => Eval (Values.Vundef) Tvoid (* Fix me *)
+                 | Uop o => Eunop (transBeePL_uop_uop o) 
+                            (hd  (Eval (Values.Vint (Int.repr 0))
+                                       (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |}))
+                                 (exprlist_list_expr (transBeePL_expr_exprs transBeePL_expr_expr es))) 
+                            (transBeePL_type t) 
+                 | Bop o => Ebinop (transBeePL_bop_bop o) 
+                            (hd  (Eval (Values.Vint (Int.repr 0))
+                                       (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |}))
+                                 (exprlist_list_expr (transBeePL_expr_exprs transBeePL_expr_expr es))) 
+                            (hd  (Eval (Values.Vint (Int.repr 0))
+                                       (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |}))
+                                 (tl (exprlist_list_expr (transBeePL_expr_exprs transBeePL_expr_expr es))))
+                            (transBeePL_type t)
+                 end 
+| Bind x t e e' t' => Ecomma (Eassign (Evar x (transBeePL_type t)) (transBeePL_expr_expr e) (transBeePL_type t)) 
+                             (transBeePL_expr_expr e') (transBeePL_type t')
+| Cond e e' e'' t => Econdition (transBeePL_expr_expr e) (transBeePL_expr_expr e') (transBeePL_expr_expr e'') (transBeePL_type t)
 | Addr l t => Eval (Values.Vptr l (Ptrofs.of_ints (Int.repr 0))) (Tpointer (Tint I32 Signed {| attr_volatile := false; 
                                                                                            attr_alignas := Some 4%N |})
                                                                  {| attr_volatile := false; attr_alignas := Some 4%N |})
@@ -83,10 +144,38 @@ match e with
                               (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |})
                     | ConsBool b => Eval (Values.Vint (bool_to_int b))
                                (Tint I8 Signed {| attr_volatile := false; attr_alignas := Some 1%N |})
-                    | ConsUnit => Eval (Values.Vundef) Tvoid (* FIX ME *)
+                    | ConsUnit => Eval (Values.Vint (Int.repr 0)) 
+                                  (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |})
                     end)
 | App e es t => Sdo (Ecall (transBeePL_expr_expr e) (transBeePL_expr_exprs transBeePL_expr_expr es) (transBeePL_type t))  
-| Prim b t => Sdo (Eval (Values.Vundef) Tvoid) (* FIX ME *)
+| Prim b es t => match b with 
+                 | Ref => Sdo (Eval (Values.Vundef) Tvoid) (* Fix me *)
+                 | Deref => Sdo (Ederef (hd  (Eval (Values.Vint (Int.repr 0))
+                                        (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |}))
+                                         (exprlist_list_expr (transBeePL_expr_exprs transBeePL_expr_expr es))) 
+                                 (transBeePL_type t))   
+                 | Massgn => Sdo (Eassign (hd  (Eval (Values.Vint (Int.repr 0))
+                                               (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |}))
+                                               (exprlist_list_expr (transBeePL_expr_exprs transBeePL_expr_expr es)))
+                                          (hd  (Eval (Values.Vint (Int.repr 0))
+                                               (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |}))
+                                               (tl (exprlist_list_expr (transBeePL_expr_exprs transBeePL_expr_expr es))))
+                                 (transBeePL_type t)) 
+                 | Run h => Sdo (Eval (Values.Vundef) Tvoid) (* Fix me *)
+                 | Uop o => Sdo (Eunop (transBeePL_uop_uop o) 
+                                 (hd  (Eval (Values.Vint (Int.repr 0))
+                                       (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |}))
+                                      (exprlist_list_expr (transBeePL_expr_exprs transBeePL_expr_expr es))) 
+                                 (transBeePL_type t)) 
+                 | Bop o => Sdo (Ebinop (transBeePL_bop_bop o) 
+                            (hd  (Eval (Values.Vint (Int.repr 0))
+                                       (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |}))
+                                 (exprlist_list_expr (transBeePL_expr_exprs transBeePL_expr_expr es))) 
+                            (hd  (Eval (Values.Vint (Int.repr 0))
+                                       (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |}))
+                                 (tl (exprlist_list_expr (transBeePL_expr_exprs transBeePL_expr_expr es))))
+                            (transBeePL_type t))
+                 end 
 | Bind x t e e' t' => match e' with 
                     | Var x' t' => Ssequence (Sdo (Eassign (Evar x (transBeePL_type t)) (transBeePL_expr_expr e) Tvoid)) 
                                    (Sreturn (Some (Evalof (transBeePL_expr_expr e') (transBeePL_type (BeePL.typeof (e'))))))

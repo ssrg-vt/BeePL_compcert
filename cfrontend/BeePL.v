@@ -12,18 +12,25 @@ Inductive constant : Type :=
 | ConsBool : bool -> constant
 | ConsUnit : constant.
 
+(* Overloaded C operators and their semantics depends on the type of arguments *)
 Inductive uop : Type :=
-| Not : uop
-| Incr : uop 
-| Decr : uop
-| Sizeof : uop
-| Neg : uop.
+| Notbool : uop   (* boolean negation ! *)
+| Notint : uop    (* int compliment ~ (one's compiment *) 
+| Neg : uop.      (* opposite : two's compliment *)
 
 Inductive bop : Type :=
+(* arithmetic *)
 | Plus : bop 
 | Minus : bop
 | Mult : bop
 | Div : bop
+(* logical *)
+| And : bop
+| Or : bop
+| Xor : bop 
+| Shl : bop
+| Shr : bop
+(* comparison *)
 | Eq : bop 
 | Neq : bop 
 | Lt : bop
@@ -76,13 +83,12 @@ Inductive builtin : Type :=
                                 present at location e *)
 | Massgn : builtin           (* assign value at a location l (l := e) 
                                 assigns the evaluation of e to the reference cell l *)
+| Uop : uop -> builtin       (* unary operator *)
+| Bop : bop -> builtin       (* binary operator *)
 | Run : heap -> builtin      (* eliminate heap effect : [r1-> v1, ..., ern->vn] e 
                                 reduces to e captures the essence of state isolation 
-                                and reduces to a value discarding the heap *)
-| Uop : uop -> builtin       (* unary operator *)
-| Bop : bop -> builtin.       (* binary operator *)
+                                and reduces to a value discarding the heap *).
 
-Notation " \ b " := (Bop b)(at level 70, no associativity).
 
 (* The source language never exposes the heap binding construct hpφ.e directly to the user 
    but during evaluation the reductions on heap operations create heaps and use them. *)
@@ -90,7 +96,10 @@ Inductive expr : Type :=
 | Var : ident -> type -> expr                                      (* variable *)
 | Const : constant -> type -> expr                                 (* constant *)
 | App : expr -> list expr -> type -> expr                          (* function application *)
-| Prim : builtin -> type -> expr                                   (* primitive functions: arrow *)
+| Prim : builtin -> list expr -> type -> expr                      (* primitive functions: arrow : 
+                                                                      for now I want to treat them not like functions
+                                                                      during the semantics of App, we always make sure that
+                                                                      the fist "e" is evaluated to a location  *)
 | Bind : ident -> type -> expr -> expr -> type -> expr             (* let binding: type of continuation *)
 | Cond : expr -> expr -> expr -> type -> expr                      (* if e then e else e *)
 (* not intended to be written by programmers:*)
@@ -109,7 +118,7 @@ match e with
 | Var x t => t
 | Const x t => t
 | App e ts t => t
-| Prim b t => t
+| Prim b es t => t
 | Bind x t e e' t' => t'
 | Cond e e' e'' t => t
 | Addr l t => match t with 
@@ -153,12 +162,12 @@ Definition module := prod (list decl) expr.
         return 0;
    }
 *) 
-Definition x : ident := 1%positive.
+(*Definition x : ident := 1%positive.
 Definition y : ident := 2%positive.
 Definition r : ident := 3%positive. 
 Definition f_add : decl := Fdecl 4%positive 
                            ((x, (Ptype Tint)) :: (y, (Ptype Tint)) :: nil) 
-                           (Bind r (Ptype Tint) (App (Prim (Bop Plus) (Ftype (Ptype Tint :: Ptype Tint :: nil) nil (Ptype Tint))) 
+                           (Bind r (Ptype Tint) (Bop Plus 
                                                            ((x : (Ptype Tint)) :: (y : (Ptype Tint)) :: nil) 
                                                         (Ptype Tint))
                                     (r : (Ptype Tint)) 
@@ -173,7 +182,7 @@ Definition f_main : decl := Fdecl 5%positive
                                  (Const (ConsInt (Int.repr 5)) (Ptype Tint) :: nil))
                                (Ftype (Ptype Tint :: Ptype Tint :: nil) nil (Ptype Tint))).
 
-Definition mexample1 : module := ((f_add :: f_main :: nil), (Var 5%positive (Ptype Tint))).
+Definition mexample1 : module := ((f_add :: f_main :: nil), (Var 5%positive (Ptype Tint))).*)
                           
 Section FTVS.
 
@@ -334,7 +343,7 @@ match e with
 | Var y t => if (x =? y)%positive then e' else e
 | Const c t => Const c t
 | App e es t => App (subst x e' e) (substs subst x e' es) t
-| Prim b t => Prim b t 
+| Prim b es t => Prim b (substs subst x e' es) t 
 | Bind y t e1 e2 t' => if (x =? y)%positive then Bind y t e1 e2 t' else Bind y t e1 (subst x e' e2) t'
 | Cond e1 e2 e3 t => Cond (subst x e' e1) (subst x e' e2) (subst x e' e3) t
 | Addr l t => Addr l t 
