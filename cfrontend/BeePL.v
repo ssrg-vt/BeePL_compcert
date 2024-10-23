@@ -163,41 +163,6 @@ end.
    definition of main is stored *)
 Definition module := prod (list (loc * decl)) loc.
 
-
-(***** Example1 *****)
-(* #include <stdio.h>
-
-   int add(int x, int y) {
-        return  x + y;
-   }
-
-   int main() {
-        add(add(1,2), 5);
-        return 0;
-   }
-*) 
-(*Definition x : ident := 1%positive.
-Definition y : ident := 2%positive.
-Definition r : ident := 3%positive. 
-Definition f_add : decl := Fdecl 4%positive 
-                           ((x, (Ptype Tint)) :: (y, (Ptype Tint)) :: nil) 
-                           (Bind r (Ptype Tint) (Bop Plus 
-                                                           ((x : (Ptype Tint)) :: (y : (Ptype Tint)) :: nil) 
-                                                        (Ptype Tint))
-                                    (r : (Ptype Tint)) 
-                           (Ptype Tunit)). 
-
-Definition f_main : decl := Fdecl 5%positive
-                            nil
-                            (App (Var 4%positive (Ptype Tint))  
-                                 ((App (4%positive : (Ptype Tint)) 
-                                      (Const (ConsInt (Int.repr 1)) (Ptype Tint):: Const (ConsInt (Int.repr 2)) (Ptype Tint) :: nil)
-                                      (Ptype Tint)) ::
-                                 (Const (ConsInt (Int.repr 5)) (Ptype Tint) :: nil))
-                               (Ftype (Ptype Tint :: Ptype Tint :: nil) nil (Ptype Tint))).
-
-Definition mexample1 : module := ((f_add :: f_main :: nil), (Var 5%positive (Ptype Tint))).*)
-                          
 Section FTVS.
 
 Variable free_variables_type : type -> list ident.

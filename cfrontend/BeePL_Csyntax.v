@@ -151,7 +151,7 @@ match e with
 end.
 
 
-Fixpoint transBeePL_expr_st (e : BeePL.expr) : Csyntax.statement :=
+Definition transBeePL_expr_st (e : BeePL.expr) : Csyntax.statement :=
 match e with 
 | Var x t => Sreturn (Some (Evalof (Evar x (transBeePL_type t)) (transBeePL_type t)))
 | Const c t => Sreturn (Some (Evalof (match c with 
@@ -233,9 +233,11 @@ Definition BeePLfd_function (fd : fun_decl) : (Ctypes.fundef function) :=
 Internal {| fn_return := transBeePL_type (fd.(rtype)); 
             fn_callconv := default_cc(fd); 
             fn_params := zip (unzip1 (fd.(args))) 
-                         (typelist_list_type (transBeePL_types transBeePL_type (unzip2 (fd.(args))))); 
-            fn_vars := zip (unzip1 (fd.(args))) 
-                  (typelist_list_type (transBeePL_types transBeePL_type (unzip2 (fd.(lvars))))); 
+                             (typelist_list_type 
+                              (transBeePL_types transBeePL_type (unzip2 (fd.(args))))); 
+            fn_vars := zip (unzip1 (fd.(lvars))) 
+                           (typelist_list_type 
+                             (transBeePL_types transBeePL_type (unzip2 (fd.(lvars))))); 
             fn_body := transBeePL_expr_st (fd.(body)) |}.
 
 Definition gconstant_init_data (g : BeePL.gconstant) : init_data :=
@@ -275,7 +277,8 @@ match ds with
 | d :: ds => BeePLdecl_gdef d :: BeePLdecls_gdefs ds
 end.
 
-(* Fix me: I want to produce Csyntax.program *) 
+(* Fix me: I want to produce Csyntax.program *)  
+(* Missing compositie information and list of public functions *)
 Definition BeePL_compcert (m : BeePL.module) : (*Csyntax.program*) AST.program (Ctypes.fundef function) type :=
   mkprogram (zip (unzip1 (fst (m))) (BeePLdecls_gdefs (unzip2 (fst(m))))) nil (snd(m)).
 
