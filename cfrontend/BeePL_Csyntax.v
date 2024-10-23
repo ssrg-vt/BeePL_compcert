@@ -1,5 +1,5 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx Coq.Strings.BinaryString.
-Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
+Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Coq.Lists.List.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes.
 Require Import BeePL Csyntax.
 
@@ -17,6 +17,12 @@ match ts with
 end.
 
 End translate_types.
+
+Fixpoint typelist_list_type (ts : Ctypes.typelist) : list type :=
+match ts with
+| Tnil => nil
+| Tcons t ts => t :: typelist_list_type ts
+end. 
 
 (* Translation of BeePL types to Clight Types *) 
 Fixpoint transBeePL_type (t : BeeTypes.type) : Ctypes.type :=
@@ -144,6 +150,7 @@ match e with
 | _ => false
 end.
 
+
 Fixpoint transBeePL_expr_st (e : BeePL.expr) : Csyntax.statement :=
 match e with 
 | Var x t => Sreturn (Some (Evalof (Evar x (transBeePL_type t)) (transBeePL_type t)))
@@ -218,4 +225,57 @@ match e with
 | Hexpr h e t => Sdo (Eval (Values.Vundef) Tvoid) (* FIX ME *)
 end.
 
+Definition default_cc (fd : fun_decl) : calling_convention := 
+{| cc_vararg := Some (Z.of_nat (length (fd.(args)))); cc_unproto := false; cc_structret := false |}.
+
+(* For now we have only internal functions: later change it to include both the case *)
+Definition BeePLfd_function (fd : fun_decl) : (Ctypes.fundef function) :=
+Internal {| fn_return := transBeePL_type (fd.(rtype)); 
+            fn_callconv := default_cc(fd); 
+            fn_params := zip (unzip1 (fd.(args))) 
+                         (typelist_list_type (transBeePL_types transBeePL_type (unzip2 (fd.(args))))); 
+            fn_vars := zip (unzip1 (fd.(args))) 
+                  (typelist_list_type (transBeePL_types transBeePL_type (unzip2 (fd.(lvars))))); 
+            fn_body := transBeePL_expr_st (fd.(body)) |}.
+
+Definition gconstant_init_data (g : BeePL.gconstant) : init_data :=
+match g with 
+| Gvalue c => match c with 
+              | ConsInt i => Init_int32 i
+              | ConsBool b => Init_int8 (bool_to_int b)
+              | ConsUnit => Init_int32 (Int.repr 0)
+              end
+| Gloc p => Init_addrof p (Ptrofs.of_ints (Int.repr 0))
+| Gspace z => Init_space z
+end. 
+
+Fixpoint gconstants_init_datas (gs : list BeePL.gconstant) : list init_data :=
+match gs with 
+| nil => nil
+| g :: gs => gconstant_init_data g :: gconstants_init_datas gs
+end. 
+
+Definition BeePLgd_gd (gv : globv) : globvar Ctypes.type  :=
+{| gvar_info := transBeePL_type (gv.(gtype)); 
+   gvar_init := gconstants_init_datas(gv.(gval)); 
+   gvar_readonly := false; 
+   gvar_volatile := false |}.
+
+Definition BeePLdecl_gdef (d : BeePL.decl) : (globdef (Ctypes.fundef function) type) :=
+match d with 
+| Fdecl fd => Gfun (BeePLfd_function fd)
+| Gvdecl gd => Gvar (BeePLgd_gd gd)
+(*| Tadecl ta => *) (* Fix me *)
+end.
+
+Fixpoint BeePLdecls_gdefs (ds : list BeePL.decl) : 
+list (globdef (Ctypes.fundef function) type) :=
+match ds with 
+| nil => nil
+| d :: ds => BeePLdecl_gdef d :: BeePLdecls_gdefs ds
+end.
+
+(* Fix me: I want to produce Csyntax.program *) 
+Definition BeePL_compcert (m : BeePL.module) : (*Csyntax.program*) AST.program (Ctypes.fundef function) type :=
+  mkprogram (zip (unzip1 (fst (m))) (BeePLdecls_gdefs (unzip2 (fst(m))))) nil (snd(m)).
 

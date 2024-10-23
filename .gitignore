@@ -1,5 +1,6 @@
 # Object files, in general
 ".#".*
+.#*
 *~
 *.swp
 *.swo

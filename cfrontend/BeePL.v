@@ -12,6 +12,11 @@ Inductive constant : Type :=
 | ConsBool : bool -> constant
 | ConsUnit : constant.
 
+Inductive gconstant : Type := 
+| Gvalue : constant -> gconstant
+| Gloc : positive -> gconstant
+| Gspace : Z -> gconstant (* uninitialized global variables *). 
+
 (* Overloaded C operators and their semantics depends on the type of arguments *)
 Inductive uop : Type :=
 | Notbool : uop   (* boolean negation ! *)
@@ -127,11 +132,18 @@ match e with
 | Hexpr h e t => t
 end.
 
- 
+(* f(x1 : t1, x2 : t2) : t3 = int x = 0; int y =0; return 0 (* Dummy example *) *)
+Record fun_decl : Type := 
+       mkfunction {fname : ident; args : list (ident * type); lvars : list (ident * type); rtype : type; body : expr}.
+
+Record globv : Type := mkglobv {gname : ident; gtype : type; gval : list gconstant}.
+
+Record talias : Type := mktalias {tname : ident; atype : type}.
+
 Inductive decl : Type :=
-| TAlias : ident -> type -> decl
-| Gval : ident -> type -> constant -> decl
-| Fdecl : ident -> list (ident * type) -> expr -> decl.
+| Fdecl : fun_decl -> decl
+| Gvdecl : globv -> decl.
+(*| Tadecl : talias -> decl.*) (* Fix me: Not sure to what global declaration this can be translated to *) 
 
 Definition genv := list (loc * decl).
 
@@ -147,7 +159,9 @@ match v with
 | _ => None
 end.
 
-Definition module := prod (list decl) expr.
+(* first loc represents where the decl is stored and second loc represents where the 
+   definition of main is stored *)
+Definition module := prod (list (loc * decl)) loc.
 
 
 (***** Example1 *****)
@@ -337,6 +351,13 @@ match es with
 | e :: es => snd(e) :: unzip2 es
 end.
 
+Fixpoint zip {A} {B} (es1 : list A) (es2 : list B) : list (A * B) :=
+match es1, es2 with 
+| nil, nil => nil
+| e1 :: es1, e2 :: es2 => (e1, e2) :: zip es1 es2
+| _, _ => nil
+end.
+
 (* Substitution *)
 Fixpoint subst (x:ident) (e':expr) (e:expr) : expr :=
 match e with
@@ -361,7 +382,7 @@ match xs with
 end.
 
 (* Operational Semantics *)
-Inductive sem_expr : genv -> state -> expr -> state -> value -> Prop :=
+(*Inductive sem_expr : genv -> state -> expr -> state -> value -> Prop :=
 | sem_var : forall ge st x t vm v,
             get_vmap st = vm ->
             get_val_var vm x = Some v ->
@@ -385,7 +406,7 @@ with sem_exprs : genv -> state -> list expr -> state -> list value -> Prop :=
 | sem_cons : forall ge st e es st' v st'' vs,
              sem_expr ge st e st' v ->
              sem_exprs ge st' es st'' vs ->
-             sem_exprs ge st (e :: es) st'' (v :: vs).         
+             sem_exprs ge st (e :: es) st'' (v :: vs).*)         
 
 
 
