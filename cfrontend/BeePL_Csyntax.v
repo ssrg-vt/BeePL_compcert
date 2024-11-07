@@ -105,7 +105,7 @@ match e with
                | ConsUnit => Eval (Values.Vint (Int.repr 0)) 
                               (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |})
                end
-| App e es t => Ecall (transBeePL_expr_expr e) (transBeePL_expr_exprs transBeePL_expr_expr es) (transBeePL_type t)  
+| App r e es t => Ecall (transBeePL_expr_expr e) (transBeePL_expr_exprs transBeePL_expr_expr es) (transBeePL_type t)  
 | Prim b es t => match b with 
                  | Ref => Eval (Values.Vundef) Tvoid (* Fix me *)
                  | Deref => Ederef (hd  (Eval (Values.Vint (Int.repr 0))
@@ -162,7 +162,7 @@ match e with
                                       | ConsUnit => Eval (Values.Vint (Int.repr 0)) 
                                                       (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |})
                                       end) (transBeePL_type t)))
-| App e es t => Sdo (Ecall (transBeePL_expr_expr e) (transBeePL_expr_exprs transBeePL_expr_expr es) (transBeePL_type t))  
+| App r e es t => Sdo (Ecall (transBeePL_expr_expr e) (transBeePL_expr_exprs transBeePL_expr_expr es) (transBeePL_type t))  
 | Prim b es t => match b with 
                  | Ref => Sdo (Eval (Values.Vundef) Tvoid) (* Fix me *)
                  | Deref => Sdo (Ederef (hd  (Eval (Values.Vint (Int.repr 0))
@@ -281,4 +281,3 @@ end.
 (* Missing compositie information and list of public functions *)
 Definition BeePL_compcert (m : BeePL.module) : (*Csyntax.program*) AST.program (Ctypes.fundef function) type :=
   mkprogram (zip (unzip1 (fst (m))) (BeePLdecls_gdefs (unzip2 (fst(m))))) nil (snd(m)).
-

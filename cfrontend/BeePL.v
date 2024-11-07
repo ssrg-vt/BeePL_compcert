@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps.
-Require Import BeePL_aux BeeTypes.
+Require Import BeePL_aux BeePL_mem BeeTypes.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -43,44 +43,6 @@ Inductive bop : Type :=
 | Gt : bop
 | Gte : bop. 
 
-Inductive value : Type :=
-| Vunit : value
-| Vint : int -> value
-| Vbool : bool -> value
-| Vloc : positive -> value.
-
-Definition vals := list value.
-
-Definition loc := positive. 
-
-Definition heap := list (loc * value).
-
-Definition vmap := list (ident * value).
-
-Fixpoint update_heap (h : heap) (k : loc) (v : value) : heap := 
-match h with 
-| nil => (k, v) :: nil
-| h :: t => if (k =? fst(h))%positive then (k, v) :: t else h :: update_heap t k v
-end.
-
-Fixpoint update_vmap (h : vmap) (k : ident) (v : value) : vmap := 
-match h with 
-| nil => (k, v) :: nil
-| h :: t => if (k =? fst(h))%positive then (k, v) :: t else h :: update_vmap t k v
-end.
-
-Fixpoint get_val_loc (h : heap) (k : loc) : option value :=
-match h with 
-| nil => None 
-| v :: vm => if (k =? fst(v))%positive then Some (snd(v)) else get_val_loc vm k
-end.
-
-Fixpoint get_val_var (h : vmap) (k : ident) : option value :=
-match h with 
-| nil => None 
-| v :: vm => if (k =? fst(v))%positive then Some (snd(v)) else get_val_var vm k
-end.
-
 Inductive builtin : Type :=
 | Ref : builtin              (* allocation : ref t e allocates e of type t 
                                 and returns the fresh address *)
@@ -100,7 +62,7 @@ Inductive builtin : Type :=
 Inductive expr : Type :=
 | Var : ident -> type -> expr                                      (* variable *)
 | Const : constant -> type -> expr                                 (* constant *)
-| App : expr -> list expr -> type -> expr                          (* function application *)
+| App : option ident -> expr -> list expr -> type -> expr          (* function application: option ident represents return variable *)
 | Prim : builtin -> list expr -> type -> expr                      (* primitive functions: arrow : 
                                                                       for now I want to treat them not like functions
                                                                       during the semantics of App, we always make sure that
@@ -122,7 +84,7 @@ Definition typeof (e : expr) : type :=
 match e with 
 | Var x t => t
 | Const x t => t
-| App e ts t => t
+| App x e ts t => t
 | Prim b es t => t
 | Bind x t e e' t' => t'
 | Cond e e' e'' t => t
@@ -159,73 +121,27 @@ match v with
 | _ => None
 end.
 
+Definition is_fun_decl (d : decl) : bool :=
+match d with 
+| Fdecl fd => true 
+| Gvdecl gd => false
+end.
+
+Definition is_global_decl (d : decl) : bool :=
+match d with 
+| Fdecl fd => false 
+| Gvdecl gd => true
+end.
+
+Fixpoint get_fun_decl (ge : genv) (l : loc) : option decl :=
+match ge with 
+| nil => None
+| g :: gs => if (l =? fst(g))%positive && is_fun_decl (snd(g)) then Some (snd(g)) else get_fun_decl gs l
+end.
+
 (* first loc represents where the decl is stored and second loc represents where the 
    definition of main is stored *)
 Definition module := prod (list (loc * decl)) loc.
-
-Section FTVS.
-
-Variable free_variables_type : type -> list ident.
-
-Fixpoint free_variables_types (ts : list type) : list ident :=
-match ts with 
-| nil => nil
-| t :: ts => free_variables_type t ++ (free_variables_types ts)
-end.
-
-End FTVS.
-
-(* Free variable with respect to types *)
-Fixpoint free_variables_type (t : type) : list ident :=
-match t with 
-| Ptype t => nil
-| Ftype ts ef t => free_variables_types free_variables_type ts ++ free_variables_type t
-| Reftype h t => h :: nil
-end.
-
-Definition free_variables_effect_label (ef : effect_label) : list ident :=
-match ef with 
-| Panic => nil 
-| Divergence => nil
-| Read h => h :: nil
-| Write h => h :: nil
-| Alloc h => h :: nil
-end.
-
-Fixpoint free_variables_effect (ef : effect) : list ident := 
-match ef with 
-| nil => nil
-| e :: es => free_variables_effect_label e ++ free_variables_effect es
-end.
-
-(* For now, we take it as empty but once we introduce polymorphism the free variables needs to be tracked to ensure 
-   correct substiution of type variables *)
-Definition free_variables_ty_context (Gamma : ty_context) : list ident := nil.
-
-Definition free_variables_store_context (Sigma : store_context) : list ident := nil.
-
-Definition ftv (Gamma : ty_context) (Sigma : store_context) (t : type) (ef : effect) : list ident :=
-free_variables_ty_context Gamma ++ free_variables_store_context Sigma ++ free_variables_type t ++ free_variables_effect ef.
-
-(* State is made from heap and virtual map (registers to values) *)
-Inductive state : Type :=
-| State : heap -> vmap -> state.
-
-Definition get_vmap (st : state) : vmap :=
-match st with 
-| State h vm => vm
-end.
-
-Definition get_heap (st : state) : heap :=
-match st with 
-| State h vm => h
-end.
-
-Fixpoint mem (x : ident) (l : list ident) {struct l} : bool :=
-match l with 
-| nil => false
-| y :: ys => if (x =? y)%positive then true else mem x ys
-end. 
 
 Section Subs.
 
@@ -244,7 +160,7 @@ Fixpoint subst (x:ident) (e':expr) (e:expr) : expr :=
 match e with
 | Var y t => if (x =? y)%positive then e' else e
 | Const c t => Const c t
-| App e es t => App (subst x e' e) (substs subst x e' es) t
+| App r e es t => App r (subst x e' e) (substs subst x e' es) t
 | Prim b es t => Prim b (substs subst x e' es) t 
 | Bind y t e1 e2 t' => if (x =? y)%positive then Bind y t e1 e2 t' else Bind y t e1 (subst x e' e2) t'
 | Cond e1 e2 e3 t => Cond (subst x e' e1) (subst x e' e2) (subst x e' e3) t
@@ -265,11 +181,10 @@ end.
 (*Definition write_var (x : ident) (s : state) : option state := 
 let vm := get_vmap st in*) 
 
-(* Operational Semantics *)
+(* Operational Semantics *) 
 Inductive sem_expr : genv -> state -> expr -> state -> value -> Prop :=
-| sem_var : forall ge st x t vm v, 
-            get_vmap st = vm ->
-            get_val_var vm x = Some v -> 
+| sem_var : forall ge st x t v, 
+            get_val_var st.(vmem) x = Some v -> 
             sem_expr ge st (Var x t) st v
 | sem_const_int : forall ge st i, 
                   sem_expr ge st (Const (ConsInt i) (Ptype Tint)) st (Vint i)
@@ -277,12 +192,25 @@ Inductive sem_expr : genv -> state -> expr -> state -> value -> Prop :=
                   sem_expr ge st (Const (ConsBool b) (Ptype Tbool)) st (Vbool b)
 | sem_const_unit : forall ge st,
                    sem_expr ge st (Const (ConsUnit) (Ptype Tunit)) st (Vunit)
-| sem_appv : forall ge e es t st l st' st'' vs fd,
+| sem_appr : forall ge e es t st l st' st'' vs fd vm' st''' rv r vm'',
              sem_expr ge st e st' (Vloc l) ->
+             get_fun_decl ge l = Some (Fdecl fd) ->
              sem_exprs ge st' es st'' vs ->
-             get_decl ge l = Some fd ->
-             
-             sem_expr ge st (App e es t) st (Vloc l) 
+             type_of_values vs = unzip2 (fd.(args)) ->
+             write_vars (st.(vmem)) (unzip1 fd.(args)) vs = Ok error vm' ->
+             sem_expr ge {| hmem := st''.(hmem); vmem := vm' |} fd.(body) st''' rv -> 
+             write_var (st'''.(vmem)) r rv = vm'' ->
+             type_of_value rv = fd.(rtype) ->
+             sem_expr ge st (App (Some r) e es t) {| hmem := st'''.(hmem); vmem := vm'' |}  rv 
+| sem_app : forall ge e es t st l st' st'' vs fd vm' st''' rv vm'',
+             sem_expr ge st e st' (Vloc l) ->
+             get_fun_decl ge l = Some (Fdecl fd) ->
+             sem_exprs ge st' es st'' vs ->
+             type_of_values vs = unzip2 (fd.(args)) ->
+             write_vars (st.(vmem)) (unzip1 fd.(args)) vs = Ok error vm' ->
+             sem_expr ge {| hmem := st''.(hmem); vmem := vm' |} fd.(body) st''' rv -> 
+             type_of_value rv = fd.(rtype) ->
+             sem_expr ge st (App None e es t) {| hmem := st'''.(hmem); vmem := vm'' |}  rv 
 with sem_exprs : genv -> state -> list expr -> state -> list value -> Prop :=
 | sem_nil : forall ge st,
             sem_exprs ge st nil st nil
