@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx Coq.Strings.BinaryString.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Coq.Lists.List.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes.
-Require Import BeePL Csyntax.
+Require Import BeePL_aux BeePL Csyntax.
 
 
 (****** Translation from BeePL to Csyntax ******)

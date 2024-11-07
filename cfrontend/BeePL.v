@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps.
-Require Import BeeTypes.
+Require Import BeePL_aux BeeTypes.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -153,7 +153,7 @@ match ge with
 | g :: gs => if (l =? fst(g))%positive then Some (snd(g)) else get_decl gs l
 end.
 
-Fixpoint get_declv (ge : genv) (v : value) : option decl :=
+Definition get_declv (ge : genv) (v : value) : option decl :=
 match v with 
 | Vloc p => get_decl ge p 
 | _ => None
@@ -207,71 +207,6 @@ Definition free_variables_store_context (Sigma : store_context) : list ident := 
 Definition ftv (Gamma : ty_context) (Sigma : store_context) (t : type) (ef : effect) : list ident :=
 free_variables_ty_context Gamma ++ free_variables_store_context Sigma ++ free_variables_type t ++ free_variables_effect ef.
 
-(* Typing Rules 
-Inductive ty_expr : ty_context -> store_context -> expr -> type -> effect -> Type :=
-(* Since the variable and constant evaluation produces no effect, 
-   we are free to assume any arbitrary effect *)
-| Ty_var : forall Gamma Sigma t x ef,
-           get_ty Gamma x = Some t ->
-           ty_expr Gamma Sigma (Var t x) t ef
-| Ty_const_int : forall Gamma Sigma i ef,
-                 ty_expr Gamma Sigma (Const (ConsInt i)) (Btype (Bprim Tint)) ef
-| Ty_const_bool : forall Gamma Sigma b ef,
-                  ty_expr Gamma Sigma (Const (ConsBool b)) (Btype (Bprim Tbool)) ef
-| Ty_const_unit : forall Gamma Sigma ef,
-                  ty_expr Gamma Sigma (Const (ConsUnit)) (Btype (Bprim Tunit)) ef
-| Ty_abs : forall Gamma Gamma' Sigma n xs e t2 ef2 ef,
-           extend_contexts Gamma xs = Gamma' ->
-           ty_expr Gamma' Sigma e t2 ef2 ->
-           ty_expr Gamma Sigma (Abs n xs e) (Ftype (unzip2 xs) n ef2 t2) ef
-| Ty_app : forall Gamma Sigma e es ts n ef t1,
-           ty_expr Gamma Sigma e (Ftype ts n ef t1) ef ->
-           ty_exprs Gamma Sigma es ts ef ->
-           ty_expr Gamma Sigma (App e n es) t1 ef
-| Ty_addr : forall Gamma Sigma l t h ef,
-            get_sty Sigma l = Some t -> 
-            ty_expr Gamma Sigma (Addr t l) (Reftype h t) ef
-| Ty_ref : forall Gamma Sigma e t h ef,
-           ty_expr Gamma Sigma e (Btype t) ef->
-           ty_expr Gamma Sigma (Ref t e) (Reftype h t) (Erow (Esingle (Hst h)) ef)
-| Ty_deref : forall Gamma Sigma e t h ef,
-             ty_expr Gamma Sigma e (Reftype h t) ef ->
-             ty_expr Gamma Sigma (Deref t e) (Btype t) (Erow (Esingle (Hst h)) ef)
-| Ty_mexpr : forall Gamma Sigma e1 t e2 h ef,
-             ty_expr Gamma Sigma e1 (Reftype h t) ef ->
-             ty_expr Gamma Sigma e2 (Btype t) ef ->
-             ty_expr Gamma Sigma (Massgn e1 e2) (Btype (Bprim Tunit)) (Erow (Esingle (Hst h)) ef)
-| Ty_run : forall Gamma Sigma e t h ef fv,
-           ty_expr Gamma Sigma e t (Erow (Esingle (Hst h)) ef) ->
-           ftv Gamma Sigma t ef = fv ->
-           ~(List.In h fv) ->
-           ty_expr Gamma Sigma (Run e) t ef
-| Ty_hexpr : forall Gamma Sigma H e t h ef, 
-             ty_expr Gamma Sigma e t ef ->
-             ty_expr Gamma Sigma (Hexpr H e) t (Erow (Esingle (Hst h)) ef)
-| Ty_let : forall Gamma Sigma x t e1 e2 ef Gamma' t',
-           ty_expr Gamma Sigma e1 t Empty -> 
-           extend_context Gamma x t = Gamma' ->
-           ty_expr Gamma' Sigma e2 t' ef ->  
-           ty_expr Gamma Sigma (Lexpr x t e1 e2) t' ef
-| Ty_cond : forall Gamma Sigma e1 e2 e3 t ef1 ef2,
-            ty_expr Gamma Sigma e1 (Btype (Bprim Tbool)) ef1 ->
-            ty_expr Gamma Sigma e2 t ef2 ->
-            ty_expr Gamma Sigma e3 t ef2 ->
-            ty_expr Gamma Sigma (Cond e1 e2 e3) t (Erow ef1 ef2)
-with ty_exprs : ty_context -> store_context -> list expr -> list type -> effect -> Prop :=
-| Ty_nil : forall Gamma Sigma,
-           ty_exprs Gamma Sigma nil [::(Btype(Bprim Tunit))] Empty
-| Ty_cons : forall Gamma Sigma e es t ef ts efs,
-            ty_expr Gamma Sigma e t ef ->
-            ty_exprs Gamma Sigma es ts efs ->
-            ty_exprs Gamma Sigma (e :: es) (t :: ts) (Erow ef efs).
-
-
-Scheme ty_expr_exprs_rec := Induction for ty_expr Sort Prop
- with ty_exprs_expr_rec := Induction for ty_exprs Sort Prop.*)
-
-
 (* State is made from heap and virtual map (registers to values) *)
 Inductive state : Type :=
 | State : heap -> vmap -> state.
@@ -304,25 +239,6 @@ end.
 
 End Subs.
 
-Fixpoint unzip1 {A} {B} (es : list (A * B)) : list A :=
-match es with 
-| nil => nil
-| e :: es => fst(e) :: unzip1 es
-end.
-
-Fixpoint unzip2 {A} {B} (es : list (A * B)) : list B :=
-match es with 
-| nil => nil
-| e :: es => snd(e) :: unzip2 es
-end.
-
-Fixpoint zip {A} {B} (es1 : list A) (es2 : list B) : list (A * B) :=
-match es1, es2 with 
-| nil, nil => nil
-| e1 :: es1, e2 :: es2 => (e1, e2) :: zip es1 es2
-| _, _ => nil
-end.
-
 (* Substitution *)
 Fixpoint subst (x:ident) (e':expr) (e:expr) : expr :=
 match e with
@@ -346,126 +262,34 @@ match xs with
              end
 end.
 
+(*Definition write_var (x : ident) (s : state) : option state := 
+let vm := get_vmap st in*) 
+
 (* Operational Semantics *)
-(*Inductive sem_expr : genv -> state -> expr -> state -> value -> Prop :=
-| sem_var : forall ge st x t vm v,
+Inductive sem_expr : genv -> state -> expr -> state -> value -> Prop :=
+| sem_var : forall ge st x t vm v, 
             get_vmap st = vm ->
-            get_val_var vm x = Some v ->
+            get_val_var vm x = Some v -> 
             sem_expr ge st (Var x t) st v
-| sem_const_int : forall ge st i,
+| sem_const_int : forall ge st i, 
                   sem_expr ge st (Const (ConsInt i) (Ptype Tint)) st (Vint i)
-| sem_const_bool : forall ge st b,
-                   sem_expr ge st (Const (ConsBool b) (Ptype Tbool)) st (Vbool b)
-| sem_const_uint : forall ge st,
+| sem_const_bool : forall ge st b, 
+                  sem_expr ge st (Const (ConsBool b) (Ptype Tbool)) st (Vbool b)
+| sem_const_unit : forall ge st,
                    sem_expr ge st (Const (ConsUnit) (Ptype Tunit)) st (Vunit)
-| sem_appv : forall ge st e es t ve st' fd fn xs fb vs st'',
-             sem_expr ge st e st' ve ->
-             get_declv ge ve = Some fd ->
-             fd = Fdecl fn xs fb ->
+| sem_appv : forall ge e es t st l st' st'' vs fd,
+             sem_expr ge st e st' (Vloc l) ->
              sem_exprs ge st' es st'' vs ->
-             (*(substs_multi (unzip1 xs) vs e) = e' ->*)
-             sem_expr ge st (App e es t) st'' (Vunit)
+             get_decl ge l = Some fd ->
+             
+             sem_expr ge st (App e es t) st (Vloc l) 
 with sem_exprs : genv -> state -> list expr -> state -> list value -> Prop :=
 | sem_nil : forall ge st,
             sem_exprs ge st nil st nil
 | sem_cons : forall ge st e es st' v st'' vs,
              sem_expr ge st e st' v ->
              sem_exprs ge st' es st'' vs ->
-             sem_exprs ge st (e :: es) st'' (v :: vs).*)         
+             sem_exprs ge st (e :: es) st'' (v :: vs).
 
 
 
-(*| sem_app_abs : forall st n1 xs e n2 vs,
-                values vs ->
-                n1 = n2 ->
-                sem_expr st (App (Abs n1 xs e) n2 vs) st (substs_multi (unzip1 xs) vs e)
-| sem_app1 : forall e1 n e2 st e1' st',
-             sem_expr st e1 st' e1' ->
-             sem_expr st (App e1 n e2) st' (App e1' n e2)
-| sem_app2 : forall v1 n e2 st e2' st',
-             value v1 ->
-             sem_exprs st e2 st' e2' ->
-             sem_expr st (App v1 n e2) st' (App v1 n e2')
-| sem_addr : forall st t l,
-             value (Addr t l) -> 
-             sem_expr st (Addr t l) st (Addr t l)
-| sem_ref : forall t e st e' st',
-            sem_expr st e st' e' ->
-            sem_expr st (Ref t e) st' (Ref t e')
-| sem_refv : forall h t e st l h',
-             value e ->
-             get_heap st = h ->
-             ~(In l (domain_heap h)) -> 
-             update_heap h l e = h' ->
-             sem_expr st (Ref t e) (State h' (get_vmap st)) (Addr t l)
-| sem_deref : forall st t e st' e',
-              sem_expr st e st' e' ->
-              sem_expr st (Deref t e) st' (Deref t e')
-| sem_derefv : forall st t l h v,
-               value (Addr t l) ->
-               value v ->
-               get_heap st = (H h) ->
-               get h l = Some v ->
-               sem_expr st (Deref t (Addr t l)) st v
-| sem_massgn1 : forall st e1 e2 st' e1',
-                sem_expr st e1 st' e1' ->
-                sem_expr st (Massgn e1 e2) st' (Massgn e1' e2)
-| sem_massgn2 : forall st v1 e2 st' e2',
-                value v1 ->
-                sem_expr st e2 st' e2' ->
-                sem_expr st (Massgn v1 e2) st' (Massgn v1 e2')
-| sem_massgnl : forall st t l v2 h h',
-                value v2 ->
-                get_heap st = h ->
-                update_heap h l v2 = h' ->
-                sem_expr st (Massgn (Addr t l) v2) (State h' (get_vmap st)) (Const (ConsUnit))
-| sem_run : forall st h e, (* FIX ME *)
-            sem_expr st (Run (Hexpr h e)) st e
-| sem_hexpr1 : forall st h hm t l v,
-               value (Addr t l) ->
-               value v ->
-               h = (H hm) ->
-               get hm l = Some v ->
-               sem_expr st (Hexpr h (Deref t (Addr t l))) st v 
-| sem_hexpr2 : forall st h t e e' st',
-               sem_expr st e st' e' ->
-               sem_expr st (Hexpr h (Deref t e)) st' (Hexpr h (Deref t e')) 
-| sem_hexpr3 : forall st t l v h h',
-               value (Addr t l) ->
-               value v ->
-               get_heap st = h ->
-               (In l (domain_heap h)) -> 
-               update_heap h l v = h' ->
-               sem_expr st (Hexpr h (Massgn (Addr t l) v)) (State h' (get_vmap st)) v 
-| sem_hexpr4 : forall st t l e e' st' h,
-               value (Addr t l) ->
-               sem_expr st e st' e' ->
-               sem_expr st (Hexpr h (Massgn (Addr t l) e)) st' (Hexpr h (Massgn (Addr t l) e'))
-| sem_hexpr5 : forall st e1 e1' e2 st' h,
-               sem_expr st e1 st' e1' ->
-               sem_expr st (Hexpr h (Massgn e1 e2)) st' (Hexpr h (Massgn e1' e2)) 
-| sem_hexpr6 : forall st t l h v hm,
-               get_heap st = h ->
-               h = (H hm) ->
-               get hm l = Some v ->
-               sem_expr st (Hexpr h (Addr t l)) st v
-| sem_letv : forall x t v1 e2 st,
-             value v1 ->
-             sem_expr st (Lexpr x t v1 e2) st (subst x v1 e2)
-| sem_let1 : forall x t e1 e2 st st' e1',
-             sem_expr st e1 st' e1' ->
-             sem_expr st (Lexpr x t e1 e2) st' (Lexpr x t e1' e2)
-| sem_condt : forall e2 e3 st,
-              sem_expr st (Cond (Const (ConsBool true)) e2 e3) st e2 
-| sem_condf : forall e2 e3 st,
-              sem_expr st (Cond (Const (ConsBool false)) e2 e3) st e3
-| sem_cond : forall e1 e2 e3 st e1' st',
-             sem_expr st e1 st' e1' -> 
-             sem_expr st (Cond e1 e2 e3) st' (Cond e1' e2 e3)
-with sem_exprs : state -> list expr -> state -> list expr -> Prop :=
-| sem_nil : forall st,
-            sem_exprs st nil st nil
-| sem_cons : forall st e es st' e' st'' es',
-             sem_expr st e st' e' ->
-             sem_exprs st' es st'' es' ->
-             sem_exprs st (e :: es') st'' (e' :: es'). *)

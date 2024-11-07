@@ -380,7 +380,7 @@ Definition f_add : decl := Fdecl {| fname := add;
                                                             (Var x1 (BeeTypes.Ptype (BeeTypes.Tint)) :: Var y1 (BeeTypes.Ptype (BeeTypes.Tint)) :: nil)
                                                             (BeeTypes.Ptype (BeeTypes.Tint)))
                                                    (Var r1 (BeeTypes.Ptype (BeeTypes.Tint))) (BeeTypes.Ptype (BeeTypes.Tint))) |}.
-Print BeeTypes.Ptype. 
+
 Definition f_main : decl := Fdecl {| fname := main;
                                      args := nil;
                                      lvars := ((r1, (BeeTypes.Ptype BeeTypes.Tint)) :: nil); 
@@ -612,3 +612,21 @@ Compute (BeePL_compcert mexample1).
        |}
      : AST.program (fundef Csyntax.function) type
 *)
+
+
+(*** Convert while to a fixpoint ***)
+
+(* 
+  fun hello_ten()
+  var i := 0
+  while { i < 10 }
+    println("hello")
+    i := i + 1 *)
+
+Fixpoint hello_ten (i : nat) (acc : list string) : list string :=
+match i with 
+| 0 => acc 
+| S n => hello_ten (n) (("hello"%string :: nil) ++ acc)
+end.
+
+Compute (hello_ten(10)) nil.
