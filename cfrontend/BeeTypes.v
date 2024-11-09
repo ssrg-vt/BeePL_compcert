@@ -14,6 +14,7 @@ Definition effect := list effect_label.  (* row of effects *)
 Inductive primitive_type : Type :=
 | Tunit : primitive_type
 | Tint : primitive_type
+| Tuint : primitive_type 
 | Tbool : primitive_type.
 
 Inductive basic_type : Type :=
@@ -24,6 +25,25 @@ Inductive type : Type :=
 | Reftype : ident -> basic_type -> type                   (* reference type ref<h,int> *)
 | Ftype : list type -> effect -> type -> type             (* function/arrow type *).
 
+Definition sizeof_ptype (t : primitive_type) : Z :=
+match t with 
+| Tunit => 1
+| Tint => 4 (* we take 32 bits as default for now: 4 bytes *) 
+| Tuint => 4 
+| Tbool => 1
+end.
+
+Definition sizeof_btype (t : basic_type) : Z :=
+match t with 
+| Bprim t => sizeof_ptype t 
+end. 
+
+Definition sizeof_type (t : type) : Z :=
+match t with 
+| Ptype t => sizeof_ptype t 
+| Reftype h t => sizeof_btype t + 1 (* 1 taking for the h *)
+| Ftype ts e t => 1
+end.
 
 (* Equality on types *)
 Definition eq_effect_label (e1 e2 : effect_label) : bool :=
@@ -47,6 +67,7 @@ Definition eq_primitive_type (p1 p2 : primitive_type) : bool :=
 match p1, p2 with 
 | Tunit, Tunit => true 
 | Tint, Tint => true
+| Tuint, Tuint => true
 | Tbool, Tbool => true
 | _, _ => false
 end.   

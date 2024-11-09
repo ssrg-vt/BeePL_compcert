@@ -9,6 +9,7 @@ Unset Printing Implicit Defensive.
 
 Inductive constant : Type :=
 | ConsInt : int -> constant
+| ConsUint : int -> constant
 | ConsBool : bool -> constant
 | ConsUnit : constant.
 
@@ -80,7 +81,7 @@ Notation "'prim' b ( n , es , ts )" := (Prim b n es ts)(at level 50, right assoc
 Notation "'fun' \ f ( n , es , ts )" := (App f n es ts)(at level 50, right associativity).
 Notation "'If' e ':' t 'then' e' 'else' e'' ':' t'" := (Cond e t e' e'' t')(at level 40, left associativity).
 
-Definition typeof (e : expr) : type :=
+Definition typeof_expr (e : expr) : type :=
 match e with 
 | Var x t => t
 | Const x t => t
@@ -178,8 +179,216 @@ match xs with
              end
 end.
 
-(*Definition write_var (x : ident) (s : state) : option state := 
-let vm := get_vmap st in*) 
+(***** Semantics of unary operators *****)
+Definition sem_notbool (v : value) : option value :=
+match v with 
+| Vunit => None 
+| Vint i => None
+| Vuint i => None 
+| Vbool b => Some (of_bool (negb b)) 
+| Vloc l => None
+end.
+
+
+Definition sem_notint (v : value) : option value :=
+match v with 
+| Vunit => None 
+| Vint i => Some (of_int (Int.not i)) 
+| Vuint i => Some (of_int (Int.not i))
+| Vbool b => None 
+| Vloc l => None 
+end.
+
+Definition sem_neg (v : value) : option value :=
+match v with 
+| Vunit => None 
+| Vint i => Some (of_int (Int.neg i)) 
+| Vuint i => Some (of_int (Int.neg i))
+| Vbool b => None 
+| Vloc l => None 
+end.
+
+Definition sem_unary_operation (op : uop) (v : value) : option value :=
+match op with 
+| Notbool => sem_notbool v 
+| Notint => sem_notint v
+| Neg => sem_neg v
+end.
+
+
+(***** Semantics of binary operators *****)
+(* Addition: Integer overflow is taken care in the definition of int 
+   Example : 4 bit (15 is the max) : 15 + 1 wraps around and produces 0 *)
+Definition sem_plus (v1 : value) (v2 : value) : option value :=
+match v1, v2 with 
+| Vunit, Vunit => None
+| Vbool b1, Vbool b2 => None 
+| Vint i1, Vint i2 => Some (of_int (Int.add i1 i2)) 
+| Vuint i1, Vuint i2 => Some (of_int (Int.add i1 i2))
+| Vloc l1, Vloc l2 => None 
+| _, _ => None
+end.
+
+Definition sem_minus (v1 : value) (v2 : value) : option value :=
+match v1, v2 with 
+| Vunit, Vunit => None
+| Vbool b1, Vbool b2 => None 
+| Vint i1, Vint i2 => Some (of_int (Int.sub i1 i2)) 
+| Vuint i1, Vuint i2 => Some (of_int (Int.sub i1 i2))
+| Vloc l1, Vloc l2 => None 
+| _, _ => None
+end.
+
+Definition sem_mult (v1 : value) (v2 : value) : option value :=
+match v1, v2 with 
+| Vunit, Vunit => None
+| Vbool b1, Vbool b2 => None 
+| Vint i1, Vint i2 => Some (of_int (Int.mul i1 i2)) 
+| Vuint i1, Vuint i2 => Some (of_int (Int.mul i1 i2))
+| Vloc l1, Vloc l2 => None 
+| _, _ => None
+end.
+
+Definition sem_div (v1 : value) (v2 : value) : option value :=
+match v1, v2 with 
+| Vunit, Vunit => None
+| Vbool b1, Vbool b2 => None 
+| Vint i1, Vint i2 => if (Int.eq i2 Int.zero) || (Int.eq i1 (Int.repr Int.min_signed) && Int.eq i2 Int.mone) (* -128/-1 *)
+                      then None 
+                      else Some (of_int (Int.divs i1 i2))
+| Vuint i1, Vuint i2 => if (Int.eq i2 Int.zero) then None else Some (of_int (Int.divu i1 i2)) 
+| Vloc l1, Vloc l2 => None 
+| _, _ => None
+end.
+
+Definition sem_and (v1 : value) (v2 : value) : option value :=
+match v1, v2 with 
+| Vunit, Vunit => None
+| Vbool b1, Vbool b2 => Some (of_bool (b1 && b2)) 
+| Vint i1, Vint i2 => None 
+| Vuint i1, Vuint i2 => None
+| Vloc l1, Vloc l2 => None 
+| _, _ => None
+end.
+
+Definition sem_or (v1 : value) (v2 : value) : option value :=
+match v1, v2 with 
+| Vunit, Vunit => None
+| Vbool b1, Vbool b2 => Some (of_bool (b1 || b2)) 
+| Vint i1, Vint i2 => None 
+| Vuint i1, Vuint i2 => None
+| Vloc l1, Vloc l2 => None 
+| _, _ => None
+end.
+
+Definition sem_xor (v1 : value) (v2 : value) : option value :=
+match v1, v2 with 
+| Vunit, Vunit => None
+| Vbool b1, Vbool b2 => Some (of_bool (xorb b1 b2)) 
+| Vint i1, Vint i2 => None 
+| Vuint i1, Vuint i2 => None
+| Vloc l1, Vloc l2 => None 
+| _, _ => None
+end.
+
+Definition sem_shl (v1 : value) (v2 : value) : option value :=
+match v1, v2 with 
+| Vunit, Vunit => None
+| Vbool b1, Vbool b2 => None
+| Vint i1, Vint i2 => Some (of_int (Int.shl i1 i2))
+| Vuint i1, Vuint i2 => Some (of_int (Int.shl i1 i2))
+| Vloc l1, Vloc l2 => None 
+| _, _ => None
+end.
+
+Definition sem_shr (v1 : value) (v2 : value) : option value :=
+match v1, v2 with 
+| Vunit, Vunit => None
+| Vbool b1, Vbool b2 => None
+| Vint i1, Vint i2 => Some (of_int (Int.shr i1 i2))
+| Vuint i1, Vuint i2 => Some (of_int (Int.shru i1 i2))
+| Vloc l1, Vloc l2 => None 
+| _, _ => None
+end.
+
+Definition sem_eq (v1 : value) (v2 : value) : option value :=
+match v1, v2 with 
+| Vunit, Vunit => Some (Vbool true)
+| Vbool b1, Vbool b2 => Some (of_bool (Bool.eqb b1 b2))
+| Vint i1, Vint i2 => Some (of_bool (Int.cmp Ceq i1 i2))
+| Vuint i1, Vuint i2 => Some (of_bool (Int.cmpu Ceq i1 i2))
+| Vloc l1, Vloc l2 => Some (of_bool (l1 =? l2)%positive) 
+| _, _ => None
+end.
+
+Definition sem_neq (v1 : value) (v2 : value) : option value :=
+match v1, v2 with 
+| Vunit, Vunit => Some (Vbool true)
+| Vbool b1, Vbool b2 => Some (of_bool (Bool.eqb b1 b2))
+| Vint i1, Vint i2 => Some (of_bool (Int.cmp Cne i1 i2))
+| Vuint i1, Vuint i2 => Some (of_bool (Int.cmpu Cne i1 i2))
+| Vloc l1, Vloc l2 => Some (of_bool (negb (l1 =? l2)%positive)) 
+| _, _ => None
+end.
+
+Definition sem_lt (v1 : value) (v2 : value) : option value :=
+match v1, v2 with 
+| Vunit, Vunit => None
+| Vbool b1, Vbool b2 => None
+| Vint i1, Vint i2 => Some (of_bool (Int.cmp Clt i1 i2))
+| Vuint i1, Vuint i2 => Some (of_bool (Int.cmpu Clt i1 i2))
+| Vloc l1, Vloc l2 => None
+| _, _ => None
+end.
+
+Definition sem_lte (v1 : value) (v2 : value) : option value :=
+match v1, v2 with 
+| Vunit, Vunit => None
+| Vbool b1, Vbool b2 => None
+| Vint i1, Vint i2 => Some (of_bool (Int.cmp Cle i1 i2))
+| Vuint i1, Vuint i2 => Some (of_bool (Int.cmpu Cle i1 i2))
+| Vloc l1, Vloc l2 => None
+| _, _ => None
+end.
+
+Definition sem_gt (v1 : value) (v2 : value) : option value :=
+match v1, v2 with 
+| Vunit, Vunit => None
+| Vbool b1, Vbool b2 => None
+| Vint i1, Vint i2 => Some (of_bool (Int.cmp Cgt i1 i2))
+| Vuint i1, Vuint i2 => Some (of_bool (Int.cmpu Cgt i1 i2))
+| Vloc l1, Vloc l2 => None
+| _, _ => None
+end.
+
+Definition sem_gte (v1 : value) (v2 : value) : option value :=
+match v1, v2 with 
+| Vunit, Vunit => None
+| Vbool b1, Vbool b2 => None
+| Vint i1, Vint i2 => Some (of_bool (Int.cmp Cge i1 i2))
+| Vuint i1, Vuint i2 => Some (of_bool (Int.cmpu Cge i1 i2))
+| Vloc l1, Vloc l2 => None
+| _, _ => None
+end.
+
+Definition sem_binary_operation (op : bop) (v1 v2 : value) : option value :=
+match op with 
+| Plus => sem_plus v1 v2
+| Minus => sem_minus v1 v2
+| Mult => sem_mult v1 v2
+| Div => sem_div v1 v2
+| And => sem_and v1 v2
+| Or => sem_or v1 v2
+| Xor => sem_xor v1 v2
+| Shl => sem_shl v1 v2
+| Shr => sem_shr v1 v2
+| Eq => sem_eq v1 v2
+| Neq => sem_neq v1 v2
+| Lt => sem_lt v1 v2
+| Lte => sem_lte v1 v2
+| Gt => sem_gt v1 v2
+| Gte => sem_gte v1 v2
+end.
 
 (* Operational Semantics *) 
 Inductive sem_expr : genv -> state -> expr -> state -> value -> Prop :=
@@ -196,21 +405,33 @@ Inductive sem_expr : genv -> state -> expr -> state -> value -> Prop :=
              sem_expr ge st e st' (Vloc l) ->
              get_fun_decl ge l = Some (Fdecl fd) ->
              sem_exprs ge st' es st'' vs ->
-             type_of_values vs = unzip2 (fd.(args)) ->
+             typeof_values vs = unzip2 (fd.(args)) ->
              write_vars (st.(vmem)) (unzip1 fd.(args)) vs = Ok error vm' ->
              sem_expr ge {| hmem := st''.(hmem); vmem := vm' |} fd.(body) st''' rv -> 
              write_var (st'''.(vmem)) r rv = vm'' ->
-             type_of_value rv = fd.(rtype) ->
+             typeof_value rv = fd.(rtype) ->
              sem_expr ge st (App (Some r) e es t) {| hmem := st'''.(hmem); vmem := vm'' |}  rv 
 | sem_app : forall ge e es t st l st' st'' vs fd vm' st''' rv vm'',
              sem_expr ge st e st' (Vloc l) ->
              get_fun_decl ge l = Some (Fdecl fd) ->
              sem_exprs ge st' es st'' vs ->
-             type_of_values vs = unzip2 (fd.(args)) ->
+             typeof_values vs = unzip2 (fd.(args)) ->
              write_vars (st.(vmem)) (unzip1 fd.(args)) vs = Ok error vm' ->
              sem_expr ge {| hmem := st''.(hmem); vmem := vm' |} fd.(body) st''' rv -> 
-             type_of_value rv = fd.(rtype) ->
+             typeof_value rv = fd.(rtype) ->
              sem_expr ge st (App None e es t) {| hmem := st'''.(hmem); vmem := vm'' |}  rv 
+| sem_prim_uop : forall ge st e t v uop st' v',
+                 sem_expr ge st e st' v ->
+                 sem_unary_operation uop v = Some v' ->
+                 typeof_expr e = typeof_value v ->
+                 sem_expr ge st (Prim (Uop uop) (e :: nil) t) st' v'
+| sem_prim_bop : forall ge st e1 e2 t v1 v2 bop st' st'' v,
+                 sem_expr ge st e1 st' v1 ->
+                 sem_expr ge st' e2 st'' v2 ->
+                 sem_binary_operation bop v1 v2 = Some v ->
+                 typeof_expr e1 = typeof_value v1 ->
+                 typeof_expr e2 = typeof_value v2 ->
+                 sem_expr ge st (Prim (Bop bop) (e1 :: e2 :: nil) t) st' v
 with sem_exprs : genv -> state -> list expr -> state -> list value -> Prop :=
 | sem_nil : forall ge st,
             sem_exprs ge st nil st nil

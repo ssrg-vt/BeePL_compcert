@@ -29,10 +29,14 @@ Fixpoint transBeePL_type (t : BeeTypes.type) : Ctypes.type :=
 match t with 
 | BeeTypes.Ptype (BeeTypes.Tunit) => Tvoid
 | BeeTypes.Ptype (BeeTypes.Tint) => (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |})
+| BeeTypes.Ptype (BeeTypes.Tuint) => (Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |})
 | BeeTypes.Ptype (BeeTypes.Tbool) => (Tint I8 Unsigned {| attr_volatile := false; attr_alignas := Some 1%N |}) 
 | BeeTypes.Reftype h b => match b with 
                           | BeeTypes.Bprim (BeeTypes.Tunit) => Tpointer Tvoid {| attr_volatile := false; attr_alignas := None |}
                           | BeeTypes.Bprim (BeeTypes.Tint) => Tpointer (Tint I32 Signed {| attr_volatile := false; 
+                                                                                           attr_alignas := Some 4%N |})
+                                                              {| attr_volatile := false; attr_alignas := Some 4%N |}
+                          | BeeTypes.Bprim (BeeTypes.Tuint) => Tpointer (Tint I32 Unsigned {| attr_volatile := false; 
                                                                                            attr_alignas := Some 4%N |})
                                                               {| attr_volatile := false; attr_alignas := Some 4%N |}
                           | BeeTypes.Bprim (BeeTypes.Tbool) => Tpointer (Tint I8 Unsigned {| attr_volatile := false; 
@@ -100,6 +104,8 @@ match e with
 | Const c t => match c with 
                | ConsInt i => Eval (Values.Vint i) 
                               (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |})
+               | ConsUint i => Eval (Values.Vint i) 
+                              (Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |})
                | ConsBool b => Eval (Values.Vint (bool_to_int b))
                                (Tint I8 Signed {| attr_volatile := false; attr_alignas := Some 1%N |})
                | ConsUnit => Eval (Values.Vint (Int.repr 0)) 
@@ -157,6 +163,8 @@ match e with
 | Const c t => Sreturn (Some (Evalof (match c with 
                                       | ConsInt i => Eval (Values.Vint i) 
                                                        (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |})
+                                      | ConsUint i => Eval (Values.Vint i) 
+                                                       (Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |})
                                       | ConsBool b => Eval (Values.Vint (bool_to_int b))
                                                         (Tint I8 Signed {| attr_volatile := false; attr_alignas := Some 1%N |})
                                       | ConsUnit => Eval (Values.Vint (Int.repr 0)) 
@@ -196,7 +204,7 @@ match e with
                       | Var x' t' => Ssequence (Sdo (Eassign (Evar x (transBeePL_type t)) 
                                                             (transBeePL_expr_expr e) 
                                                     Tvoid)) 
-                                               (Sreturn (Some (Evalof (transBeePL_expr_expr e') (transBeePL_type (BeePL.typeof (e'))))))
+                                               (Sreturn (Some (Evalof (transBeePL_expr_expr e') (transBeePL_type (BeePL.typeof_expr (e'))))))
                       | Const c t => Ssequence (Sdo (Eassign (Evar x (transBeePL_type t)) (transBeePL_expr_expr e) Tvoid)) 
                                                (Sreturn (Some (transBeePL_expr_expr e')))
                       (* can produce side-effects *)
@@ -244,6 +252,7 @@ Definition gconstant_init_data (g : BeePL.gconstant) : init_data :=
 match g with 
 | Gvalue c => match c with 
               | ConsInt i => Init_int32 i
+              | ConsUint i => Init_int32 i
               | ConsBool b => Init_int8 (bool_to_int b)
               | ConsUnit => Init_int32 (Int.repr 0)
               end

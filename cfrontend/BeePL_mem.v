@@ -9,24 +9,30 @@ Unset Printing Implicit Defensive.
 Inductive value : Type :=
 | Vunit : value
 | Vint : int -> value
+| Vuint : int -> value
 | Vbool : bool -> value
 | Vloc : positive -> value.
 
-Definition type_of_value (v : value ) : type :=
+Definition typeof_value (v : value ) : type :=
 match v with 
 | Vunit => Ptype (Tunit)
 | Vint i => Ptype (Tint)
+| Vuint i => Ptype (Tuint)
 | Vbool b => Ptype (Tbool)
 | Vloc p => Ptype (Tunit) 
 end.
 
 Definition vals := list value.
 
-Fixpoint type_of_values (vs : list value) : list type :=
+Fixpoint typeof_values (vs : list value) : list type :=
 match vs with 
 | nil => nil
-| v  :: vs => type_of_value v :: type_of_values vs 
+| v  :: vs => typeof_value v :: typeof_values vs 
 end.
+
+Definition of_bool (b : bool) : value := Vbool b.
+
+Definition of_int (i : int) : value := Vint i.
 
 Definition loc := positive. 
 
