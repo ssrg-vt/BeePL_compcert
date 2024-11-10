@@ -432,6 +432,22 @@ Inductive sem_expr : genv -> state -> expr -> state -> value -> Prop :=
                  typeof_expr e1 = typeof_value v1 ->
                  typeof_expr e2 = typeof_value v2 ->
                  sem_expr ge st (Prim (Bop bop) (e1 :: e2 :: nil) t) st' v
+| sem_prim_ref : forall ge st e t l st' h v, 
+                 sem_expr ge st e st' v ->
+                 fresh_loc st'.(hmem) l = true ->
+                 update_heap st'.(hmem) l v = h ->
+                 typeof_value v = typeof_expr e ->
+                 sem_expr ge st (Prim Deref (e :: nil) t) st' v
+| sem_prim_deref : forall ge st e t l st' v, 
+                   sem_expr ge st e st' (Vloc l) ->
+                   get_val_loc st.(hmem) l = Some v -> 
+                   typeof_value v = typeof_expr e ->
+                   sem_expr ge st (Prim Deref (e :: nil) t) st' v
+| sem_prim_massgn : forall ge st e1 e2 t l v h st' st'',
+                    sem_expr ge st e1 st' (Vloc l) -> 
+                    sem_expr ge st' e2 st'' v ->
+                    update_heap st''.(hmem) l v = h ->
+                    sem_expr ge st (Prim Massgn (e1 :: e2 :: nil) t) {| hmem := h; vmem := st''.(vmem) |} Vunit
 with sem_exprs : genv -> state -> list expr -> state -> list value -> Prop :=
 | sem_nil : forall ge st,
             sem_exprs ge st nil st nil

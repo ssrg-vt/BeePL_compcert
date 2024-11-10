@@ -113,7 +113,10 @@ match e with
                end
 | App r e es t => Ecall (transBeePL_expr_expr e) (transBeePL_expr_exprs transBeePL_expr_expr es) (transBeePL_type t)  
 | Prim b es t => match b with 
-                 | Ref => Eval (Values.Vundef) Tvoid (* Fix me *)
+                 | Ref => Eaddrof (hd (Eval (Values.Vint (Int.repr 0))
+                                      (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |}))
+                                  (exprlist_list_expr (transBeePL_expr_exprs transBeePL_expr_expr es))) 
+                          (transBeePL_type t)   
                  | Deref => Ederef (hd  (Eval (Values.Vint (Int.repr 0))
                                         (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |}))
                                     (exprlist_list_expr (transBeePL_expr_exprs transBeePL_expr_expr es))) 
@@ -172,7 +175,10 @@ match e with
                                       end) (transBeePL_type t)))
 | App r e es t => Sdo (Ecall (transBeePL_expr_expr e) (transBeePL_expr_exprs transBeePL_expr_expr es) (transBeePL_type t))  
 | Prim b es t => match b with 
-                 | Ref => Sdo (Eval (Values.Vundef) Tvoid) (* Fix me *)
+                 | Ref =>  Sdo (Eaddrof (hd  (Eval (Values.Vint (Int.repr 0))
+                                        (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |}))
+                                        (exprlist_list_expr (transBeePL_expr_exprs transBeePL_expr_expr es))) 
+                               (transBeePL_type t))   
                  | Deref => Sdo (Ederef (hd  (Eval (Values.Vint (Int.repr 0))
                                         (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |}))
                                          (exprlist_list_expr (transBeePL_expr_exprs transBeePL_expr_expr es))) 
