@@ -448,6 +448,20 @@ Inductive sem_expr : genv -> state -> expr -> state -> value -> Prop :=
                     sem_expr ge st' e2 st'' v ->
                     update_heap st''.(hmem) l v = h ->
                     sem_expr ge st (Prim Massgn (e1 :: e2 :: nil) t) {| hmem := h; vmem := st''.(vmem) |} Vunit
+| sem_bind : forall ge st x t e e' t' st' st'' v e'',
+             subst x e e' = e'' ->
+             sem_expr ge st' e'' st'' v ->
+             sem_expr ge st (Bind x t e e' t') st'' v
+| sem_cond_true : forall ge st e1 e2 e3 t st' st'' v, 
+                  sem_expr ge st e1 st' (Vbool true) -> 
+                  sem_expr ge st' e2 st'' v ->
+                  sem_expr ge st (Cond e1 e2 e3 t) st'' v
+| sem_cond_false : forall ge st e1 e2 e3 t st' st'' v, 
+                   sem_expr ge st e1 st' (Vbool false) -> 
+                   sem_expr ge st' e3 st'' v ->
+                   sem_expr ge st (Cond e1 e2 e3 t) st'' v
+| sem_addr : forall ge st l bt,
+             sem_expr ge st (Addr l bt) st (Vloc l) 
 with sem_exprs : genv -> state -> list expr -> state -> list value -> Prop :=
 | sem_nil : forall ge st,
             sem_exprs ge st nil st nil
