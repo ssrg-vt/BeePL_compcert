@@ -32,16 +32,16 @@ match t with
 | BeeTypes.Ptype (BeeTypes.Tuint) => (Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |})
 | BeeTypes.Ptype (BeeTypes.Tbool) => (Tint I8 Unsigned {| attr_volatile := false; attr_alignas := Some 1%N |}) 
 | BeeTypes.Reftype h b => match b with 
-                          | BeeTypes.Bprim (BeeTypes.Tunit) => Tpointer Tvoid {| attr_volatile := false; attr_alignas := None |}
+                          | BeeTypes.Bprim (BeeTypes.Tunit) => Tpointer Tvoid {| attr_volatile := false; attr_alignas := Some 8%N |}
                           | BeeTypes.Bprim (BeeTypes.Tint) => Tpointer (Tint I32 Signed {| attr_volatile := false; 
                                                                                            attr_alignas := Some 4%N |})
-                                                              {| attr_volatile := false; attr_alignas := Some 4%N |}
+                                                              {| attr_volatile := false; attr_alignas := Some 8%N |}
                           | BeeTypes.Bprim (BeeTypes.Tuint) => Tpointer (Tint I32 Unsigned {| attr_volatile := false; 
                                                                                            attr_alignas := Some 4%N |})
-                                                              {| attr_volatile := false; attr_alignas := Some 4%N |}
+                                                              {| attr_volatile := false; attr_alignas := Some 8%N |}
                           | BeeTypes.Bprim (BeeTypes.Tbool) => Tpointer (Tint I8 Unsigned {| attr_volatile := false; 
                                                                                              attr_alignas := Some 1%N |}) 
-                                                               {| attr_volatile := false; attr_alignas := Some 4%N |}
+                                                               {| attr_volatile := false; attr_alignas := Some 8%N |}
                           end
 | BeeTypes.Ftype ts ef t => Tfunction (transBeePL_types transBeePL_type ts) 
                                         (transBeePL_type t)  
@@ -52,6 +52,15 @@ Definition bool_to_int (b : bool) : int :=
 match b with 
 | true => (Int.repr 1)
 | false => (Int.repr 0)
+end.
+
+Definition transBeePL_value_cvalue (v : BeePL_mem.value) : Values.val :=
+match v with 
+| BeePL_mem.Vunit => Values.Vundef (* Fix me *)
+| BeePL_mem.Vint i => Values.Vint i
+| BeePL_mem.Vuint i => Values.Vint i 
+| BeePL_mem.Vbool b => Values.Vint (bool_to_int b)
+| BeePL_mem.Vloc p => Values.Vptr p (Ptrofs.of_ints (Int.repr 0))
 end.
 
 Section transBeePL_exprs.
@@ -178,7 +187,7 @@ match e with
                  | Ref =>  Sdo (Eaddrof (hd  (Eval (Values.Vint (Int.repr 0))
                                         (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |}))
                                         (exprlist_list_expr (transBeePL_expr_exprs transBeePL_expr_expr es))) 
-                               (transBeePL_type t))   
+                                (transBeePL_type t))   
                  | Deref => Sdo (Ederef (hd  (Eval (Values.Vint (Int.repr 0))
                                         (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |}))
                                          (exprlist_list_expr (transBeePL_expr_exprs transBeePL_expr_expr es))) 

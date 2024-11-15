@@ -17,8 +17,8 @@ Inductive primitive_type : Type :=
 | Tuint : primitive_type 
 | Tbool : primitive_type.
 
-Inductive basic_type : Type :=
-| Bprim : primitive_type -> basic_type.
+Inductive basic_type : Type :=  
+Bprim : primitive_type -> basic_type.
 
 Inductive type : Type :=
 | Ptype : primitive_type -> type                          (* primitive types *)
