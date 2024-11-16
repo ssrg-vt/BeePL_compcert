@@ -45,6 +45,10 @@ Scheme rel_type_ind2 := Minimality for rel_type Sort Prop
   with rel_typelist_ind2 := Minimality for rel_types Sort Prop.
 Combined Scheme rel_type_typelist_ind from rel_type_ind2, rel_typelist_ind2.
 
+(*Scheme rel_beety_ind2 := Minimality for BeeTypes.type Sort Prop
+  with rel_beetys_ind2 := Minimality for (list BeeTypes.type) Sort Prop.
+Combined Scheme rel_type_typelist_ind from rel_type_ind2, rel_typelist_ind2.*)
+
 Section rel_type_ind.
 Variables (Pt :  BeeTypes.type -> Ctypes.type -> Prop)
           (Pts: list BeeTypes.type -> Ctypes.typelist -> Prop).
@@ -90,36 +94,75 @@ end.
 End rel_type_ind. 
 
 (***** Proof for correctness of type transformation *****)
-Lemma type_translated: forall bt ct, 
-transBeePL_type(bt) = ct ->
-rel_type bt ct.
+Fixpoint type_translated bt: 
+(forall ct, 
+transBeePL_type bt = ct ->
+rel_type bt ct) /\ (forall bts cts, 
+transBeePL_types transBeePL_type bts = cts ->
+rel_types bts cts).
 Proof.
+destruct bt.
++ admit.
++ admit.
++ induction l.
+  ++ admit.
+  ++ 
 Admitted.
 
 (****** Proof for correctness of transformation of operators ******)
-Lemma transl_notbool_cnotbool: forall v v' m t v'',
-sem_unary_operation Notbool v = Some v' -> 
-transBeePL_uop_uop Notbool = Cop.Onotbool ->
-Cop.sem_unary_operation Cop.Onotbool (transBeePL_value_cvalue v) t m = Some v'' ->
-v'' = transBeePL_value_cvalue v'.
+Lemma extract_type_notbool : forall v t v',
+sem_unary_operation Notbool v t = Some v' -> 
+t = Ptype Tbool.
 Proof.
-Admitted.
+intros. inversion H; subst. unfold sem_notbool in H1.
+destruct v.
++ destruct t; auto.
+  ++ destruct p; auto; inversion H1.
+  ++ inversion H1.
+  ++ inversion H1.
++ destruct t; auto.
+  ++ destruct p; auto; inversion H1.
+  ++ inversion H1.
+  ++ inversion H1.
++ destruct t; auto.
+  ++ destruct p; auto; inversion H1.
+  ++ inversion H1.
+  ++ inversion H1.
++ destruct t; auto.
+  ++ destruct p; auto; inversion H1.
+  ++ inversion H1.
+  ++ inversion H1.
++ destruct t; auto.
+  ++ destruct p; auto; inversion H1.
+  ++ destruct b; auto; destruct p0; auto; inversion H1.
+  ++ inversion H1.
+Qed.
 
-Lemma transl_notbool_cnotbool': forall v v' m t,
-sem_unary_operation Notbool v = Some v' -> 
+Lemma transl_notbool_cnotbool: forall v v' m t,
+sem_unary_operation Notbool v t = Some v' -> 
 transBeePL_uop_uop Notbool = Cop.Onotbool ->
-exists v'' : Values.val, Cop.sem_unary_operation Cop.Onotbool (transBeePL_value_cvalue v) t m = Some v'' 
-/\ v'' = transBeePL_value_cvalue v'.
+Cop.sem_unary_operation Cop.Onotbool (transBeePL_value_cvalue v) 
+     (transBeePL_type t) m = Some (transBeePL_value_cvalue v'). 
 Proof.
-Admitted.
-     
+intros; simpl. 
+generalize dependent (extract_type_notbool v t v' H). intros; subst; simpl.
+destruct v; inversion H; subst. destruct b.
++ unfold Cop.sem_notbool, Cop.bool_val; simpl. 
+  assert (hneq : Int.eq (Int.repr 1) Int.zero = false).
+  ++ apply Int.eq_false; simpl. unfold not. intros. inversion H1.
+  ++ rewrite hneq; simpl. unfold Values.Vfalse, Int.zero. reflexivity.
++ unfold Cop.sem_notbool, Cop.bool_val; simpl. 
+  assert (hneq : Int.eq (Int.repr 0) Int.zero = true).
+  ++ apply Int.eq_true; simpl. 
+  ++ rewrite hneq; simpl. unfold Values.Vtrue, Int.zero. reflexivity.
+Qed.
 
 Lemma transl_uop_cuop : forall op cop v v' m t,
-sem_unary_operation op v = Some v' -> 
+sem_unary_operation op v t = Some v' -> 
 transBeePL_uop_uop op = cop ->
-exists v'', Cop.sem_unary_operation cop (transBeePL_value_cvalue v) t m = Some v'' /\ 
-v'' = (transBeePL_value_cvalue v').
+Cop.sem_unary_operation cop (transBeePL_value_cvalue v) (transBeePL_type t) m = Some (transBeePL_value_cvalue v').
 Proof.
 Admitted.
+
 
 

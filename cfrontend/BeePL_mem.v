@@ -13,21 +13,23 @@ Inductive value : Type :=
 | Vbool : bool -> value
 | Vloc : positive -> value.
 
-Definition typeof_value (v : value ) : type :=
-match v with 
-| Vunit => Ptype (Tunit)
-| Vint i => Ptype (Tint)
-| Vuint i => Ptype (Tuint)
-| Vbool b => Ptype (Tbool)
-| Vloc p => Ptype (Tunit) 
+Definition typeof_value (v : value ) (t : type) : Prop :=
+match v,t with 
+| Vunit, Ptype (Tunit) => True
+| Vint i, Ptype (Tint) => True
+| Vuint i, Ptype (Tuint) => True
+| Vbool b, Ptype (Tbool) => True
+| Vloc p, Reftype _ (Bprim (Tint)) => True
+| _, _ => False
 end.
 
 Definition vals := list value.
 
-Fixpoint typeof_values (vs : list value) : list type :=
-match vs with 
-| nil => nil
-| v  :: vs => typeof_value v :: typeof_values vs 
+Fixpoint typeof_values (vs : list value) (ts : list type) : Prop :=
+match vs, ts with 
+| nil, nil => True
+| v :: vs, t :: ts => typeof_value v t /\ typeof_values vs ts
+| _, _ => False
 end.
 
 Definition of_bool (b : bool) : value := Vbool b.
