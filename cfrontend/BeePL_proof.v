@@ -109,7 +109,7 @@ destruct bt.
   ++ 
 Admitted.
 
-(****** Proof for correctness of transformation of operators ******)
+(****** Proof of correctness for transformation of operators ******)
 Lemma extract_type_notbool : forall v t v',
 sem_unary_operation Notbool v t = Some v' -> 
 t = Ptype Tbool.
@@ -138,10 +138,65 @@ destruct v.
   ++ inversion H1.
 Qed.
 
+Lemma extract_type_notint : forall v t v',
+sem_unary_operation Notint v t = Some v' -> 
+t = Ptype Tint \/ t = Ptype Tuint.
+Proof.
+intros. inversion H; subst. unfold sem_notbool in H1.
+destruct v.
++ right. destruct t; auto.
+  ++ destruct p; auto; inversion H1.
+  ++ inversion H1.
+  ++ inversion H1.
++ left. destruct t; auto.
+  ++ destruct p; auto; inversion H1.
+  ++ inversion H1.
+  ++ inversion H1.
++ right. destruct t; auto.
+  ++ destruct p; auto; inversion H1.
+  ++ inversion H1.
+  ++ inversion H1.
++ destruct t; auto.
+  ++ destruct p; auto; inversion H1.
+  ++ inversion H1.
+  ++ inversion H1.
++ destruct t; auto.
+  ++ destruct p; auto; inversion H1.
+  ++ destruct b; auto; destruct p0; auto; inversion H1.
+  ++ inversion H1.
+Qed.
+ 
+Lemma extract_type_neg : forall v t v',
+sem_unary_operation Neg v t = Some v' -> 
+t = Ptype Tint \/ t = Ptype Tuint.
+Proof.
+intros. inversion H; subst. unfold sem_neg in H1.
+destruct v.
++ right. destruct t; auto.
+  ++ destruct p; auto; inversion H1.
+  ++ inversion H1.
+  ++ inversion H1.
++ left. destruct t; auto.
+  ++ destruct p; auto; inversion H1.
+  ++ inversion H1.
+  ++ inversion H1.
++ right. destruct t; auto.
+  ++ destruct p; auto; inversion H1.
+  ++ inversion H1.
+  ++ inversion H1.
++ destruct t; auto.
+  ++ destruct p; auto; inversion H1.
+  ++ inversion H1.
+  ++ inversion H1.
++ destruct t; auto.
+  ++ destruct p; auto; inversion H1.
+  ++ destruct b; auto; destruct p0; auto; inversion H1.
+  ++ inversion H1.
+Qed.
+
 Lemma transl_notbool_cnotbool: forall v v' m t,
 sem_unary_operation Notbool v t = Some v' -> 
-transBeePL_uop_uop Notbool = Cop.Onotbool ->
-Cop.sem_unary_operation Cop.Onotbool (transBeePL_value_cvalue v) 
+Cop.sem_unary_operation (transBeePL_uop_uop Notbool) (transBeePL_value_cvalue v) 
      (transBeePL_type t) m = Some (transBeePL_value_cvalue v'). 
 Proof.
 intros; simpl. 
@@ -149,7 +204,7 @@ generalize dependent (extract_type_notbool v t v' H). intros; subst; simpl.
 destruct v; inversion H; subst. destruct b.
 + unfold Cop.sem_notbool, Cop.bool_val; simpl. 
   assert (hneq : Int.eq (Int.repr 1) Int.zero = false).
-  ++ apply Int.eq_false; simpl. unfold not. intros. inversion H1.
+  ++ apply Int.eq_false; simpl. unfold not. intros. inversion H0.
   ++ rewrite hneq; simpl. unfold Values.Vfalse, Int.zero. reflexivity.
 + unfold Cop.sem_notbool, Cop.bool_val; simpl. 
   assert (hneq : Int.eq (Int.repr 0) Int.zero = true).
@@ -157,12 +212,324 @@ destruct v; inversion H; subst. destruct b.
   ++ rewrite hneq; simpl. unfold Values.Vtrue, Int.zero. reflexivity.
 Qed.
 
-Lemma transl_uop_cuop : forall op cop v v' m t,
-sem_unary_operation op v t = Some v' -> 
-transBeePL_uop_uop op = cop ->
-Cop.sem_unary_operation cop (transBeePL_value_cvalue v) (transBeePL_type t) m = Some (transBeePL_value_cvalue v').
+Lemma transl_notint_cnotint: forall v v' m t,
+sem_unary_operation Notint v t = Some v' -> 
+Cop.sem_unary_operation (transBeePL_uop_uop Notint) (transBeePL_value_cvalue v) 
+     (transBeePL_type t) m = Some (transBeePL_value_cvalue v'). 
 Proof.
+intros; simpl.
+generalize dependent (extract_type_notint v t v' H). intros; subst; simpl.
+destruct H0; subst.
+(* Int *)
++ destruct v; inversion H; subst.
+  unfold Cop.sem_notint, Int.zero, Int.not, Int.mone; simpl. reflexivity.
+(* Uint *)
++ destruct v; inversion H; subst.
+  unfold Cop.sem_notint, Int.zero, Int.not, Int.mone; simpl. reflexivity.
+Qed.
+
+Lemma transl_neg_cneg: forall v v' m t,
+sem_unary_operation Neg v t = Some v' -> 
+Cop.sem_unary_operation (transBeePL_uop_uop Neg) (transBeePL_value_cvalue v) 
+     (transBeePL_type t) m = Some (transBeePL_value_cvalue v'). 
+Proof.
+intros; simpl.
+generalize dependent (extract_type_neg v t v' H). intros; subst; simpl.
+destruct H0; subst.
+(* Int *)
++ destruct v; inversion H; subst.
+  unfold Cop.sem_notint, Int.zero, Int.not, Int.mone; simpl. reflexivity.
+(* Uint *)
++ destruct v; inversion H; subst.
+  unfold Cop.sem_notint, Int.zero, Int.not, Int.mone; simpl. reflexivity.
+Qed.
+
+Lemma transl_uop_cuop : forall op v v' m t,
+sem_unary_operation op v t = Some v' -> 
+Cop.sem_unary_operation (transBeePL_uop_uop op) (transBeePL_value_cvalue v) (transBeePL_type t) m = Some (transBeePL_value_cvalue v').
+Proof.
+intros. destruct op; simpl; auto; subst.
+(* Notbool *)
++ generalize dependent (transl_notbool_cnotbool v v' m t H). intros. apply H0.
+(* Notint *)
++ generalize dependent (transl_notint_cnotint v v' m t H). intros. apply H0.
+(* Neg *)
++ generalize dependent (transl_neg_cneg v v' m t H). intros. apply H0.
+Qed.
+
+Lemma extract_type_plus : forall v1 v2 t1 t2 v,
+sem_binary_operation Plus v1 v2 t1 t2 = Some v -> 
+(t1 = Ptype Tint /\ t2 = Ptype Tint) \/ (t1 = Ptype Tuint /\ t2 = Ptype Tuint).
+Proof.
+intros. inversion H; subst; simpl; unfold sem_plus in H1.
+destruct v1; auto.
++ destruct v2; auto; inversion H1.
+  ++ destruct t1; auto; inversion H1.
+     +++ destruct p; auto.
+         - destruct t2; auto.
+           -- destruct p; auto; inversion H1.
+           -- inversion H1.
+           -- inversion H1.
+         - inversion H1.
+         - inversion H1.
+         - inversion H1.
++ destruct v2; auto; inversion H1.
+  destruct t1; auto; inversion H1.
+  destruct p; auto; inversion H1.
+  destruct t2; auto; inversion H1.
+  destruct p; auto; inversion H1.
++ destruct v2; auto; inversion H1.
+  destruct t1; auto; inversion H1.
+  destruct p; auto; inversion H1.
+  destruct t2; auto; inversion H1.
+  destruct p; auto; inversion H1.
++ destruct v2; auto; inversion H1.
+  destruct t1; auto; inversion H1.
+  destruct p; auto; inversion H1.
+  destruct t2; auto; inversion H1.
+  destruct p; auto; inversion H1.
++ destruct v2; auto; inversion H1.
+  destruct t1; auto; inversion H1.
+  destruct b; auto; inversion H1.
+  destruct p1; auto; inversion H1.
+  destruct t2; auto; inversion H1.
+  destruct b; auto; inversion H1.
+  destruct p1; auto; inversion H1.
+Qed.
+
+Lemma transl_plus_cadd: forall v1 v2 t1 t2 v cenv m,
+sem_binary_operation Plus v1 v2 t1 t2 = Some v -> 
+Cop.sem_binary_operation cenv (transBeePL_bop_bop Plus) (transBeePL_value_cvalue v1) 
+     (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
+Some (transBeePL_value_cvalue v). 
+Proof.
+intros; simpl. 
+generalize dependent (extract_type_plus v1 v2 t1 t2 v H). intros; subst; simpl.
+destruct H0.
++ destruct H0; subst; destruct v1; auto.
+  ++ destruct v2; auto; simpl; inversion H.
+  ++ destruct v2; auto; simpl; inversion H.
+     unfold Cop.sem_add, Cop.sem_binarith, Cop.sem_cast; simpl.
+     destruct Archi.ptr64; auto.
+  ++ destruct v2; auto; simpl; inversion H.
+  ++ destruct v2; auto; simpl; inversion H.
+  ++ destruct v2; auto; simpl; inversion H.
++ destruct H0; subst; destruct v1; auto.
+  ++ destruct v2; auto; simpl; inversion H.
+  ++ destruct v2; auto; simpl; inversion H.
+  ++ destruct v2; auto; simpl; inversion H.
+     unfold Cop.sem_add, Cop.sem_binarith, Cop.sem_cast; simpl.
+     destruct Archi.ptr64; auto.
+  ++ destruct v2; auto; simpl; inversion H.
+  ++ destruct v2; auto; simpl; inversion H.
+Qed.
+
+Lemma extract_type_minus : forall v1 v2 t1 t2 v,
+sem_binary_operation Minus v1 v2 t1 t2 = Some v -> 
+(t1 = Ptype Tint /\ t2 = Ptype Tint) \/ (t1 = Ptype Tuint /\ t2 = Ptype Tuint).
+Proof.
+intros. inversion H; subst; simpl; unfold sem_plus in H1.
+destruct v1; auto.
++ destruct v2; auto; inversion H1.
+  ++ destruct t1; auto; inversion H1.
+     +++ destruct p; auto.
+         - destruct t2; auto.
+           -- destruct p; auto; inversion H1.
+           -- inversion H1.
+           -- inversion H1.
+         - inversion H1.
+         - inversion H1.
+         - inversion H1.
++ destruct v2; auto; inversion H1.
+  destruct t1; auto; inversion H1.
+  destruct p; auto; inversion H1.
+  destruct t2; auto; inversion H1.
+  destruct p; auto; inversion H1.
++ destruct v2; auto; inversion H1.
+  destruct t1; auto; inversion H1.
+  destruct p; auto; inversion H1.
+  destruct t2; auto; inversion H1.
+  destruct p; auto; inversion H1.
++ destruct v2; auto; inversion H1.
+  destruct t1; auto; inversion H1.
+  destruct p; auto; inversion H1.
+  destruct t2; auto; inversion H1.
+  destruct p; auto; inversion H1.
++ destruct v2; auto; inversion H1.
+  destruct t1; auto; inversion H1.
+  destruct b; auto; inversion H1.
+  destruct p1; auto; inversion H1.
+  destruct t2; auto; inversion H1.
+  destruct b; auto; inversion H1.
+  destruct p1; auto; inversion H1.
+Qed.
+
+Lemma transl_minus_csub: forall v1 v2 t1 t2 v cenv m,
+sem_binary_operation Minus v1 v2 t1 t2 = Some v -> 
+Cop.sem_binary_operation cenv (transBeePL_bop_bop Minus) (transBeePL_value_cvalue v1) 
+     (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
+Some (transBeePL_value_cvalue v). 
+Proof.
+intros; simpl. 
+generalize dependent (extract_type_minus v1 v2 t1 t2 v H). intros; subst; simpl.
+destruct H0.
++ destruct H0; subst; destruct v1; auto.
+  ++ destruct v2; auto; simpl; inversion H.
+  ++ destruct v2; auto; simpl; inversion H.
+     unfold Cop.sem_sub, Cop.sem_binarith, Cop.sem_cast; simpl.
+     destruct Archi.ptr64; auto.
+  ++ destruct v2; auto; simpl; inversion H.
+  ++ destruct v2; auto; simpl; inversion H.
+  ++ destruct v2; auto; simpl; inversion H.
++ destruct H0; subst; destruct v1; auto.
+  ++ destruct v2; auto; simpl; inversion H.
+  ++ destruct v2; auto; simpl; inversion H.
+  ++ destruct v2; auto; simpl; inversion H.
+     unfold Cop.sem_sub, Cop.sem_binarith, Cop.sem_cast; simpl.
+     destruct Archi.ptr64; auto.
+  ++ destruct v2; auto; simpl; inversion H.
+  ++ destruct v2; auto; simpl; inversion H.
+Qed.
+
+
+Lemma extract_type_mult : forall v1 v2 t1 t2 v,
+sem_binary_operation Mult v1 v2 t1 t2 = Some v -> 
+(t1 = Ptype Tint /\ t2 = Ptype Tint) \/ (t1 = Ptype Tuint /\ t2 = Ptype Tuint).
+Proof.
+intros. inversion H; subst; simpl; unfold sem_mult in H1.
+destruct v1; auto.
++ destruct v2; auto; inversion H1.
+  ++ destruct t1; auto; inversion H1.
+     +++ destruct p; auto.
+         - destruct t2; auto.
+           -- destruct p; auto; inversion H1.
+           -- inversion H1.
+           -- inversion H1.
+         - inversion H1.
+         - inversion H1.
+         - inversion H1.
++ destruct v2; auto; inversion H1.
+  destruct t1; auto; inversion H1.
+  destruct p; auto; inversion H1.
+  destruct t2; auto; inversion H1.
+  destruct p; auto; inversion H1.
++ destruct v2; auto; inversion H1.
+  destruct t1; auto; inversion H1.
+  destruct p; auto; inversion H1.
+  destruct t2; auto; inversion H1.
+  destruct p; auto; inversion H1.
++ destruct v2; auto; inversion H1.
+  destruct t1; auto; inversion H1.
+  destruct p; auto; inversion H1.
+  destruct t2; auto; inversion H1.
+  destruct p; auto; inversion H1.
++ destruct v2; auto; inversion H1.
+  destruct t1; auto; inversion H1.
+  destruct b; auto; inversion H1.
+  destruct p1; auto; inversion H1.
+  destruct t2; auto; inversion H1.
+  destruct b; auto; inversion H1.
+  destruct p1; auto; inversion H1.
+Qed.
+
+Lemma transl_mult_cmul: forall v1 v2 t1 t2 v cenv m,
+sem_binary_operation Mult v1 v2 t1 t2 = Some v -> 
+Cop.sem_binary_operation cenv (transBeePL_bop_bop Mult) (transBeePL_value_cvalue v1) 
+     (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
+Some (transBeePL_value_cvalue v). 
+Proof.
+intros; simpl. 
+generalize dependent (extract_type_mult v1 v2 t1 t2 v H). intros; subst; simpl.
+destruct H0.
++ destruct H0; subst; destruct v1; auto.
+  ++ destruct v2; auto; simpl; inversion H.
+  ++ destruct v2; auto; simpl; inversion H.
+     unfold Cop.sem_mul, Cop.sem_binarith, Cop.sem_cast; simpl.
+     destruct Archi.ptr64; auto.
+  ++ destruct v2; auto; simpl; inversion H.
+  ++ destruct v2; auto; simpl; inversion H.
+  ++ destruct v2; auto; simpl; inversion H.
++ destruct H0; subst; destruct v1; auto.
+  ++ destruct v2; auto; simpl; inversion H.
+  ++ destruct v2; auto; simpl; inversion H.
+  ++ destruct v2; auto; simpl; inversion H.
+     unfold Cop.sem_mul, Cop.sem_binarith, Cop.sem_cast; simpl.
+     destruct Archi.ptr64; auto.
+  ++ destruct v2; auto; simpl; inversion H.
+  ++ destruct v2; auto; simpl; inversion H.
+Qed.
+
+Lemma extract_type_div : forall v1 v2 t1 t2 v,
+sem_binary_operation Div v1 v2 t1 t2 = Some v -> 
+(t1 = Ptype Tint /\ t2 = Ptype Tint) \/ (t1 = Ptype Tuint /\ t2 = Ptype Tuint).
+Proof.
+intros. inversion H; subst; simpl; unfold sem_div in H1.
+destruct v1; auto.
++ destruct v2; auto; inversion H1.
+  ++ destruct t1; auto; inversion H1.
+     +++ destruct p; auto.
+         - destruct t2; auto.
+           -- destruct p; auto; inversion H1.
+           -- inversion H1.
+           -- inversion H1.
+         - inversion H1.
+         - inversion H1.
+         - inversion H1.
++ destruct v2; auto; inversion H1.
+  destruct t1; auto; inversion H1.
+  destruct p; auto; inversion H1.
+  destruct t2; auto; inversion H1.
+  destruct p; auto; inversion H1.
++ destruct v2; auto; inversion H1.
+  destruct t1; auto; inversion H1.
+  destruct p; auto; inversion H1.
+  destruct t2; auto; inversion H1.
+  destruct p; auto; inversion H1.
++ destruct v2; auto; inversion H1.
+  destruct t1; auto; inversion H1.
+  destruct p; auto; inversion H1.
+  destruct t2; auto; inversion H1.
+  destruct p; auto; inversion H1.
++ destruct v2; auto; inversion H1.
+  destruct t1; auto; inversion H1.
+  destruct b; auto; inversion H1.
+  destruct p1; auto; inversion H1.
+  destruct t2; auto; inversion H1.
+  destruct b; auto; inversion H1.
+  destruct p1; auto; inversion H1.
+Qed.
+
+Lemma sem_binary_operation_div_spec : forall i i' v,
+sem_binary_operation Div (Vint i) (Vint i') (Ptype Tint) (Ptype Tint) = Some v ->
+(Int.eq i' Int.zero || (Int.eq i (Int.repr Int.min_signed) 
+                   && Int.eq i' Int.mone)) = true.
+Proof.
+intros. inversion H; subst. 
+destruct (Int.eq i' Int.zero || (Int.eq i (Int.repr Int.min_signed) && Int.eq i' Int.mone)) 
+eqn:hneq in H1. inversion H1.
 Admitted.
+
+
+Lemma transl_div_cdiv: forall v1 v2 t1 t2 v cenv m,
+sem_binary_operation Div v1 v2 t1 t2 = Some v -> 
+Cop.sem_binary_operation cenv (transBeePL_bop_bop Div) (transBeePL_value_cvalue v1) 
+     (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
+Some (transBeePL_value_cvalue v). 
+Proof.
+intros; simpl. 
+generalize dependent (extract_type_div v1 v2 t1 t2 v H). intros; subst; simpl.
+destruct H0.
++ destruct H0; subst; destruct v1; auto.
+  ++ destruct v2; auto; simpl; inversion H.
+  ++ destruct v2; auto; simpl; inversion H.
+     unfold Cop.sem_div, Cop.sem_binarith, Cop.sem_cast; simpl.
+     destruct Archi.ptr64; auto.
+     +++ generalize dependent (sem_binary_operation_div_spec).
+ Admitted.
+
+
+
+
 
 
 

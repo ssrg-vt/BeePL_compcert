@@ -226,7 +226,7 @@ match v1, v2, t1, t2 with
 | Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => None
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None 
 | Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => Some (of_int (Int.add i1 i2)) 
-| Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tunit) => Some (of_int (Int.add i1 i2))
+| Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => Some (of_int (Int.add i1 i2))
 | Vloc l1, Vloc l2, (Reftype _ (Bprim Tint)), (Reftype _ (Bprim Tint)) => None 
 | _, _, _, _ => None
 end.
@@ -259,7 +259,7 @@ match v1, v2, t1, t2 with
                       if (Int.eq i2 Int.zero) || (Int.eq i1 (Int.repr Int.min_signed) && Int.eq i2 Int.mone) (* -128/-1 *)
                       then None 
                       else Some (of_int (Int.divs i1 i2))
-| Vuint i1, Vuint i2, (Ptype Tunit), (Ptype Tunit) => if (Int.eq i2 Int.zero) then None else Some (of_int (Int.divu i1 i2)) 
+| Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => if (Int.eq i2 Int.zero) then None else Some (of_int (Int.divu i1 i2)) 
 | Vloc l1, Vloc l2, (Reftype _ (Bprim Tint)), (Reftype _ (Bprim Tint)) => None 
 | _, _, _, _ => None
 end.
