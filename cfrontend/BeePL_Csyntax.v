@@ -27,7 +27,7 @@ end.
 (* Translation of BeePL types to Clight Types *) 
 Fixpoint transBeePL_type (t : BeeTypes.type) : Ctypes.type :=
 match t with 
-| BeeTypes.Ptype (BeeTypes.Tunit) => Tvoid
+| BeeTypes.Ptype (BeeTypes.Tunit) => (Tint I8 Unsigned {| attr_volatile := false; attr_alignas := Some 1%N |}) (* Fix me *)
 | BeeTypes.Ptype (BeeTypes.Tint) => (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |})
 | BeeTypes.Ptype (BeeTypes.Tuint) => (Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |})
 | BeeTypes.Ptype (BeeTypes.Tbool) => (Tint I8 Unsigned {| attr_volatile := false; attr_alignas := Some 1%N |}) 
@@ -56,7 +56,7 @@ end.
 
 Definition transBeePL_value_cvalue (v : BeePL_mem.value) : Values.val :=
 match v with 
-| BeePL_mem.Vunit => Values.Vundef (* Fix me *)
+| BeePL_mem.Vunit => Values.Vint (Int.repr 0) (* Fix me *)
 | BeePL_mem.Vint i => Values.Vint i
 | BeePL_mem.Vuint i => Values.Vint i 
 | BeePL_mem.Vbool b => Values.Vint (bool_to_int b)

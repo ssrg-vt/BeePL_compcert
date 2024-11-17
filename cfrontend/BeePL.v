@@ -74,12 +74,12 @@ Inductive expr : Type :=
 | Addr : loc -> basic_type -> expr                                 (* address *)
 | Hexpr : heap -> expr -> type -> expr                             (* heap effect *).
 
-Notation "x ':' t" := (Var x t) (at level 70, no associativity).
+(*Notation "x ':' t" := (Var x t) (at level 70, no associativity).
 Notation "c '~' t" := (Const c t) (at level 80, no associativity).
 Notation "'val' x ':' t '=' e ';' e'" := (Bind x t e e') (at level 60, right associativity).
 Notation "'prim' b ( n , es , ts )" := (Prim b n es ts)(at level 50, right associativity).
 Notation "'fun' \ f ( n , es , ts )" := (App f n es ts)(at level 50, right associativity).
-Notation "'If' e ':' t 'then' e' 'else' e'' ':' t'" := (Cond e t e' e'' t')(at level 40, left associativity).
+Notation "'If' e ':' t 'then' e' 'else' e'' ':' t'" := (Cond e t e' e'' t')(at level 40, left associativity).*)
 
 Definition typeof_expr (e : expr) : type :=
 match e with 
@@ -298,8 +298,8 @@ Definition sem_shl (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option va
 match v1, v2, t1, t2 with 
 | Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => None
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None
-| Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => Some (of_int (Int.shl i1 i2))
-| Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => Some (of_int (Int.shl i1 i2))
+| Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => if (Int.ltu i2 Int.iwordsize) then Some (of_int (Int.shl i1 i2)) else None 
+| Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => if (Int.ltu i2 Int.iwordsize) then Some (of_int (Int.shl i1 i2)) else None
 | Vloc l1, Vloc l2, (Reftype _ (Bprim Tint)), (Reftype _ (Bprim Tint)) => None 
 | _, _, _, _ => None
 end.
@@ -308,8 +308,8 @@ Definition sem_shr (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option va
 match v1, v2, t1, t2 with 
 | Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => None
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None
-| Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => Some (of_int (Int.shr i1 i2))
-| Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => Some (of_int (Int.shru i1 i2))
+| Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => if (Int.ltu i2 Int.iwordsize) then Some (of_int (Int.shr i1 i2)) else None
+| Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => if (Int.ltu i2 Int.iwordsize) then Some (of_int (Int.shru i1 i2)) else None
 | Vloc l1, Vloc l2, (Reftype _ (Bprim Tint)), (Reftype _ (Bprim Tint)) => None 
 | _, _, _, _ => None
 end.

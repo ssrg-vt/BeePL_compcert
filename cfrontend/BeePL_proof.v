@@ -499,16 +499,7 @@ destruct v1; auto.
   destruct p1; auto; inversion H1.
 Qed.
 
-Lemma sem_binary_operation_div_spec : forall i i' v,
-sem_binary_operation Div (Vint i) (Vint i') (Ptype Tint) (Ptype Tint) = Some v ->
-(Int.eq i' Int.zero || (Int.eq i (Int.repr Int.min_signed) 
-                   && Int.eq i' Int.mone)) = true.
-Proof.
-intros. inversion H; subst. 
-destruct (Int.eq i' Int.zero || (Int.eq i (Int.repr Int.min_signed) && Int.eq i' Int.mone)) 
-eqn:hneq in H1. inversion H1.
-Admitted.
-
+From mathcomp Require Import all_ssreflect. 
 
 Lemma transl_div_cdiv: forall v1 v2 t1 t2 v cenv m,
 sem_binary_operation Div v1 v2 t1 t2 = Some v -> 
@@ -519,17 +510,249 @@ Proof.
 intros; simpl. 
 generalize dependent (extract_type_div v1 v2 t1 t2 v H). intros; subst; simpl.
 destruct H0.
+(* Tint *)
 + destruct H0; subst; destruct v1; auto.
-  ++ destruct v2; auto; simpl; inversion H.
+  ++ by destruct v2; auto; simpl; inversion H.
   ++ destruct v2; auto; simpl; inversion H.
      unfold Cop.sem_div, Cop.sem_binarith, Cop.sem_cast; simpl.
-     destruct Archi.ptr64; auto.
-     +++ generalize dependent (sem_binary_operation_div_spec).
- Admitted.
+     destruct Archi.ptr64; auto. move: H1. by case: ifP=> //= hneq [] heq; subst; simpl.
+  ++ case: ifP=> //= hi.
+     +++ case: ifP=> //= hi'.
+         - case: ifP=> //= ht.
+           -- by rewrite hi' /= in ht H1.
+           -- by rewrite hi' /= in ht H1.
+         - case: ifP=> //= ht.
+           -- rewrite hi' /= in ht H1. rewrite /andb in ht.
+              move: ht. case: ifP=> //= ht'. rewrite ht' /= in H1.
+              move=> ht''; subst. by rewrite ht'' in H1.
+           -- rewrite hi' /= in ht H1. rewrite andb_lazy_alt /= in ht.
+              move: ht. case: ifP=> //= ht1 ht2; subst; rewrite /=.
+              rewrite ht2 andb_false_r /= in H1. by case: H1=> <- /=.
+              rewrite ht1 /= in H1. by case: H1=> <- /=.
+      +++ case: ifP=> //= hi'.
+         - case: ifP=> //= ht.
+           -- by rewrite hi' /= in ht H1.
+           -- by rewrite hi' /= in ht H1.
+         - case: ifP=> //= ht.
+           -- rewrite hi' /= in ht H1. rewrite /andb in ht.
+              move: ht. case: ifP=> //= ht'. rewrite ht' /= in H1.
+              move=> ht''; subst. by rewrite ht'' in H1.
+           -- rewrite hi' /= in ht H1. rewrite andb_lazy_alt /= in ht.
+              move: ht. case: ifP=> //= ht1 ht2; subst; rewrite /=.
+              rewrite ht2 andb_false_r /= in H1. by case: H1=> <- /=.
+              rewrite ht1 /= in H1. by case: H1=> <- /=.
+  ++ by destruct v2; subst; rewrite /=; inversion H.
+  ++ by destruct v2; subst; rewrite /=; inversion H.
+  ++ by destruct v2; subst; rewrite /=; inversion H.
+(* Tuint *)
++ destruct H0; subst; destruct v1; auto.
+  ++ by destruct v2; auto; simpl; inversion H.
+  ++ by destruct v2; auto; simpl; inversion H.
+  ++ destruct v2; auto; simpl; inversion H.
+     unfold Cop.sem_div, Cop.sem_binarith, Cop.sem_cast; simpl.
+     destruct Archi.ptr64; auto. move: H1. by case: ifP=> //= hneq [] heq; subst; simpl.
+  ++ case: ifP=> //= hi.
+     +++ case: ifP=> //= hi'.
+         - case: ifP=> //= ht.
+           -- by rewrite hi' /= in ht H1.
+           -- by rewrite hi' /= in ht H1.
+         - case: ifP=> //= ht.
+           -- rewrite hi' /= in ht H1. by rewrite /andb in ht.
+           -- rewrite hi' /= in ht H1. by case: H1=> <- /=. 
+      +++ case: ifP=> //= hi'.
+         - case: ifP=> //= ht.
+           -- by rewrite hi' /= in ht H1.
+           -- by rewrite hi' /= in ht H1.
+         - case: ifP=> //= ht.
+           -- by rewrite ht in hi'.
+           -- rewrite hi' /= in ht H1. by case: H1=> <-. 
+  ++ by destruct v2; subst; rewrite /=; inversion H.
+  ++ by destruct v2; subst; rewrite /=; inversion H.
+Qed.         
 
+Lemma transl_and_cand: forall v1 v2 t1 t2 v cenv m,
+sem_binary_operation And v1 v2 t1 t2 = Some v -> 
+Cop.sem_binary_operation cenv (transBeePL_bop_bop And) (transBeePL_value_cvalue v1) 
+     (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
+Some (transBeePL_value_cvalue v). 
+Proof.
+move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. by case: p=> //=.
++ case: v2=> //= i i'. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. by case: p=> //=.
++ case: v2=> //= i i'. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. by case: p=> //=.
++ case: v2=> //= b b'. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
+  rewrite /Cop.sem_and /Cop.sem_binarith /Cop.sem_cast /=.
+  case: Archi.ptr64=> //=.
+  + case: b'=> //=. by case: b=> //=.
+  case: (intsize_eq I32 I32) => //= heq.  
+  case: b'=> //=. by case: b=> //=.
+case:v2=> //= p p'. case: t1=> //= i b. case: b=> //= p''.
+case: p''=> //=. case: t2=> //= i' b. case:b=> //= p''. 
+by case:p''=> //=.
+Qed.
 
+Lemma transl_and_cor: forall v1 v2 t1 t2 v cenv m,
+sem_binary_operation Or v1 v2 t1 t2 = Some v -> 
+Cop.sem_binary_operation cenv (transBeePL_bop_bop Or) (transBeePL_value_cvalue v1) 
+     (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
+Some (transBeePL_value_cvalue v). 
+Proof.
+move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. by case: p=> //=.
++ case: v2=> //= i i'. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. by case: p=> //=.
++ case: v2=> //= i i'. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. by case: p=> //=.
++ case: v2=> //= b b'. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
+  rewrite /Cop.sem_or /Cop.sem_binarith /Cop.sem_cast /=.
+  case: Archi.ptr64=> //=.
+  + case: b'=> //=. by case: b=> //=.
+  by case: b=> //=.
+  case: (intsize_eq I32 I32) => //= heq.  
+  case: b'=> //=. + by case: b=> //=.
+  + by case: b=> //=.
+case:v2=> //= p p'. case: t1=> //= i b. case: b=> //= p''.
+case: p''=> //=. case: t2=> //= i' b. case:b=> //= p''. 
+by case:p''=> //=.
+Qed.
 
+Lemma transl_xor_cxor: forall v1 v2 t1 t2 v cenv m,
+sem_binary_operation Xor v1 v2 t1 t2 = Some v -> 
+Cop.sem_binary_operation cenv (transBeePL_bop_bop Xor) (transBeePL_value_cvalue v1) 
+     (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
+Some (transBeePL_value_cvalue v). 
+Proof.
+move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. by case: p=> //=.
++ case: v2=> //= i i'. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. by case: p=> //=.
++ case: v2=> //= i i'. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. by case: p=> //=.
++ case: v2=> //= b b'. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
+  rewrite /Cop.sem_or /Cop.sem_binarith /Cop.sem_cast /=.
+  case: Archi.ptr64=> //=.
+  + case: b'=> //=. by case: b=> //=.
+  by case: b=> //=.
+  case: (intsize_eq I32 I32) => //= heq.  
+  case: b'=> //=. + by case: b=> //=.
+  + by case: b=> //=.
+case:v2=> //= p p'. case: t1=> //= i b. case: b=> //= p''.
+case: p''=> //=. case: t2=> //= i' b. case:b=> //= p''. 
+by case:p''=> //=.
+Qed.
 
+Lemma transl_shl_cshl: forall v1 v2 t1 t2 v cenv m,
+sem_binary_operation Shl v1 v2 t1 t2 = Some v -> 
+Cop.sem_binary_operation cenv (transBeePL_bop_bop Shl) (transBeePL_value_cvalue v1) 
+     (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
+Some (transBeePL_value_cvalue v). 
+Proof.
+move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. by case: p=> //=.
++ case: v2=> //= i i'. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. case: p=> //= [] [] heq /=; subst.
+  rewrite /Cop.sem_shl /Cop.sem_shift /=. case: ifP=> //= hi.
+  + move: heq. by case:ifP=> //= hi' [] hv /=; subst; rewrite /=.
+  by rewrite hi in heq.
++ case: v2=> //= i i'. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. case: p=> //= [] [] heq /=; subst.
+  rewrite /Cop.sem_shl /Cop.sem_shift /=. case: ifP=> //= hi.
+  + move: heq. by case:ifP=> //= hi' [] hv /=; subst; rewrite /=.
+  by rewrite hi in heq.
++ case: v2=> //= b b'. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. by case:p=> //= p. 
+case: v2=> //= p1 p2.
+case: t1=> //= i b. case: b=> //= p. case: p=> //=.
+case: t2=> //= i' b. case: b=> //= p. by case: p=> //=.
+Qed.
 
+Lemma transl_shr_cshr: forall v1 v2 t1 t2 v cenv m,
+sem_binary_operation Shr v1 v2 t1 t2 = Some v -> 
+Cop.sem_binary_operation cenv (transBeePL_bop_bop Shr) (transBeePL_value_cvalue v1) 
+     (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
+Some (transBeePL_value_cvalue v). 
+Proof.
+move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. by case: p=> //=.
++ case: v2=> //= i i'. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. case: p=> //= [] [] heq /=; subst.
+  rewrite /Cop.sem_shr /Cop.sem_shift /=. case: ifP=> //= hi.
+  + move: heq. by case:ifP=> //= hi' [] hv /=; subst; rewrite /=.
+  by rewrite hi in heq.
++ case: v2=> //= i i'. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. case: p=> //= [] [] heq /=; subst.
+  rewrite /Cop.sem_shr /Cop.sem_shift /=. case: ifP=> //= hi.
+  + move: heq. by case:ifP=> //= hi' [] hv /=; subst; rewrite /=.
+  by rewrite hi in heq.
++ case: v2=> //= b b'. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. by case:p=> //= p. 
+case: v2=> //= p1 p2.
+case: t1=> //= i b. case: b=> //= p. case: p=> //=.
+case: t2=> //= i' b. case: b=> //= p. by case: p=> //=.
+Qed.
 
+Lemma transl_eq_ceq: forall v1 v2 t1 t2 v cenv m,
+sem_binary_operation Eq v1 v2 t1 t2 = Some v -> 
+Cop.sem_binary_operation cenv (transBeePL_bop_bop Eq) (transBeePL_value_cvalue v1) 
+     (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
+Some (transBeePL_value_cvalue v). 
+Proof.
+move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
+  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=. 
+  by case: (Archi.ptr64)=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. case: p=> //= i i' [] hv; subst; rewrite /=.
+  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
+  case: (Archi.ptr64)=> //=. rewrite /Values.Val.of_bool /bool_to_int /=.
+  by case: ifP=> //=.
++ case: (intsize_eq I32 I32)=> //= heq.
+  rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. case: p=> //= i i' [] hv; subst; rewrite /=.
+  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
+  case: (Archi.ptr64)=> //=. rewrite /Values.Val.of_bool /bool_to_int /=.
+  by case: ifP=> //=.
++ case: (intsize_eq I32 I32)=> //= heq.
+  rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //= b b'.
+  case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
+  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
+  case: (Archi.ptr64)=> //=. 
+  + rewrite /Values.Val.of_bool /bool_to_int /=. case: ifP=> //=.
+    + case: ifP=> //= hb'.
+      + by case: ifP=> //=.
+      by case: ifP=> //=.
+    case: ifP=> //= hb'.
+    + by case: ifP=> //=.
+    by case: ifP=> //=.
+  case: (intsize_eq I32 I32)=> //= heq.
+  rewrite /Values.Val.of_bool /bool_to_int /=.
+  case: ifP=> //=.
+  + case: ifP=> //= hb'.
+    + by case: ifP=> //=.
+    by case: ifP=> //=.
+  case: ifP=> //= hb'.
+  + case: ifP=> //=. by case: ifP=> //=.
+case: v2=> //= p p'. case: t1=> //= i b. case: b=> //= p1.
+case: p1=> //=. case: t2=> //= i' b'. case: b'=> //= p2.
+case: p2=> //= [] [] hv; subst; rewrite /=.
+rewrite /Cop.sem_cmp /= /Cop.cmp_ptr /=.
+case: ifP=> //= hm.
++ case: ifP=> //= hm'.
+  rewrite /andb in hm hm'. move: hm. case: ifP=> //= hm1 hm2.
+  move: hm'. case: ifP=> //= hm1' hm2'; subst; rewrite /=.
+  rewrite hm1' /= in hm1. rewrite hm2' /= in hm2. 
+Admitted.
 
