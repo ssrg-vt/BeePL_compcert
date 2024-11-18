@@ -745,14 +745,154 @@ move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
     by case: ifP=> //=.
   case: ifP=> //= hb'.
   + case: ifP=> //=. by case: ifP=> //=.
-case: v2=> //= p p'. case: t1=> //= i b. case: b=> //= p1.
-case: p1=> //=. case: t2=> //= i' b'. case: b'=> //= p2.
-case: p2=> //= [] [] hv; subst; rewrite /=.
-rewrite /Cop.sem_cmp /= /Cop.cmp_ptr /=.
-case: ifP=> //= hm.
-+ case: ifP=> //= hm'.
-  rewrite /andb in hm hm'. move: hm. case: ifP=> //= hm1 hm2.
-  move: hm'. case: ifP=> //= hm1' hm2'; subst; rewrite /=.
-  rewrite hm1' /= in hm1. rewrite hm2' /= in hm2. 
+admit. (* Pointer equality: FIX ME *)
 Admitted.
+
+Lemma transl_neq_cneq: forall v1 v2 t1 t2 v cenv m,
+sem_binary_operation Neq v1 v2 t1 t2 = Some v -> 
+Cop.sem_binary_operation cenv (transBeePL_bop_bop Neq) (transBeePL_value_cvalue v1) 
+     (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
+Some (transBeePL_value_cvalue v). 
+Proof.
+move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
+  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
+  by case: (Archi.ptr64)=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. case: p=> //= i i' [] hv; subst; rewrite /=.
+  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
+  case: (Archi.ptr64)=> //=. rewrite /Values.Val.of_bool /bool_to_int /=.
+  by case: ifP=> //=.
++ case: (intsize_eq I32 I32)=> //= heq.
+  rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. case: p=> //= i i' [] hv; subst; rewrite /=.
+  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
+  case: (Archi.ptr64)=> //=. rewrite /Values.Val.of_bool /bool_to_int /=.
+  by case: ifP=> //=.
++ case: (intsize_eq I32 I32)=> //= heq.
+  rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //= b b'.
+  case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
+  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
+  case: (Archi.ptr64)=> //=. 
+  + rewrite /Values.Val.of_bool /bool_to_int /=. case: ifP=> //=.
+    + case: ifP=> //= hb'.
+      + by case: ifP=> //=.
+      by case: ifP=> //=.
+    case: ifP=> //= hb'.
+    + by case: ifP=> //=.
+    by case: ifP=> //=.
+  case: (intsize_eq I32 I32)=> //= heq.
+  rewrite /Values.Val.of_bool /bool_to_int /=.
+  case: ifP=> //=.
+  + case: ifP=> //= hb'.
+    + by case: ifP=> //=.
+    by case: ifP=> //=.
+  case: ifP=> //= hb'.
+  + case: ifP=> //=. by case: ifP=> //=.
+admit. (* Pointer equality: FIX ME *)
+Admitted.
+
+Lemma transl_lt_clt: forall v1 v2 t1 t2 v cenv m,
+sem_binary_operation Lt v1 v2 t1 t2 = Some v -> 
+Cop.sem_binary_operation cenv (transBeePL_bop_bop Lt) (transBeePL_value_cvalue v1) 
+     (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
+Some (transBeePL_value_cvalue v). 
+Proof.
+move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
+  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
+  case: (Archi.ptr64)=> //=. 
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. case: p=> //= i i' [] hv; subst; rewrite /=.
+  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
+  case: (Archi.ptr64)=> //=. rewrite /Values.Val.of_bool /bool_to_int /=.
+  by case: ifP=> //=.
++ case: (intsize_eq I32 I32)=> //= heq.
+  rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. case: p=> //= i i' [] hv; subst; rewrite /=.
+  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
+  case: (Archi.ptr64)=> //=. rewrite /Values.Val.of_bool /bool_to_int /=.
+  by case: ifP=> //=.
++ case: (intsize_eq I32 I32)=> //= heq.
+  rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //= b b'.
+  case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
+  case: v2=> //= p p'. case: t1=> //= i b. case:b=> //= p''.
+  case: p''=> //=. case: t2=> //= i' b'. case: b'=> //= p1.
+  by case: p1=> //=.
+Qed.
+
+Lemma transl_gt_cgt: forall v1 v2 t1 t2 v cenv m,
+sem_binary_operation Gt v1 v2 t1 t2 = Some v -> 
+Cop.sem_binary_operation cenv (transBeePL_bop_bop Gt) (transBeePL_value_cvalue v1) 
+     (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
+Some (transBeePL_value_cvalue v). 
+Proof.
+move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
+  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
+  case: (Archi.ptr64)=> //=. 
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. case: p=> //= i i' [] hv; subst; rewrite /=.
+  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
+  case: (Archi.ptr64)=> //=. rewrite /Values.Val.of_bool /bool_to_int /=.
+  by case: ifP=> //=.
++ case: (intsize_eq I32 I32)=> //= heq.
+  rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. case: p=> //= i i' [] hv; subst; rewrite /=.
+  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
+  case: (Archi.ptr64)=> //=. rewrite /Values.Val.of_bool /bool_to_int /=.
+  by case: ifP=> //=.
++ case: (intsize_eq I32 I32)=> //= heq.
+  rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //= b b'.
+  case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
+  case: v2=> //= p p'. case: t1=> //= i b. case:b=> //= p''.
+  case: p''=> //=. case: t2=> //= i' b'. case: b'=> //= p1.
+  by case: p1=> //=.
+Qed.
+
+Lemma transl_lte_cle: forall v1 v2 t1 t2 v cenv m,
+sem_binary_operation Lte v1 v2 t1 t2 = Some v -> 
+Cop.sem_binary_operation cenv (transBeePL_bop_bop Lte) (transBeePL_value_cvalue v1) 
+     (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
+Some (transBeePL_value_cvalue v). 
+Proof.
+move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
+  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
+  by case: (Archi.ptr64)=> //=. 
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. case: p=> //= i i' [] hv; subst; rewrite /=.
+  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
+  case: (Archi.ptr64)=> //=. rewrite /Values.Val.of_bool /bool_to_int /=.
+  by case: ifP=> //=.
++ case: (intsize_eq I32 I32)=> //= heq.
+  rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. case: p=> //= i i' [] hv; subst; rewrite /=.
+  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
+  case: (Archi.ptr64)=> //=. rewrite /Values.Val.of_bool /bool_to_int /=.
+  by case: ifP=> //=.
++ case: (intsize_eq I32 I32)=> //= heq.
+  rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //= b b'.
+  case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
+  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
+  case: (Archi.ptr64)=> //=. rewrite Int.not_lt /Values.Val.of_bool /=.
+  case: ifP=> //= hb. move: hv. case: ifP=> //= hb' [] <- /=. by rewrite hb'.
+  move: hv. case: ifP=> //= hb' [] hv /=; subst. rewrite hb' /=.
+  rewrite orb_lazy_alt in hb. move: hb. case: ifP=> //= h1 h2. 
+  rewrite /bool_to_int /= in h2. move: h2. case: ifP=> //= hb.
+  + case: b hb' h1=> //= hb' h1 h. 
+Admitted.
+
 

@@ -326,8 +326,8 @@ end.
 
 Definition sem_neq (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
 match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => Some (Vbool true)
-| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => Some (of_bool (Bool.eqb b1 b2))
+| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => Some (Vbool false)
+| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => Some (of_bool (negb (Bool.eqb b1 b2)))
 | Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => Some (of_bool (Int.cmp Cne i1 i2))
 | Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => Some (of_bool (Int.cmpu Cne i1 i2))
 | Vloc l1, Vloc l2, (Reftype _ (Bprim Tint)), (Reftype _ (Bprim Tint))  => Some (of_bool (negb (l1 =? l2)%positive)) 
@@ -336,7 +336,7 @@ end.
 
 Definition sem_lt (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
 match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => Some (Vbool true)
+| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => Some (Vbool false)
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None
 | Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => Some (of_bool (Int.cmp Clt i1 i2))
 | Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => Some (of_bool (Int.cmpu Clt i1 i2))
@@ -346,8 +346,8 @@ end.
 
 Definition sem_lte (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
 match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => Some (Vbool true)
-| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None
+| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => Some (Vbool true) (* Fix me *)
+| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => if (Bool.eqb b1 b2) then Some (of_bool (Bool.eqb b1 b2)) else None
 | Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => Some (of_bool (Int.cmp Cle i1 i2))
 | Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => Some (of_bool (Int.cmpu Cle i1 i2))
 | Vloc l1, Vloc l2, (Reftype _ (Bprim Tint)), (Reftype _ (Bprim Tint))  => None 
@@ -356,7 +356,7 @@ end.
 
 Definition sem_gt (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
 match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => Some (Vbool true)
+| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => Some (Vbool false)
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None
 | Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => Some (of_bool (Int.cmp Cgt i1 i2))
 | Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => Some (of_bool (Int.cmpu Cgt i1 i2))
@@ -366,8 +366,8 @@ end.
 
 Definition sem_gte (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
 match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => Some (Vbool true)
-| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None
+| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => Some (Vbool true) (* Fix me *)
+| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => if (Bool.eqb b1 b2) then Some (of_bool (Bool.eqb b1 b2)) else None
 | Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => Some (of_bool (Int.cmp Cge i1 i2))
 | Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => Some (of_bool (Int.cmpu Cge i1 i2))
 | Vloc l1, Vloc l2, (Reftype _ (Bprim Tint)), (Reftype _ (Bprim Tint))  => None 
