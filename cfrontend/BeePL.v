@@ -61,7 +61,7 @@ Inductive builtin : Type :=
 (* The source language never exposes the heap binding construct hpφ.e directly to the user 
    but during evaluation the reductions on heap operations create heaps and use them. *)
 Inductive expr : Type :=
-| Var : ident -> type -> expr                                      (* variable *)
+| Var : vinfo -> expr                                      (* variable *)
 | Const : constant -> type -> expr                                 (* constant *)
 | App : option ident -> expr -> list expr -> type -> expr          (* function application: option ident represents return variable *)
 | Prim : builtin -> list expr -> type -> expr                      (* primitive functions: arrow : 
@@ -71,7 +71,7 @@ Inductive expr : Type :=
 | Bind : ident -> type -> expr -> expr -> type -> expr             (* let binding: type of continuation *)
 | Cond : expr -> expr -> expr -> type -> expr                      (* if e then e else e *)
 (* not intended to be written by programmers:*)
-| Addr : loc -> basic_type -> expr                                 (* address *)
+| Addr : linfo -> expr                                 (* address *)
 | Hexpr : heap -> expr -> type -> expr                             (* heap effect *).
 
 (*Notation "x ':' t" := (Var x t) (at level 70, no associativity).
@@ -83,21 +83,21 @@ Notation "'If' e ':' t 'then' e' 'else' e'' ':' t'" := (Cond e t e' e'' t')(at l
 
 Definition typeof_expr (e : expr) : type :=
 match e with 
-| Var x t => t
+| Var x => x.(vtype)
 | Const x t => t
 | App x e ts t => t
 | Prim b es t => t
 | Bind x t e e' t' => t'
 | Cond e e' e'' t => t
-| Addr l t => match t with 
-              | Bprim tb => (Ptype tb)
-              end
+| Addr l => match l.(ltype) with 
+            | Bprim tb => (Ptype tb)
+            end
 | Hexpr h e t => t
 end.
 
 (* f(x1 : t1, x2 : t2) : t3 = int x = 0; int y =0; return 0 (* Dummy example *) *)
 Record fun_decl : Type := 
-       mkfunction {fname : ident; args : list (ident * type); lvars : list (ident * type); rtype : type; body : expr}.
+       mkfunction {fname : ident; args : list vinfo; lvars : list vinfo; rtype : type; body : expr}.
 
 Record globv : Type := mkglobv {gname : ident; gtype : type; gval : list gconstant}.
 
@@ -159,13 +159,13 @@ End Subs.
 (* Substitution *)
 Fixpoint subst (x:ident) (e':expr) (e:expr) : expr :=
 match e with
-| Var y t => if (x =? y)%positive then e' else e
+| Var y => if (x =? y.(vname))%positive then e' else e
 | Const c t => Const c t
 | App r e es t => App r (subst x e' e) (substs subst x e' es) t
 | Prim b es t => Prim b (substs subst x e' es) t 
 | Bind y t e1 e2 t' => if (x =? y)%positive then Bind y t e1 e2 t' else Bind y t e1 (subst x e' e2) t'
 | Cond e1 e2 e3 t => Cond (subst x e' e1) (subst x e' e2) (subst x e' e3) t
-| Addr l t => Addr l t 
+| Addr l => Addr l 
 | Hexpr h e t => Hexpr h (subst x e' e) t
 end.
 
@@ -395,9 +395,9 @@ end.
 
 (* Operational Semantics *) 
 Inductive sem_expr : genv -> state -> expr -> state -> value -> Prop :=
-| sem_var : forall ge st x t v, 
+| sem_var : forall ge st x v, 
             get_val_var st.(vmem) x = Some v -> 
-            sem_expr ge st (Var x t) st v
+            sem_expr ge st (Var x) st v
 | sem_const_int : forall ge st i, 
                   sem_expr ge st (Const (ConsInt i) (Ptype Tint)) st (Vint i)
 | sem_const_bool : forall ge st b, 
@@ -408,18 +408,18 @@ Inductive sem_expr : genv -> state -> expr -> state -> value -> Prop :=
              sem_expr ge st e st' (Vloc l) ->
              get_fun_decl ge l = Some (Fdecl fd) ->
              sem_exprs ge st' es st'' vs ->
-             typeof_values vs (unzip2 (fd.(args))) ->
-             write_vars (st.(vmem)) (unzip1 fd.(args)) vs = Ok error vm' ->
+             typeof_values vs (extract_types_vinfos fd.(args)) ->
+             write_vars (st.(vmem)) fd.(args) vs = Ok error vm' ->
              sem_expr ge {| hmem := st''.(hmem); vmem := vm' |} fd.(body) st''' rv -> 
              write_var (st'''.(vmem)) r rv = vm'' ->
              typeof_value rv (fd.(rtype)) ->
-             sem_expr ge st (App (Some r) e es t) {| hmem := st'''.(hmem); vmem := vm'' |}  rv 
+             sem_expr ge st (App (Some r.(vname)) e es t) {| hmem := st'''.(hmem); vmem := vm'' |}  rv 
 | sem_app : forall ge e es t st l st' st'' vs fd vm' st''' rv vm'',
              sem_expr ge st e st' (Vloc l) ->
              get_fun_decl ge l = Some (Fdecl fd) ->
              sem_exprs ge st' es st'' vs ->
-             typeof_values vs (unzip2 (fd.(args))) ->
-             write_vars (st.(vmem)) (unzip1 fd.(args)) vs = Ok error vm' ->
+             typeof_values vs (extract_types_vinfos fd.(args)) ->
+             write_vars (st.(vmem)) fd.(args) vs = Ok error vm' ->
              sem_expr ge {| hmem := st''.(hmem); vmem := vm' |} fd.(body) st''' rv -> 
              typeof_value rv (fd.(rtype)) ->
              sem_expr ge st (App None e es t) {| hmem := st'''.(hmem); vmem := vm'' |}  rv 
@@ -442,15 +442,16 @@ Inductive sem_expr : genv -> state -> expr -> state -> value -> Prop :=
                  typeof_value v (typeof_expr e) ->
                  sem_expr ge st (Prim Deref (e :: nil) t) st' v
 | sem_prim_deref : forall ge st e t l st' v, 
-                   sem_expr ge st e st' (Vloc l) ->
+                   sem_expr ge st e st' (Vloc l.(lname)) ->
                    get_val_loc st.(hmem) l = Some v -> 
                    typeof_value v (typeof_expr e) ->
                    sem_expr ge st (Prim Deref (e :: nil) t) st' v
-| sem_prim_massgn : forall ge st e1 e2 t l v h st' st'',
+| sem_prim_massgn : forall ge st e1 e2 l v t h st' st'',
                     sem_expr ge st e1 st' (Vloc l) -> 
                     sem_expr ge st' e2 st'' v ->
-                    update_heap st''.(hmem) l v = h ->
-                    sem_expr ge st (Prim Massgn (e1 :: e2 :: nil) t) {| hmem := h; vmem := st''.(vmem) |} Vunit
+                    typeof_value v (Ptype t) ->
+                    update_heap st''.(hmem) {| lname := l; ltype := Bprim t |} v = h ->
+                    sem_expr ge st (Prim Massgn (e1 :: e2 :: nil) (Ptype t)) {| hmem := h; vmem := st''.(vmem) |} Vunit
 | sem_bind : forall ge st x t e e' t' st' st'' v e'',
              subst x e e' = e'' ->
              sem_expr ge st' e'' st'' v ->
@@ -463,8 +464,8 @@ Inductive sem_expr : genv -> state -> expr -> state -> value -> Prop :=
                    sem_expr ge st e1 st' (Vbool false) -> 
                    sem_expr ge st' e3 st'' v ->
                    sem_expr ge st (Cond e1 e2 e3 t) st'' v
-| sem_addr : forall ge st l bt,
-             sem_expr ge st (Addr l bt) st (Vloc l) 
+| sem_addr : forall ge st l,
+             sem_expr ge st (Addr l) st (Vloc l.(lname)) 
 with sem_exprs : genv -> state -> list expr -> state -> list value -> Prop :=
 | sem_nil : forall ge st,
             sem_exprs ge st nil st nil

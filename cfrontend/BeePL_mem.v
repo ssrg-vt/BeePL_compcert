@@ -32,72 +32,110 @@ match vs, ts with
 | _, _ => False
 end.
 
+Definition loc := positive.
+
 Definition of_bool (b : bool) : value := Vbool b.
 
 Definition of_int (i : int) : value := Vint i.
 
-Definition loc := positive. 
+Record vinfo : Type := mkvar { vname : ident; vtype : type }.
+Record linfo : Type := mkloc { lname : loc; ltype : basic_type }.
 
-Definition heap := list (loc * value).
+Fixpoint extract_types_vinfos (vs : list vinfo) : list type :=
+match vs with 
+| nil => nil
+| v :: vs => v.(vtype) :: extract_types_vinfos vs
+end.
 
-Definition vmap := list (ident * value).
+Fixpoint extract_types_linfos (vs : list linfo) : list basic_type :=
+match vs with 
+| nil => nil
+| v :: vs => v.(ltype) :: extract_types_linfos vs
+end.
 
-Fixpoint is_mem_vmap (x : ident) (l : list ident) {struct l} : bool :=
+Fixpoint extract_vars_vinfos (vs : list vinfo) : list ident :=
+match vs with 
+| nil => nil
+| v :: vs => v.(vname) :: extract_vars_vinfos vs
+end.
+
+Fixpoint extract_locs_linfos (vs : list linfo) : list loc :=
+match vs with 
+| nil => nil
+| v :: vs => v.(lname) :: extract_locs_linfos vs
+end.
+
+Fixpoint extract_list_rvtypes (l : list BeePL_mem.vinfo) : list (ident * type) :=
+match l with 
+| nil => nil
+| x :: xs => (x.(vname), x.(vtype)) :: extract_list_rvtypes xs
+end.
+
+Definition eq_vinfo (v1 : vinfo) (v2 : vinfo) : bool :=
+if (v1.(vname) =? v2.(vname))%positive && (eq_type v1.(vtype) v2.(vtype)) then true else false.
+
+Definition eq_linfo (v1 : linfo) (v2 : linfo) : bool :=
+if (v1.(lname) =? v2.(lname))%positive && (eq_basic_type v1.(ltype) v2.(ltype)) then true else false.
+
+Definition heap := list (linfo * value).
+
+Definition vmap := list (vinfo * value).
+
+Fixpoint is_mem_vmap (x : vinfo) (l : vmap) {struct l} : bool :=
 match l with 
 | nil => false
-| y :: ys => if (x =? y)%positive then true else is_mem_vmap x ys
+| y :: ys => if eq_vinfo x (fst y) then true else is_mem_vmap x ys
 end.
 
-Fixpoint is_mem_heap (x : loc) (l : list loc) {struct l} : bool :=
+Fixpoint is_mem_heap (x : linfo) (l : heap) {struct l} : bool :=
 match l with 
 | nil => false
-| y :: ys => if (x =? y)%positive then true else is_mem_heap x ys
+| y :: ys => if eq_linfo x (fst y) then true else is_mem_heap x ys
 end.
 
-Fixpoint update_heap (h : heap) (k : loc) (v : value) : heap := 
+Fixpoint update_heap (h : heap) (k : linfo) (v : value) : heap := 
 match h with 
 | nil => (k, v) :: nil
-| h :: t => if (k =? fst(h))%positive then (k, v) :: t else h :: update_heap t k v
+| h :: t => if (eq_linfo k (fst h)) then (k, v) :: t else h :: update_heap t k v
 end.
 
-Definition fresh_loc (h : heap) (l : loc) : bool :=
-negb(is_mem_heap l (unzip1 h)).
+Definition fresh_loc (h : heap) (l : linfo) : bool :=
+negb(is_mem_heap l h).
 
-Fixpoint write_var (h : vmap) (k : ident) (v : value) : vmap := 
+Fixpoint write_var (h : vmap) (k : vinfo) (v : value) : vmap := 
 match h with 
 | nil => (k, v) :: nil
-| h :: t => if (k =? fst(h))%positive then (k, v) :: t else h :: write_var t k v
+| h :: t => if (eq_vinfo k (fst h)) then (k, v) :: t else h :: write_var t k v
 end.
 
-Fixpoint write_vars (h : vmap) (ks : list ident) (vs : list value) : result error vmap :=
+Fixpoint write_vars (h : vmap) (ks : list vinfo) (vs : list value) : result error vmap :=
 match ks, vs with 
 | nil, nil => Ok error h
 | k :: ks, v :: vs => (write_vars (write_var h k v) ks vs)
 | _, _ => Error vmap ErrNotAllowed
 end. 
 
-Fixpoint get_val_loc (h : heap) (k : loc) : option value :=
+Fixpoint get_val_loc (h : heap) (k : linfo) : option value :=
 match h with 
 | nil => None 
-| v :: vm => if (k =? fst(v))%positive then Some (snd(v)) else get_val_loc vm k
+| v :: vm => if (eq_linfo k (fst v)) then Some (snd(v)) else get_val_loc vm k
 end.
 
-Fixpoint get_val_var (h : vmap) (k : ident) : option value :=
+Fixpoint get_val_var (h : vmap) (k : vinfo) : option value :=
 match h with 
 | nil => None 
-| v :: vm => if (k =? fst(v))%positive then Some (snd(v)) else get_val_var vm k
+| v :: vm => if (eq_vinfo k (fst v)) then Some (snd(v)) else get_val_var vm k
 end.
 
 (* State is made from heap and virtual map (registers to values) *)
 Record state : Type := mkstate {hmem : heap; vmem : vmap}.
 
-Definition valid_access_vmap (x : ident) (vm : vmap) : Prop :=
-is_mem_vmap x (unzip1 vm) = true.
+Definition valid_access_vmap (x : vinfo) (vm : vmap) : Prop :=
+is_mem_vmap x vm = true.
 
-Fixpoint valid_access_vmaps (x : list ident) (vm : vmap) : Prop :=
+Fixpoint valid_access_vmaps (x : list vinfo) (vm : vmap) : Prop :=
 match x with 
 | nil => True 
 | x :: xs => valid_access_vmap x vm /\ valid_access_vmaps xs vm
 end. 
-
 

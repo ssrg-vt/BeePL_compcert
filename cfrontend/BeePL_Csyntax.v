@@ -109,7 +109,7 @@ end.
 
 Fixpoint transBeePL_expr_expr (e : BeePL.expr) : Csyntax.expr := 
 match e with 
-| Var x t => Evar x (transBeePL_type t)
+| Var x => Evar x.(BeePL_mem.vname) (transBeePL_type (x.(BeePL_mem.vtype)))
 | Const c t => match c with 
                | ConsInt i => Eval (Values.Vint i) 
                               (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |})
@@ -155,7 +155,7 @@ match e with
 | Bind x t e e' t' => Ecomma (Eassign (Evar x (transBeePL_type t)) (transBeePL_expr_expr e) (transBeePL_type t)) 
                              (transBeePL_expr_expr e') (transBeePL_type t')
 | Cond e e' e'' t => Econdition (transBeePL_expr_expr e) (transBeePL_expr_expr e') (transBeePL_expr_expr e'') (transBeePL_type t)
-| Addr l t => Eval (Values.Vptr l (Ptrofs.of_ints (Int.repr 0))) (Tpointer (Tint I32 Signed {| attr_volatile := false; 
+| Addr l => Eval (Values.Vptr l.(BeePL_mem.lname) (Ptrofs.of_ints (Int.repr 0))) (Tpointer (Tint I32 Signed {| attr_volatile := false; 
                                                                                            attr_alignas := Some 4%N |})
                                                                  {| attr_volatile := false; attr_alignas := Some 4%N |})
 | Hexpr h e t => Eval (Values.Vundef) Tvoid (* FIX ME *)
@@ -163,7 +163,7 @@ end.
 
 Definition check_var_const (e : BeePL.expr) : bool :=
 match e with 
-| Var x t => true 
+| Var x => true 
 | Const c t => true 
 | _ => false
 end.
@@ -171,7 +171,7 @@ end.
 
 Definition transBeePL_expr_st (e : BeePL.expr) : Csyntax.statement :=
 match e with 
-| Var x t => Sreturn (Some (Evalof (Evar x (transBeePL_type t)) (transBeePL_type t)))
+| Var x => Sreturn (Some (Evalof (Evar x.(BeePL_mem.vname) (transBeePL_type x.(BeePL_mem.vtype))) (transBeePL_type x.(BeePL_mem.vtype))))
 | Const c t => Sreturn (Some (Evalof (match c with 
                                       | ConsInt i => Eval (Values.Vint i) 
                                                        (Tint I32 Signed {| attr_volatile := false; attr_alignas := Some 4%N |})
@@ -216,7 +216,7 @@ match e with
                  end 
 | Bind x t e e' t' => match e' with 
                       (* no side-effect case *)
-                      | Var x' t' => Ssequence (Sdo (Eassign (Evar x (transBeePL_type t)) 
+                      | Var x' => Ssequence (Sdo (Eassign (Evar x (transBeePL_type t)) 
                                                             (transBeePL_expr_expr e) 
                                                     Tvoid)) 
                                                (Sreturn (Some (Evalof (transBeePL_expr_expr e') (transBeePL_type (BeePL.typeof_expr (e'))))))
@@ -242,7 +242,7 @@ match e with
                                                                          (Sdo (transBeePL_expr_expr e'))
                                                                          (Sdo (transBeePL_expr_expr e''))
                       
-| Addr l t => Sdo (Eval (Values.Vptr l (Ptrofs.of_ints (Int.repr 0))) (Tpointer (Tint I32 Signed {| attr_volatile := false; 
+| Addr l => Sdo (Eval (Values.Vptr l.(BeePL_mem.lname) (Ptrofs.of_ints (Int.repr 0))) (Tpointer (Tint I32 Signed {| attr_volatile := false; 
                                                                                            attr_alignas := Some 4%N |})
                                                                  {| attr_volatile := false; attr_alignas := Some 4%N |}))
 | Hexpr h e t => Sdo (Eval (Values.Vundef) Tvoid) (* FIX ME *)
@@ -255,12 +255,12 @@ Definition default_cc (fd : fun_decl) : calling_convention :=
 Definition BeePLfd_function (fd : fun_decl) : (Ctypes.fundef function) :=
 Internal {| fn_return := transBeePL_type (fd.(rtype)); 
             fn_callconv := default_cc(fd); 
-            fn_params := zip (unzip1 (fd.(args))) 
-                             (typelist_list_type 
-                              (transBeePL_types transBeePL_type (unzip2 (fd.(args))))); 
-            fn_vars := zip (unzip1 (fd.(lvars))) 
-                           (typelist_list_type 
-                             (transBeePL_types transBeePL_type (unzip2 (fd.(lvars))))); 
+            fn_params := zip (unzip1 (BeePL_mem.extract_list_rvtypes (fd.(args))))
+                             (typelist_list_type (transBeePL_types transBeePL_type 
+                               (unzip2 (BeePL_mem.extract_list_rvtypes (fd.(args))))));
+            fn_vars := zip (unzip1 (BeePL_mem.extract_list_rvtypes (fd.(lvars))))
+                             (typelist_list_type (transBeePL_types transBeePL_type 
+                               (unzip2 (BeePL_mem.extract_list_rvtypes (fd.(lvars))))));
             fn_body := transBeePL_expr_st (fd.(body)) |}.
 
 Definition gconstant_init_data (g : BeePL.gconstant) : init_data :=
