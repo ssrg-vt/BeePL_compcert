@@ -11,14 +11,22 @@ Inductive effect_label : Type :=
 
 Definition effect := list effect_label.  (* row of effects *)
 
+Inductive signedness : Type :=
+| Signed: signedness
+| Unsigned: signedness.
+
+Inductive intsize : Type :=
+| I8: intsize
+| I16: intsize
+| I32: intsize.
+
 Inductive primitive_type : Type :=
 | Tunit : primitive_type
-| Tint : primitive_type
-| Tuint : primitive_type 
+| Tint : intsize -> signedness -> primitive_type
 | Tbool : primitive_type.
 
 Inductive basic_type : Type :=  
-Bprim : primitive_type -> basic_type.
+| Bprim : primitive_type -> basic_type.
 
 Inductive type : Type :=
 | Ptype : primitive_type -> type                          (* primitive types *)
@@ -28,8 +36,9 @@ Inductive type : Type :=
 Definition sizeof_ptype (t : primitive_type) : Z :=
 match t with 
 | Tunit => 1
-| Tint => 4 (* we take 32 bits as default for now: 4 bytes *) 
-| Tuint => 4 
+| Tint I8 _ => 1
+| Tint I16 _ => 2
+| Tint I32 _ => 4
 | Tbool => 1
 end.
 
@@ -46,6 +55,21 @@ match t with
 end.
 
 (* Equality on types *)
+Definition eq_signedness (sg1 sg2 : signedness) : bool :=
+match sg1, sg2 with 
+| Signed, Signed => true 
+| Unsigned, Unsigned => true 
+| _, _ => false
+end.
+
+Definition eq_intsize (i1 i2: intsize) : bool :=
+match i1, i2 with 
+| I8, I8 => true 
+| I16, I16 => true 
+| I32, I32 => true 
+| _, _ => false
+end.
+
 Definition eq_effect_label (e1 e2 : effect_label) : bool :=
 match e1, e2 with 
 | Panic, Panic => true 
@@ -66,8 +90,7 @@ end.
 Definition eq_primitive_type (p1 p2 : primitive_type) : bool :=
 match p1, p2 with 
 | Tunit, Tunit => true 
-| Tint, Tint => true
-| Tuint, Tuint => true
+| Tint sz s, Tint sz' s'=> eq_intsize sz sz' && eq_signedness s s'
 | Tbool, Tbool => true
 | _, _ => false
 end.   
@@ -117,7 +140,7 @@ end.
 Definition ty_context := list (ident * type).
 (* To ensure that a location does not contain another location (ref) 
    and only points to basic types like int, bool, unit or pair *)
-Definition store_context := list (ident * basic_type).   
+Definition store_context := list (ident * type).   
 
 Fixpoint remove_var_ty (t : ty_context) (k : ident) (T : type) : ty_context :=
 match t with 
@@ -155,7 +178,7 @@ match ks with
 | k :: ks => extend_contexts (extend_context t (fst(k)) (snd(k))) ks
 end. 
 
-Fixpoint get_sty (t : store_context) (k : ident) : option basic_type :=
+Fixpoint get_sty (t : store_context) (k : ident) : option type :=
 match t with 
 | nil => None 
 | x :: xs => if (fst(x) =? k)%positive then Some (snd(x)) else get_sty xs k

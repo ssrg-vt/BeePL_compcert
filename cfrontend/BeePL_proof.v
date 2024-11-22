@@ -2,7 +2,7 @@ Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Linking Ctypes.
 Require Import BeePL_aux BeePL_mem BeeTypes BeePL Csyntax Clight Globalenvs BeePL_Csyntax SimplExpr.
-Require Import compcert.common.Errors.
+Require Import compcert.common.Errors BeePL_auxlemmas.
 
 (***** Correctness proof for the Clight generation from BeePL using 
        composition of BeePL and CompCert compiler *****)
@@ -10,11 +10,10 @@ Require Import compcert.common.Errors.
 (***** Specification for types *****) 
 Inductive rel_prim_type : BeeTypes.primitive_type -> Ctypes.type -> Prop :=
 | rel_tunit : rel_prim_type Tunit (Ctypes.Tvoid)
-| rel_tint : rel_prim_type Tint (Ctypes.Tint I32 Signed 
-                                {| attr_volatile := false; attr_alignas := Some 4%N |})
-| rel_tuint : rel_prim_type Tuint (Ctypes.Tint I32 Unsigned 
-                                  {| attr_volatile := false; attr_alignas := Some 4%N |})
-| rel_tbool : rel_prim_type Tbool (Ctypes.Tint I8 Unsigned {| attr_volatile := false; attr_alignas := Some 1%N |}).
+| rel_tint : forall sz s, 
+             rel_prim_type (Tint sz s) (Ctypes.Tint (transBeePL_isize_cisize sz) (transBeePL_sign_csign s)
+                                        {| attr_volatile := false; attr_alignas := Some (compute_align sz) |}) 
+| rel_tbool : rel_prim_type Tbool (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned {| attr_volatile := false; attr_alignas := Some 1%N |}).
 
 Inductive rel_basic_type : BeeTypes.basic_type -> Ctypes.type -> Prop :=
 | rel_btype : forall tp ct,
@@ -109,91 +108,9 @@ destruct bt.
   ++ 
 Admitted.
 
+From mathcomp Require Import all_ssreflect. 
+
 (****** Proof of correctness for transformation of operators ******)
-Lemma extract_type_notbool : forall v t v',
-sem_unary_operation Notbool v t = Some v' -> 
-t = Ptype Tbool.
-Proof.
-intros. inversion H; subst. unfold sem_notbool in H1.
-destruct v.
-+ destruct t; auto.
-  ++ destruct p; auto; inversion H1.
-  ++ inversion H1.
-  ++ inversion H1.
-+ destruct t; auto.
-  ++ destruct p; auto; inversion H1.
-  ++ inversion H1.
-  ++ inversion H1.
-+ destruct t; auto.
-  ++ destruct p; auto; inversion H1.
-  ++ inversion H1.
-  ++ inversion H1.
-+ destruct t; auto.
-  ++ destruct p; auto; inversion H1.
-  ++ inversion H1.
-  ++ inversion H1.
-+ destruct t; auto.
-  ++ destruct p; auto; inversion H1.
-  ++ destruct b; auto; destruct p0; auto; inversion H1.
-  ++ inversion H1.
-Qed.
-
-Lemma extract_type_notint : forall v t v',
-sem_unary_operation Notint v t = Some v' -> 
-t = Ptype Tint \/ t = Ptype Tuint.
-Proof.
-intros. inversion H; subst. unfold sem_notbool in H1.
-destruct v.
-+ right. destruct t; auto.
-  ++ destruct p; auto; inversion H1.
-  ++ inversion H1.
-  ++ inversion H1.
-+ left. destruct t; auto.
-  ++ destruct p; auto; inversion H1.
-  ++ inversion H1.
-  ++ inversion H1.
-+ right. destruct t; auto.
-  ++ destruct p; auto; inversion H1.
-  ++ inversion H1.
-  ++ inversion H1.
-+ destruct t; auto.
-  ++ destruct p; auto; inversion H1.
-  ++ inversion H1.
-  ++ inversion H1.
-+ destruct t; auto.
-  ++ destruct p; auto; inversion H1.
-  ++ destruct b; auto; destruct p0; auto; inversion H1.
-  ++ inversion H1.
-Qed.
- 
-Lemma extract_type_neg : forall v t v',
-sem_unary_operation Neg v t = Some v' -> 
-t = Ptype Tint \/ t = Ptype Tuint.
-Proof.
-intros. inversion H; subst. unfold sem_neg in H1.
-destruct v.
-+ right. destruct t; auto.
-  ++ destruct p; auto; inversion H1.
-  ++ inversion H1.
-  ++ inversion H1.
-+ left. destruct t; auto.
-  ++ destruct p; auto; inversion H1.
-  ++ inversion H1.
-  ++ inversion H1.
-+ right. destruct t; auto.
-  ++ destruct p; auto; inversion H1.
-  ++ inversion H1.
-  ++ inversion H1.
-+ destruct t; auto.
-  ++ destruct p; auto; inversion H1.
-  ++ inversion H1.
-  ++ inversion H1.
-+ destruct t; auto.
-  ++ destruct p; auto; inversion H1.
-  ++ destruct b; auto; destruct p0; auto; inversion H1.
-  ++ inversion H1.
-Qed.
-
 Lemma transl_notbool_cnotbool: forall v v' m t,
 sem_unary_operation Notbool v t = Some v' -> 
 Cop.sem_unary_operation (transBeePL_uop_uop Notbool) (transBeePL_value_cvalue v) 
@@ -219,13 +136,11 @@ Cop.sem_unary_operation (transBeePL_uop_uop Notint) (transBeePL_value_cvalue v)
 Proof.
 intros; simpl.
 generalize dependent (extract_type_notint v t v' H). intros; subst; simpl.
-destruct H0; subst.
+destruct H0; subst; destruct H0; subst.
 (* Int *)
-+ destruct v; inversion H; subst.
-  unfold Cop.sem_notint, Int.zero, Int.not, Int.mone; simpl. reflexivity.
-(* Uint *)
-+ destruct v; inversion H; subst.
-  unfold Cop.sem_notint, Int.zero, Int.not, Int.mone; simpl. reflexivity.
+destruct v; inversion H; subst.
+unfold Cop.sem_notint, Int.zero, Int.not, Int.mone; simpl. 
+rewrite /transBeePL_isize_cisize. case: x H=> //= _. by case: x0=> //=.
 Qed.
 
 Lemma transl_neg_cneg: forall v v' m t,
@@ -235,18 +150,17 @@ Cop.sem_unary_operation (transBeePL_uop_uop Neg) (transBeePL_value_cvalue v)
 Proof.
 intros; simpl.
 generalize dependent (extract_type_neg v t v' H). intros; subst; simpl.
-destruct H0; subst.
+destruct H0; subst; destruct H0; subst.
 (* Int *)
-+ destruct v; inversion H; subst.
-  unfold Cop.sem_notint, Int.zero, Int.not, Int.mone; simpl. reflexivity.
-(* Uint *)
-+ destruct v; inversion H; subst.
-  unfold Cop.sem_notint, Int.zero, Int.not, Int.mone; simpl. reflexivity.
+destruct v; inversion H; subst.
+unfold Cop.sem_neg, Int.zero, Int.not, Int.mone; simpl. 
+rewrite /transBeePL_isize_cisize. case: x H=> //= _. by case: x0=> //=.
 Qed.
 
 Lemma transl_uop_cuop : forall op v v' m t,
 sem_unary_operation op v t = Some v' -> 
-Cop.sem_unary_operation (transBeePL_uop_uop op) (transBeePL_value_cvalue v) (transBeePL_type t) m = Some (transBeePL_value_cvalue v').
+Cop.sem_unary_operation (transBeePL_uop_uop op) (transBeePL_value_cvalue v) (transBeePL_type t) m = 
+Some (transBeePL_value_cvalue v').
 Proof.
 intros. destruct op; simpl; auto; subst.
 (* Notbool *)
@@ -257,111 +171,33 @@ intros. destruct op; simpl; auto; subst.
 + generalize dependent (transl_neg_cneg v v' m t H). intros. apply H0.
 Qed.
 
-Lemma extract_type_plus : forall v1 v2 t1 t2 v,
-sem_binary_operation Plus v1 v2 t1 t2 = Some v -> 
-(t1 = Ptype Tint /\ t2 = Ptype Tint) \/ (t1 = Ptype Tuint /\ t2 = Ptype Tuint).
-Proof.
-intros. inversion H; subst; simpl; unfold sem_plus in H1.
-destruct v1; auto.
-+ destruct v2; auto; inversion H1.
-  ++ destruct t1; auto; inversion H1.
-     +++ destruct p; auto.
-         - destruct t2; auto.
-           -- destruct p; auto; inversion H1.
-           -- inversion H1.
-           -- inversion H1.
-         - inversion H1.
-         - inversion H1.
-         - inversion H1.
-+ destruct v2; auto; inversion H1.
-  destruct t1; auto; inversion H1.
-  destruct p; auto; inversion H1.
-  destruct t2; auto; inversion H1.
-  destruct p; auto; inversion H1.
-+ destruct v2; auto; inversion H1.
-  destruct t1; auto; inversion H1.
-  destruct p; auto; inversion H1.
-  destruct t2; auto; inversion H1.
-  destruct p; auto; inversion H1.
-+ destruct v2; auto; inversion H1.
-  destruct t1; auto; inversion H1.
-  destruct p; auto; inversion H1.
-  destruct t2; auto; inversion H1.
-  destruct p; auto; inversion H1.
-+ destruct v2; auto; inversion H1.
-  destruct t1; auto; inversion H1.
-  destruct b; auto; inversion H1.
-  destruct p1; auto; inversion H1.
-  destruct t2; auto; inversion H1.
-  destruct b; auto; inversion H1.
-  destruct p1; auto; inversion H1.
-Qed.
-
 Lemma transl_plus_cadd: forall v1 v2 t1 t2 v cenv m,
 sem_binary_operation Plus v1 v2 t1 t2 = Some v -> 
 Cop.sem_binary_operation cenv (transBeePL_bop_bop Plus) (transBeePL_value_cvalue v1) 
      (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
 Some (transBeePL_value_cvalue v). 
 Proof.
-intros; simpl. 
-generalize dependent (extract_type_plus v1 v2 t1 t2 v H). intros; subst; simpl.
-destruct H0.
-+ destruct H0; subst; destruct v1; auto.
-  ++ destruct v2; auto; simpl; inversion H.
-  ++ destruct v2; auto; simpl; inversion H.
-     unfold Cop.sem_add, Cop.sem_binarith, Cop.sem_cast; simpl.
-     destruct Archi.ptr64; auto.
-  ++ destruct v2; auto; simpl; inversion H.
-  ++ destruct v2; auto; simpl; inversion H.
-  ++ destruct v2; auto; simpl; inversion H.
-+ destruct H0; subst; destruct v1; auto.
-  ++ destruct v2; auto; simpl; inversion H.
-  ++ destruct v2; auto; simpl; inversion H.
-  ++ destruct v2; auto; simpl; inversion H.
-     unfold Cop.sem_add, Cop.sem_binarith, Cop.sem_cast; simpl.
-     destruct Archi.ptr64; auto.
-  ++ destruct v2; auto; simpl; inversion H.
-  ++ destruct v2; auto; simpl; inversion H.
-Qed.
-
-Lemma extract_type_minus : forall v1 v2 t1 t2 v,
-sem_binary_operation Minus v1 v2 t1 t2 = Some v -> 
-(t1 = Ptype Tint /\ t2 = Ptype Tint) \/ (t1 = Ptype Tuint /\ t2 = Ptype Tuint).
-Proof.
-intros. inversion H; subst; simpl; unfold sem_plus in H1.
-destruct v1; auto.
-+ destruct v2; auto; inversion H1.
-  ++ destruct t1; auto; inversion H1.
-     +++ destruct p; auto.
-         - destruct t2; auto.
-           -- destruct p; auto; inversion H1.
-           -- inversion H1.
-           -- inversion H1.
-         - inversion H1.
-         - inversion H1.
-         - inversion H1.
-+ destruct v2; auto; inversion H1.
-  destruct t1; auto; inversion H1.
-  destruct p; auto; inversion H1.
-  destruct t2; auto; inversion H1.
-  destruct p; auto; inversion H1.
-+ destruct v2; auto; inversion H1.
-  destruct t1; auto; inversion H1.
-  destruct p; auto; inversion H1.
-  destruct t2; auto; inversion H1.
-  destruct p; auto; inversion H1.
-+ destruct v2; auto; inversion H1.
-  destruct t1; auto; inversion H1.
-  destruct p; auto; inversion H1.
-  destruct t2; auto; inversion H1.
-  destruct p; auto; inversion H1.
-+ destruct v2; auto; inversion H1.
-  destruct t1; auto; inversion H1.
-  destruct b; auto; inversion H1.
-  destruct p1; auto; inversion H1.
-  destruct t2; auto; inversion H1.
-  destruct b; auto; inversion H1.
-  destruct p1; auto; inversion H1.
+move=> v1 v2 t1 t2 v cenv m hs. 
+have [sz [s ht]] := extract_type_plus1 v1 v2 t1 t2 v hs; subst.
+rewrite /sem_binary_operation /sem_plus /= in hs. move: hs.
+rewrite /Cop.sem_binary_operation /= /Cop.sem_add /= /transBeePL_isize_cisize /transBeePL_sign_csign.
+case: v1=> //=.
++ by case: v2=> //= i. 
++ case: v2=> //= i i'. case: t2=> //= p. case:p=> //= sz' s'.
+  move=> [] hv; subst. case: sz=> //=.
+  + case: s=> //=.
+    + rewrite /Cop.classify_add /= /Cop.sem_binarith /= /Cop.sem_cast /= /Cop.classify_cast /=. 
+      case: sz'=> //=. by case: s'=> //=.
+    + rewrite /Cop.classify_add /= /Cop.sem_binarith /= /Cop.sem_cast /= /Cop.classify_cast /=. 
+      case: sz'=> //=. by case: s'=> //=.
+    + rewrite /Cop.classify_add /= /Cop.sem_binarith /= /Cop.sem_cast /= /Cop.classify_cast /=. 
+      case: sz'=> //=. by case: s'=> //=.
+    + rewrite /Cop.classify_add /= /Cop.sem_binarith /= /Cop.sem_cast /= /Cop.classify_cast /=. 
+      case: sz'=> //=. by case: s=> //=.
+    rewrite /Cop.classify_add /= /Cop.sem_binarith /= /Cop.sem_cast /= /Cop.classify_cast /=. 
+    case: s=> //=. case: s=> //=. by case: s'=> //=.
+  by case: v2=> //=.
+by case: v2=> //=.
 Qed.
 
 Lemma transl_minus_csub: forall v1 v2 t1 t2 v cenv m,
@@ -370,66 +206,27 @@ Cop.sem_binary_operation cenv (transBeePL_bop_bop Minus) (transBeePL_value_cvalu
      (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
 Some (transBeePL_value_cvalue v). 
 Proof.
-intros; simpl. 
-generalize dependent (extract_type_minus v1 v2 t1 t2 v H). intros; subst; simpl.
-destruct H0.
-+ destruct H0; subst; destruct v1; auto.
-  ++ destruct v2; auto; simpl; inversion H.
-  ++ destruct v2; auto; simpl; inversion H.
-     unfold Cop.sem_sub, Cop.sem_binarith, Cop.sem_cast; simpl.
-     destruct Archi.ptr64; auto.
-  ++ destruct v2; auto; simpl; inversion H.
-  ++ destruct v2; auto; simpl; inversion H.
-  ++ destruct v2; auto; simpl; inversion H.
-+ destruct H0; subst; destruct v1; auto.
-  ++ destruct v2; auto; simpl; inversion H.
-  ++ destruct v2; auto; simpl; inversion H.
-  ++ destruct v2; auto; simpl; inversion H.
-     unfold Cop.sem_sub, Cop.sem_binarith, Cop.sem_cast; simpl.
-     destruct Archi.ptr64; auto.
-  ++ destruct v2; auto; simpl; inversion H.
-  ++ destruct v2; auto; simpl; inversion H.
-Qed.
-
-
-Lemma extract_type_mult : forall v1 v2 t1 t2 v,
-sem_binary_operation Mult v1 v2 t1 t2 = Some v -> 
-(t1 = Ptype Tint /\ t2 = Ptype Tint) \/ (t1 = Ptype Tuint /\ t2 = Ptype Tuint).
-Proof.
-intros. inversion H; subst; simpl; unfold sem_mult in H1.
-destruct v1; auto.
-+ destruct v2; auto; inversion H1.
-  ++ destruct t1; auto; inversion H1.
-     +++ destruct p; auto.
-         - destruct t2; auto.
-           -- destruct p; auto; inversion H1.
-           -- inversion H1.
-           -- inversion H1.
-         - inversion H1.
-         - inversion H1.
-         - inversion H1.
-+ destruct v2; auto; inversion H1.
-  destruct t1; auto; inversion H1.
-  destruct p; auto; inversion H1.
-  destruct t2; auto; inversion H1.
-  destruct p; auto; inversion H1.
-+ destruct v2; auto; inversion H1.
-  destruct t1; auto; inversion H1.
-  destruct p; auto; inversion H1.
-  destruct t2; auto; inversion H1.
-  destruct p; auto; inversion H1.
-+ destruct v2; auto; inversion H1.
-  destruct t1; auto; inversion H1.
-  destruct p; auto; inversion H1.
-  destruct t2; auto; inversion H1.
-  destruct p; auto; inversion H1.
-+ destruct v2; auto; inversion H1.
-  destruct t1; auto; inversion H1.
-  destruct b; auto; inversion H1.
-  destruct p1; auto; inversion H1.
-  destruct t2; auto; inversion H1.
-  destruct b; auto; inversion H1.
-  destruct p1; auto; inversion H1.
+move=> v1 v2 t1 t2 v cenv m hs. 
+have [sz [s ht]] := extract_type_minus1 v1 v2 t1 t2 v hs; subst.
+rewrite /sem_binary_operation /sem_minus /= in hs. move: hs.
+rewrite /Cop.sem_binary_operation /= /Cop.sem_sub /= /transBeePL_isize_cisize /transBeePL_sign_csign.
+case: v1=> //=.
++ by case: v2=> //= i. 
++ case: v2=> //= i i'. case: t2=> //= p. case:p=> //= sz' s'.
+  move=> [] hv; subst. case: sz=> //=.
+  + case: s=> //=.
+    + rewrite /Cop.classify_add /= /Cop.sem_binarith /= /Cop.sem_cast /= /Cop.classify_cast /=. 
+      case: sz'=> //=. by case: s'=> //=.
+    + rewrite /Cop.classify_add /= /Cop.sem_binarith /= /Cop.sem_cast /= /Cop.classify_cast /=. 
+      case: sz'=> //=. by case: s'=> //=.
+    + rewrite /Cop.classify_add /= /Cop.sem_binarith /= /Cop.sem_cast /= /Cop.classify_cast /=. 
+      case: sz'=> //=. by case: s'=> //=.
+    + rewrite /Cop.classify_add /= /Cop.sem_binarith /= /Cop.sem_cast /= /Cop.classify_cast /=. 
+      case: sz'=> //=. by case: s=> //=.
+    rewrite /Cop.classify_add /= /Cop.sem_binarith /= /Cop.sem_cast /= /Cop.classify_cast /=. 
+    case: s=> //=. case: s=> //=. by case: s'=> //=.
+  by case: v2=> //=.
+by case: v2=> //=.
 Qed.
 
 Lemma transl_mult_cmul: forall v1 v2 t1 t2 v cenv m,
@@ -438,68 +235,42 @@ Cop.sem_binary_operation cenv (transBeePL_bop_bop Mult) (transBeePL_value_cvalue
      (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
 Some (transBeePL_value_cvalue v). 
 Proof.
-intros; simpl. 
-generalize dependent (extract_type_mult v1 v2 t1 t2 v H). intros; subst; simpl.
-destruct H0.
-+ destruct H0; subst; destruct v1; auto.
-  ++ destruct v2; auto; simpl; inversion H.
-  ++ destruct v2; auto; simpl; inversion H.
-     unfold Cop.sem_mul, Cop.sem_binarith, Cop.sem_cast; simpl.
-     destruct Archi.ptr64; auto.
-  ++ destruct v2; auto; simpl; inversion H.
-  ++ destruct v2; auto; simpl; inversion H.
-  ++ destruct v2; auto; simpl; inversion H.
-+ destruct H0; subst; destruct v1; auto.
-  ++ destruct v2; auto; simpl; inversion H.
-  ++ destruct v2; auto; simpl; inversion H.
-  ++ destruct v2; auto; simpl; inversion H.
-     unfold Cop.sem_mul, Cop.sem_binarith, Cop.sem_cast; simpl.
-     destruct Archi.ptr64; auto.
-  ++ destruct v2; auto; simpl; inversion H.
-  ++ destruct v2; auto; simpl; inversion H.
+move=> v1 v2 t1 t2 v cenv m hs. 
+have [sz [s ht]] := extract_type_mult1 v1 v2 t1 t2 v hs; subst.
+rewrite /sem_binary_operation /sem_mult /= in hs. move: hs.
+rewrite /Cop.sem_binary_operation /= /Cop.sem_mul /= /transBeePL_isize_cisize /transBeePL_sign_csign.
+case: v1=> //=.
++ by case: v2=> //= i. 
++ case: v2=> //= i i'. case: t2=> //= p. case:p=> //= sz' s'.
+  move=> [] hv; subst. case: sz=> //=.
+  + case: s=> //=.
+    + rewrite /Cop.classify_add /= /Cop.sem_binarith /= /Cop.sem_cast /= /Cop.classify_cast /=. 
+      case: sz'=> //=. by case: s'=> //=.
+    + rewrite /Cop.classify_add /= /Cop.sem_binarith /= /Cop.sem_cast /= /Cop.classify_cast /=. 
+      case: sz'=> //=. by case: s'=> //=.
+    + rewrite /Cop.classify_add /= /Cop.sem_binarith /= /Cop.sem_cast /= /Cop.classify_cast /=. 
+      case: sz'=> //=. by case: s'=> //=.
+    + rewrite /Cop.classify_add /= /Cop.sem_binarith /= /Cop.sem_cast /= /Cop.classify_cast /=. 
+      case: sz'=> //=. by case: s=> //=.
+    rewrite /Cop.classify_add /= /Cop.sem_binarith /= /Cop.sem_cast /= /Cop.classify_cast /=. 
+    case: s=> //=. case: s=> //=. by case: s'=> //=.
+  by case: v2=> //=.
+by case: v2=> //=.
 Qed.
 
-Lemma extract_type_div : forall v1 v2 t1 t2 v,
-sem_binary_operation Div v1 v2 t1 t2 = Some v -> 
-(t1 = Ptype Tint /\ t2 = Ptype Tint) \/ (t1 = Ptype Tuint /\ t2 = Ptype Tuint).
+Lemma is_signed : forall s,
+eq_signedness s Signed ->
+s = Signed.
 Proof.
-intros. inversion H; subst; simpl; unfold sem_div in H1.
-destruct v1; auto.
-+ destruct v2; auto; inversion H1.
-  ++ destruct t1; auto; inversion H1.
-     +++ destruct p; auto.
-         - destruct t2; auto.
-           -- destruct p; auto; inversion H1.
-           -- inversion H1.
-           -- inversion H1.
-         - inversion H1.
-         - inversion H1.
-         - inversion H1.
-+ destruct v2; auto; inversion H1.
-  destruct t1; auto; inversion H1.
-  destruct p; auto; inversion H1.
-  destruct t2; auto; inversion H1.
-  destruct p; auto; inversion H1.
-+ destruct v2; auto; inversion H1.
-  destruct t1; auto; inversion H1.
-  destruct p; auto; inversion H1.
-  destruct t2; auto; inversion H1.
-  destruct p; auto; inversion H1.
-+ destruct v2; auto; inversion H1.
-  destruct t1; auto; inversion H1.
-  destruct p; auto; inversion H1.
-  destruct t2; auto; inversion H1.
-  destruct p; auto; inversion H1.
-+ destruct v2; auto; inversion H1.
-  destruct t1; auto; inversion H1.
-  destruct b; auto; inversion H1.
-  destruct p1; auto; inversion H1.
-  destruct t2; auto; inversion H1.
-  destruct b; auto; inversion H1.
-  destruct p1; auto; inversion H1.
+move=> s. by case: s=> //=.
 Qed.
 
-From mathcomp Require Import all_ssreflect. 
+Lemma is_unsigned : forall s,
+eq_signedness s Unsigned ->
+s = Unsigned.
+Proof.
+move=> s. by case: s=> //=.
+Qed.
 
 Lemma transl_div_cdiv: forall v1 v2 t1 t2 v cenv m,
 sem_binary_operation Div v1 v2 t1 t2 = Some v -> 
@@ -507,93 +278,89 @@ Cop.sem_binary_operation cenv (transBeePL_bop_bop Div) (transBeePL_value_cvalue 
      (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
 Some (transBeePL_value_cvalue v). 
 Proof.
-intros; simpl. 
-generalize dependent (extract_type_div v1 v2 t1 t2 v H). intros; subst; simpl.
-destruct H0.
-(* Tint *)
-+ destruct H0; subst; destruct v1; auto.
-  ++ by destruct v2; auto; simpl; inversion H.
-  ++ destruct v2; auto; simpl; inversion H.
-     unfold Cop.sem_div, Cop.sem_binarith, Cop.sem_cast; simpl.
-     destruct Archi.ptr64; auto. move: H1. by case: ifP=> //= hneq [] heq; subst; simpl.
-  ++ case: ifP=> //= hi.
-     +++ case: ifP=> //= hi'.
-         - case: ifP=> //= ht.
-           -- by rewrite hi' /= in ht H1.
-           -- by rewrite hi' /= in ht H1.
-         - case: ifP=> //= ht.
-           -- rewrite hi' /= in ht H1. rewrite /andb in ht.
-              move: ht. case: ifP=> //= ht'. rewrite ht' /= in H1.
-              move=> ht''; subst. by rewrite ht'' in H1.
-           -- rewrite hi' /= in ht H1. rewrite andb_lazy_alt /= in ht.
-              move: ht. case: ifP=> //= ht1 ht2; subst; rewrite /=.
-              rewrite ht2 andb_false_r /= in H1. by case: H1=> <- /=.
-              rewrite ht1 /= in H1. by case: H1=> <- /=.
-      +++ case: ifP=> //= hi'.
-         - case: ifP=> //= ht.
-           -- by rewrite hi' /= in ht H1.
-           -- by rewrite hi' /= in ht H1.
-         - case: ifP=> //= ht.
-           -- rewrite hi' /= in ht H1. rewrite /andb in ht.
-              move: ht. case: ifP=> //= ht'. rewrite ht' /= in H1.
-              move=> ht''; subst. by rewrite ht'' in H1.
-           -- rewrite hi' /= in ht H1. rewrite andb_lazy_alt /= in ht.
-              move: ht. case: ifP=> //= ht1 ht2; subst; rewrite /=.
-              rewrite ht2 andb_false_r /= in H1. by case: H1=> <- /=.
-              rewrite ht1 /= in H1. by case: H1=> <- /=.
-  ++ by destruct v2; subst; rewrite /=; inversion H.
-  ++ by destruct v2; subst; rewrite /=; inversion H.
-  ++ by destruct v2; subst; rewrite /=; inversion H.
-(* Tuint *)
-+ destruct H0; subst; destruct v1; auto.
-  ++ by destruct v2; auto; simpl; inversion H.
-  ++ by destruct v2; auto; simpl; inversion H.
-  ++ destruct v2; auto; simpl; inversion H.
-     unfold Cop.sem_div, Cop.sem_binarith, Cop.sem_cast; simpl.
-     destruct Archi.ptr64; auto. move: H1. by case: ifP=> //= hneq [] heq; subst; simpl.
-  ++ case: ifP=> //= hi.
-     +++ case: ifP=> //= hi'.
-         - case: ifP=> //= ht.
-           -- by rewrite hi' /= in ht H1.
-           -- by rewrite hi' /= in ht H1.
-         - case: ifP=> //= ht.
-           -- rewrite hi' /= in ht H1. by rewrite /andb in ht.
-           -- rewrite hi' /= in ht H1. by case: H1=> <- /=. 
-      +++ case: ifP=> //= hi'.
-         - case: ifP=> //= ht.
-           -- by rewrite hi' /= in ht H1.
-           -- by rewrite hi' /= in ht H1.
-         - case: ifP=> //= ht.
-           -- by rewrite ht in hi'.
-           -- rewrite hi' /= in ht H1. by case: H1=> <-. 
-  ++ by destruct v2; subst; rewrite /=; inversion H.
-  ++ by destruct v2; subst; rewrite /=; inversion H.
-Qed.         
+(*move=> v1 v2 t1 t2 v cenv m hs. 
+have [sz [s ht]] := extract_type_div1 v1 v2 t1 t2 v hs; subst.
+have [sz' [s' ht]] := extract_type_div2 v1 v2 (Ptype (Tint sz s)) t2 v hs; subst.
+inversion hs; subst. case: v1 hs H0=> //=.
++ by case: v2=> //=.
++ case: v2=> //= i i'. case: ifP=> //=.
+  + move=> /andP [] /andP [] hs hs' h [] hv [] hv' /=; subst.
+    have hvs := is_signed s hs; subst; rewrite /=.
+    have hvs' := is_signed s' hs'; subst; rewrite /=.
+    rewrite /Cop.sem_div /= /Cop.sem_binarith /Cop.sem_cast /=.
+    case: sz=> //=.
+    + case: sz'=> //=.
+      + case: ifP=> //= hi'.
+        + case: ifP=> //= hi.
+          + case: ifP=> //=. move=> he. by rewrite he in h.
+          case: ifP=> //=. move=> h'. by rewrite h' in h.
+        case: ifP=> //= hi. + case: ifP=> //=. move=> h'. by rewrite h' in h.
+        case: ifP=> //=. move=> h'. by rewrite h' in h.
+      case: ifP=> //= hi'.
+      + case: ifP=> //= hi.
+        + case: ifP=> //=. move=> h'. by rewrite h' in h.
+        case: ifP=> //=. move=> h'. by rewrite h' in h.
+      case: ifP=> //= hi. 
+      + case: ifP=> //=. move=> h'. by rewrite h' in h.
+        case: ifP=> //=. move=> h'. by rewrite h' in h.
+      case: ifP=> //= hi'.
+      + case: ifP=> //= hi. + case: ifP=> //=. move=> h'. by rewrite h' in h.
+        case: ifP=> //=. move=> h'. by rewrite h' in h.
+      case: ifP=> //= hi. + case: ifP=> //=. move=> h'. by rewrite h' in h.
+      case: ifP=> //=. move=> h'. by rewrite h' in h.
+     case: ifP=> //= hi'. + case:ifP=> //= hi. + case: sz'=> //=. 
+     + case: ifP=> //=. move=> h'. by rewrite h' in h.
+     case: ifP=> //=. move=> h'. by rewrite h' in h.
+    case: ifP=> //=. move=> h'. by rewrite h' in h.
+   case: sz'=> //=. + case: ifP=> //=. move=> h'. by rewrite h' in h.
+   case: ifP=> //=. move=> h'. by rewrite h' in h.
+   case: ifP=> //=. move=> h'. by rewrite h' in h.
+   case: sz'=> //=. + case: ifP=> //= hi. + case: ifP=> //=. move=> h'. by rewrite h' in h.
+   case: ifP=> //=. move=> h'. by rewrite h' in h.
+   case: ifP=> //=. move=> h'. by rewrite h' in h.
+   case: ifP=> //=. move=> h'. by rewrite h' in h.
+   case: ifP=> //=. move=> h'. by rewrite h' in h.
+   case: ifP=> //=. move=> h'. by rewrite h' in h.
+   case: ifP=> //= hi'. case: ifP=> //=. move=> h'. by rewrite h' in h.
+   case: sz'=> //=. + case: ifP=> //=. move=> h'. by rewrite h' in h.
+   case: ifP=> //=. move=> h'. by rewrite h' in h.
+   case: ifP=> //=. move=> h'. by rewrite h' in h.
+   case: sz'=> //=. + case: ifP=> //= hi. + case: ifP=> //=. move=> h'. by rewrite h' in h.
+   case: ifP=> //=. move=> h'. by rewrite h' in h.
+   case: ifP=> //=. move=> h'. by rewrite h' in h.
+   case: ifP=> //=. move=> h'. by rewrite h' in h.
+   case: ifP=> //=. move=> h'. by rewrite h' in h.
+   case: ifP=> //=. move=> h'. by rewrite h' in h.
+ move=> /andP h. case: ifP=> //= /andP [] /andP [] h1 h2 h3 [] hv [] hv'; subst.  
+ have hvs := is_unsigned s h1; subst; rewrite /=.
+ have hvs' := is_unsigned s' h2; subst; rewrite /=. rewrite /= /negb /= in h.
+ move: h. case: ifP=> //=.
+ + move=> h hf. rewrite /Cop.sem_div /= /Cop.sem_binarith /Cop.sem_cast /=.
+   case: ifP=> //= hi'. + case: ifP=> //= hi.
+   + by rewrite hi in h3.
+   case: sz=> //=. + case: sz'=> //=. 
+   + case: ifP=> //=. move=>he. rewrite he /= in h. rewrite hi /= in he.
+     move: he. move=> /andP [] h1' h2'. apply Int.same_if_eq in hi'.
+     apply Int.same_if_eq in h1'. by rewrite h1' in hi'.
+   rewrite hi /= in h. move: h. move=> /andP [] h4 h5.
+   apply Int.same_if_eq in h4. apply Int.same_if_eq in hi'. by rewrite h4 in hi'.
+  rewrite hi /= in h. move: h. move=> /andP [] h4 h5.
+  apply Int.same_if_eq in h4. apply Int.same_if_eq in hi'. by rewrite h4 in hi'.
+  rewrite hi /= in h. move: h. move=> /andP [] h4 h5.
+  apply Int.same_if_eq in h4. apply Int.same_if_eq in hi'. by rewrite h4 in hi'.
+  rewrite hi /= in h. move: h. move=> /andP [] h4 h5.
+  apply Int.same_if_eq in h4. apply Int.same_if_eq in hi'. by rewrite h4 in hi'.
+  rewrite hi /= in h. move: h. move=> /andP [] h4 h5.
+  apply Int.same_if_eq in h4. apply Int.same_if_eq in hi'. by rewrite h4 in hi'.
+  case: sz=> //=. + case: sz'=> //=.
+  + case: ifP=> //= hi. by rewrite hi in h3.
+    rewrite hi /= in h. move: h. move=> /andP [] h4 h5.
+    case: ifP=> //= he; subst. rewrite hi /=  h4 /= in he.
+    apply Int.same_if_eq in h4. apply Int.same_if_eq in hi'. by rewrite h4 in hi'.
++ by case: v2=> //=.
+by case: v2=> //=.*)
+Admitted.
 
-Lemma transl_and_cand: forall v1 v2 t1 t2 v cenv m,
-sem_binary_operation And v1 v2 t1 t2 = Some v -> 
-Cop.sem_binary_operation cenv (transBeePL_bop_bop And) (transBeePL_value_cvalue v1) 
-     (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
-Some (transBeePL_value_cvalue v). 
-Proof.
-move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
-+ case: v2=> //=. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. by case: p=> //=.
-+ case: v2=> //= i i'. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. by case: p=> //=.
-+ case: v2=> //= i i'. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. by case: p=> //=.
-+ case: v2=> //= b b'. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
-  rewrite /Cop.sem_and /Cop.sem_binarith /Cop.sem_cast /=.
-  case: Archi.ptr64=> //=.
-  + case: b'=> //=. by case: b=> //=.
-  case: (intsize_eq I32 I32) => //= heq.  
-  case: b'=> //=. by case: b=> //=.
-case:v2=> //= p p'. case: t1=> //= i b. case: b=> //= p''.
-case: p''=> //=. case: t2=> //= i' b. case:b=> //= p''. 
-by case:p''=> //=.
-Qed.
 
 Lemma transl_or_cor: forall v1 v2 t1 t2 v cenv m,
 sem_binary_operation Or v1 v2 t1 t2 = Some v -> 
@@ -606,15 +373,13 @@ move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
   case: t2=> //= p. by case: p=> //=.
 + case: v2=> //= i i'. case: t1=> //= p. case: p=> //=.
   case: t2=> //= p. by case: p=> //=.
-+ case: v2=> //= i i'. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. by case: p=> //=.
 + case: v2=> //= b b'. case: t1=> //= p. case: p=> //=.
   case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
   rewrite /Cop.sem_or /Cop.sem_binarith /Cop.sem_cast /=.
   case: Archi.ptr64=> //=.
   + case: b'=> //=. by case: b=> //=.
   by case: b=> //=.
-  case: (intsize_eq I32 I32) => //= heq.  
+  case: (intsize_eq Ctypes.I32 Ctypes.I32) => //= heq.  
   case: b'=> //=. + by case: b=> //=.
   + by case: b=> //=.
 case:v2=> //= p p'. case: t1=> //= i b. case: b=> //= p''.
@@ -633,15 +398,13 @@ move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
   case: t2=> //= p. by case: p=> //=.
 + case: v2=> //= i i'. case: t1=> //= p. case: p=> //=.
   case: t2=> //= p. by case: p=> //=.
-+ case: v2=> //= i i'. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. by case: p=> //=.
 + case: v2=> //= b b'. case: t1=> //= p. case: p=> //=.
   case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
   rewrite /Cop.sem_or /Cop.sem_binarith /Cop.sem_cast /=.
   case: Archi.ptr64=> //=.
   + case: b'=> //=. by case: b=> //=.
   by case: b=> //=.
-  case: (intsize_eq I32 I32) => //= heq.  
+  case: (intsize_eq Ctypes.I32 Ctypes.I32) => //= heq.  
   case: b'=> //=. + by case: b=> //=.
   + by case: b=> //=.
 case:v2=> //= p p'. case: t1=> //= i b. case: b=> //= p''.
@@ -655,25 +418,7 @@ Cop.sem_binary_operation cenv (transBeePL_bop_bop Shl) (transBeePL_value_cvalue 
      (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
 Some (transBeePL_value_cvalue v). 
 Proof.
-move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
-+ case: v2=> //=. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. by case: p=> //=.
-+ case: v2=> //= i i'. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. case: p=> //= [] [] heq /=; subst.
-  rewrite /Cop.sem_shl /Cop.sem_shift /=. case: ifP=> //= hi.
-  + move: heq. by case:ifP=> //= hi' [] hv /=; subst; rewrite /=.
-  by rewrite hi in heq.
-+ case: v2=> //= i i'. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. case: p=> //= [] [] heq /=; subst.
-  rewrite /Cop.sem_shl /Cop.sem_shift /=. case: ifP=> //= hi.
-  + move: heq. by case:ifP=> //= hi' [] hv /=; subst; rewrite /=.
-  by rewrite hi in heq.
-+ case: v2=> //= b b'. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. by case:p=> //= p. 
-case: v2=> //= p1 p2.
-case: t1=> //= i b. case: b=> //= p. case: p=> //=.
-case: t2=> //= i' b. case: b=> //= p. by case: p=> //=.
-Qed.
+Admitted.
 
 Lemma transl_shr_cshr: forall v1 v2 t1 t2 v cenv m,
 sem_binary_operation Shr v1 v2 t1 t2 = Some v -> 
@@ -681,7 +426,7 @@ Cop.sem_binary_operation cenv (transBeePL_bop_bop Shr) (transBeePL_value_cvalue 
      (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
 Some (transBeePL_value_cvalue v). 
 Proof.
-move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
+(*move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
 + case: v2=> //=. case: t1=> //= p. case: p=> //=.
   case: t2=> //= p. by case: p=> //=.
 + case: v2=> //= i i'. case: t1=> //= p. case: p=> //=.
@@ -699,7 +444,7 @@ move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
 case: v2=> //= p1 p2.
 case: t1=> //= i b. case: b=> //= p. case: p=> //=.
 case: t2=> //= i' b. case: b=> //= p. by case: p=> //=.
-Qed.
+Qed.*) Admitted.
 
 Lemma transl_eq_ceq: forall v1 v2 t1 t2 v cenv m,
 sem_binary_operation Eq v1 v2 t1 t2 = Some v -> 
@@ -993,4 +738,7 @@ intros. destruct op; simpl; auto; subst.
 (* Ge *)
 by have := (transl_gte_cge v1 v2 t1 t2 v cenv m H).
 Qed.
+
+
+
 

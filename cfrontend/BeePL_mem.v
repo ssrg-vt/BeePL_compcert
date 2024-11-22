@@ -9,17 +9,15 @@ Unset Printing Implicit Defensive.
 Inductive value : Type :=
 | Vunit : value
 | Vint : int -> value
-| Vuint : int -> value
 | Vbool : bool -> value
 | Vloc : positive -> value.
 
 Definition typeof_value (v : value ) (t : type) : Prop :=
 match v,t with 
 | Vunit, Ptype (Tunit) => True
-| Vint i, Ptype (Tint) => True
-| Vuint i, Ptype (Tuint) => True
+| Vint i, Ptype (Tint _ _) => True
 | Vbool b, Ptype (Tbool) => True
-| Vloc p, Reftype _ (Bprim (Tint)) => True
+| Vloc p, Reftype _ (Bprim (Tint _ _)) => True
 | _, _ => False
 end.
 
@@ -39,7 +37,7 @@ Definition of_bool (b : bool) : value := Vbool b.
 Definition of_int (i : int) : value := Vint i.
 
 Record vinfo : Type := mkvar { vname : ident; vtype : type }.
-Record linfo : Type := mkloc { lname : loc; ltype : basic_type }.
+Record linfo : Type := mkloc { lname : loc; ltype : type }.
 
 Fixpoint extract_types_vinfos (vs : list vinfo) : list type :=
 match vs with 
@@ -47,7 +45,7 @@ match vs with
 | v :: vs => v.(vtype) :: extract_types_vinfos vs
 end.
 
-Fixpoint extract_types_linfos (vs : list linfo) : list basic_type :=
+Fixpoint extract_types_linfos (vs : list linfo) : list type :=
 match vs with 
 | nil => nil
 | v :: vs => v.(ltype) :: extract_types_linfos vs
@@ -75,7 +73,7 @@ Definition eq_vinfo (v1 : vinfo) (v2 : vinfo) : bool :=
 if (v1.(vname) =? v2.(vname))%positive && (eq_type v1.(vtype) v2.(vtype)) then true else false.
 
 Definition eq_linfo (v1 : linfo) (v2 : linfo) : bool :=
-if (v1.(lname) =? v2.(lname))%positive && (eq_basic_type v1.(ltype) v2.(ltype)) then true else false.
+if (v1.(lname) =? v2.(lname))%positive && (eq_type v1.(ltype) v2.(ltype)) then true else false.
 
 Definition heap := list (linfo * value).
 

@@ -9,7 +9,6 @@ Unset Printing Implicit Defensive.
 
 Inductive constant : Type :=
 | ConsInt : int -> constant
-| ConsUint : int -> constant
 | ConsBool : bool -> constant
 | ConsUnit : constant.
 
@@ -69,7 +68,7 @@ Inductive expr : Type :=
                                                                       during the semantics of App, we always make sure that
                                                                       the fist "e" is evaluated to a location  *)
 | Bind : ident -> type -> expr -> expr -> type -> expr             (* let binding: type of continuation *)
-| Cond : expr -> expr -> expr -> type -> expr                      (* if e then e else e *)
+| Cond : expr -> expr -> expr -> type -> expr                      (* if e then e else e *) 
 (* not intended to be written by programmers:*)
 | Addr : linfo -> expr                                 (* address *)
 | Hexpr : heap -> expr -> type -> expr                             (* heap effect *).
@@ -89,9 +88,7 @@ match e with
 | Prim b es t => t
 | Bind x t e e' t' => t'
 | Cond e e' e'' t => t
-| Addr l => match l.(ltype) with 
-            | Bprim tb => (Ptype tb)
-            end
+| Addr l => l.(ltype) 
 | Hexpr h e t => t
 end.
 
@@ -183,30 +180,27 @@ end.
 Definition sem_notbool (v : value) (t : type) : option value :=
 match v,t with 
 | Vunit, (Ptype Tunit) => None 
-| Vint i, (Ptype Tint) => None
-| Vuint i, (Ptype Tuint) => None 
+| Vint i, (Ptype (Tint _ _)) => None
 | Vbool b, (Ptype Tbool) => Some (of_bool (negb b)) 
-| Vloc l, (Reftype _ (Bprim Tint))  => None
+| Vloc l, (Reftype _ (Bprim (Tint _ _)))  => None
 | _, _ => None
 end.
 
 Definition sem_notint (v : value) (t : type) : option value :=
 match v,t with 
 | Vunit, (Ptype Tunit) => None 
-| Vint i, (Ptype Tint) => Some (of_int (Int.not i)) 
-| Vuint i, (Ptype Tuint) => Some (of_int (Int.not i))
+| Vint i, (Ptype (Tint _ _)) => Some (of_int (Int.not i)) 
 | Vbool b, (Ptype Tbool) => None 
-| Vloc l, (Reftype _ (Bprim Tint)) => None 
+| Vloc l, (Reftype _ (Bprim (Tint _ _))) => None 
 | _, _ => None
 end.
 
 Definition sem_neg (v : value) (t : type) : option value :=
 match v,t with 
 | Vunit, (Ptype Tunit) => None 
-| Vint i, (Ptype Tint) => Some (of_int (Int.neg i)) 
-| Vuint i, (Ptype Tuint) => Some (of_int (Int.neg i))
+| Vint i, (Ptype (Tint _ _)) => Some (of_int (Int.neg i)) 
 | Vbool b, (Ptype Tbool) => None 
-| Vloc l, (Reftype _ (Bprim Tint)) => None
+| Vloc l, (Reftype _ (Bprim (Tint _ _))) => None
 | _, _ => None 
 end.
 
@@ -225,9 +219,8 @@ Definition sem_plus (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option v
 match v1, v2, t1, t2 with 
 | Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => None
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None 
-| Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => Some (of_int (Int.add i1 i2)) 
-| Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => Some (of_int (Int.add i1 i2))
-| Vloc l1, Vloc l2, (Reftype _ (Bprim Tint)), (Reftype _ (Bprim Tint)) => None 
+| Vint i1, Vint i2, (Ptype (Tint _ _)), (Ptype (Tint _ _)) => Some (of_int (Int.add i1 i2)) 
+| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
 | _, _, _, _ => None
 end.
 
@@ -235,9 +228,8 @@ Definition sem_minus (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option 
 match v1, v2, t1, t2 with 
 | Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => None
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None 
-| Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => Some (of_int (Int.sub i1 i2)) 
-| Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => Some (of_int (Int.sub i1 i2))
-| Vloc l1, Vloc l2, (Reftype _ (Bprim Tint)), (Reftype _ (Bprim Tint)) => None 
+| Vint i1, Vint i2, (Ptype (Tint _ _)), (Ptype (Tint _ _)) => Some (of_int (Int.sub i1 i2)) 
+| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
 | _, _, _, _ => None
 end.
 
@@ -245,9 +237,8 @@ Definition sem_mult (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option v
 match v1, v2, t1, t2 with 
 | Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => None
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None 
-| Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => Some (of_int (Int.mul i1 i2)) 
-| Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => Some (of_int (Int.mul i1 i2))
-| Vloc l1, Vloc l2, (Reftype _ (Bprim Tint)), (Reftype _ (Bprim Tint)) => None 
+| Vint i1, Vint i2, (Ptype (Tint _ _)), (Ptype (Tint _ _)) => Some (of_int (Int.mul i1 i2)) 
+| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
 | _, _, _, _ => None
 end.
 
@@ -255,12 +246,14 @@ Definition sem_div (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option va
 match v1, v2, t1, t2 with 
 | Vunit, Vunit, (Ptype Tunit), (Ptype Tunit)  => None
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None 
-| Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => 
-                      if (Int.eq i2 Int.zero) || (Int.eq i1 (Int.repr Int.min_signed) && Int.eq i2 Int.mone) (* -128/-1 *)
-                      then None 
-                      else Some (of_int (Int.divs i1 i2))
-| Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => if (Int.eq i2 Int.zero) then None else Some (of_int (Int.divu i1 i2)) 
-| Vloc l1, Vloc l2, (Reftype _ (Bprim Tint)), (Reftype _ (Bprim Tint)) => None 
+| Vint i1, Vint i2, (Ptype (Tint _ s)), (Ptype (Tint _ s')) => 
+                      if ((eq_signedness s Signed && eq_signedness s' Signed) && 
+                          (negb (Int.eq i2 Int.zero || (Int.eq i1 (Int.repr Int.min_signed) && Int.eq i2 Int.mone)))) (* -128/-1 *)
+                      then Some (of_int (Int.divs i1 i2))
+                      else if ((eq_signedness s Unsigned && eq_signedness s' Unsigned) && (negb (Int.eq i2 Int.zero))) 
+                           then Some (of_int (Int.divu i1 i2)) 
+                           else None
+| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
 | _, _, _, _ => None
 end.
 
@@ -268,9 +261,8 @@ Definition sem_and (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option va
 match v1, v2, t1, t2 with 
 | Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => None
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => Some (of_bool (b1 && b2)) 
-| Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => None 
-| Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => None
-| Vloc l1, Vloc l2, (Reftype _ (Bprim Tint)), (Reftype _ (Bprim Tint)) => None 
+| Vint i1, Vint i2, (Ptype (Tint _ _)), (Ptype (Tint _ _)) => None 
+| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
 | _, _, _, _ => None
 end.
 
@@ -278,9 +270,8 @@ Definition sem_or (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option val
 match v1, v2, t1, t2 with 
 | Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => None
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => Some (of_bool (b1 || b2)) 
-| Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => None 
-| Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint)  => None
-| Vloc l1, Vloc l2, (Reftype _ (Bprim Tint)), (Reftype _ (Bprim Tint)) => None 
+| Vint i1, Vint i2, (Ptype (Tint _ _)), (Ptype (Tint _ _)) => None 
+| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
 | _, _, _, _ => None
 end.
 
@@ -288,9 +279,8 @@ Definition sem_xor (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option va
 match v1, v2, t1, t2 with 
 | Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => None
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => Some (of_bool (xorb b1 b2)) 
-| Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => None 
-| Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint)  => None
-| Vloc l1, Vloc l2, (Reftype _ (Bprim Tint)), (Reftype _ (Bprim Tint)) => None 
+| Vint i1, Vint i2, (Ptype (Tint _ _)), (Ptype (Tint _ _)) => None 
+| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
 | _, _, _, _ => None
 end.
 
@@ -298,9 +288,9 @@ Definition sem_shl (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option va
 match v1, v2, t1, t2 with 
 | Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => None
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None
-| Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => if (Int.ltu i2 Int.iwordsize) then Some (of_int (Int.shl i1 i2)) else None 
-| Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => if (Int.ltu i2 Int.iwordsize) then Some (of_int (Int.shl i1 i2)) else None
-| Vloc l1, Vloc l2, (Reftype _ (Bprim Tint)), (Reftype _ (Bprim Tint)) => None 
+| Vint i1, Vint i2, (Ptype (Tint _ _)), (Ptype (Tint _ _)) => 
+  if (Int.ltu i2 Int.iwordsize) then Some (of_int (Int.shl i1 i2)) else None 
+| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
 | _, _, _, _ => None
 end.
 
@@ -308,9 +298,17 @@ Definition sem_shr (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option va
 match v1, v2, t1, t2 with 
 | Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => None
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None
-| Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => if (Int.ltu i2 Int.iwordsize) then Some (of_int (Int.shr i1 i2)) else None
-| Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => if (Int.ltu i2 Int.iwordsize) then Some (of_int (Int.shru i1 i2)) else None
-| Vloc l1, Vloc l2, (Reftype _ (Bprim Tint)), (Reftype _ (Bprim Tint)) => None 
+| Vint i1, Vint i2, (Ptype (Tint _ s)), (Ptype (Tint _ s')) => 
+  if (eq_signedness s Signed && eq_signedness s' Signed) 
+  then if (Int.ltu i2 Int.iwordsize) 
+       then Some (of_int (Int.shr i1 i2)) 
+       else None
+  else if (eq_signedness s Unsigned && eq_signedness s' Unsigned) 
+       then if (Int.ltu i2 Int.iwordsize) 
+            then Some (of_int (Int.shru i1 i2)) 
+            else None
+       else None
+| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
 | _, _, _, _ => None
 end.
 
@@ -318,9 +316,13 @@ Definition sem_eq (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option val
 match v1, v2, t1, t2 with 
 | Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => Some (Vbool true)
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => Some (of_bool (Bool.eqb b1 b2))
-| Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => Some (of_bool (Int.cmp Ceq i1 i2))
-| Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => Some (of_bool (Int.cmpu Ceq i1 i2))
-| Vloc l1, Vloc l2, (Reftype _ (Bprim Tint)), (Reftype _ (Bprim Tint))  => Some (of_bool (l1 =? l2)%positive) 
+| Vint i1, Vint i2, (Ptype (Tint _ s)), (Ptype (Tint _ s')) => 
+  if (eq_signedness s Signed && eq_signedness s' Signed) 
+  then Some (of_bool (Int.cmp Ceq i1 i2)) 
+  else if (eq_signedness s Unsigned && eq_signedness s' Unsigned) 
+       then Some (of_bool (Int.cmpu Ceq i1 i2))
+       else None
+| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _)))  => Some (of_bool (l1 =? l2)%positive) 
 | _, _, _, _ => None
 end.
 
@@ -328,9 +330,13 @@ Definition sem_neq (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option va
 match v1, v2, t1, t2 with 
 | Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => Some (Vbool false)
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => Some (of_bool (negb (Bool.eqb b1 b2)))
-| Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => Some (of_bool (Int.cmp Cne i1 i2))
-| Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => Some (of_bool (Int.cmpu Cne i1 i2))
-| Vloc l1, Vloc l2, (Reftype _ (Bprim Tint)), (Reftype _ (Bprim Tint))  => Some (of_bool (negb (l1 =? l2)%positive)) 
+| Vint i1, Vint i2, (Ptype (Tint _ s)), (Ptype (Tint _ s')) => 
+  if (eq_signedness s Signed && eq_signedness s' Signed) 
+  then Some (of_bool (Int.cmp Cne i1 i2)) 
+  else if (eq_signedness s Unsigned && eq_signedness s' Unsigned) 
+       then Some (of_bool (Int.cmpu Cne i1 i2))
+       else None
+| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _)))  => Some (of_bool (negb (l1 =? l2)%positive)) 
 | _, _, _, _ => None
 end.
 
@@ -338,9 +344,13 @@ Definition sem_lt (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option val
 match v1, v2, t1, t2 with 
 | Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => Some (Vbool false)
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None
-| Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => Some (of_bool (Int.cmp Clt i1 i2))
-| Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => Some (of_bool (Int.cmpu Clt i1 i2))
-| Vloc l1, Vloc l2, (Reftype _ (Bprim Tint)), (Reftype _ (Bprim Tint))  => None 
+| Vint i1, Vint i2, (Ptype (Tint _ s)), (Ptype (Tint _ s')) => 
+  if (eq_signedness s Signed && eq_signedness s' Signed) 
+  then Some (of_bool (Int.cmp Clt i1 i2)) 
+  else if (eq_signedness s Unsigned && eq_signedness s' Unsigned) 
+       then Some (of_bool (Int.cmpu Clt i1 i2))
+       else None
+| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _ ))), (Reftype _ (Bprim (Tint _ _)))  => None 
 | _, _, _, _ => None
 end.
 
@@ -348,9 +358,13 @@ Definition sem_lte (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option va
 match v1, v2, t1, t2 with 
 | Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => Some (Vbool true) (* Fix me *)
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => if (Bool.eqb b1 b2) then Some (of_bool (Bool.eqb b1 b2)) else None
-| Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => Some (of_bool (Int.cmp Cle i1 i2))
-| Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => Some (of_bool (Int.cmpu Cle i1 i2))
-| Vloc l1, Vloc l2, (Reftype _ (Bprim Tint)), (Reftype _ (Bprim Tint))  => None 
+| Vint i1, Vint i2, (Ptype (Tint _ s)), (Ptype (Tint _ s')) =>
+  if (eq_signedness s Signed && eq_signedness s' Signed) 
+  then Some (of_bool (Int.cmp Cle i1 i2)) 
+  else if (eq_signedness s Unsigned && eq_signedness s' Unsigned) 
+       then Some (of_bool (Int.cmpu Cle i1 i2))
+       else None
+| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _)))  => None 
 | _, _, _, _ => None
 end.
 
@@ -358,9 +372,13 @@ Definition sem_gt (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option val
 match v1, v2, t1, t2 with 
 | Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => Some (Vbool false)
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None
-| Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => Some (of_bool (Int.cmp Cgt i1 i2))
-| Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => Some (of_bool (Int.cmpu Cgt i1 i2))
-| Vloc l1, Vloc l2, (Reftype _ (Bprim Tint)), (Reftype _ (Bprim Tint))  => None 
+| Vint i1, Vint i2, (Ptype (Tint _ s)), (Ptype (Tint _ s')) => 
+  if (eq_signedness s Signed && eq_signedness s' Signed) 
+  then Some (of_bool (Int.cmp Cgt i1 i2)) 
+  else if (eq_signedness s Unsigned && eq_signedness s' Unsigned) 
+       then Some (of_bool (Int.cmpu Cgt i1 i2))
+       else None
+| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _)))  => None 
 | _, _, _, _ => None
 end.
 
@@ -368,9 +386,13 @@ Definition sem_gte (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option va
 match v1, v2, t1, t2 with 
 | Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => Some (Vbool true) (* Fix me *)
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => if (Bool.eqb b1 b2) then Some (of_bool (Bool.eqb b1 b2)) else None
-| Vint i1, Vint i2, (Ptype Tint), (Ptype Tint) => Some (of_bool (Int.cmp Cge i1 i2))
-| Vuint i1, Vuint i2, (Ptype Tuint), (Ptype Tuint) => Some (of_bool (Int.cmpu Cge i1 i2))
-| Vloc l1, Vloc l2, (Reftype _ (Bprim Tint)), (Reftype _ (Bprim Tint))  => None 
+| Vint i1, Vint i2, (Ptype (Tint _ s)), (Ptype (Tint _ s')) => 
+  if (eq_signedness s Signed && eq_signedness s' Signed) 
+  then Some (of_bool (Int.cmp Cge i1 i2)) 
+  else if (eq_signedness s Unsigned && eq_signedness s' Unsigned) 
+       then Some (of_bool (Int.cmpu Cge i1 i2))
+       else None
+| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _)))  => None 
 | _, _, _, _ => None
 end.
 
@@ -398,10 +420,10 @@ Inductive sem_expr : genv -> state -> expr -> state -> value -> Prop :=
 | sem_var : forall ge st x v, 
             get_val_var st.(vmem) x = Some v -> 
             sem_expr ge st (Var x) st v
-| sem_const_int : forall ge st i, 
-                  sem_expr ge st (Const (ConsInt i) (Ptype Tint)) st (Vint i)
-| sem_const_bool : forall ge st b, 
-                  sem_expr ge st (Const (ConsBool b) (Ptype Tbool)) st (Vbool b)
+| sem_const_int : forall ge st i t, 
+                   sem_expr ge st (Const (ConsInt i) t) st (Vint i)
+| sem_const_bool : forall ge st b t, 
+                  sem_expr ge st (Const (ConsBool b) t) st (Vbool b)
 | sem_const_unit : forall ge st,
                    sem_expr ge st (Const (ConsUnit) (Ptype Tunit)) st (Vunit)
 | sem_appr : forall ge e es t st l st' st'' vs fd vm' st''' rv r vm'',
@@ -439,19 +461,19 @@ Inductive sem_expr : genv -> state -> expr -> state -> value -> Prop :=
                  sem_expr ge st e st' v ->
                  fresh_loc st'.(hmem) l = true ->
                  update_heap st'.(hmem) l v = h ->
-                 typeof_value v (typeof_expr e) ->
+                 (*typeof_value v (typeof_expr e) ->*)
                  sem_expr ge st (Prim Deref (e :: nil) t) st' v
 | sem_prim_deref : forall ge st e t l st' v, 
                    sem_expr ge st e st' (Vloc l.(lname)) ->
                    get_val_loc st.(hmem) l = Some v -> 
-                   typeof_value v (typeof_expr e) ->
+                   (*typeof_value v (typeof_expr e) ->*)
                    sem_expr ge st (Prim Deref (e :: nil) t) st' v
-| sem_prim_massgn : forall ge st e1 e2 l v t h st' st'',
+| sem_prim_massgn : forall ge st e1 e2 l v h st' st'' bt hm,
                     sem_expr ge st e1 st' (Vloc l) -> 
                     sem_expr ge st' e2 st'' v ->
-                    typeof_value v (Ptype t) ->
-                    update_heap st''.(hmem) {| lname := l; ltype := Bprim t |} v = h ->
-                    sem_expr ge st (Prim Massgn (e1 :: e2 :: nil) (Ptype t)) {| hmem := h; vmem := st''.(vmem) |} Vunit
+                    (*typeof_value v (Ptype t) ->*)
+                    update_heap st''.(hmem) {| lname := l; ltype := (Reftype h bt) |} v = hm ->
+                    sem_expr ge st (Prim Massgn (e1 :: e2 :: nil) (Ptype Tunit)) {| hmem := hm; vmem := st''.(vmem) |} Vunit
 | sem_bind : forall ge st x t e e' t' st' st'' v e'',
              subst x e e' = e'' ->
              sem_expr ge st' e'' st'' v ->

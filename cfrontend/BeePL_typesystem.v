@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps.
-Require Import BeePL_aux BeePL_mem BeeTypes BeePL.
+Require Import BeePL_aux BeePL_mem BeeTypes BeePL BeePL_auxlemmas.
 From mathcomp Require Import all_ssreflect. 
 
 Definition empty_effect : effect := nil. 
@@ -25,10 +25,10 @@ Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> P
            type_expr Gamma Sigma (App None e es rt) ef rt
 | Ty_prim_ref : forall Gamma Sigma e ef h bt, 
                 type_expr Gamma Sigma e ef (Ptype bt) ->
-                type_expr Gamma Sigma (Prim Ref (e::nil) (Ptype bt)) (ef ++ (Alloc h :: nil)) (Reftype h (Bprim bt))
+                type_expr Gamma Sigma (Prim Ref (e::nil) (Reftype h (Bprim bt))) (ef ++ (Alloc h :: nil)) (Reftype h (Bprim bt))
 | Ty_prim_deref : forall Gamma Sigma e ef h bt, 
                   type_expr Gamma Sigma e ef (Reftype h (Bprim bt)) -> 
-                  type_expr Gamma Sigma (Prim Deref (e::nil) (Reftype h (Bprim bt))) (ef ++ (Read h :: nil)) (Ptype bt)
+                  type_expr Gamma Sigma (Prim Deref (e::nil) (Ptype bt)) (ef ++ (Read h :: nil)) (Ptype bt)
 | Ty_prim_massgn : forall Gamma Sigma e e' h bt ef ef',
                    type_expr Gamma Sigma e ef (Reftype h (Bprim bt)) ->
                    type_expr Gamma Sigma e' ef' (Ptype bt) ->
@@ -50,7 +50,8 @@ Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> P
             type_expr Gamma Sigma e3 ef' t ->
             type_expr Gamma Sigma (Cond e1 e2 e3 t) (ef ++ ef') t
 | Ty_loc : forall Gamma Sigma l h bt,
-           get_sty Sigma l.(lname) = Some bt ->
+           get_sty Sigma l.(lname) = Some (Reftype h bt)  ->
+           l.(ltype) = (Reftype h bt) ->
            type_expr Gamma Sigma (Addr l) empty_effect (Reftype h bt) 
 with type_exprs : ty_context -> store_context -> list expr -> effect -> list type -> Prop :=
 | Ty_nil : forall Gamma Sigma,
@@ -62,19 +63,51 @@ with type_exprs : ty_context -> store_context -> list expr -> effect -> list typ
            
 
 (**** Supoorting lemmas ****)
-Lemma get_ty_write_var : forall Gamma vm r v vm' t,
-write_var vm r v = vm' ->
-typeof_value v t ->
-get_ty Gamma r.(vname) = Some t.
+Lemma type_rel_typeof : forall Gamma Sigma e ef t,
+type_expr Gamma Sigma e ef t ->
+typeof_expr e = t.
 Proof.
-Admitted.
+move=> Gamma Sigma e ef t ht; inversion ht; subst; rewrite /typeof_expr /=; auto.
+Qed.
 
-Lemma write_var_preserve_ty : forall Gamma Sigma vm r rv vm' t,
-write_var vm r rv = vm' ->
-typeof_value rv t ->
-type_expr Gamma Sigma (Var r) empty_effect t.
+Lemma sem_unary_operation_val_type : forall op v t v', 
+sem_unary_operation op v t = Some v' ->
+typeof_value v t /\ typeof_value v' t.
 Proof.
-Admitted.
+move=> [].
++ move=> v t v' hs.
+  have ht := extract_type_notbool v t v' hs; subst. split.
+  + by case: v hs=> //=.
+  case: v' hs=> //=.
+  + move=> hs. rewrite /sem_notbool in hs. by case: v hs=> //=.
+  + move=> i hs. rewrite /sem_notbool in hs. by case: v hs=> //=.
+  + move=> i hs. rewrite /sem_notbool in hs. by case: v hs=> //=.
+  move=> p hs. rewrite /sem_notbool in hs. by case: v hs=> //=.
++ move=> v t v' hs.
+  have ht := extract_type_notint v t v' hs; subst. case: ht=> //= ht; subst. 
+  + split. 
+    + by case: v hs=> //=.
+    case: v' hs=> //=.
+    + rewrite /sem_notint /=. by case: v=>//=.
+    + rewrite /sem_notint /=. by case: v=> //=.
+    + rewrite /sem_notint /=. by case: v=> //=.
+    by rewrite /sem_notint /=;case: v=> //=.
+  split=> //=.  
+  + by case: v hs=> //=.
+  case: v' hs=> //=.
+  + rewrite /sem_notint /=. by case: v=>//=.
+  + rewrite /sem_notint /=. case: v=> //= i i'.
+    rewrite /of_int /=. move=> [] //=. case: i=> //=. case: i'=> //=.
+    + rewrite /sem_notint /=. by case: v=> //=.
+    by rewrite /sem_notint /=;case: v=> //=.
+
+  case: 
+  by case: v hs=> //=.
+move=> v t v' hs.
+have ht := extract_type_neg v t v' hs; subst. case: ht=> //= ht; subst. 
++ by case: v hs=> //=.
+by case: v hs=> //=.
+Qed.
 
 (**** Preservation ****)
 Lemma preservation : forall Gamma Sigma genv e ef t st st' v, 
@@ -112,7 +145,18 @@ move=> Gamma Sigma genv e ef t st st' v ht he. move: st st' ef t ht he. elim: e=
     by move=> b' ht;inversion ht.
   by move=> e t ht;inversion ht.
 (* App *)
-+ move=> o e ih es ts st st' ef t ht he; inversion he; subst.
-  inversion ht; subst. admit.
-Admitted.
++ admit.
+(* Prim *)
++ move=> [].
+  (* Ref *)
+  + by move=> es t st st' ef t' ht he;inversion he.
+  (* Deref *)
+  + admit.
+  (* Massgn *)
+  + admit.
+  (* Uop *)
+  + move=> u es t st st' ef t' ht he; inversion ht; subst; inversion he; subst.
+    have hte := type_rel_typeof Gamma Sigma e ef t' H6. rewrite hte in H8. 
+    have := sem_unary_operation_val_type u v0 t' v H8.
+    
   
