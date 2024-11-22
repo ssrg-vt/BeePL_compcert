@@ -246,13 +246,28 @@ Definition sem_div (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option va
 match v1, v2, t1, t2 with 
 | Vunit, Vunit, (Ptype Tunit), (Ptype Tunit)  => None
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None 
-| Vint i1, Vint i2, (Ptype (Tint _ s)), (Ptype (Tint _ s')) => 
-                      if ((eq_signedness s Signed && eq_signedness s' Signed) && 
-                          (negb (Int.eq i2 Int.zero || (Int.eq i1 (Int.repr Int.min_signed) && Int.eq i2 Int.mone)))) (* -128/-1 *)
-                      then Some (of_int (Int.divs i1 i2))
-                      else if ((eq_signedness s Unsigned && eq_signedness s' Unsigned) && (negb (Int.eq i2 Int.zero))) 
-                           then Some (of_int (Int.divu i1 i2)) 
-                           else None
+| Vint i1, Vint i2, (Ptype (Tint sz s)), (Ptype (Tint sz' s')) => 
+  match s with 
+  | Signed => match s' with 
+              | Signed => match sz, sz' with 
+                          | I32, I32 => if (Int.eq i2 Int.zero || 
+                                            (Int.eq i1 (Int.repr Int.min_signed) && Int.eq i2 Int.mone)) (* -128/-1 *)
+                                        then None 
+                                        else Some (of_int (Int.divs i1 i2))
+                          | _, _ => None 
+                         end
+              | Unsigned => None 
+              end
+  | Unsigned => match s' with 
+                | Signed => None 
+                | Unsigned => match sz, sz' with 
+                              | I32, I32 => if (Int.eq i2 Int.zero) 
+                                            then None 
+                                            else Some (of_int (Int.divu i1 i2))
+                              | _, _ => None 
+                              end 
+                end 
+end
 | Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
 | _, _, _, _ => None
 end.

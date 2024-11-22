@@ -278,89 +278,54 @@ Cop.sem_binary_operation cenv (transBeePL_bop_bop Div) (transBeePL_value_cvalue 
      (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
 Some (transBeePL_value_cvalue v). 
 Proof.
-(*move=> v1 v2 t1 t2 v cenv m hs. 
+move=> v1 v2 t1 t2 v cenv m hs.
 have [sz [s ht]] := extract_type_div1 v1 v2 t1 t2 v hs; subst.
 have [sz' [s' ht]] := extract_type_div2 v1 v2 (Ptype (Tint sz s)) t2 v hs; subst.
-inversion hs; subst. case: v1 hs H0=> //=.
-+ by case: v2=> //=.
-+ case: v2=> //= i i'. case: ifP=> //=.
-  + move=> /andP [] /andP [] hs hs' h [] hv [] hv' /=; subst.
-    have hvs := is_signed s hs; subst; rewrite /=.
-    have hvs' := is_signed s' hs'; subst; rewrite /=.
-    rewrite /Cop.sem_div /= /Cop.sem_binarith /Cop.sem_cast /=.
-    case: sz=> //=.
-    + case: sz'=> //=.
-      + case: ifP=> //= hi'.
-        + case: ifP=> //= hi.
-          + case: ifP=> //=. move=> he. by rewrite he in h.
-          case: ifP=> //=. move=> h'. by rewrite h' in h.
-        case: ifP=> //= hi. + case: ifP=> //=. move=> h'. by rewrite h' in h.
-        case: ifP=> //=. move=> h'. by rewrite h' in h.
-      case: ifP=> //= hi'.
+inversion hs; subst. case: s hs H0=> //= hs _.
+(* s = signed *)
++ case: s' hs=> //=.
+  (* s' = Signed *)
+  + case: v1=> //=.
+    + by case: v2=> //=.
+    + case: v2=> //=. case: sz=> //=. case: sz'=> //= i i'.
+      case: ifP=> //= h [] hv; subst.
+      rewrite /Cop.sem_div /Cop.sem_binarith /= /Cop.sem_cast /=.
+      case: ifP=> //= hi'. 
       + case: ifP=> //= hi.
-        + case: ifP=> //=. move=> h'. by rewrite h' in h.
-        case: ifP=> //=. move=> h'. by rewrite h' in h.
-      case: ifP=> //= hi. 
-      + case: ifP=> //=. move=> h'. by rewrite h' in h.
-        case: ifP=> //=. move=> h'. by rewrite h' in h.
-      case: ifP=> //= hi'.
-      + case: ifP=> //= hi. + case: ifP=> //=. move=> h'. by rewrite h' in h.
-        case: ifP=> //=. move=> h'. by rewrite h' in h.
-      case: ifP=> //= hi. + case: ifP=> //=. move=> h'. by rewrite h' in h.
-      case: ifP=> //=. move=> h'. by rewrite h' in h.
-     case: ifP=> //= hi'. + case:ifP=> //= hi. + case: sz'=> //=. 
-     + case: ifP=> //=. move=> h'. by rewrite h' in h.
-     case: ifP=> //=. move=> h'. by rewrite h' in h.
-    case: ifP=> //=. move=> h'. by rewrite h' in h.
-   case: sz'=> //=. + case: ifP=> //=. move=> h'. by rewrite h' in h.
-   case: ifP=> //=. move=> h'. by rewrite h' in h.
-   case: ifP=> //=. move=> h'. by rewrite h' in h.
-   case: sz'=> //=. + case: ifP=> //= hi. + case: ifP=> //=. move=> h'. by rewrite h' in h.
-   case: ifP=> //=. move=> h'. by rewrite h' in h.
-   case: ifP=> //=. move=> h'. by rewrite h' in h.
-   case: ifP=> //=. move=> h'. by rewrite h' in h.
-   case: ifP=> //=. move=> h'. by rewrite h' in h.
-   case: ifP=> //=. move=> h'. by rewrite h' in h.
-   case: ifP=> //= hi'. case: ifP=> //=. move=> h'. by rewrite h' in h.
-   case: sz'=> //=. + case: ifP=> //=. move=> h'. by rewrite h' in h.
-   case: ifP=> //=. move=> h'. by rewrite h' in h.
-   case: ifP=> //=. move=> h'. by rewrite h' in h.
-   case: sz'=> //=. + case: ifP=> //= hi. + case: ifP=> //=. move=> h'. by rewrite h' in h.
-   case: ifP=> //=. move=> h'. by rewrite h' in h.
-   case: ifP=> //=. move=> h'. by rewrite h' in h.
-   case: ifP=> //=. move=> h'. by rewrite h' in h.
-   case: ifP=> //=. move=> h'. by rewrite h' in h.
-   case: ifP=> //=. move=> h'. by rewrite h' in h.
- move=> /andP h. case: ifP=> //= /andP [] /andP [] h1 h2 h3 [] hv [] hv'; subst.  
- have hvs := is_unsigned s h1; subst; rewrite /=.
- have hvs' := is_unsigned s' h2; subst; rewrite /=. rewrite /= /negb /= in h.
- move: h. case: ifP=> //=.
- + move=> h hf. rewrite /Cop.sem_div /= /Cop.sem_binarith /Cop.sem_cast /=.
-   case: ifP=> //= hi'. + case: ifP=> //= hi.
-   + by rewrite hi in h3.
-   case: sz=> //=. + case: sz'=> //=. 
-   + case: ifP=> //=. move=>he. rewrite he /= in h. rewrite hi /= in he.
-     move: he. move=> /andP [] h1' h2'. apply Int.same_if_eq in hi'.
-     apply Int.same_if_eq in h1'. by rewrite h1' in hi'.
-   rewrite hi /= in h. move: h. move=> /andP [] h4 h5.
-   apply Int.same_if_eq in h4. apply Int.same_if_eq in hi'. by rewrite h4 in hi'.
-  rewrite hi /= in h. move: h. move=> /andP [] h4 h5.
-  apply Int.same_if_eq in h4. apply Int.same_if_eq in hi'. by rewrite h4 in hi'.
-  rewrite hi /= in h. move: h. move=> /andP [] h4 h5.
-  apply Int.same_if_eq in h4. apply Int.same_if_eq in hi'. by rewrite h4 in hi'.
-  rewrite hi /= in h. move: h. move=> /andP [] h4 h5.
-  apply Int.same_if_eq in h4. apply Int.same_if_eq in hi'. by rewrite h4 in hi'.
-  rewrite hi /= in h. move: h. move=> /andP [] h4 h5.
-  apply Int.same_if_eq in h4. apply Int.same_if_eq in hi'. by rewrite h4 in hi'.
-  case: sz=> //=. + case: sz'=> //=.
-  + case: ifP=> //= hi. by rewrite hi in h3.
-    rewrite hi /= in h. move: h. move=> /andP [] h4 h5.
-    case: ifP=> //= he; subst. rewrite hi /=  h4 /= in he.
-    apply Int.same_if_eq in h4. apply Int.same_if_eq in hi'. by rewrite h4 in hi'.
+        + by rewrite hi /= in h.
+        rewrite hi /= in h. case: ifP=> //=. by rewrite hi h.
+      case: ifP=> //= hi.
+      + by rewrite hi /= in h.
+      rewrite hi /= in h. case: ifP=> //=. by rewrite hi h.
+    by case: v2=> //=.
+  by case: v2=> //=.
+ case:v1=> //=.
+ + by case: v2=> //=.
+ + by case: v2=> //=.
+ + by case: v2=> //=.
+ by case: v2=> //=.
+(* s = unsigned *)
+case: s' hs=> //=.
+(* s' = signed *)
++ case: v1=> //=.
+  + by case: v2=> //=.
+  + by case: v2=> //=.
+  + by case: v2=> //=.
+  by case: v2=> //=.
+(* s' = unsigned *)
+case: v1=> //=.
 + by case: v2=> //=.
-by case: v2=> //=.*)
-Admitted.
-
++ case: v2=> //=. case: sz=> //=. case: sz'=> //= i i'.
+  case: ifP=> //= hi [] hv; subst. 
+  rewrite /Cop.sem_div /Cop.sem_binarith /= /Cop.sem_cast /=.
+  case: ifP=> //= hi'.
+  + case: ifP=> //= hi1. + by rewrite hi1 in hi.
+    case: ifP=> //= hi2. by rewrite hi2 in hi.
+  case: ifP=> //= hi1. + by rewrite hi1 in hi.
+  case: ifP=> //= hi2. by rewrite hi in hi2.
++ by case: v2=> //=.
+by case: v2=> //=.
+Qed.
 
 Lemma transl_or_cor: forall v1 v2 t1 t2 v cenv m,
 sem_binary_operation Or v1 v2 t1 t2 = Some v -> 
