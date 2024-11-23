@@ -327,6 +327,29 @@ case: v1=> //=.
 by case: v2=> //=.
 Qed.
 
+Lemma transl_and_cand: forall v1 v2 t1 t2 v cenv m,
+sem_binary_operation And v1 v2 t1 t2 = Some v -> 
+Cop.sem_binary_operation cenv (transBeePL_bop_bop And) (transBeePL_value_cvalue v1) 
+     (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
+Some (transBeePL_value_cvalue v). 
+Proof.
+move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. by case: p=> //=.
++ case: v2=> //= i i'. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. by case: p=> //=.
++ case: v2=> //= b b'. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
+  rewrite /Cop.sem_and /Cop.sem_binarith /Cop.sem_cast /=.
+  case: Archi.ptr64=> //=.
+  + case: b'=> //=. by case: b=> //=.
+  case: (intsize_eq Ctypes.I32 Ctypes.I32) => //= heq.  
+  case: b'=> //=. by case: b=> //=.
+case:v2=> //= p p'. case: t1=> //= i b. case: b=> //= p''.
+case: p''=> //=. case: t2=> //= i' b. case:b=> //= p''. 
+by case:p''=> //=.
+Qed.
+
 Lemma transl_or_cor: forall v1 v2 t1 t2 v cenv m,
 sem_binary_operation Or v1 v2 t1 t2 = Some v -> 
 Cop.sem_binary_operation cenv (transBeePL_bop_bop Or) (transBeePL_value_cvalue v1) 
@@ -383,7 +406,17 @@ Cop.sem_binary_operation cenv (transBeePL_bop_bop Shl) (transBeePL_value_cvalue 
      (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
 Some (transBeePL_value_cvalue v). 
 Proof.
-Admitted.
+move=> v1 v2 t1 t2 v cenv m hs. 
+have [sz [s ht]] := extract_type_shl1 v1 v2 t1 t2 v hs; subst.
+have [sz' [s' ht]] := extract_type_shl2 v1 v2 (Ptype (Tint sz s)) t2 v hs; subst.
+case: v1 hs=> //=.
++ by case: v2=> //=.
++ case: v2=> //= i i'. case: sz=> //=. case: sz'=> //=.
+  case: ifP=> //= hl [] hv; subst. rewrite /Cop.sem_shl /Cop.sem_shift /=. 
+  rewrite hl /= /Cop.classify_shift /=. by case: s=> //=.
++ by case: v2=> //=.
+by case: v2=> //=.
+Qed.
 
 Lemma transl_shr_cshr: forall v1 v2 t1 t2 v cenv m,
 sem_binary_operation Shr v1 v2 t1 t2 = Some v -> 
@@ -391,25 +424,42 @@ Cop.sem_binary_operation cenv (transBeePL_bop_bop Shr) (transBeePL_value_cvalue 
      (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
 Some (transBeePL_value_cvalue v). 
 Proof.
-(*move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
-+ case: v2=> //=. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. by case: p=> //=.
-+ case: v2=> //= i i'. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. case: p=> //= [] [] heq /=; subst.
-  rewrite /Cop.sem_shr /Cop.sem_shift /=. case: ifP=> //= hi.
-  + move: heq. by case:ifP=> //= hi' [] hv /=; subst; rewrite /=.
-  by rewrite hi in heq.
-+ case: v2=> //= i i'. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. case: p=> //= [] [] heq /=; subst.
-  rewrite /Cop.sem_shr /Cop.sem_shift /=. case: ifP=> //= hi.
-  + move: heq. by case:ifP=> //= hi' [] hv /=; subst; rewrite /=.
-  by rewrite hi in heq.
-+ case: v2=> //= b b'. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. by case:p=> //= p. 
-case: v2=> //= p1 p2.
-case: t1=> //= i b. case: b=> //= p. case: p=> //=.
-case: t2=> //= i' b. case: b=> //= p. by case: p=> //=.
-Qed.*) Admitted.
+move=> v1 v2 t1 t2 v cenv m hs.
+have [s ht] := extract_type_shr1 v1 v2 t1 t2 v hs; subst.
+have [s' ht] := extract_type_shr2 v1 v2 (Ptype (Tint I32 s)) t2 v hs; subst.
+inversion hs; subst. case: s hs H0=> //= hs _.
+(* s = signed *)
++ case: s' hs=> //=.
+  (* s' = Signed *)
+  + case: v1=> //=.
+    + by case: v2=> //=.
+    + case: v2=> //= i i'. case: ifP=> //= hl [] hv; subst.
+      rewrite /Cop.sem_shr /Cop.sem_binarith /= /Cop.sem_shift /=.
+      by rewrite hl /=.
+    by case: v2=> //=.
+  by case: v2=> //=.
+ case:v1=> //=.
+ + by case: v2=> //=.
+ + by case: v2=> //=.
+ + by case: v2=> //=.
+ by case: v2=> //=.
+(* s = unsigned *)
+case: s' hs=> //=.
+(* s' = signed *)
++ case: v1=> //=.
+  + by case: v2=> //=.
+  + by case: v2=> //=.
+  + by case: v2=> //=.
+  by case: v2=> //=.
+(* s' = unsigned *)
+case: v1=> //=.
++ by case: v2=> //=.
++ case: v2=> //= i i'. case: ifP=> //= hl [] hv; subst.
+  rewrite /Cop.sem_shr /Cop.sem_binarith /= /Cop.sem_shift /=.
+  by rewrite hl /=.
++ by case: v2=> //=.
+by case: v2=> //=.
+Qed.
 
 Lemma transl_eq_ceq: forall v1 v2 t1 t2 v cenv m,
 sem_binary_operation Eq v1 v2 t1 t2 = Some v -> 
@@ -423,40 +473,76 @@ move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
   rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=. 
   by case: (Archi.ptr64)=> //=.
 + case: v2=> //=. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. case: p=> //= i i' [] hv; subst; rewrite /=.
-  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
-  case: (Archi.ptr64)=> //=. rewrite /Values.Val.of_bool /bool_to_int /=.
-  by case: ifP=> //=.
-+ case: (intsize_eq I32 I32)=> //= heq.
-  rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
-+ case: v2=> //=. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. case: p=> //= i i' [] hv; subst; rewrite /=.
-  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
-  case: (Archi.ptr64)=> //=. rewrite /Values.Val.of_bool /bool_to_int /=.
-  by case: ifP=> //=.
-+ case: (intsize_eq I32 I32)=> //= heq.
-  rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
-+ case: v2=> //=. case: t1=> //= p. case: p=> //= b b'.
-  case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
-  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
-  case: (Archi.ptr64)=> //=. 
-  + rewrite /Values.Val.of_bool /bool_to_int /=. case: ifP=> //=.
-    + case: ifP=> //= hb'.
+  case: t2=> //= p. case: p=> //= sz s sz' s' i i'. 
+  case: s'=> //=.
+  + case: s=> //=. case: sz'=> //=. case: sz=> //= [] [] hv; subst.
+    rewrite /Cop.sem_cmp /= /Cop.sem_binarith /= /Cop.sem_cast /=.
+    case: ifP=> //= hi.
+    + case: ifP=> //= hi'.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: ifP=> //= hi1.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+   case: s=> //=. case: sz'=> //=. case: sz=> //= [] [] hv; subst.
+   rewrite /Cop.sem_cmp /= /Cop.sem_binarith /= /Cop.sem_cast /=.
+    case: ifP=> //= hi.
+    + case: ifP=> //= hi'.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: ifP=> //= hi1.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+  case: v2=> //=. case: t1=> //= p. case: p=> //=. case: t2=> //= p.
+  case: p=> //= b b' [] hv; subst. rewrite /Cop.sem_cmp /= /Cop.sem_binarith /= /Cop.sem_cast /=.
+  case: Archi.ptr64=> //=.
+  + rewrite /Values.Val.of_bool /bool_to_int. case: ifP=> //=.
+    + case: ifP=> //= _. 
       + by case: ifP=> //=.
       by case: ifP=> //=.
-    case: ifP=> //= hb'.
+    case: ifP=> //=.
     + by case: ifP=> //=.
     by case: ifP=> //=.
-  case: (intsize_eq I32 I32)=> //= heq.
-  rewrite /Values.Val.of_bool /bool_to_int /=.
-  case: ifP=> //=.
-  + case: ifP=> //= hb'.
-    + by case: ifP=> //=.
++ case: ifP=> //=.
+  + case: ifP=> //=.
+    + case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //=.
+      rewrite /Values.Val.of_bool /bool_to_int. case: ifP=> //= hb; subst; rewrite /=.
+      by case: ifP=> //=.
+    case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //=.
+    rewrite /Values.Val.of_bool /bool_to_int. case: ifP=> //= hb; subst; rewrite /=.
     by case: ifP=> //=.
-  case: ifP=> //= hb'.
-  + case: ifP=> //=. by case: ifP=> //=.
-admit. (* Pointer equality: FIX ME *)
-Admitted.
+  case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //=.
+  rewrite /Values.Val.of_bool /bool_to_int. case: ifP=> //= hb; subst; rewrite /=.
+  case: ifP=> //=. 
+  + case: b=> //=. by case: b=> //=.
+move=> p. case: v2=> //= p'. case: t1=> //= b b'. case: b'=> //= p''.
+case: p''=> //= sz s. case: t2=> //= b' b''. case: b''=> //= p1.
+by case: p1=> //=.
+Qed.
 
 Lemma transl_neq_cneq: forall v1 v2 t1 t2 v cenv m,
 sem_binary_operation Neq v1 v2 t1 t2 = Some v -> 
@@ -467,43 +553,79 @@ Proof.
 move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
 + case: v2=> //=. case: t1=> //= p. case: p=> //=.
   case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
-  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
+  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=. 
   by case: (Archi.ptr64)=> //=.
 + case: v2=> //=. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. case: p=> //= i i' [] hv; subst; rewrite /=.
-  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
-  case: (Archi.ptr64)=> //=. rewrite /Values.Val.of_bool /bool_to_int /=.
-  by case: ifP=> //=.
-+ case: (intsize_eq I32 I32)=> //= heq.
-  rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
-+ case: v2=> //=. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. case: p=> //= i i' [] hv; subst; rewrite /=.
-  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
-  case: (Archi.ptr64)=> //=. rewrite /Values.Val.of_bool /bool_to_int /=.
-  by case: ifP=> //=.
-+ case: (intsize_eq I32 I32)=> //= heq.
-  rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
-+ case: v2=> //=. case: t1=> //= p. case: p=> //= b b'.
-  case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
-  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
-  case: (Archi.ptr64)=> //=. 
-  + rewrite /Values.Val.of_bool /bool_to_int /=. case: ifP=> //=.
-    + case: ifP=> //= hb'.
+  case: t2=> //= p. case: p=> //= sz s sz' s' i i'. 
+  case: s'=> //=.
+  + case: s=> //=. case: sz'=> //=. case: sz=> //= [] [] hv; subst.
+    rewrite /Cop.sem_cmp /= /Cop.sem_binarith /= /Cop.sem_cast /=.
+    case: ifP=> //= hi.
+    + case: ifP=> //= hi'.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: ifP=> //= hi1.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+   case: s=> //=. case: sz'=> //=. case: sz=> //= [] [] hv; subst.
+   rewrite /Cop.sem_cmp /= /Cop.sem_binarith /= /Cop.sem_cast /=.
+    case: ifP=> //= hi.
+    + case: ifP=> //= hi'.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: ifP=> //= hi1.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+  case: v2=> //=. case: t1=> //= p. case: p=> //=. case: t2=> //= p.
+  case: p=> //= b b' [] hv; subst. rewrite /Cop.sem_cmp /= /Cop.sem_binarith /= /Cop.sem_cast /=.
+  case: Archi.ptr64=> //=.
+  + rewrite /Values.Val.of_bool /bool_to_int. case: ifP=> //=.
+    + case: ifP=> //= _. 
       + by case: ifP=> //=.
       by case: ifP=> //=.
-    case: ifP=> //= hb'.
+    case: ifP=> //=.
     + by case: ifP=> //=.
     by case: ifP=> //=.
-  case: (intsize_eq I32 I32)=> //= heq.
-  rewrite /Values.Val.of_bool /bool_to_int /=.
-  case: ifP=> //=.
-  + case: ifP=> //= hb'.
-    + by case: ifP=> //=.
++ case: ifP=> //=.
+  + case: ifP=> //=.
+    + case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //=.
+      rewrite /Values.Val.of_bool /bool_to_int. case: ifP=> //= hb; subst; rewrite /=.
+      by case: ifP=> //=.
+    case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //=.
+    rewrite /Values.Val.of_bool /bool_to_int. case: ifP=> //= hb; subst; rewrite /=.
     by case: ifP=> //=.
-  case: ifP=> //= hb'.
-  + case: ifP=> //=. by case: ifP=> //=.
-admit. (* Pointer equality: FIX ME *)
-Admitted.
+  case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //=.
+  rewrite /Values.Val.of_bool /bool_to_int. case: ifP=> //= hb; subst; rewrite /=.
+  case: ifP=> //=. 
+  + case: b=> //=. by case: b=> //=.
+move=> p. case: v2=> //= p'. case: t1=> //= b b'. case: b'=> //= p''.
+case: p''=> //= sz s. case: t2=> //= b' b''. case: b''=> //= p1.
+by case: p1=> //=.
+Qed.
 
 Lemma transl_lt_clt: forall v1 v2 t1 t2 v cenv m,
 sem_binary_operation Lt v1 v2 t1 t2 = Some v -> 
@@ -514,27 +636,58 @@ Proof.
 move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
 + case: v2=> //=. case: t1=> //= p. case: p=> //=.
   case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
-  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
-  case: (Archi.ptr64)=> //=. 
+  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=. 
+  by case: (Archi.ptr64)=> //=.
 + case: v2=> //=. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. case: p=> //= i i' [] hv; subst; rewrite /=.
-  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
-  case: (Archi.ptr64)=> //=. rewrite /Values.Val.of_bool /bool_to_int /=.
-  by case: ifP=> //=.
-+ case: (intsize_eq I32 I32)=> //= heq.
-  rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
-+ case: v2=> //=. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. case: p=> //= i i' [] hv; subst; rewrite /=.
-  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
-  case: (Archi.ptr64)=> //=. rewrite /Values.Val.of_bool /bool_to_int /=.
-  by case: ifP=> //=.
-+ case: (intsize_eq I32 I32)=> //= heq.
-  rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
-+ case: v2=> //=. case: t1=> //= p. case: p=> //= b b'.
-  case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
-  case: v2=> //= p p'. case: t1=> //= i b. case:b=> //= p''.
-  case: p''=> //=. case: t2=> //= i' b'. case: b'=> //= p1.
-  by case: p1=> //=.
+  case: t2=> //= p. case: p=> //= sz s sz' s' i i'. 
+  case: s'=> //=.
+  + case: s=> //=. case: sz'=> //=. case: sz=> //= [] [] hv; subst.
+    rewrite /Cop.sem_cmp /= /Cop.sem_binarith /= /Cop.sem_cast /=.
+    case: ifP=> //= hi.
+    + case: ifP=> //= hi'.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: ifP=> //= hi1.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+   case: s=> //=. case: sz'=> //=. case: sz=> //= [] [] hv; subst.
+   rewrite /Cop.sem_cmp /= /Cop.sem_binarith /= /Cop.sem_cast /=.
+    case: ifP=> //= hi.
+    + case: ifP=> //= hi'.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: ifP=> //= hi1.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+ + case: v2=> //=. case: t1=> //= p. case: p=> //=. case: t2=> //= p.
+   by case: p=> //= b b' [] hv; subst. 
+move=> p. case: v2=> //= p'. case: t1=> //= b b'. case: b'=> //= p''.
+case: p''=> //= sz s. case: t2=> //= b' b''. case: b''=> //= p1.
+by case: p1=> //=.
 Qed.
 
 Lemma transl_gt_cgt: forall v1 v2 t1 t2 v cenv m,
@@ -546,27 +699,58 @@ Proof.
 move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
 + case: v2=> //=. case: t1=> //= p. case: p=> //=.
   case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
-  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
-  case: (Archi.ptr64)=> //=. 
+  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=. 
+  by case: (Archi.ptr64)=> //=.
 + case: v2=> //=. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. case: p=> //= i i' [] hv; subst; rewrite /=.
-  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
-  case: (Archi.ptr64)=> //=. rewrite /Values.Val.of_bool /bool_to_int /=.
-  by case: ifP=> //=.
-+ case: (intsize_eq I32 I32)=> //= heq.
-  rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
-+ case: v2=> //=. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. case: p=> //= i i' [] hv; subst; rewrite /=.
-  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
-  case: (Archi.ptr64)=> //=. rewrite /Values.Val.of_bool /bool_to_int /=.
-  by case: ifP=> //=.
-+ case: (intsize_eq I32 I32)=> //= heq.
-  rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
-+ case: v2=> //=. case: t1=> //= p. case: p=> //= b b'.
-  case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
-  case: v2=> //= p p'. case: t1=> //= i b. case:b=> //= p''.
-  case: p''=> //=. case: t2=> //= i' b'. case: b'=> //= p1.
-  by case: p1=> //=.
+  case: t2=> //= p. case: p=> //= sz s sz' s' i i'. 
+  case: s'=> //=.
+  + case: s=> //=. case: sz'=> //=. case: sz=> //= [] [] hv; subst.
+    rewrite /Cop.sem_cmp /= /Cop.sem_binarith /= /Cop.sem_cast /=.
+    case: ifP=> //= hi.
+    + case: ifP=> //= hi'.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: ifP=> //= hi1.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+   case: s=> //=. case: sz'=> //=. case: sz=> //= [] [] hv; subst.
+   rewrite /Cop.sem_cmp /= /Cop.sem_binarith /= /Cop.sem_cast /=.
+    case: ifP=> //= hi.
+    + case: ifP=> //= hi'.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: ifP=> //= hi1.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+ + case: v2=> //=. case: t1=> //= p. case: p=> //=. case: t2=> //= p.
+   by case: p=> //= b b' [] hv; subst. 
+move=> p. case: v2=> //= p'. case: t1=> //= b b'. case: b'=> //= p''.
+case: p''=> //= sz s. case: t2=> //= b' b''. case: b''=> //= p1.
+by case: p1=> //=.
 Qed.
 
 Lemma transl_lte_cle: forall v1 v2 t1 t2 v cenv m,
@@ -578,43 +762,79 @@ Proof.
 move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
 + case: v2=> //=. case: t1=> //= p. case: p=> //=.
   case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
-  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
-  by case: (Archi.ptr64)=> //=. 
+  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=. 
+  by case: (Archi.ptr64)=> //=.
 + case: v2=> //=. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. case: p=> //= i i' [] hv; subst; rewrite /=.
-  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
-  case: (Archi.ptr64)=> //=. rewrite /Values.Val.of_bool /bool_to_int /=.
-  by case: ifP=> //=.
-+ case: (intsize_eq I32 I32)=> //= heq.
-  rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
-+ case: v2=> //=. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. case: p=> //= i i' [] hv; subst; rewrite /=.
-  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
-  case: (Archi.ptr64)=> //=. rewrite /Values.Val.of_bool /bool_to_int /=.
-  by case: ifP=> //=.
-+ case: (intsize_eq I32 I32)=> //= heq.
-  rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
-+ case: v2=> //=. case: t1=> //= p. case: p=> //= b b'.
-  case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
-  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
-  case: (Archi.ptr64)=> //=. rewrite Int.not_lt /Values.Val.of_bool /=.
-  case: ifP=> //= hb. move: hv. case: ifP=> //= hb' [] <- /=. by rewrite hb'.
-  move: hv. case: ifP=> //= hb' [] hv /=; subst. rewrite hb' /=.
-  rewrite orb_lazy_alt in hb. move: hb. case: ifP=> //= h1 h2. 
-  rewrite /bool_to_int /= in h2. move: h2. case: ifP=> //= hb.
-  + case: b hb' h1=> //= hb' h1 h. by case: b' hb hb' h1=> //=.
-  subst; rewrite /=. by case: b h1 hb'=> //=.
-+ move: hv. case: ifP=> //= hb [] <-; rewrite /=.
-  case: (intsize_eq I32 I32)=> //= heq.
-  rewrite /Values.Val.of_bool /bool_to_int /=. case: ifP=> //=.
-  + case: ifP=> //= hb'; subst.
-    + case: ifP=> //= hb'' hi; subst; rewrite /=. by case: b hb hb'=> //=.
-    by case: b' hb=> //=.
-  case: b hb=> //=.
-  + by case: b'=> //=.
-  by case: b'=> //=.
-case: v2=> //=. case: t1=> //= i bt p p'. case: bt=> //= p''.
-case: p''=> //=. case: t2=> //= i' b. case:b=> //= p2. by case:p2=> //=. 
+  case: t2=> //= p. case: p=> //= sz s sz' s' i i'. 
+  case: s'=> //=.
+  + case: s=> //=. case: sz'=> //=. case: sz=> //= [] [] hv; subst.
+    rewrite /Cop.sem_cmp /= /Cop.sem_binarith /= /Cop.sem_cast /=.
+    case: ifP=> //= hi.
+    + case: ifP=> //= hi'.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: ifP=> //= hi1.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+   case: s=> //=. case: sz'=> //=. case: sz=> //= [] [] hv; subst.
+   rewrite /Cop.sem_cmp /= /Cop.sem_binarith /= /Cop.sem_cast /=.
+    case: ifP=> //= hi.
+    + case: ifP=> //= hi'.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: ifP=> //= hi1.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+ + case: v2=> //=. case: t1=> //= p. case: p=> //=. case: t2=> //= p.
+   case: p=> //= b b'. case: ifP=> //= hb [] hv; subst.
+   rewrite /Cop.sem_cmp /= /Cop.sem_binarith /Cop.sem_cast /Cop.classify_cast /=.
+   case: ifP=> //=.
+   + case: ifP=> //=. 
+     + case: Archi.ptr64=> //=.
+       + rewrite /Values.Val.of_bool /bool_to_int /=. case: b hb=> //=.
+         by case: b'=> //=.
+       case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //=.
+       rewrite /Values.Val.of_bool /bool_to_int /=. case: b hb=> //=.
+        by case: b'=> //=.
+     case: Archi.ptr64=> //=.
+     + rewrite /Values.Val.of_bool /bool_to_int /=. case: b hb=> //=.
+       by case: b'=> //=.
+     case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //=.
+     rewrite /Values.Val.of_bool /bool_to_int /=. case: b hb=> //=.
+     by case: b'=> //=.
+ case: Archi.ptr64=> //=.
+ + rewrite /Values.Val.of_bool /bool_to_int /=. case: b hb=> //=.
+   by case: b'=> //=.
+   case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //=.
+   rewrite /Values.Val.of_bool /bool_to_int /=. case: b'=> //=.
+   case: b' hb=> //=. by case: b=> //=.
+move=> p. case: v2=> //= p'. case: t1=> //= b b'. case: b'=> //= p''.
+case: p''=> //= sz s. case: t2=> //= b' b''. case: b''=> //= p1.
+by case: p1=> //=.
 Qed.
 
 
@@ -623,47 +843,82 @@ sem_binary_operation Gte v1 v2 t1 t2 = Some v ->
 Cop.sem_binary_operation cenv (transBeePL_bop_bop Gte) (transBeePL_value_cvalue v1) 
      (transBeePL_type t1) (transBeePL_value_cvalue v2) (transBeePL_type t2) m = 
 Some (transBeePL_value_cvalue v). 
-Proof.
 move=> v1 v2 t1 t2 v cenv m /= ha. case: v1 ha=> //=.
 + case: v2=> //=. case: t1=> //= p. case: p=> //=.
   case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
-  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
-  by case: (Archi.ptr64)=> //=. 
+  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=. 
+  by case: (Archi.ptr64)=> //=.
 + case: v2=> //=. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. case: p=> //= i i' [] hv; subst; rewrite /=.
-  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
-  case: (Archi.ptr64)=> //=. rewrite /Values.Val.of_bool /bool_to_int /=.
-  by case: ifP=> //=.
-+ case: (intsize_eq I32 I32)=> //= heq.
-  rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
-+ case: v2=> //=. case: t1=> //= p. case: p=> //=.
-  case: t2=> //= p. case: p=> //= i i' [] hv; subst; rewrite /=.
-  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
-  case: (Archi.ptr64)=> //=. rewrite /Values.Val.of_bool /bool_to_int /=.
-  by case: ifP=> //=.
-+ case: (intsize_eq I32 I32)=> //= heq.
-  rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
-+ case: v2=> //=. case: t1=> //= p. case: p=> //= b b'.
-  case: t2=> //= p. case: p=> //= [] [] hv; subst; rewrite /=.
-  rewrite /Cop.sem_cmp /Cop.sem_binarith /Cop.sem_cast /=.
-  case: (Archi.ptr64)=> //=. rewrite Int.not_lt /Values.Val.of_bool /=.
-  case: ifP=> //= hb. move: hv. case: ifP=> //= hb' [] <- /=. by rewrite hb'.
-  move: hv. case: ifP=> //= hb' [] hv /=; subst. rewrite hb' /=.
-  rewrite orb_lazy_alt in hb. move: hb. case: ifP=> //= h1 h2. 
-  rewrite /bool_to_int /= in h2. move: h2. case: ifP=> //= hb.
-  + case: b' hb' h1=> //= hb' h1 h. by case: b hb hb' h1=> //=.
-  subst; rewrite /=. by case: b' h1 hb'=> //=.
-+ move: hv. case: ifP=> //= hb [] <-; rewrite /=.
-  case: (intsize_eq I32 I32)=> //= heq.
-  rewrite /Values.Val.of_bool /bool_to_int /=. case: ifP=> //=.
-  + case: ifP=> //= hb'; subst.
-    + case: ifP=> //= hb'' hi; subst; rewrite /=. by case: b' hb hb'=> //=.
-    by case: b hb=> //=.
-  case: b hb=> //=.
-  + by case: b'=> //=.
-  by case: b'=> //=.
-case: v2=> //=. case: t1=> //= i bt p p'. case: bt=> //= p''.
-case: p''=> //=. case: t2=> //= i' b. case:b=> //= p2. by case:p2=> //=. 
+  case: t2=> //= p. case: p=> //= sz s sz' s' i i'. 
+  case: s'=> //=.
+  + case: s=> //=. case: sz'=> //=. case: sz=> //= [] [] hv; subst.
+    rewrite /Cop.sem_cmp /= /Cop.sem_binarith /= /Cop.sem_cast /=.
+    case: ifP=> //= hi.
+    + case: ifP=> //= hi'.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: ifP=> //= hi1.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+   case: s=> //=. case: sz'=> //=. case: sz=> //= [] [] hv; subst.
+   rewrite /Cop.sem_cmp /= /Cop.sem_binarith /= /Cop.sem_cast /=.
+    case: ifP=> //= hi.
+    + case: ifP=> //= hi'.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: ifP=> //= hi1.
+      + case: Archi.ptr64=>//=.
+        + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+        case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+        rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: Archi.ptr64=>//=.
+      + rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+      case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //= heq.
+      rewrite /Values.Val.of_bool /bool_to_int /=. by case: ifP=> //=.
+ + case: v2=> //=. case: t1=> //= p. case: p=> //=. case: t2=> //= p.
+   case: p=> //= b b'. case: ifP=> //= hb [] hv; subst.
+   rewrite /Cop.sem_cmp /= /Cop.sem_binarith /Cop.sem_cast /Cop.classify_cast /=.
+   case: ifP=> //=.
+   + case: ifP=> //=. 
+     + case: Archi.ptr64=> //=.
+       + rewrite /Values.Val.of_bool /bool_to_int /=. case: b hb=> //=.
+         by case: b'=> //=.
+       case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //=.
+       rewrite /Values.Val.of_bool /bool_to_int /=. case: b hb=> //=.
+        by case: b'=> //=.
+     case: Archi.ptr64=> //=.
+     + rewrite /Values.Val.of_bool /bool_to_int /=. case: b hb=> //=.
+       by case: b'=> //=.
+     case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //=.
+     rewrite /Values.Val.of_bool /bool_to_int /=. case: b hb=> //=.
+     by case: b'=> //=.
+ case: Archi.ptr64=> //=.
+ + rewrite /Values.Val.of_bool /bool_to_int /=. case: b hb=> //=.
+   by case: b'=> //=.
+   case: (intsize_eq Ctypes.I32 Ctypes.I32)=> //=.
+   rewrite /Values.Val.of_bool /bool_to_int /=. case: b'=> //=.
+   case: b' hb=> //=. by case: b=> //=.
+move=> p. case: v2=> //= p'. case: t1=> //= b b'. case: b'=> //= p''.
+case: p''=> //= sz s. case: t2=> //= b' b''. case: b''=> //= p1.
+by case: p1=> //=.
 Qed.
 
 Lemma transl_bop_cbop : forall cenv op v1 v2 t1 t2 v m,

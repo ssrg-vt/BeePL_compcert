@@ -174,6 +174,80 @@ case: v2=> //=. case: t1=> //= i b. case: b=> //= p.
 case: p=> //= sz s. case: t2=> //= b b'. case: b'=> //= p. by case: p.
 Qed.
 
+Lemma extract_type_shl1 : forall v1 v2 t1 t2 v,
+sem_binary_operation Shl v1 v2 t1 t2 = Some v -> 
+exists sz s, t1 = Ptype (Tint sz s). 
+Proof.
+move=> v1 v2 t1 t2 v. rewrite /sem_binary_operation /sem_shl.
+case: v1=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. by case: p=> //=.
++ case: v2=> //=. case: t1=> //= p i i'. case: p=> //= sz s.
+  case: t2=> //= p. case: p=> //= sz' s'. case: sz=> //=. 
+  case: sz'=> //=. case: ifP=> //= hl [] hv. by exists I32, s.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=. case: t2=> //= p.
+  by case: p=> //=.
+case: v2=> //=. case: t1=> //= i b. case: b=> //= p.
+case: p=> //= sz s. case: t2=> //= b b'. case: b'=> //= p. by case: p.
+Qed.
+
+Lemma extract_type_shl2 : forall v1 v2 t1 t2 v,
+sem_binary_operation Shl v1 v2 t1 t2 = Some v -> 
+exists sz s, t2 = Ptype (Tint sz s). 
+Proof.
+move=> v1 v2 t1 t2 v. rewrite /sem_binary_operation /sem_shl.
+case: v1=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. by case: p=> //=.
++ case: v2=> //=. case: t1=> //= p i i'. case: p=> //= sz s.
+  case: t2=> //= p. case: p=> //= sz' s'.
+  case: sz=> //=. case: sz'=> //=.  case: ifP=> //= hl [] hv. by exists I32, s'.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=. case: t2=> //= p.
+  by case: p=> //=.
+case: v2=> //=. case: t1=> //= i b. case: b=> //= p.
+case: p=> //= sz s. case: t2=> //= b b'. case: b'=> //= p. by case: p.
+Qed.
+
+Lemma extract_type_shr1 : forall v1 v2 t1 t2 v,
+sem_binary_operation Shr v1 v2 t1 t2 = Some v -> 
+exists s, t1 = Ptype (Tint I32 s). 
+Proof.
+move=> v1 v2 t1 t2 v. rewrite /sem_binary_operation /sem_shl.
+case: v1=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. by case: p=> //=.
++ case: v2=> //=. case: t1=> //= p i i'. case: p=> //= sz s.
+  case: t2=> //= p. case: p=> //= sz' s'. case: s=> //=. 
+  case: s'=> //=. case: sz=> //=. case: sz'=> //=. 
+  case: ifP=> //= hl [] hv. by exists Signed.
++ case: s'=> //=. case: sz=> //=. case: sz'=> //=.
+  case: ifP=> //= hl [] hv; subst. by exists Unsigned.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=. case: t2=> //= p.
+  by case: p=> //=.
+case: v2=> //=. case: t1=> //= i b. case: b=> //= p.
+case: p=> //= sz s. case: t2=> //= b b'. case: b'=> //= p. by case: p.
+Qed.
+
+Lemma extract_type_shr2 : forall v1 v2 t1 t2 v,
+sem_binary_operation Shr v1 v2 t1 t2 = Some v -> 
+exists s, t2 = Ptype (Tint I32 s). 
+Proof.
+move=> v1 v2 t1 t2 v. rewrite /sem_binary_operation /sem_shl.
+case: v1=> //=.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=.
+  case: t2=> //= p. by case: p=> //=.
++ case: v2=> //=. case: t1=> //= p i i'. case: p=> //= sz s.
+  case: t2=> //= p. case: p=> //= sz' s'. case: s=> //=. 
+  case: s'=> //=. case: sz=> //=. case: sz'=> //=. 
+  case: ifP=> //= hl [] hv. by exists Signed.
++ case: s'=> //=. case: sz=> //=. case: sz'=> //=.
+  case: ifP=> //= hl [] hv; subst. by exists Unsigned.
++ case: v2=> //=. case: t1=> //= p. case: p=> //=. case: t2=> //= p.
+  by case: p=> //=.
+case: v2=> //=. case: t1=> //= i b. case: b=> //= p.
+case: p=> //= sz s. case: t2=> //= b b'. case: b'=> //= p. by case: p.
+Qed.
+
 Lemma int_gt_zero : forall i,
 Int.eq i Int.zero = false -> 
 (-1 < Int.intval i < Int.modulus)%Z ->

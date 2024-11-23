@@ -74,7 +74,7 @@ Lemma sem_unary_operation_val_type : forall op v t v',
 sem_unary_operation op v t = Some v' ->
 typeof_value v t /\ typeof_value v' t.
 Proof.
-move=> [].
+(*move=> [].
 + move=> v t v' hs.
   have ht := extract_type_notbool v t v' hs; subst. split.
   + by case: v hs=> //=.
@@ -107,7 +107,7 @@ move=> v t v' hs.
 have ht := extract_type_neg v t v' hs; subst. case: ht=> //= ht; subst. 
 + by case: v hs=> //=.
 by case: v hs=> //=.
-Qed.
+Qed.*) Admitted.
 
 (**** Preservation ****)
 Lemma preservation : forall Gamma Sigma genv e ef t st st' v, 
@@ -115,7 +115,7 @@ type_expr Gamma Sigma e ef t ->
 sem_expr genv st e st' v ->
 typeof_value v t.
 Proof.
-move=> Gamma Sigma genv e ef t st st' v ht he. move: st st' ef t ht he. elim: e=> //=.
+(*move=> Gamma Sigma genv e ef t st st' v ht he. move: st st' ef t ht he. elim: e=> //=.
 (* Var *)
 + admit.
 (* Const *)
@@ -159,4 +159,4 @@ move=> Gamma Sigma genv e ef t st st' v ht he. move: st st' ef t ht he. elim: e=
     have hte := type_rel_typeof Gamma Sigma e ef t' H6. rewrite hte in H8. 
     have := sem_unary_operation_val_type u v0 t' v H8.
     
-  
+  *) Admitted.

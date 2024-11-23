@@ -303,111 +303,195 @@ Definition sem_shl (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option va
 match v1, v2, t1, t2 with 
 | Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => None
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None
-| Vint i1, Vint i2, (Ptype (Tint _ _)), (Ptype (Tint _ _)) => 
-  if (Int.ltu i2 Int.iwordsize) then Some (of_int (Int.shl i1 i2)) else None 
+| Vint i1, Vint i2, (Ptype (Tint sz _)), (Ptype (Tint sz' _)) => 
+  match sz, sz' with 
+  | I32, I32 => if (Int.ltu i2 Int.iwordsize) then Some (of_int (Int.shl i1 i2)) else None
+  | _, _ => None 
+  end 
 | Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
 | _, _, _, _ => None
 end.
 
 Definition sem_shr (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
 match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => None
-| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None
-| Vint i1, Vint i2, (Ptype (Tint _ s)), (Ptype (Tint _ s')) => 
-  if (eq_signedness s Signed && eq_signedness s' Signed) 
-  then if (Int.ltu i2 Int.iwordsize) 
-       then Some (of_int (Int.shr i1 i2)) 
-       else None
-  else if (eq_signedness s Unsigned && eq_signedness s' Unsigned) 
-       then if (Int.ltu i2 Int.iwordsize) 
-            then Some (of_int (Int.shru i1 i2)) 
-            else None
-       else None
+| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit)  => None
+| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None 
+| Vint i1, Vint i2, (Ptype (Tint sz s)), (Ptype (Tint sz' s')) => 
+  match s with 
+  | Signed => match s' with 
+              | Signed => match sz, sz' with 
+                          | I32, I32 => if (Int.ltu i2 Int.iwordsize) 
+                                        then Some (of_int (Int.shr i1 i2)) 
+                                        else None
+                          | _, _ => None 
+                         end
+              | Unsigned => None 
+              end
+  | Unsigned => match s' with 
+                | Signed => None 
+                | Unsigned => match sz, sz' with 
+                              | I32, I32 => if (Int.ltu i2 Int.iwordsize)
+                                            then Some (of_int (Int.shru i1 i2)) 
+                                            else None
+                              | _, _ => None 
+                              end 
+                end 
+end
 | Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
 | _, _, _, _ => None
 end.
 
 Definition sem_eq (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
 match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => Some (Vbool true)
-| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => Some (of_bool (Bool.eqb b1 b2))
-| Vint i1, Vint i2, (Ptype (Tint _ s)), (Ptype (Tint _ s')) => 
-  if (eq_signedness s Signed && eq_signedness s' Signed) 
-  then Some (of_bool (Int.cmp Ceq i1 i2)) 
-  else if (eq_signedness s Unsigned && eq_signedness s' Unsigned) 
-       then Some (of_bool (Int.cmpu Ceq i1 i2))
-       else None
-| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _)))  => Some (of_bool (l1 =? l2)%positive) 
+| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit)  => Some (Vbool true)
+| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => Some (of_bool (Bool.eqb b1 b2)) 
+| Vint i1, Vint i2, (Ptype (Tint sz s)), (Ptype (Tint sz' s')) => 
+  match s with 
+  | Signed => match s' with 
+              | Signed => match sz, sz' with 
+                          | I32, I32 => Some (of_bool (Int.cmp Ceq i1 i2))
+                          | _, _ => None 
+                         end
+              | Unsigned => None 
+              end
+  | Unsigned => match s' with 
+                | Signed => None 
+                | Unsigned => match sz, sz' with 
+                              | I32, I32 => Some (of_bool (Int.cmpu Ceq i1 i2))
+                              | _, _ => None 
+                              end 
+                end 
+end
+| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
 | _, _, _, _ => None
 end.
 
 Definition sem_neq (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
 match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => Some (Vbool false)
-| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => Some (of_bool (negb (Bool.eqb b1 b2)))
-| Vint i1, Vint i2, (Ptype (Tint _ s)), (Ptype (Tint _ s')) => 
-  if (eq_signedness s Signed && eq_signedness s' Signed) 
-  then Some (of_bool (Int.cmp Cne i1 i2)) 
-  else if (eq_signedness s Unsigned && eq_signedness s' Unsigned) 
-       then Some (of_bool (Int.cmpu Cne i1 i2))
-       else None
-| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _)))  => Some (of_bool (negb (l1 =? l2)%positive)) 
+| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit)  => Some (Vbool false)
+| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => Some (of_bool (negb (Bool.eqb b1 b2))) 
+| Vint i1, Vint i2, (Ptype (Tint sz s)), (Ptype (Tint sz' s')) => 
+  match s with 
+  | Signed => match s' with 
+              | Signed => match sz, sz' with 
+                          | I32, I32 => Some (of_bool (Int.cmp Cne i1 i2))
+                          | _, _ => None 
+                         end
+              | Unsigned => None 
+              end
+  | Unsigned => match s' with 
+                | Signed => None 
+                | Unsigned => match sz, sz' with 
+                              | I32, I32 => Some (of_bool (Int.cmpu Cne i1 i2))
+                              | _, _ => None 
+                              end 
+                end 
+end
+| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
 | _, _, _, _ => None
 end.
+
 
 Definition sem_lt (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
 match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => Some (Vbool false)
+| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit)  => Some (Vbool false)
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None
-| Vint i1, Vint i2, (Ptype (Tint _ s)), (Ptype (Tint _ s')) => 
-  if (eq_signedness s Signed && eq_signedness s' Signed) 
-  then Some (of_bool (Int.cmp Clt i1 i2)) 
-  else if (eq_signedness s Unsigned && eq_signedness s' Unsigned) 
-       then Some (of_bool (Int.cmpu Clt i1 i2))
-       else None
-| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _ ))), (Reftype _ (Bprim (Tint _ _)))  => None 
+| Vint i1, Vint i2, (Ptype (Tint sz s)), (Ptype (Tint sz' s')) => 
+  match s with 
+  | Signed => match s' with 
+              | Signed => match sz, sz' with 
+                          | I32, I32 => Some (of_bool (Int.cmp Clt i1 i2))
+                          | _, _ => None 
+                         end
+              | Unsigned => None 
+              end
+  | Unsigned => match s' with 
+                | Signed => None 
+                | Unsigned => match sz, sz' with 
+                              | I32, I32 => Some (of_bool (Int.cmpu Clt i1 i2))
+                              | _, _ => None 
+                              end 
+                end 
+end
+| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
 | _, _, _, _ => None
 end.
+
 
 Definition sem_lte (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
 match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => Some (Vbool true) (* Fix me *)
+| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit)  => Some (Vbool true) (* Fix me *)
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => if (Bool.eqb b1 b2) then Some (of_bool (Bool.eqb b1 b2)) else None
-| Vint i1, Vint i2, (Ptype (Tint _ s)), (Ptype (Tint _ s')) =>
-  if (eq_signedness s Signed && eq_signedness s' Signed) 
-  then Some (of_bool (Int.cmp Cle i1 i2)) 
-  else if (eq_signedness s Unsigned && eq_signedness s' Unsigned) 
-       then Some (of_bool (Int.cmpu Cle i1 i2))
-       else None
-| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _)))  => None 
+| Vint i1, Vint i2, (Ptype (Tint sz s)), (Ptype (Tint sz' s')) => 
+  match s with 
+  | Signed => match s' with 
+              | Signed => match sz, sz' with 
+                          | I32, I32 => Some (of_bool (Int.cmp Cle i1 i2))
+                          | _, _ => None 
+                         end
+              | Unsigned => None 
+              end
+  | Unsigned => match s' with 
+                | Signed => None 
+                | Unsigned => match sz, sz' with 
+                              | I32, I32 => Some (of_bool (Int.cmpu Cle i1 i2))
+                              | _, _ => None 
+                              end 
+                end 
+end
+| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
 | _, _, _, _ => None
 end.
+
 
 Definition sem_gt (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
 match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => Some (Vbool false)
+| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit)  => Some (Vbool false)
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None
-| Vint i1, Vint i2, (Ptype (Tint _ s)), (Ptype (Tint _ s')) => 
-  if (eq_signedness s Signed && eq_signedness s' Signed) 
-  then Some (of_bool (Int.cmp Cgt i1 i2)) 
-  else if (eq_signedness s Unsigned && eq_signedness s' Unsigned) 
-       then Some (of_bool (Int.cmpu Cgt i1 i2))
-       else None
-| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _)))  => None 
+| Vint i1, Vint i2, (Ptype (Tint sz s)), (Ptype (Tint sz' s')) => 
+  match s with 
+  | Signed => match s' with 
+              | Signed => match sz, sz' with 
+                          | I32, I32 => Some (of_bool (Int.cmp Cgt i1 i2))
+                          | _, _ => None 
+                         end
+              | Unsigned => None 
+              end
+  | Unsigned => match s' with 
+                | Signed => None 
+                | Unsigned => match sz, sz' with 
+                              | I32, I32 => Some (of_bool (Int.cmpu Cgt i1 i2))
+                              | _, _ => None 
+                              end 
+                end 
+end
+| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
 | _, _, _, _ => None
 end.
 
+
 Definition sem_gte (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
 match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => Some (Vbool true) (* Fix me *)
+| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit)  => Some (Vbool true) (* Fix me *)
 | Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => if (Bool.eqb b1 b2) then Some (of_bool (Bool.eqb b1 b2)) else None
-| Vint i1, Vint i2, (Ptype (Tint _ s)), (Ptype (Tint _ s')) => 
-  if (eq_signedness s Signed && eq_signedness s' Signed) 
-  then Some (of_bool (Int.cmp Cge i1 i2)) 
-  else if (eq_signedness s Unsigned && eq_signedness s' Unsigned) 
-       then Some (of_bool (Int.cmpu Cge i1 i2))
-       else None
-| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _)))  => None 
+| Vint i1, Vint i2, (Ptype (Tint sz s)), (Ptype (Tint sz' s')) => 
+  match s with 
+  | Signed => match s' with 
+              | Signed => match sz, sz' with 
+                          | I32, I32 => Some (of_bool (Int.cmp Cge i1 i2))
+                          | _, _ => None 
+                         end
+              | Unsigned => None 
+              end
+  | Unsigned => match s' with 
+                | Signed => None 
+                | Unsigned => match sz, sz' with 
+                              | I32, I32 => Some (of_bool (Int.cmpu Cge i1 i2))
+                              | _, _ => None 
+                              end 
+                end 
+end
+| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
 | _, _, _, _ => None
 end.
 
