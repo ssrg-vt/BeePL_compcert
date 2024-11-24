@@ -94,7 +94,7 @@ case: v2=> //=. case: t1=> //= i b. case: b=> //= p.
 case: p=> //= sz s. case: t2=> //= b b'. case: b'=> //= p. by case: p.
 Qed.
 
-Lemma extract_type_sub2 : forall v1 v2 t1 t2 v,
+Lemma extract_type_minus2 : forall v1 v2 t1 t2 v,
 sem_binary_operation Minus v1 v2 t1 t2 = Some v -> 
 exists sz s, t2 = Ptype (Tint sz s). 
 Proof.

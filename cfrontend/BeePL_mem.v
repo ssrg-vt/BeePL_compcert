@@ -15,9 +15,9 @@ Inductive value : Type :=
 Definition typeof_value (v : value ) (t : type) : Prop :=
 match v,t with 
 | Vunit, Ptype (Tunit) => True
-| Vint i, Ptype (Tint _ _) => True
+| Vint i, Ptype (Tint sz s) => True
 | Vbool b, Ptype (Tbool) => True
-| Vloc p, Reftype _ (Bprim (Tint _ _)) => True
+| Vloc p, Reftype h (Bprim (Tint sz s)) => True
 | _, _ => False
 end.
 

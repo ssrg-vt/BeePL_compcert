@@ -43,6 +43,25 @@ Inductive bop : Type :=
 | Gt : bop
 | Gte : bop. 
 
+Definition is_not_comparison (b : bop) : bool :=
+match b with 
+| Plus => true 
+| Minus => true 
+| Mult => true 
+| Div => true 
+| And => true 
+| Or => true 
+| Xor => true 
+| Shl => true 
+| Shr => true 
+| Eq => false
+| Neq => false
+| Lt => false
+| Lte => false
+| Gt => false 
+| Gte => false
+end.
+
 Inductive builtin : Type :=
 | Ref : builtin              (* allocation : ref t e allocates e of type t 
                                 and returns the fresh address *)
@@ -547,21 +566,21 @@ Inductive sem_expr : genv -> state -> expr -> state -> value -> Prop :=
 | sem_prim_uop : forall ge st e t v uop st' v',
                  sem_expr ge st e st' v ->
                  sem_unary_operation uop v (typeof_expr e) = Some v' ->
-                 typeof_value v (typeof_expr e) ->
+                 (*typeof_value v (typeof_expr e) ->*)
                  sem_expr ge st (Prim (Uop uop) (e :: nil) t) st' v'
 | sem_prim_bop : forall ge st e1 e2 t v1 v2 bop st' st'' v,
                  sem_expr ge st e1 st' v1 ->
                  sem_expr ge st' e2 st'' v2 ->
                  sem_binary_operation bop v1 v2 (typeof_expr e1) (typeof_expr e2) = Some v ->
-                 typeof_value v1 (typeof_expr e1) ->
-                 typeof_value v2 (typeof_expr e2) ->
+                 (*typeof_value v1 (typeof_expr e1) ->
+                 typeof_value v2 (typeof_expr e2) ->*)
                  sem_expr ge st (Prim (Bop bop) (e1 :: e2 :: nil) t) st' v
 | sem_prim_ref : forall ge st e t l st' h v, 
                  sem_expr ge st e st' v ->
                  fresh_loc st'.(hmem) l = true ->
                  update_heap st'.(hmem) l v = h ->
                  (*typeof_value v (typeof_expr e) ->*)
-                 sem_expr ge st (Prim Deref (e :: nil) t) st' v
+                 sem_expr ge st (Prim Ref (e :: nil) t) st' v
 | sem_prim_deref : forall ge st e t l st' v, 
                    sem_expr ge st e st' (Vloc l.(lname)) ->
                    get_val_loc st.(hmem) l = Some v -> 
