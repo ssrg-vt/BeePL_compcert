@@ -75,6 +75,7 @@ Require Asmgenproof.
 Require Import Compopts.
 
 (** Pretty-printers (defined in Caml). *)
+Parameter print_Csyntax: Csyntax.program -> unit.
 Parameter print_Clight: Clight.program -> unit.
 Parameter print_Cminor: Cminor.program -> unit.
 Parameter print_CminorSel: CminorSel.program -> unit.
@@ -169,9 +170,14 @@ Definition transf_c_program (p: Csyntax.program) : res Asm.program :=
   @@@ time "Clight generation" SimplExpr.transl_program
   @@@ transf_clight_program.
 
-Definition transf_beepl_program (p : BeePL.module) : res Csyntax.program :=
+Definition transf_beepl_program_csyntax (p : BeePL.module) : res Csyntax.program :=
   OK p
   @@@ time "Csyntax generation" BeePL_Csyntax.BeePL_compcert.
+
+Definition transf_beepl_program (p : BeePL.module) : res Asm.program :=
+  OK p
+  @@@ time "Csyntax generation" transf_beepl_program_csyntax
+  @@@ transf_c_program.
 
 (** Force [Initializers] and [Cexec] to be extracted as well. *)
 
