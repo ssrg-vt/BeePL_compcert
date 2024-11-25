@@ -17,7 +17,7 @@ Require Import String.
 Require Import Coqlib Errors.
 Require Import AST Linking Smallstep.
 (** Languages (syntax and semantics). *)
-Require Ctypes Csyntax Csem Cstrategy Cexec.
+Require Ctypes BeePL Csyntax Csem Cstrategy Cexec.
 Require Clight.
 Require Csharpminor.
 Require Cminor.
@@ -29,6 +29,7 @@ Require Mach.
 Require Asm.
 (** Translation passes. *)
 Require Initializers.
+Require BeePL_Csyntax.
 Require SimplExpr.
 Require SimplLocals.
 Require Cshmgen.
@@ -167,6 +168,10 @@ Definition transf_c_program (p: Csyntax.program) : res Asm.program :=
   OK p
   @@@ time "Clight generation" SimplExpr.transl_program
   @@@ transf_clight_program.
+
+(*Definition transf_beepl_program (p : BeePL.module) : res Csyntax.program :=
+  OK p
+  @@@ time "Csyntax generation" BeePL_Csyntax.BeePL_compcert.*)
 
 (** Force [Initializers] and [Cexec] to be extracted as well. *)
 
