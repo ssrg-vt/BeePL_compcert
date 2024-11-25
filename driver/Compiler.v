@@ -169,9 +169,9 @@ Definition transf_c_program (p: Csyntax.program) : res Asm.program :=
   @@@ time "Clight generation" SimplExpr.transl_program
   @@@ transf_clight_program.
 
-(*Definition transf_beepl_program (p : BeePL.module) : res Csyntax.program :=
+Definition transf_beepl_program (p : BeePL.module) : res Csyntax.program :=
   OK p
-  @@@ time "Csyntax generation" BeePL_Csyntax.BeePL_compcert.*)
+  @@@ time "Csyntax generation" BeePL_Csyntax.BeePL_compcert.
 
 (** Force [Initializers] and [Cexec] to be extracted as well. *)
 

@@ -29,6 +29,7 @@ Require Tailcall.
 Require Allocation.
 Require Bounds.
 Require Ctypes.
+Require BeePL.
 Require Csyntax.
 Require Ctyping.
 Require Clight.
@@ -154,7 +155,7 @@ Set Extraction AccessOpaque.
 Cd "extraction".
 
 Separate Extraction
-   Compiler.transf_c_program Compiler.transf_cminor_program
+   Compiler.transf_beepl_program Compiler.transf_c_program Compiler.transf_cminor_program
    Cexec.do_initial_state Cexec.do_step Cexec.at_final_state
    Ctypes.merge_attributes Ctypes.remove_attributes 
    Ctypes.build_composite_env Ctypes.layout_struct

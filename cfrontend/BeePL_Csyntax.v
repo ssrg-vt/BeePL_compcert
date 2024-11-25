@@ -364,8 +364,23 @@ match ds with
              OK (gd :: gds)
 end.
 
-(* Fix me: I want to produce Csyntax.program *)  
+Lemma composite_default :
+build_composite_env nil = OK (PTree.empty composite).
+Proof.
+unfold build_composite_env; simpl; reflexivity.
+Qed.
+
 (* Missing compositie information and list of public functions *) 
-Definition BeePL_compcert (m : BeePL.module) : res (AST.program (Ctypes.fundef function) type) :=
+Definition BeePL_compcert (m : BeePL.module) : res Csyntax.program :=
+do cfd <- (BeePLdecls_gdefs (unzip2 (fst(m)))); 
+OK {| prog_defs := (zip (unzip1 (fst (m))) cfd);
+      prog_public := nil;
+      prog_main := snd(m);
+      prog_types := nil;
+      prog_comp_env := (PTree.empty composite);
+      prog_comp_env_eq := composite_default |}.
+
+(*Definition BeePL_compcert (m : BeePL.module) : res (AST.program (Ctypes.fundef function) type) :=
 do cfd <- (BeePLdecls_gdefs (unzip2 (fst(m))));
- OK (mkprogram (zip (unzip1 (fst (m))) cfd) nil (snd(m))).
+ OK (mkprogram (zip (unzip1 (fst (m))) cfd) nil (snd(m))).*)
+

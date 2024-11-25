@@ -108,7 +108,7 @@ end.
 
 End Eq_basic_types.
 
-Fixpoint eq_basic_type (b1 b2 : basic_type) : bool :=
+Definition eq_basic_type (b1 b2 : basic_type) : bool :=
 match b1, b2 with 
 | Bprim p1, Bprim p2 => eq_primitive_type p1 p2
 end.
