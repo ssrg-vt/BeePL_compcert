@@ -6,22 +6,31 @@ Require Import BeePL_aux BeeTypes.
 Set Implicit Arguments.
 Unset Printing Implicit Defensive.
 
+Definition loc := positive.
+
+Record vinfo : Type := mkvar { vname : ident; vtype : type }.
+Record linfo : Type := mkloc { lname : loc; ltype : type }.
+
 Inductive value : Type :=
 | Vunit : value
 | Vint : int -> value
 | Vbool : bool -> value
-| Vloc : positive -> value.
+| Vloc : linfo -> value.
 
 Definition typeof_value (v : value ) (t : type) : Prop :=
 match v,t with 
 | Vunit, Ptype (Tunit) => True
 | Vint i, Ptype (Tint sz s) => True
 | Vbool b, Ptype (Tbool) => True
-| Vloc p, Reftype h (Bprim (Tint sz s)) => True
+| Vloc p, Reftype h bt => (p.(ltype)) = (Reftype h bt)
 | _, _ => False
 end.
 
 Definition vals := list value.
+
+Definition of_bool (b : bool) : value := Vbool b.
+
+Definition of_int (i : int) : value := Vint i.
 
 Fixpoint typeof_values (vs : list value) (ts : list type) : Prop :=
 match vs, ts with 
@@ -29,15 +38,6 @@ match vs, ts with
 | v :: vs, t :: ts => typeof_value v t /\ typeof_values vs ts
 | _, _ => False
 end.
-
-Definition loc := positive.
-
-Definition of_bool (b : bool) : value := Vbool b.
-
-Definition of_int (i : int) : value := Vint i.
-
-Record vinfo : Type := mkvar { vname : ident; vtype : type }.
-Record linfo : Type := mkloc { lname : loc; ltype : type }.
 
 Fixpoint extract_types_vinfos (vs : list vinfo) : list type :=
 match vs with 
@@ -90,6 +90,25 @@ match l with
 | nil => false
 | y :: ys => if eq_linfo x (fst y) then true else is_mem_heap x ys
 end.
+
+Definition get_loc_val_type (k : linfo) : option type :=
+match k.(ltype) with 
+| t => match t with 
+       | Ptype p => None
+       | Reftype h (Bprim b) => Some (Ptype b)
+       | Ftype ts e t => None (* Fix me *)
+       end
+end.
+
+(*Fixpoint type_val_heap (h : heap) (k : linfo) : bool :=
+match h with 
+| nil => false
+| h :: hs => let vt := get_loc_val_type k in 
+            match vt with 
+            | Some t => if (Is_true (eq_linfo k (fst h))) /\ (typeof_value (snd h) t) then true else type_val_heap hs k
+            | None => false
+            end
+end.*)
 
 Fixpoint update_heap (h : heap) (k : linfo) (v : value) : heap := 
 match h with 

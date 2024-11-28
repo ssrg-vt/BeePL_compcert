@@ -79,17 +79,19 @@ Inductive builtin : Type :=
 (* The source language never exposes the heap binding construct hpφ.e directly to the user 
    but during evaluation the reductions on heap operations create heaps and use them. *)
 Inductive expr : Type :=
-| Var : vinfo -> expr                                      (* variable *)
+| Var : vinfo -> expr                                              (* variable *)
 | Const : constant -> type -> expr                                 (* constant *)
-| App : option ident -> expr -> list expr -> type -> expr          (* function application: option ident represents return variable *)
-| Prim : builtin -> list expr -> type -> expr                      (* primitive functions: arrow : 
+| App : option ident -> expr -> list expr -> type -> expr               (* function application: option ident represents 
+                                                                      return variable *)
+| Prim : builtin -> list expr -> type -> expr                           (* primitive functions: arrow : 
                                                                       for now I want to treat them not like functions
                                                                       during the semantics of App, we always make sure that
                                                                       the fist "e" is evaluated to a location  *)
 | Bind : ident -> type -> expr -> expr -> type -> expr             (* let binding: type of continuation *)
 | Cond : expr -> expr -> expr -> type -> expr                      (* if e then e else e *) 
-(* not intended to be written by programmers:*)
-| Addr : linfo -> expr                                 (* address *)
+(* not intended to be written by programmers:
+   Only should play role in operational semantics *)
+| Addr : linfo -> expr                                             (* address *)
 | Hexpr : heap -> expr -> type -> expr                             (* heap effect *).
 
 (*Notation "x ':' t" := (Var x t) (at level 70, no associativity).
@@ -124,12 +126,12 @@ Inductive decl : Type :=
 | Gvdecl : globv -> decl.
 (*| Tadecl : talias -> decl.*) (* Fix me: Not sure to what global declaration this can be translated to *) 
 
-Definition genv := list (loc * decl).
+Definition genv := list (linfo * decl).
 
-Fixpoint get_decl (ge : genv) (l : loc) : option decl :=
+Fixpoint get_decl (ge : genv) (l : linfo) : option decl :=
 match ge with 
 | nil => None
-| g :: gs => if (l =? fst(g))%positive then Some (snd(g)) else get_decl gs l
+| g :: gs => if (eq_linfo l (fst g)) then Some (snd(g)) else get_decl gs l
 end.
 
 Definition get_declv (ge : genv) (v : value) : option decl :=
@@ -150,10 +152,10 @@ match d with
 | Gvdecl gd => true
 end.
 
-Fixpoint get_fun_decl (ge : genv) (l : loc) : option decl :=
+Fixpoint get_fun_decl (ge : genv) (l : linfo) : option decl :=
 match ge with 
 | nil => None
-| g :: gs => if (l =? fst(g))%positive && is_fun_decl (snd(g)) then Some (snd(g)) else get_fun_decl gs l
+| g :: gs => if (eq_linfo l (fst g)) && is_fun_decl (snd(g)) then Some (snd(g)) else get_fun_decl gs l
 end.
 
 (* first loc represents where the decl is stored and second loc represents where the 
@@ -566,31 +568,26 @@ Inductive sem_expr : genv -> state -> expr -> state -> value -> Prop :=
 | sem_prim_uop : forall ge st e t v uop st' v',
                  sem_expr ge st e st' v ->
                  sem_unary_operation uop v (typeof_expr e) = Some v' ->
-                 (*typeof_value v (typeof_expr e) ->*)
                  sem_expr ge st (Prim (Uop uop) (e :: nil) t) st' v'
 | sem_prim_bop : forall ge st e1 e2 t v1 v2 bop st' st'' v,
                  sem_expr ge st e1 st' v1 ->
                  sem_expr ge st' e2 st'' v2 ->
                  sem_binary_operation bop v1 v2 (typeof_expr e1) (typeof_expr e2) = Some v ->
-                 (*typeof_value v1 (typeof_expr e1) ->
-                 typeof_value v2 (typeof_expr e2) ->*)
                  sem_expr ge st (Prim (Bop bop) (e1 :: e2 :: nil) t) st' v
-| sem_prim_ref : forall ge st e t l st' h v, 
+| sem_prim_ref : forall ge st e t l st' v, 
                  sem_expr ge st e st' v ->
                  fresh_loc st'.(hmem) l = true ->
-                 update_heap st'.(hmem) l v = h ->
-                 (*typeof_value v (typeof_expr e) ->*)
-                 sem_expr ge st (Prim Ref (e :: nil) t) st' v
+                 sem_expr ge st (Prim Ref (e :: nil) t) {| hmem := update_heap st'.(hmem) l v; vmem := st'.(vmem) |} (Vloc l)
 | sem_prim_deref : forall ge st e t l st' v, 
-                   sem_expr ge st e st' (Vloc l.(lname)) ->
+                   sem_expr ge st e st' (Vloc l) ->
+                   get_loc_val_type l = Some t ->
                    get_val_loc st.(hmem) l = Some v -> 
-                   (*typeof_value v (typeof_expr e) ->*)
+                   typeof_value v t ->
                    sem_expr ge st (Prim Deref (e :: nil) t) st' v
-| sem_prim_massgn : forall ge st e1 e2 l v h st' st'' bt hm,
+| sem_prim_massgn : forall ge st e1 e2 l v st' st'' hm,
                     sem_expr ge st e1 st' (Vloc l) -> 
                     sem_expr ge st' e2 st'' v ->
-                    (*typeof_value v (Ptype t) ->*)
-                    update_heap st''.(hmem) {| lname := l; ltype := (Reftype h bt) |} v = hm ->
+                    update_heap st''.(hmem) l v = hm ->
                     sem_expr ge st (Prim Massgn (e1 :: e2 :: nil) (Ptype Tunit)) {| hmem := hm; vmem := st''.(vmem) |} Vunit
 | sem_bind : forall ge st x t e e' t' st' st'' v e'',
              subst x e e' = e'' ->
@@ -605,7 +602,7 @@ Inductive sem_expr : genv -> state -> expr -> state -> value -> Prop :=
                    sem_expr ge st' e3 st'' v ->
                    sem_expr ge st (Cond e1 e2 e3 t) st'' v
 | sem_addr : forall ge st l,
-             sem_expr ge st (Addr l) st (Vloc l.(lname)) 
+             sem_expr ge st (Addr l) st (Vloc l) 
 with sem_exprs : genv -> state -> list expr -> state -> list value -> Prop :=
 | sem_nil : forall ge st,
             sem_exprs ge st nil st nil

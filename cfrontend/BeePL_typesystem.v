@@ -8,7 +8,7 @@ Definition empty_effect : effect := nil.
 
 Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> Prop :=
 | Ty_var : forall Gamma Sigma x t, 
-           get_ty Gamma x.(vname) = Some t ->
+           get_ty (extend_context Gamma x.(vname) t) x.(vname) = Some t ->
            x.(vtype) = t ->
            type_expr Gamma Sigma (Var x) empty_effect t
 | Ty_constint : forall Gamma Sigma t sz s i,
@@ -23,7 +23,9 @@ Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> P
 | Ty_appr : forall Gamma Sigma r e es h bt rt ef efs ts, 
             get_ty Gamma r.(vname) = Some rt ->
             type_expr Gamma Sigma (Var r) empty_effect rt -> 
-            type_expr Gamma Sigma e ef (Reftype h bt) -> 
+            type_expr Gamma Sigma e ef (Reftype h bt) ->      (* fix me: it should be a pointer type 
+                                                                         but the value it points to must be an arrow type 
+                                                                         and we restrict ref to have only basic type *)
             type_exprs Gamma Sigma es efs ts -> 
             type_expr Gamma Sigma (App (Some r.(vname)) e es rt) (ef ++ efs) rt
 | Ty_app : forall Gamma Sigma e es h bt rt ef ts, 
@@ -33,13 +35,13 @@ Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> P
 | Ty_prim_ref : forall Gamma Sigma e ef h bt, 
                 type_expr Gamma Sigma e ef (Ptype bt) ->
                 type_expr Gamma Sigma (Prim Ref (e::nil) (Reftype h (Bprim bt))) (ef ++ (Alloc h :: nil)) (Reftype h (Bprim bt))
-| Ty_prim_deref : forall Gamma Sigma e ef h bt, 
+| Ty_prim_deref : forall Gamma Sigma e ef h bt, (* inner expression should be unrestricted as it will be used later *)
                   type_expr Gamma Sigma e ef (Reftype h (Bprim bt)) -> 
                   type_expr Gamma Sigma (Prim Deref (e::nil) (Ptype bt)) (ef ++ (Read h :: nil)) (Ptype bt)
-| Ty_prim_massgn : forall Gamma Sigma e e' h bt ef ef',
+| Ty_prim_massgn : forall Gamma Sigma e e' h bt ef,
                    type_expr Gamma Sigma e ef (Reftype h (Bprim bt)) ->
-                   type_expr Gamma Sigma e' ef' (Ptype bt) ->
-                   type_expr Gamma Sigma (Prim Massgn (e::e'::nil) (Ptype Tunit)) (ef ++ ef' ++ (Alloc h :: nil)) (Ptype Tunit)
+                   type_expr Gamma Sigma e' ef (Ptype bt) ->
+                   type_expr Gamma Sigma (Prim Massgn (e::e'::nil) (Ptype Tunit)) (ef ++ (Alloc h :: nil)) (Ptype Tunit)
 | Ty_prim_uop : forall Gamma Sigma op e ef t,
                 type_expr Gamma Sigma e ef t ->
                 type_expr Gamma Sigma (Prim (Uop op) (e::nil) t) ef t 
@@ -49,14 +51,14 @@ Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> P
                 eq_type tr (if is_not_comparison op then t else (Ptype Tbool)) ->
                 type_expr Gamma Sigma (Prim (Bop op) (e::e'::nil) tr) ef tr 
 | Ty_bind : forall Gamma Sigma x t e e' t' ef,
-            type_expr Gamma Sigma e' ef t' ->
-            type_expr (extend_context Gamma x t) Sigma e ef t ->
+            type_expr Gamma Sigma e ef t ->
+            type_expr (extend_context Gamma x t) Sigma e' ef t' ->
             type_expr Gamma Sigma (Bind x t e e' t') ef t'
-| Ty_cond : forall Gamma Sigma e1 e2 e3 t ef ef',
+| Ty_cond : forall Gamma Sigma e1 e2 e3 t ef,
             type_expr Gamma Sigma e1 ef (Ptype Tbool) ->
-            type_expr Gamma Sigma e2 ef' t ->
-            type_expr Gamma Sigma e3 ef' t ->
-            type_expr Gamma Sigma (Cond e1 e2 e3 t) (ef ++ ef') t
+            type_expr Gamma Sigma e2 ef t ->
+            type_expr Gamma Sigma e3 ef t ->
+            type_expr Gamma Sigma (Cond e1 e2 e3 t) ef t
 | Ty_loc : forall Gamma Sigma l h bt,
            get_sty Sigma l.(lname) = Some (Reftype h bt)  ->
            l.(ltype) = (Reftype h bt) ->
@@ -334,9 +336,9 @@ case: v=> //=.
   case: t'=> //= p. by case: p=> //=.
 + case: t=> //= p. case: p=> //=.
   case: t'=> //= p. by case: p=> //=.
-case: t=> //= i b. case: b=> //= p.
-case: p=> //=. case: t'=> //= i' b. 
-case: b=> //= p. by case: p=> //=.
+case: t=> //= i b. case: b=> //= p l hl; subst.
+case: t'=> //= i' b hl'; subst. case: v'=> //= l' hl''.
+rewrite hl in hl'. by rewrite hl' in hl''.
 Qed.
 
 Lemma eq_type_rel : forall v t t',
@@ -349,11 +351,11 @@ move=> v t t'. case: t'=> //=.
   + by case: p'=> //=.
   + by case: p'=> //=.
   by case: p'=> //=.
-+ case: t=> //= i b i' b'. move=> /andP [] hi.
-  case: b=> //= p. case: b'=> //= p'. case: p=> //=.
-  + by case: p'=> //=.
-  + by case: p'=> //=.
-  case: p'=> //=.
++ move=> i b. case: t=> //= i' b' /andP [] hi ht hv. 
+  apply Peqb_true_eq in hi; subst. case: b' ht=> //= p.
+  case: b hv=> //= p'. case: p'=>//=; case: p=> //=.
+  move=> sz s sz' s' hv /andP [] hsz hs. 
+  by case: sz hsz=> //=;case: sz' hv=> //=; case: s' hs=> //=;case: s=> //=. 
 move=> es e t'. by case: t=> //=.
 Qed.
   
@@ -372,9 +374,12 @@ induction ht.
 + admit.
 + admit.
 (* Ref *)
-+ admit.
++ move=> st st' v he; inversion he; subst.
+  move: (IHht st st'0 v0 H3)=> hvt. rewrite /typeof_value /=.
+  admit.
 (* Deref *)
-+ admit.
++ move=> st st' v he; inversion he; subst.
+  by move: (IHht st st' (Vloc l) H1)=> hvt.
 (* Massgn *)
 + admit.
 (* Uop *)
@@ -422,7 +427,31 @@ induction ht.
         by have := eq_type_rel v tr t heq ht. 
       + move=> uop es t' ht1 IHht1 he H8 H10 ht hte; subst.
         by have := eq_type_rel v tr t heq ht. 
-      + move=> bop es t' ht1 IHht1 he H8 H10 ht hte; subst. 
+        (* bop case *)
+      + move=> bop es t' ht1 IHht1 he H8 H10 ht hte; subst.  admit.
+      + move=> h es t' ht1 IHht1 he H8 H10 ht hte; subst.
+        by have := eq_type_rel v tr t heq ht. 
+      + move=> x xt e1 e2 t' ht1 IHht1 he H8 H10 ht hte; subst.
+        by have := eq_type_rel v tr t heq ht. 
+      + move=> e1 e2 e3 t' ht1 IHht1 he H8 H10 ht hte; subst.
+        by have := eq_type_rel v tr t heq ht. 
+      + move=> l ht1 IHht1 he H8 H10 ht hte; subst.
+        by have := eq_type_rel v tr (ltype l) heq ht.
+      move=> h e t' ht1 IHht1 he H8 H10 ht hte; subst.
+      by have := eq_type_rel v tr t heq ht.
+    (* comparison bop *)
+    move=> ht. have :=  sem_binary_operation_val_type1 op v1 v2 (typeof_expr e) (typeof_expr e') v H10.
+    rewrite hc /=. move=> htv. by have := eq_type_rel v tr (Ptype Tbool) ht htv.
+(* Bind *)
++ move=> st st' v he; inversion he; subst.
+  admit. (* We would need something like substitution preserves typing *)
+(* Cond *)
++ move=> st st' v he; inversion he; subst.
+  + by move: (IHht2 st'0 st' v H8).
+  by move: (IHht3 st'0 st' v H8).
+(* Addr *)
+move=> st st' v he; inversion he; subst.
+rewrite /typeof_value /=. by case: bt H H0=> //= p.
 Admitted.
  
 

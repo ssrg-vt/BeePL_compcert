@@ -82,7 +82,7 @@ match v with
 | BeePL_mem.Vunit => Values.Vint (Int.repr 0) (* Fix me *)
 | BeePL_mem.Vint i => Values.Vint i
 | BeePL_mem.Vbool b => Values.Vint (bool_to_int b)
-| BeePL_mem.Vloc p => Values.Vptr p (Ptrofs.of_ints (Int.repr 0))
+| BeePL_mem.Vloc p => Values.Vptr p.(BeePL_mem.lname) (Ptrofs.of_ints (Int.repr 0))
 end.
 
 Section transBeePL_exprs.
