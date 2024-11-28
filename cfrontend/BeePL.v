@@ -577,12 +577,13 @@ Inductive sem_expr : genv -> state -> expr -> state -> value -> Prop :=
 | sem_prim_ref : forall ge st e t l st' v, 
                  sem_expr ge st e st' v ->
                  fresh_loc st'.(hmem) l = true ->
+                 get_loc_val_type l = Some (typeof_expr e) ->
                  sem_expr ge st (Prim Ref (e :: nil) t) {| hmem := update_heap st'.(hmem) l v; vmem := st'.(vmem) |} (Vloc l)
 | sem_prim_deref : forall ge st e t l st' v, 
                    sem_expr ge st e st' (Vloc l) ->
                    get_loc_val_type l = Some t ->
-                   get_val_loc st.(hmem) l = Some v -> 
-                   typeof_value v t ->
+                   get_val_loc st.(hmem) l = Some v ->
+                   typeof_value v t -> 
                    sem_expr ge st (Prim Deref (e :: nil) t) st' v
 | sem_prim_massgn : forall ge st e1 e2 l v st' st'' hm,
                     sem_expr ge st e1 st' (Vloc l) -> 

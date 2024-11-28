@@ -1,6 +1,6 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
-Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps.
+Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Coqlib.
 Require Import BeePL_aux BeePL_mem BeeTypes BeePL BeePL_auxlemmas.
 From mathcomp Require Import all_ssreflect. 
 
@@ -337,8 +337,7 @@ case: v=> //=.
 + case: t=> //= p. case: p=> //=.
   case: t'=> //= p. by case: p=> //=.
 case: t=> //= i b. case: b=> //= p l hl; subst.
-case: t'=> //= i' b hl'; subst. case: v'=> //= l' hl''.
-rewrite hl in hl'. by rewrite hl' in hl''.
+by case: t'=> //= i' b hl'; subst. 
 Qed.
 
 Lemma eq_type_rel : forall v t t',
@@ -351,14 +350,43 @@ move=> v t t'. case: t'=> //=.
   + by case: p'=> //=.
   + by case: p'=> //=.
   by case: p'=> //=.
-+ move=> i b. case: t=> //= i' b' /andP [] hi ht hv. 
-  apply Peqb_true_eq in hi; subst. case: b' ht=> //= p.
-  case: b hv=> //= p'. case: p'=>//=; case: p=> //=.
-  move=> sz s sz' s' hv /andP [] hsz hs. 
-  by case: sz hsz=> //=;case: sz' hv=> //=; case: s' hs=> //=;case: s=> //=. 
++ move=> i b. by case: t=> //= i' b' /andP [] hi ht hv. 
 move=> es e t'. by case: t=> //=.
 Qed.
-  
+
+Lemma get_val_var_ty : forall st x v,
+get_val_var (vmem st) x = Some v ->
+typeof_value v (vtype x).
+Proof.
+move=> [] /= h vm x v. elim: vm=> //=.
+move=> [] xi xv xs ih /=. 
+case hxeq: (eq_vinfo x xi && valid_value_var_dec x xv)=>//= [] [] hv; subst.
+move: hxeq. move=> /andP [] h1 h2. by case: valid_value_var_dec h2=> //=.
+Qed.
+
+(**** Substitution preserves typing ****)
+(* Substitution preserve typing says that suppose we
+   have an expression [e] with a free variable [x], and suppose we've been
+   able to assign a type [t'] to [e] under the assumption that [x] has
+   some type [t].  Also, suppose that we have some other term [e'] and
+   that we've shown that [e'] has type [t].  Then, since [e'] satisfies
+   the assumption we made about [x] when typing [e], we should be
+   able to substitute [e'] for each of the occurrences of [x] in [e]
+   and obtain a new expression that still has type [t]. *)
+Lemma subst_preservation : forall Gamma Sigma x t e' e ef t', 
+type_expr (extend_context Gamma x.(vname) t) Sigma e ef t' ->
+type_expr Gamma Sigma e' ef t ->
+type_expr Gamma Sigma (subst x.(vname) e' e) ef t'.
+Proof.
+Admitted.
+
+Lemma type_expr_eq : forall Gamma Sigma e ef t ef' t',
+type_expr Gamma Sigma e ef t ->
+type_expr Gamma Sigma e ef t' ->
+t = t' /\ ef = ef'.
+Proof.
+Admitted.
+
 (**** Preservation ****)
 Lemma preservation : forall Gamma Sigma genv e ef t st st' v, 
 type_expr Gamma Sigma e ef t ->
@@ -367,21 +395,25 @@ typeof_value v t.
 Proof.
 move=> Gamma Sigma genv e ef t st st' v ht he. move: st st' v he.
 induction ht.
++ move=> st st' v he; inversion he; subst.
+  by have := get_val_var_ty st' x v H4.
+(* Const int *)
++ by move=> st st' v he; inversion he; subst; rewrite /typeof_value.
+(* Const bool *)
++ by move=> st st' v he; inversion he; subst; rewrite /typeof_value.
+(* Const unit *)
++ by move=> st st' v he; inversion he; subst; rewrite /typeof_value.
+(* App with return *) 
 + admit.
-+ admit.
-+ admit.
-+ admit.
-+ admit.
+(* App with no return *)
 + admit.
 (* Ref *)
-+ move=> st st' v he; inversion he; subst.
-  move: (IHht st st'0 v0 H3)=> hvt. rewrite /typeof_value /=.
-  admit.
++ move=> st st' v he; inversion he; subst. by rewrite /typeof_value /=.
 (* Deref *)
 + move=> st st' v he; inversion he; subst.
   by move: (IHht st st' (Vloc l) H1)=> hvt.
 (* Massgn *)
-+ admit.
++ move=> st st' v he; inversion he; subst. by rewrite /typeof_value.
 (* Uop *)
 + move=> st st' v he. inversion he; subst.
   have [h1 h2] := sem_unary_operation_val_type op v0 (typeof_expr e) v H7.
@@ -444,6 +476,15 @@ induction ht.
     rewrite hc /=. move=> htv. by have := eq_type_rel v tr (Ptype Tbool) ht htv.
 (* Bind *)
 + move=> st st' v he; inversion he; subst.
+  have /= hs := subst_preservation Gamma Sigma {| vname := x; vtype := t |} t e e' ef t' ht2 ht1.
+  (*elim: e' ht2 IHht2 he H9 hs=> //=.
+  (* var *)
+  + move=> x' ht2 IHht2 he H9 hs. move: H9 hs. case: ifP=> //=.
+    (* x=x' *)
+    + move=> hx H9 hs. apply Peqb_true_eq in hx; subst; inversion he; subst.
+      rewrite /= in H10. move: H10. have hxeq : (vname x' =? vname x')%positive. 
+      + by apply POrderedType.Positive_as_OT.eqb_refl. rewrite hxeq /=. move=> H10.
+      move: (IHht1 st'1 st' v H10)=> hvt.*)
   admit. (* We would need something like substitution preserves typing *)
 (* Cond *)
 + move=> st st' v he; inversion he; subst.

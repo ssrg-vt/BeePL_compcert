@@ -2,6 +2,7 @@ Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps.
 Require Import BeePL_aux BeeTypes.
+From mathcomp Require Import all_ssreflect. 
 
 Set Implicit Arguments.
 Unset Printing Implicit Defensive.
@@ -20,9 +21,9 @@ Inductive value : Type :=
 Definition typeof_value (v : value ) (t : type) : Prop :=
 match v,t with 
 | Vunit, Ptype (Tunit) => True
-| Vint i, Ptype (Tint sz s) => True
+| Vint i, Ptype (Tint _ _) => True
 | Vbool b, Ptype (Tbool) => True
-| Vloc p, Reftype h bt => (p.(ltype)) = (Reftype h bt)
+| Vloc p, Reftype _ _ => True
 | _, _ => False
 end.
 
@@ -100,15 +101,81 @@ match k.(ltype) with
        end
 end.
 
-(*Fixpoint type_val_heap (h : heap) (k : linfo) : bool :=
-match h with 
-| nil => false
-| h :: hs => let vt := get_loc_val_type k in 
-            match vt with 
-            | Some t => if (Is_true (eq_linfo k (fst h))) /\ (typeof_value (snd h) t) then true else type_val_heap hs k
-            | None => false
-            end
-end.*)
+(*Definition valid_value_loc (k : linfo) (v : value) : Prop :=
+if (eq_type k.(ltype) (Reftype h (Bprim t)) /\ typeof_value v (Ptype t)).  
+
+Lemma valid_value_loc_dec: forall k v,
+{valid_value_loc k v} + {~ valid_value_loc k v}.
+Proof.
+rewrite /valid_value_loc. move=> k v. 
+case: k=> //= ln lt. case: lt=> //=.
++ move=> p. case: v=> //=.
+  + right. rewrite /not. case: t=> //=.
+move=> [] ln lt v. case: lt=> //=.
++ case: v=> //= p; case: p=> //=.
+  + by left.
+  + by right.
+  + by right.
+  + move=> i hi p. case: p=> //=.
+    + by right.
+    + by left.
+    by right.
+  + move=> p. case: p=> //=.
+    + by right.
+    + by right.
+    by left.
+  + move=> p. case: p=> //=.
+    + by right.
+    + by right.
+    by left.
+  by right.
++ move=> i b /=. case: v=> //=.
+  + by right.
+  + by right.
+  + by right.
+  by left.
+move=> ts e t /=. case: v=> //=.
++ by right.
++ by right.
++ by right.
+by right.
+Qed.*)
+
+Definition valid_value_var (k : vinfo) (v : value) : Prop :=
+typeof_value v (k.(vtype)).
+
+Lemma valid_value_var_dec: forall k v,
+{valid_value_var k v} + {~ valid_value_var k v}.
+Proof.
+move=> [] ln lt v. case: lt=> //=.
++ case: v=> //= p; case: p=> //=.
+  + by left.
+  + by right.
+  + by right.
+  + move=> i hi p. case: p=> //=.
+    + by right.
+    + by left.
+    by right.
+  + move=> p. case: p=> //=.
+    + by right.
+    + by right.
+    by left.
+  + move=> p. case: p=> //=.
+    + by right.
+    + by right.
+    by left.
+  by right.
++ move=> i b /=. case: v=> //=.
+  + by right.
+  + by right.
+  + by right.
+  by left.
+move=> ts e t /=. case: v=> //=.
++ by right.
++ by right.
++ by right.
+by right.
+Qed.
 
 Fixpoint update_heap (h : heap) (k : linfo) (v : value) : heap := 
 match h with 
@@ -141,7 +208,7 @@ end.
 Fixpoint get_val_var (h : vmap) (k : vinfo) : option value :=
 match h with 
 | nil => None 
-| v :: vm => if (eq_vinfo k (fst v)) then Some (snd(v)) else get_val_var vm k
+| v :: vm => if (eq_vinfo k (fst v)) && valid_value_var_dec k (snd v) then Some (snd(v)) else get_val_var vm k
 end.
 
 (* State is made from heap and virtual map (registers to values) *)
