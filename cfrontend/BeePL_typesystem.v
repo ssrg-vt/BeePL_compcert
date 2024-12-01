@@ -71,6 +71,117 @@ with type_exprs : ty_context -> store_context -> list expr -> effect -> list typ
             type_exprs Gamma Sigma es efs ts ->
             type_exprs Gamma Sigma (e :: es) (ef ++ efs) (t :: ts).
            
+Scheme type_expr_ind_mut := Induction for type_expr Sort Prop
+  with type_exprs_ind_mut := Induction for type_exprs Sort Prop.
+Combined Scheme type_exprs_type_expr_ind_mut from type_exprs_ind_mut, type_expr_ind_mut.
+
+Lemma type_exprsE : forall Gamma Sigma es efs ts,
+type_exprs Gamma Sigma es efs ts ->
+match es with 
+| [::] => efs = [::] /\ ts = [::]
+| e1 :: es1 => exists ef1 t1 efs1 ts1,
+               type_expr Gamma Sigma e1 ef1 t1 /\  
+               type_exprs Gamma Sigma es1 efs1 ts1 /\
+               es = e1 :: es1 /\ efs = ef1 ++ efs1 /\ ts = t1 :: ts1
+end.
+Proof.
+move=> Gamma Sigma es efs ts hs. elim: es hs=> //=.
++ by move=> hs; inversion hs.
+move=> e es ih hs; inversion hs; subst.
+by exists ef, t, efs0, ts0; split=> //=.
+Qed.      
+
+Section type_expr_ind.
+Context (Pts : ty_context -> store_context -> list expr -> effect -> list type -> Prop).
+Context (Pt : ty_context -> store_context -> expr -> effect -> type -> Prop).
+Context (Hvar : forall Gamma Sigma x t,
+                get_ty (extend_context Gamma x.(vname) t) x.(vname) = Some t ->
+                x.(vtype) = t ->
+                Pt Gamma Sigma (Var x) empty_effect t).
+Context (Hconti : forall Gamma Sigma t sz s i,
+                  t = (Ptype (Tint sz s)) ->
+                  Pt Gamma Sigma (Const (ConsInt i) t) empty_effect t).
+Context (Hcontb : forall Gamma Sigma t b,
+                  t = (Ptype Tbool) ->
+                  Pt Gamma Sigma (Const (ConsBool b) t) empty_effect t).
+Context (Hcontu : forall Gamma Sigma t,
+                  t = (Ptype Tunit) ->
+                  Pt Gamma Sigma (Const (ConsUnit) t) empty_effect t).
+Context (Htappr : forall Gamma Sigma r e es h bt rt ef efs ts, 
+                  get_ty Gamma r.(vname) = Some rt ->
+                  Pt Gamma Sigma (Var r) empty_effect rt ->
+                  Pt Gamma Sigma e ef (Reftype h bt) ->
+                  Pts Gamma Sigma es efs ts ->
+                  Pt Gamma Sigma (App (Some r.(vname)) e es rt) (ef ++ efs) rt).
+Context (Htapp : forall Gamma Sigma e es ef h bt rt ts,
+                 Pt Gamma Sigma e ef (Reftype h bt) ->
+                 Pts Gamma Sigma es ef ts ->
+                 Pt Gamma Sigma (App None e es rt) ef rt).      
+Context (Htref : forall Gamma Sigma e ef h bt, 
+                 Pt Gamma Sigma e ef (Ptype bt) -> 
+                 Pt Gamma Sigma (Prim Ref (e::nil) (Reftype h (Bprim bt))) (ef ++ (Alloc h :: nil)) (Reftype h (Bprim bt))).
+Context (Htderef : forall Gamma Sigma e ef h bt, 
+                   Pt Gamma Sigma e ef (Reftype h (Bprim bt)) ->
+                   Pt Gamma Sigma (Prim Deref (e::nil) (Ptype bt)) (ef ++ (Read h :: nil)) (Ptype bt)).
+Context (Htmassgn : forall Gamma Sigma e1 e2 ef h bt, 
+                    Pt Gamma Sigma e1 ef (Reftype h (Bprim bt)) ->
+                    Pt Gamma Sigma e2 ef (Ptype bt) ->
+                    Pt Gamma Sigma (Prim Massgn (e1::e2::nil) (Ptype Tunit)) (ef ++ (Alloc h :: nil)) (Ptype Tunit)).
+Context (Htop : forall Gamma Sigma op e ef t, 
+                Pt Gamma Sigma e ef t ->
+                Pt Gamma Sigma (Prim (Uop op) (e :: nil) t) ef t).
+Context (Htbop : forall Gamma Sigma op e1 e2 ef t tr, 
+                 Pt Gamma Sigma e1 ef t ->
+                 Pt Gamma Sigma e2 ef t ->
+                 eq_type tr (if is_not_comparison op then t else (Ptype Tbool)) ->
+                 Pt Gamma Sigma (Prim (Bop op) (e1 :: e2 :: nil) tr) ef tr).
+Context (Htbind : forall Gamma Sigma x t e e' t' ef, 
+                  Pt Gamma Sigma e ef t ->
+                  Pt (extend_context Gamma x t) Sigma e' ef t' ->
+                  Pt Gamma Sigma (Bind x t e e' t') ef t).
+Context (Htcond : forall Gamma Sigma e1 e2 e3 ef t, 
+                  Pt Gamma Sigma e1 ef (Ptype Tbool) -> 
+                  Pt Gamma Sigma e2 ef t -> 
+                  Pt Gamma Sigma e3 ef t -> 
+                  Pt Gamma Sigma (Cond e1 e2 e3 t) ef t).
+Context (Htloc : forall Gamma Sigma l h bt, 
+                 get_sty Sigma l.(lname) = Some (Reftype h bt) ->
+                 l.(ltype) = (Reftype h bt) ->
+                 Pt Gamma Sigma (Addr l) empty_effect (Reftype h bt)). 
+Context (Htnil : forall Gamma Sigma,
+                 Pts Gamma Sigma nil nil nil).
+Context (Htcons : forall Gamma Sigma e es t ef ts efs,
+                  Pt Gamma Sigma e ef t ->
+                  Pts Gamma Sigma es efs ts ->
+                  Pts Gamma Sigma (e :: es) (ef ++ efs) (t :: ts)).
+
+Lemma type_expr_indP : 
+(forall Gamma Sigma es efs ts, type_exprs Gamma Sigma es efs ts -> Pts Gamma Sigma es efs ts) /\
+(forall Gamma Sigma e ef t, type_expr Gamma Sigma e ef t -> Pt Gamma Sigma e ef t).
+Proof.
+apply type_exprs_type_expr_ind_mut=> //=.
+(* Appr *)
++ move=> Gamma Sigma r e es h bt et e' efs ts hg ht hi ht' hi' hes hts.
+  apply Htappr with h bt ts.
+  + by apply hg.
+  + by apply hi.
+  + by apply hi'.
+  by apply hts.
+(* App *)
+Admitted.
+
+End type_expr_ind.
+
+
+Lemma type_expr_exprs_eq: 
+(forall Gamma Sigma es efs ts efs' ts', type_exprs Gamma Sigma es efs ts ->
+                                        type_exprs Gamma Sigma es efs' ts' ->
+                                        ts = ts' /\ efs = efs') /\
+(forall Gamma Sigma e ef t ef' t', type_expr Gamma Sigma e ef t ->
+                       type_expr Gamma Sigma e ef' t' ->
+                       t = t' /\ ef = ef').
+Proof.
+Admitted.
 
 (**** Supoorting lemmas ****)
 Lemma type_rel_typeof : forall Gamma Sigma e ef t,
@@ -377,13 +488,6 @@ Lemma subst_preservation : forall Gamma Sigma x t e' e ef t',
 type_expr (extend_context Gamma x.(vname) t) Sigma e ef t' ->
 type_expr Gamma Sigma e' ef t ->
 type_expr Gamma Sigma (subst x.(vname) e' e) ef t'.
-Proof.
-Admitted.
-
-Lemma type_expr_eq : forall Gamma Sigma e ef t ef' t',
-type_expr Gamma Sigma e ef t ->
-type_expr Gamma Sigma e ef t' ->
-t = t' /\ ef = ef'.
 Proof.
 Admitted.
 
