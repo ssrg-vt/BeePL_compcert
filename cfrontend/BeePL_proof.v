@@ -1,8 +1,8 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
-Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Linking Ctypes.
+Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Linking Ctypes Smallstep SimplExpr.
 Require Import BeePL_aux BeePL_mem BeeTypes BeePL Csyntax Clight Globalenvs BeePL_Csyntax SimplExpr.
-Require Import compcert.common.Errors BeePL_auxlemmas.
+Require Import compcert.common.Errors Initializersproof Cstrategy BeePL_auxlemmas.
 
 (***** Correctness proof for the Clight generation from BeePL using 
        composition of BeePL and CompCert compiler *****)
@@ -181,11 +181,11 @@ intros. destruct op; simpl; auto; subst.
 Qed.
 
 Lemma transl_plus_cadd: forall v1 v2 t1 t2 v cenv m ct1 ct2,
-sem_binary_operation Plus v1 v2 t1 t2 = Some v -> 
+sem_binary_operation BeePL.Plus v1 v2 t1 t2 = Some v -> 
 transBeePL_type t1 = OK ct1 ->
 transBeePL_type t2 = OK ct2 ->
 Cop.sem_binary_operation cenv 
-  (transBeePL_bop_bop Plus) (transBeePL_value_cvalue v1) ct1 (transBeePL_value_cvalue v2) ct2 m = 
+  (transBeePL_bop_bop BeePL.Plus) (transBeePL_value_cvalue v1) ct1 (transBeePL_value_cvalue v2) ct2 m = 
 Some (transBeePL_value_cvalue v). 
 Proof.
 move=> v1 v2 t1 t2 v cenv m ct1 ct2 hs. 
@@ -995,5 +995,87 @@ by have := (transl_gte_cge v1 v2 t1 t2 v cenv m ct1 ct2 H H0 H1).
 Qed.
 
 
+(***** Translation proof for expr to expr *****)
+Fixpoint expr_no_assgn_func (e : BeePL.expr) : Prop :=
+match e with 
+| Var vi => True 
+| Const c t => True 
+| App o e es t => False
+| Prim b es t => match b with 
+                 | Ref => match es with 
+                          | [:: e1] => expr_no_assgn_func e1
+                          | _ => False 
+                          end 
+                 | Deref => match es with 
+                            | [:: e1] => expr_no_assgn_func e1
+                            | _ => False
+                            end
+                 | Massgn => false 
+                 | Uop o => match es with 
+                            | [:: e1] => expr_no_assgn_func e1
+                            | _ => False 
+                            end
+                 | Bop o => match es with 
+                            | [:: e1; e2] => expr_no_assgn_func e1 /\ 
+                                             expr_no_assgn_func e2
+                            | _ => False 
+                          end
+                 | Run h => false (* Fix me *)
+                 end 
+| Bind x t e e' t' => False
+| Cond e1 e2 e3 t => expr_no_assgn_func e1 /\
+                     expr_no_assgn_func e2 /\ 
+                     expr_no_assgn_func e3
+| Addr l => True 
+| Hexpr h e t => False (* Fix me *)
+end.
 
+Fixpoint is_rval_expr (e : BeePL.expr) : Prop :=
+match e with 
+| Var vi => False 
+| Const c t => True
+| App o e es t => True  
+| Prim b es t => match b with 
+                 | Ref => True 
+                 | Deref => True 
+                 | Massgn => True 
+                 | Uop o => True 
+                 | Bop o => True
+                 | Run h => False (* Fix me *)
+                end
+| Bind x t e e' t' => True
+| Cond e1 e2 e3 t => True
+| Addr l => False
+| Hexpr h e t => False (* Fix me *)
+end.
 
+Fixpoint is_lval_expr (e : BeePL.expr) : Prop :=
+match e with 
+| Var vi => True 
+| Const c t => False
+| App o e es t => False 
+| Prim b es t => match b with 
+                 | Ref => False 
+                 | Deref => True 
+                 | Massgn => False 
+                 | Uop o => False 
+                 | Bop o => False
+                 | Run h => False (* Fix me *)
+                end
+| Bind x t e e' t' => False
+| Cond e1 e2 e3 t => False
+| Addr l => True 
+| Hexpr h e t => False (* Fix me *)
+end.
+
+(***** Expressions *****) 
+(* Fix me: Define specification 
+           Relate value v with something 
+           Should we prove it for existential? *)
+Lemma transl_expr_lvalue : forall genv e ce st st' v cge cenv m,
+is_lval_expr e ->
+sem_expr genv st e st' v ->
+transBeePL_expr_expr e = OK ce -> 
+exists b pofs bf, eval_simple_lvalue cge cenv m ce b pofs bf.
+Proof.
+Admitted.
