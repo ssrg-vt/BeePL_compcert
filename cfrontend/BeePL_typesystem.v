@@ -11,58 +11,57 @@ Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> P
            get_ty (extend_context Gamma x.(vname) t) x.(vname) = Some t ->
            x.(vtype) = t ->
            type_expr Gamma Sigma (Var x) empty_effect t
-| Ty_constint : forall Gamma Sigma t sz s i,
-                t = (Ptype (Tint sz s)) ->
+| Ty_constint : forall Gamma Sigma t sz s a i,
+                t = (Tint sz s a) ->
                 type_expr Gamma Sigma (Const (ConsInt i) t) empty_effect t
-| Ty_constbool : forall Gamma Sigma t b,
-                 t = (Ptype Tbool) ->
-                 type_expr Gamma Sigma (Const (ConsBool b) t) empty_effect t
+| Ty_constlong : forall Gamma Sigma t s a i,
+                 t = (Tlong s a) ->
+                 type_expr Gamma Sigma (Const (ConsInt i) t) empty_effect t
 | Ty_constunit : forall Gamma Sigma t,
-                t = (Ptype Tunit) ->
+                t = Tunit ->
                 type_expr Gamma Sigma (Const (ConsUnit) t) empty_effect t
-| Ty_appr : forall Gamma Sigma r e es h bt rt ef efs ts, 
+| Ty_appr : forall Gamma Sigma r e es h bt rt ef efs ts a, 
             get_ty Gamma r.(vname) = Some rt ->
             type_expr Gamma Sigma (Var r) empty_effect rt -> 
-            type_expr Gamma Sigma e ef (Reftype h bt) ->      (* fix me: it should be a pointer type 
+            type_expr Gamma Sigma e ef (Reftype h bt a) ->      (* fix me: it should be a pointer type 
                                                                          but the value it points to must be an arrow type 
                                                                          and we restrict ref to have only basic type *)
             type_exprs Gamma Sigma es efs ts -> 
             type_expr Gamma Sigma (App (Some r.(vname)) e es rt) (ef ++ efs) rt
-| Ty_app : forall Gamma Sigma e es h bt rt ef ts, 
-           type_expr Gamma Sigma e ef (Reftype h bt) -> 
+| Ty_app : forall Gamma Sigma e es h bt rt ef ts a, 
+           type_expr Gamma Sigma e ef (Reftype h bt a) -> 
            type_exprs Gamma Sigma es ef ts -> 
            type_expr Gamma Sigma (App None e es rt) ef rt
-| Ty_prim_ref : forall Gamma Sigma e ef h bt, 
-                type_expr Gamma Sigma e ef (Ptype bt) ->
-                type_expr Gamma Sigma (Prim Ref (e::nil) (Reftype h (Bprim bt))) (ef ++ (Alloc h :: nil)) (Reftype h (Bprim bt))
-| Ty_prim_deref : forall Gamma Sigma e ef h bt, (* inner expression should be unrestricted as it will be used later *)
-                  type_expr Gamma Sigma e ef (Reftype h (Bprim bt)) -> 
-                  type_expr Gamma Sigma (Prim Deref (e::nil) (Ptype bt)) (ef ++ (Read h :: nil)) (Ptype bt)
-| Ty_prim_massgn : forall Gamma Sigma e e' h bt ef,
-                   type_expr Gamma Sigma e ef (Reftype h (Bprim bt)) ->
-                   type_expr Gamma Sigma e' ef (Ptype bt) ->
-                   type_expr Gamma Sigma (Prim Massgn (e::e'::nil) (Ptype Tunit)) (ef ++ (Alloc h :: nil)) (Ptype Tunit)
+| Ty_prim_ref : forall Gamma Sigma e ef h bt a, 
+                type_expr Gamma Sigma e ef bt ->
+                type_expr Gamma Sigma (Prim Ref (e::nil) (Reftype h bt a)) (ef ++ (Alloc h :: nil)) (Reftype h bt a)
+| Ty_prim_deref : forall Gamma Sigma e ef h bt a, (* inner expression should be unrestricted as it will be used later *)
+                  type_expr Gamma Sigma e ef (Reftype h bt a) -> 
+                  type_expr Gamma Sigma (Prim Deref (e::nil) bt) (ef ++ (Read h :: nil)) bt
+| Ty_prim_massgn : forall Gamma Sigma e e' h bt ef a, (* fix me *)
+                   type_expr Gamma Sigma e ef (Reftype h bt a) ->
+                   type_expr Gamma Sigma e' ef bt ->
+                   type_expr Gamma Sigma (Prim Massgn (e::e'::nil) Tunit) (ef ++ (Alloc h :: nil)) Tunit
 | Ty_prim_uop : forall Gamma Sigma op e ef t,
                 type_expr Gamma Sigma e ef t ->
                 type_expr Gamma Sigma (Prim (Uop op) (e::nil) t) ef t 
 | Ty_prim_bop : forall Gamma Sigma op e ef t tr e',
                 type_expr Gamma Sigma e ef t ->
                 type_expr Gamma Sigma e' ef t ->
-                eq_type tr (if is_not_comparison op then t else (Ptype Tbool)) ->
                 type_expr Gamma Sigma (Prim (Bop op) (e::e'::nil) tr) ef tr 
 | Ty_bind : forall Gamma Sigma x t e e' t' ef,
             type_expr Gamma Sigma e ef t ->
             type_expr (extend_context Gamma x t) Sigma e' ef t' ->
             type_expr Gamma Sigma (Bind x t e e' t') ef t'
-| Ty_cond : forall Gamma Sigma e1 e2 e3 t ef,
-            type_expr Gamma Sigma e1 ef (Ptype Tbool) ->
+| Ty_cond : forall Gamma Sigma e1 e2 e3 tb t ef, (* add that tb represents bool *)
+            type_expr Gamma Sigma e1 ef tb ->
             type_expr Gamma Sigma e2 ef t ->
             type_expr Gamma Sigma e3 ef t ->
             type_expr Gamma Sigma (Cond e1 e2 e3 t) ef t
-| Ty_loc : forall Gamma Sigma l h bt,
-           get_sty Sigma l.(lname) = Some (Reftype h bt)  ->
-           l.(ltype) = (Reftype h bt) ->
-           type_expr Gamma Sigma (Addr l) empty_effect (Reftype h bt) 
+| Ty_loc : forall Gamma Sigma l h bt a,
+           get_sty Sigma l.(lname) = Some (Reftype h bt a)  ->
+           l.(ltype) = (Reftype h bt a) ->
+           type_expr Gamma Sigma (Addr l) empty_effect (Reftype h bt a) 
 with type_exprs : ty_context -> store_context -> list expr -> effect -> list type -> Prop :=
 | Ty_nil : forall Gamma Sigma,
            type_exprs Gamma Sigma nil nil nil
@@ -91,7 +90,7 @@ move=> e es ih hs; inversion hs; subst.
 by exists ef, t, efs0, ts0; split=> //=.
 Qed.      
 
-Section type_expr_ind.
+(*Section type_expr_ind.
 Context (Pts : ty_context -> store_context -> list expr -> effect -> list type -> Prop).
 Context (Pt : ty_context -> store_context -> expr -> effect -> type -> Prop).
 Context (Htvar : forall Gamma Sigma x t,
@@ -531,9 +530,7 @@ induction ht.
 (* Addr *)
 move=> st st' v he; inversion he; subst.
 rewrite /typeof_value /=. by case: bt H H0=> //= p.
-Admitted.
- 
-   
+Admitted. *)
 
     
     

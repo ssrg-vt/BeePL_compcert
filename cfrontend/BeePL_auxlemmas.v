@@ -6,7 +6,7 @@ Require Import compcert.common.Errors.
 
 From mathcomp Require Import all_ssreflect. 
 
-Lemma extract_type_notbool : forall v t v',
+(*Lemma extract_type_notbool : forall v t v',
 sem_unary_operation Notbool v t = Some v' -> 
 t = Ptype Tbool.
 Proof.
@@ -736,5 +736,5 @@ move=> [].
 + by case: t1=> //= p b b'; case: p=> //=; case: t2=> //= p; case: p=> //=; case: ifP=> //= hb [] hv; subst.
 by case: t1=> //= i b; case: b=> //= p; case: p=> //=; case: t2=> //= i' b; case: b=> //= p; case: p=> //=.
 Qed.
-
+*)
 

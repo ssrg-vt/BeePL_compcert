@@ -1,15 +1,18 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
-Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps.
-Require Import BeePL_aux BeePL_mem BeeTypes.
+Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Globalenvs compcert.lib.Coqlib Ctypes.
+Require Import BeePL_aux BeeTypes Axioms Memory Int Cop Memtype Errors.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Local Open Scope string_scope.
+Local Open Scope error_monad_scope.
+
 Inductive constant : Type :=
 | ConsInt : int -> constant
-| ConsBool : bool -> constant
+| ConsLong : int64 -> constant
 | ConsUnit : constant.
 
 Inductive gconstant : Type := 
@@ -17,50 +20,70 @@ Inductive gconstant : Type :=
 | Gloc : positive -> gconstant
 | Gspace : Z -> gconstant (* uninitialized global variables *). 
 
-(* Overloaded C operators and their semantics depends on the type of arguments *)
-Inductive uop : Type :=
-| Notbool : uop   (* boolean negation ! *)
-| Notint : uop    (* int compliment ~ (one's compiment *) 
-| Neg : uop.      (* opposite : two's compliment *)
+Record vinfo : Type := mkvar { vname : ident; vtype : BeeTypes.type }.
+Record linfo : Type := mkloc { lname : ident; ltype : BeeTypes.type }.
 
-Inductive bop : Type :=
-(* arithmetic *)
-| Plus : bop 
-| Minus : bop
-| Mult : bop
-| Div : bop
-(* logical *)
-| And : bop
-| Or : bop
-| Xor : bop 
-| Shl : bop
-| Shr : bop
-(* comparison *)
-| Eq : bop 
-| Neq : bop 
-| Lt : bop
-| Lte : bop
-| Gt : bop
-| Gte : bop. 
+Inductive value : Type :=
+| Vunit : value
+| Vint : int -> value
+| Vint64 : int64 -> value
+| Vloc : positive -> ptrofs -> value.
 
-Definition is_not_comparison (b : bop) : bool :=
-match b with 
-| Plus => true 
-| Minus => true 
-| Mult => true 
-| Div => true 
-| And => true 
-| Or => true 
-| Xor => true 
-| Shl => true 
-| Shr => true 
-| Eq => false
-| Neq => false
-| Lt => false
-| Lte => false
-| Gt => false 
-| Gte => false
+Definition typeof_value (v : value ) (t : BeeTypes.type) : Prop :=
+match v,t with 
+| Vunit, Tunit=> True
+| Vint i, BeeTypes.Tint _ _ _ => True
+| Vint64 i, BeeTypes.Tint _ _ _ => True
+| Vloc p ptrofs, Reftype _ _ _ => True
+| _, _ => False
 end.
+
+Definition vals := list value.
+
+Definition of_int (i : int) : value := Vint i.
+
+Fixpoint typeof_values (vs : list value) (ts : list BeeTypes.type) : Prop :=
+match vs, ts with 
+| nil, nil => True
+| v :: vs, t :: ts => typeof_value v t /\ typeof_values vs ts
+| _, _ => False
+end.
+
+Fixpoint extract_types_vinfos (vs : list vinfo) : list BeeTypes.type :=
+match vs with 
+| nil => nil
+| v :: vs => v.(vtype) :: extract_types_vinfos vs
+end.
+
+Fixpoint extract_types_linfos (vs : list linfo) : list BeeTypes.type :=
+match vs with 
+| nil => nil
+| v :: vs => v.(ltype) :: extract_types_linfos vs
+end.
+
+Fixpoint extract_vars_vinfos (vs : list vinfo) : list ident :=
+match vs with 
+| nil => nil
+| v :: vs => v.(vname) :: extract_vars_vinfos vs
+end.
+
+Fixpoint extract_locs_linfos (vs : list linfo) : list ident :=
+match vs with 
+| nil => nil
+| v :: vs => v.(lname) :: extract_locs_linfos vs
+end.
+
+Fixpoint extract_list_rvtypes (l : list vinfo) : list (ident * BeeTypes.type) :=
+match l with 
+| nil => nil
+| x :: xs => (x.(vname), x.(vtype)) :: extract_list_rvtypes xs
+end.
+
+Definition eq_vinfo (v1 : vinfo) (v2 : vinfo) : bool :=
+if (v1.(vname) =? v2.(vname))%positive && (eq_type (vtype v1) (vtype v2)) then true else false.
+
+Definition eq_linfo (v1 : linfo) (v2 : linfo) : bool :=
+if (v1.(lname) =? v2.(lname))%positive && (eq_type v1.(ltype) v2.(ltype)) then true else false.
 
 Inductive builtin : Type :=
 | Ref : builtin              (* allocation : ref t e allocates e of type t 
@@ -69,9 +92,9 @@ Inductive builtin : Type :=
                                 present at location e *)
 | Massgn : builtin           (* assign value at a location l (l := e) 
                                 assigns the evaluation of e to the reference cell l *)
-| Uop : uop -> builtin       (* unary operator *)
-| Bop : bop -> builtin       (* binary operator *)
-| Run : heap -> builtin      (* eliminate heap effect : [r1-> v1, ..., ern->vn] e 
+| Uop : Cop.unary_operation -> builtin       (* unary operator *)
+| Bop : Cop.binary_operation -> builtin       (* binary operator *)
+| Run : mem -> builtin      (* eliminate heap effect : [r1-> v1, ..., ern->vn] e 
                                 reduces to e captures the essence of state isolation 
                                 and reduces to a value discarding the heap *).
 
@@ -81,9 +104,9 @@ Inductive builtin : Type :=
 Inductive expr : Type :=
 | Var : vinfo -> expr                                              (* variable *)
 | Const : constant -> type -> expr                                 (* constant *)
-| App : option ident -> expr -> list expr -> type -> expr               (* function application: option ident represents 
+| App : option ident -> expr -> list expr -> type -> expr          (* function application: option ident represents 
                                                                       return variable *)
-| Prim : builtin -> list expr -> type -> expr                           (* primitive functions: arrow : 
+| Prim : builtin -> list expr -> type -> expr                      (* primitive functions: arrow : 
                                                                       for now I want to treat them not like functions
                                                                       during the semantics of App, we always make sure that
                                                                       the fist "e" is evaluated to a location  *)
@@ -92,16 +115,9 @@ Inductive expr : Type :=
 (* not intended to be written by programmers:
    Only should play role in operational semantics *)
 | Addr : linfo -> expr                                             (* address *)
-| Hexpr : heap -> expr -> type -> expr                             (* heap effect *).
+| Hexpr : mem -> expr -> type -> expr                              (* heap effect *).
 
-(*Notation "x ':' t" := (Var x t) (at level 70, no associativity).
-Notation "c '~' t" := (Const c t) (at level 80, no associativity).
-Notation "'val' x ':' t '=' e ';' e'" := (Bind x t e e') (at level 60, right associativity).
-Notation "'prim' b ( n , es , ts )" := (Prim b n es ts)(at level 50, right associativity).
-Notation "'fun' \ f ( n , es , ts )" := (App f n es ts)(at level 50, right associativity).
-Notation "'If' e ':' t 'then' e' 'else' e'' ':' t'" := (Cond e t e' e'' t')(at level 40, left associativity).*)
-
-Definition typeof_expr (e : expr) : type :=
+Definition typeof_expr (e : expr) : BeeTypes.type :=
 match e with 
 | Var x => x.(vtype)
 | Const x t => t
@@ -117,50 +133,55 @@ end.
 Record fun_decl : Type := 
        mkfunction {fname : ident; args : list vinfo; lvars : list vinfo; rtype : type; body : expr}.
 
-Record globv : Type := mkglobv {gname : ident; gtype : type; gval : list gconstant}.
+Record glob_decl : Type := mkglobv {gname : ident; gtype : type; gval : list gconstant}.
 
 Record talias : Type := mktalias {tname : ident; atype : type}.
 
+Inductive func : Type :=
+| Fun : fun_decl -> func.
+
+Inductive globv : Type :=
+| Glob : glob_decl -> globv.
+
 Inductive decl : Type :=
-| Fdecl : fun_decl -> decl
+| Fdecl : func -> decl
 | Gvdecl : globv -> decl.
 (*| Tadecl : talias -> decl.*) (* Fix me: Not sure to what global declaration this can be translated to *) 
 
-Definition genv := list (linfo * decl).
+Record genv : Type := 
+mkgenv {genv_defs : PTree.t decl;
+        genv_next : positive }.
 
-Fixpoint get_decl (ge : genv) (l : linfo) : option decl :=
-match ge with 
-| nil => None
-| g :: gs => if (eq_linfo l (fst g)) then Some (snd(g)) else get_decl gs l
-end.
+(* Returns a declaration at location l *)
+Definition find_def (ge : genv) (l : positive) : option decl :=
+PTree.get l ge.(genv_defs). 
 
-Definition get_declv (ge : genv) (v : value) : option decl :=
-match v with 
-| Vloc p => get_decl ge p 
+(* Returns the function declaration *)
+Definition find_fdef (ge : genv) (l : positive) : option func :=
+match find_def ge l with 
+| Some (Fdecl fd) => Some fd
 | _ => None
 end.
 
-Definition is_fun_decl (d : decl) : bool :=
-match d with 
-| Fdecl fd => true 
-| Gvdecl gd => false
+(* Returns the global variable  declaration *)
+Definition find_gdef (ge : genv) (l : positive) : option globv :=
+match find_def ge l with 
+| Some (Gvdecl gd) => Some gd
+| _ => None
 end.
 
-Definition is_global_decl (d : decl) : bool :=
-match d with 
-| Fdecl fd => false 
-| Gvdecl gd => true
-end.
+(***** Virtual map *****)
 
-Fixpoint get_fun_decl (ge : genv) (l : linfo) : option decl :=
-match ge with 
-| nil => None
-| g :: gs => if (eq_linfo l (fst g)) && is_fun_decl (snd(g)) then Some (snd(g)) else get_fun_decl gs l
-end.
+(** The local environment maps local variables to references/locations and types.
+  The current value of the variable is stored in the associated memory
+  location. *)
+Definition vmap := PTree.t (positive * type). (* map variable -> location & type *)
+
+Definition empty_vmap: vmap  := (PTree.empty (positive * type)).
 
 (* first loc represents where the decl is stored and second loc represents where the 
    definition of main is stored *)
-Definition module := prod (list (loc * decl)) loc.
+Record program: Type :=  mkprogram { bprog_defs : list (positive * decl); bprog_main : positive }.
 
 Section Subs.
 
@@ -197,420 +218,171 @@ match xs with
              end
 end.
 
-(***** Semantics of unary operators *****)
-Definition sem_notbool (v : value) (t : type) : option value :=
-match v,t with 
-| Vunit, (Ptype Tunit) => None 
-| Vint i, (Ptype (Tint _ _)) => None
-| Vbool b, (Ptype Tbool) => Some (of_bool (negb b)) 
-| Vloc l, (Reftype _ (Bprim (Tint _ _)))  => None
-| _, _ => None
+Definition bool_to_int (b : bool) : int :=
+match b with 
+| true => (Int.repr 1)
+| false => (Int.repr 0)
 end.
 
-Definition sem_notint (v : value) (t : type) : option value :=
-match v,t with 
-| Vunit, (Ptype Tunit) => None 
-| Vint i, (Ptype (Tint _ _)) => Some (of_int (Int.not i)) 
-| Vbool b, (Ptype Tbool) => None 
-| Vloc l, (Reftype _ (Bprim (Tint _ _))) => None 
-| _, _ => None
+(* Convets BeePL value to C value *) 
+Definition transBeePL_value_cvalue (v : value) : Values.val :=
+match v with 
+| Vunit => Values.Vint (Int.repr 0) (* Fix me *)
+| Vint i => Values.Vint i
+| Vint64 i => Values.Vlong i 
+| Vloc p ofs => Values.Vptr p ofs
 end.
 
-Definition sem_neg (v : value) (t : type) : option value :=
-match v,t with 
-| Vunit, (Ptype Tunit) => None 
-| Vint i, (Ptype (Tint _ _)) => Some (of_int (Int.neg i)) 
-| Vbool b, (Ptype Tbool) => None 
-| Vloc l, (Reftype _ (Bprim (Tint _ _))) => None
-| _, _ => None 
+(* Converts C value to BeePL value *) 
+Definition transC_val_bplvalue (v : Values.val) : value :=
+match v with 
+| Values.Vundef => Vunit (* Fix me *)
+| Values.Vint i => Vint i
+| Values.Vlong i => Vint64 i
+| Values.Vptr b ofs => Vloc b ofs
+| _ => Vunit (* float case *)
 end.
 
-Definition sem_unary_operation (op : uop) (v : value) (t : type) : option value :=
-match op with 
-| Notbool => sem_notbool v t
-| Notint => sem_notint v t
-| Neg => sem_neg v t
-end.
+(* Operational Semantics *)
 
+(* [deref_addr ty m addr ofs] computes the value of type [ty] residing in 
+    memory [m] at address [addr], offset [ofs] and bitfield designation [bf]:
+    if the access mode is by value then the value is returned by performing memory load 
+    if the access mode is by reference then the pointer [Vloc addr ofs] is returned *)
+(* Add rest like copy, bitfield, volatile, etc once we add arrays and structs *)
+Inductive deref_addr (ty : type) (m : mem) (addr : Values.block) (ofs : ptrofs) : bitfield -> value -> Prop :=
+| deref_addr_value : forall chunk v,
+  access_mode ty = By_value chunk ->
+  Mem.loadv chunk m (transBeePL_value_cvalue (Vloc addr ofs)) = Some v ->
+  deref_addr ty m addr ofs Full (transC_val_bplvalue v)
+| deref_addr_reference:
+  access_mode ty = By_reference ->
+  deref_addr ty m addr ofs Full (Vloc addr ofs).
 
-(***** Semantics of binary operators *****)
-(* Addition: Integer overflow is taken care in the definition of int 
-   Example : 4 bit (15 is the max) : 15 + 1 wraps around and produces 0 *)
-Definition sem_plus (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
-match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => None
-| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None 
-| Vint i1, Vint i2, (Ptype (Tint _ _)), (Ptype (Tint _ _)) => Some (of_int (Int.add i1 i2)) 
-| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
-| _, _, _, _ => None
-end.
+(* [assign_addr ty m addr ofs v] returns the updated memory after storing the value v at address [addr] and offset 
+   [ofs] *)
+Inductive assign_addr (ty : type) (m : mem) (addr : Values.block) (ofs : ptrofs) : bitfield -> value -> mem -> value -> Prop :=
+| assign_addr_value : forall v chunk m',
+  access_mode ty = By_value chunk ->
+  Mem.storev chunk m (transBeePL_value_cvalue (Vloc addr ofs)) v = Some m' ->
+  assign_addr ty m addr ofs Full (transC_val_bplvalue v) m' (transC_val_bplvalue v). 
 
-Definition sem_minus (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
-match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => None
-| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None 
-| Vint i1, Vint i2, (Ptype (Tint _ _)), (Ptype (Tint _ _)) => Some (of_int (Int.sub i1 i2)) 
-| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
-| _, _, _, _ => None
-end.
+(* Allocation of function local variables *)
+(* [alloc_variables vm1 m1 vars vm2 m2] allocates one memory block for each variable
+   declared in [vars], and associates the variable name with this block. 
+   [vm1] and [m1] are the initial local environment and memory state.
+   [e2] and [m2] are the final local environment and memory state *) 
+Inductive alloc_variables : vmap -> mem -> list vinfo -> vmap -> mem -> Prop :=
+| alloc_variables_nil : forall vm hm, 
+                        alloc_variables vm hm nil vm hm
+| alloc_variables_con : forall e m id ty vars m1 l1 m2 e2,
+      Mem.alloc m 0 (sizeof_type ty) = (m1, l1) ->
+      alloc_variables (PTree.set id (l1, ty) e) m1 vars e2 m2 ->
+      alloc_variables e m ({| vname := id; vtype := ty |} :: vars) e2 m2.
+                  
 
-Definition sem_mult (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
-match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => None
-| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None 
-| Vint i1, Vint i2, (Ptype (Tint _ _)), (Ptype (Tint _ _)) => Some (of_int (Int.mul i1 i2)) 
-| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
-| _, _, _, _ => None
-end.
+(** Initialization of local variables that are parameters to a function.
+  [bind_parameters e m1 params args m2] stores the values [args]
+  in the memory blocks corresponding to the variables [params].
+  [m1] is the initial memory state and [m2] the final memory state. *)
+Inductive bind_parameters (e: vmap): mem -> list vinfo -> list value -> mem -> Prop :=
+| bind_parameters_nil: forall m,
+                       bind_parameters e m nil nil m
+| bind_parameters_cons: forall m id ty params v1 vl v1' b m1 m2,
+                        PTree.get id e = Some(b, ty) ->
+                        assign_addr ty m b Ptrofs.zero Full v1 m1 v1' ->
+                        bind_parameters e m1 params vl m2 ->
+                        bind_parameters e m ({| vname := id; vtype := ty|} :: params) (v1 :: vl) m2.
 
-Definition sem_div (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
-match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit)  => None
-| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None 
-| Vint i1, Vint i2, (Ptype (Tint sz s)), (Ptype (Tint sz' s')) => 
-  match s with 
-  | Signed => match s' with 
-              | Signed => match sz, sz' with 
-                          | I32, I32 => if (Int.eq i2 Int.zero || 
-                                            (Int.eq i1 (Int.repr Int.min_signed) && Int.eq i2 Int.mone)) (* -128/-1 *)
-                                        then None 
-                                        else Some (of_int (Int.divs i1 i2))
-                          | _, _ => None 
-                         end
-              | Unsigned => None 
-              end
-  | Unsigned => match s' with 
-                | Signed => None 
-                | Unsigned => match sz, sz' with 
-                              | I32, I32 => if (Int.eq i2 Int.zero) 
-                                            then None 
-                                            else Some (of_int (Int.divu i1 i2))
-                              | _, _ => None 
-                              end 
-                end 
-end
-| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
-| _, _, _, _ => None
-end.
-
-Definition sem_and (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
-match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => None
-| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => Some (of_bool (b1 && b2)) 
-| Vint i1, Vint i2, (Ptype (Tint _ _)), (Ptype (Tint _ _)) => None 
-| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
-| _, _, _, _ => None
-end.
-
-Definition sem_or (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
-match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => None
-| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => Some (of_bool (b1 || b2)) 
-| Vint i1, Vint i2, (Ptype (Tint _ _)), (Ptype (Tint _ _)) => None 
-| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
-| _, _, _, _ => None
-end.
-
-Definition sem_xor (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
-match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => None
-| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => Some (of_bool (xorb b1 b2)) 
-| Vint i1, Vint i2, (Ptype (Tint _ _)), (Ptype (Tint _ _)) => None 
-| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
-| _, _, _, _ => None
-end.
-
-Definition sem_shl (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
-match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit) => None
-| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None
-| Vint i1, Vint i2, (Ptype (Tint sz _)), (Ptype (Tint sz' _)) => 
-  match sz, sz' with 
-  | I32, I32 => if (Int.ltu i2 Int.iwordsize) then Some (of_int (Int.shl i1 i2)) else None
-  | _, _ => None 
-  end 
-| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
-| _, _, _, _ => None
-end.
-
-Definition sem_shr (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
-match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit)  => None
-| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None 
-| Vint i1, Vint i2, (Ptype (Tint sz s)), (Ptype (Tint sz' s')) => 
-  match s with 
-  | Signed => match s' with 
-              | Signed => match sz, sz' with 
-                          | I32, I32 => if (Int.ltu i2 Int.iwordsize) 
-                                        then Some (of_int (Int.shr i1 i2)) 
-                                        else None
-                          | _, _ => None 
-                         end
-              | Unsigned => None 
-              end
-  | Unsigned => match s' with 
-                | Signed => None 
-                | Unsigned => match sz, sz' with 
-                              | I32, I32 => if (Int.ltu i2 Int.iwordsize)
-                                            then Some (of_int (Int.shru i1 i2)) 
-                                            else None
-                              | _, _ => None 
-                              end 
-                end 
-end
-| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
-| _, _, _, _ => None
-end.
-
-Definition sem_eq (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
-match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit)  => Some (Vbool true)
-| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => Some (of_bool (Bool.eqb b1 b2)) 
-| Vint i1, Vint i2, (Ptype (Tint sz s)), (Ptype (Tint sz' s')) => 
-  match s with 
-  | Signed => match s' with 
-              | Signed => match sz, sz' with 
-                          | I32, I32 => Some (of_bool (Int.cmp Ceq i1 i2))
-                          | _, _ => None 
-                         end
-              | Unsigned => None 
-              end
-  | Unsigned => match s' with 
-                | Signed => None 
-                | Unsigned => match sz, sz' with 
-                              | I32, I32 => Some (of_bool (Int.cmpu Ceq i1 i2))
-                              | _, _ => None 
-                              end 
-                end 
-end
-| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
-| _, _, _, _ => None
-end.
-
-Definition sem_neq (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
-match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit)  => Some (Vbool false)
-| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => Some (of_bool (negb (Bool.eqb b1 b2))) 
-| Vint i1, Vint i2, (Ptype (Tint sz s)), (Ptype (Tint sz' s')) => 
-  match s with 
-  | Signed => match s' with 
-              | Signed => match sz, sz' with 
-                          | I32, I32 => Some (of_bool (Int.cmp Cne i1 i2))
-                          | _, _ => None 
-                         end
-              | Unsigned => None 
-              end
-  | Unsigned => match s' with 
-                | Signed => None 
-                | Unsigned => match sz, sz' with 
-                              | I32, I32 => Some (of_bool (Int.cmpu Cne i1 i2))
-                              | _, _ => None 
-                              end 
-                end 
-end
-| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
-| _, _, _, _ => None
-end.
-
-
-Definition sem_lt (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
-match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit)  => Some (Vbool false)
-| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None
-| Vint i1, Vint i2, (Ptype (Tint sz s)), (Ptype (Tint sz' s')) => 
-  match s with 
-  | Signed => match s' with 
-              | Signed => match sz, sz' with 
-                          | I32, I32 => Some (of_bool (Int.cmp Clt i1 i2))
-                          | _, _ => None 
-                         end
-              | Unsigned => None 
-              end
-  | Unsigned => match s' with 
-                | Signed => None 
-                | Unsigned => match sz, sz' with 
-                              | I32, I32 => Some (of_bool (Int.cmpu Clt i1 i2))
-                              | _, _ => None 
-                              end 
-                end 
-end
-| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
-| _, _, _, _ => None
-end.
-
-
-Definition sem_lte (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
-match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit)  => Some (Vbool true) (* Fix me *)
-| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => if (Bool.eqb b1 b2) then Some (of_bool (Bool.eqb b1 b2)) else None
-| Vint i1, Vint i2, (Ptype (Tint sz s)), (Ptype (Tint sz' s')) => 
-  match s with 
-  | Signed => match s' with 
-              | Signed => match sz, sz' with 
-                          | I32, I32 => Some (of_bool (Int.cmp Cle i1 i2))
-                          | _, _ => None 
-                         end
-              | Unsigned => None 
-              end
-  | Unsigned => match s' with 
-                | Signed => None 
-                | Unsigned => match sz, sz' with 
-                              | I32, I32 => Some (of_bool (Int.cmpu Cle i1 i2))
-                              | _, _ => None 
-                              end 
-                end 
-end
-| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
-| _, _, _, _ => None
-end.
-
-
-Definition sem_gt (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
-match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit)  => Some (Vbool false)
-| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => None
-| Vint i1, Vint i2, (Ptype (Tint sz s)), (Ptype (Tint sz' s')) => 
-  match s with 
-  | Signed => match s' with 
-              | Signed => match sz, sz' with 
-                          | I32, I32 => Some (of_bool (Int.cmp Cgt i1 i2))
-                          | _, _ => None 
-                         end
-              | Unsigned => None 
-              end
-  | Unsigned => match s' with 
-                | Signed => None 
-                | Unsigned => match sz, sz' with 
-                              | I32, I32 => Some (of_bool (Int.cmpu Cgt i1 i2))
-                              | _, _ => None 
-                              end 
-                end 
-end
-| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
-| _, _, _, _ => None
-end.
-
-
-Definition sem_gte (v1 : value) (v2 : value) (t1 : type) (t2 : type) : option value :=
-match v1, v2, t1, t2 with 
-| Vunit, Vunit, (Ptype Tunit), (Ptype Tunit)  => Some (Vbool true) (* Fix me *)
-| Vbool b1, Vbool b2, (Ptype Tbool), (Ptype Tbool) => if (Bool.eqb b1 b2) then Some (of_bool (Bool.eqb b1 b2)) else None
-| Vint i1, Vint i2, (Ptype (Tint sz s)), (Ptype (Tint sz' s')) => 
-  match s with 
-  | Signed => match s' with 
-              | Signed => match sz, sz' with 
-                          | I32, I32 => Some (of_bool (Int.cmp Cge i1 i2))
-                          | _, _ => None 
-                         end
-              | Unsigned => None 
-              end
-  | Unsigned => match s' with 
-                | Signed => None 
-                | Unsigned => match sz, sz' with 
-                              | I32, I32 => Some (of_bool (Int.cmpu Cge i1 i2))
-                              | _, _ => None 
-                              end 
-                end 
-end
-| Vloc l1, Vloc l2, (Reftype _ (Bprim (Tint _ _))), (Reftype _ (Bprim (Tint _ _))) => None 
-| _, _, _, _ => None
-end.
-
-Definition sem_binary_operation (op : bop) (v1 v2 : value) (t1 t2 : type) : option value :=
-match op with 
-| Plus => sem_plus v1 v2 t1 t2
-| Minus => sem_minus v1 v2 t1 t2
-| Mult => sem_mult v1 v2 t1 t2
-| Div => sem_div v1 v2 t1 t2
-| And => sem_and v1 v2 t1 t2
-| Or => sem_or v1 v2 t1 t2
-| Xor => sem_xor v1 v2 t1 t2
-| Shl => sem_shl v1 v2 t1 t2
-| Shr => sem_shr v1 v2 t1 t2
-| Eq => sem_eq v1 v2 t1 t2
-| Neq => sem_neq v1 v2 t1 t2
-| Lt => sem_lt v1 v2 t1 t2
-| Lte => sem_lte v1 v2 t1 t2
-| Gt => sem_gt v1 v2 t1 t2
-| Gte => sem_gte v1 v2 t1 t2
-end.
-
-(* Operational Semantics *) 
-Inductive sem_expr : genv -> state -> expr -> state -> value -> Prop :=
-| sem_var : forall ge st x v, 
-            get_val_var st.(vmem) x = Some v -> 
-            sem_expr ge st (Var x) st v
-| sem_const_int : forall ge st i t, 
-                   sem_expr ge st (Const (ConsInt i) t) st (Vint i)
-| sem_const_bool : forall ge st b t, 
-                  sem_expr ge st (Const (ConsBool b) t) st (Vbool b)
-| sem_const_unit : forall ge st,
-                   sem_expr ge st (Const (ConsUnit) (Ptype Tunit)) st (Vunit)
-| sem_appr : forall ge e es t st l st' st'' vs fd vm' st''' rv r vm'',
-             sem_expr ge st e st' (Vloc l) ->
-             get_fun_decl ge l = Some (Fdecl fd) ->
-             sem_exprs ge st' es st'' vs ->
+Inductive sem_expr : genv -> vmap -> mem -> expr -> mem -> value -> Prop :=
+| sem_var : forall ge vm hm st x v t l, 
+            vm!(x.(vname)) = Some (l, t) ->
+            t = x.(vtype) ->
+            deref_addr t hm l Ptrofs.zero Full v ->
+            sem_expr ge vm hm (Var x) st v
+| sem_const_int : forall ge vm hm st i t, 
+                   sem_expr ge vm hm (Const (ConsInt i) t) st (Vint i)
+| sem_const_int64 : forall ge vm hm st i t, 
+                  sem_expr ge vm hm (Const (ConsLong i) t) st (Vint64 i)
+| sem_const_unit : forall ge vm hm st,
+                   sem_expr ge vm hm (Const (ConsUnit) (Tunit)) st (Vunit)
+| sem_appr : forall ge vm1 hm1 e es t l fd hm2 hm3 hm4 hm5 hm6 vm2 vs rv r hm7,
+             sem_expr ge vm1 hm1 e hm2 (Vloc l Ptrofs.zero) ->
+             find_fdef ge l = Some (Fun fd) ->
+             list_norepet (fd.(args) ++ fd.(lvars)) ->
+             alloc_variables vm1 hm2 (fd.(args) ++ fd.(lvars)) vm2 hm3 -> 
+             sem_exprs ge vm2 hm3 es hm4 vs ->
              typeof_values vs (extract_types_vinfos fd.(args)) ->
-             write_vars (st.(vmem)) fd.(args) vs = Ok error vm' ->
-             sem_expr ge {| hmem := st''.(hmem); vmem := vm' |} fd.(body) st''' rv -> 
-             write_var (st'''.(vmem)) r rv = vm'' ->
+             bind_parameters vm1 hm4 fd.(args) vs hm5  ->
+             sem_expr ge vm1 hm5 fd.(body) hm6 rv -> 
+             bind_parameters vm1 hm6 (r::nil) (rv::nil) hm7 ->
              typeof_value rv (fd.(rtype)) ->
-             sem_expr ge st (App (Some r.(vname)) e es t) {| hmem := st'''.(hmem); vmem := vm'' |}  rv 
-| sem_app : forall ge e es t st l st' st'' vs fd vm' st''' rv vm'',
-             sem_expr ge st e st' (Vloc l) ->
-             get_fun_decl ge l = Some (Fdecl fd) ->
-             sem_exprs ge st' es st'' vs ->
-             typeof_values vs (extract_types_vinfos fd.(args)) ->
-             write_vars (st.(vmem)) fd.(args) vs = Ok error vm' ->
-             sem_expr ge {| hmem := st''.(hmem); vmem := vm' |} fd.(body) st''' rv -> 
-             typeof_value rv (fd.(rtype)) ->
-             sem_expr ge st (App None e es t) {| hmem := st'''.(hmem); vmem := vm'' |}  rv 
-| sem_prim_uop : forall ge st e t v uop st' v',
-                 sem_expr ge st e st' v ->
-                 sem_unary_operation uop v (typeof_expr e) = Some v' ->
-                 sem_expr ge st (Prim (Uop uop) (e :: nil) t) st' v'
-| sem_prim_bop : forall ge st e1 e2 t v1 v2 bop st' st'' v,
-                 sem_expr ge st e1 st' v1 ->
-                 sem_expr ge st' e2 st'' v2 ->
-                 sem_binary_operation bop v1 v2 (typeof_expr e1) (typeof_expr e2) = Some v ->
-                 sem_expr ge st (Prim (Bop bop) (e1 :: e2 :: nil) t) st' v
-| sem_prim_ref : forall ge st e t l st' v, 
-                 sem_expr ge st e st' v ->
-                 fresh_loc st'.(hmem) l = true ->
-                 get_loc_val_type l = Some (typeof_expr e) ->
-                 sem_expr ge st (Prim Ref (e :: nil) t) {| hmem := update_heap st'.(hmem) l v; vmem := st'.(vmem) |} (Vloc l)
-| sem_prim_deref : forall ge st e t l st' v, 
-                   sem_expr ge st e st' (Vloc l) ->
-                   get_loc_val_type l = Some t ->
-                   get_val_loc st.(hmem) l = Some v ->
-                   typeof_value v t -> 
-                   sem_expr ge st (Prim Deref (e :: nil) t) st' v
-| sem_prim_massgn : forall ge st e1 e2 l v st' st'' hm,
-                    sem_expr ge st e1 st' (Vloc l) -> 
-                    sem_expr ge st' e2 st'' v ->
-                    update_heap st''.(hmem) l v = hm ->
-                    sem_expr ge st (Prim Massgn (e1 :: e2 :: nil) (Ptype Tunit)) {| hmem := hm; vmem := st''.(vmem) |} Vunit
-| sem_bind : forall ge st x t e e' t' st' st'' v e'',
+             sem_expr ge vm1 hm1 (App (Some r.(vname)) e es t) hm7 rv 
+| sem_app : forall ge vm1 hm1 e es t l fd hm2 hm3 hm4 hm5 hm6 vm2 vs rv,
+            sem_expr ge vm1 hm1 e hm2 (Vloc l Ptrofs.zero) ->
+            find_fdef ge l = Some (Fun fd) ->
+            list_norepet (fd.(args) ++ fd.(lvars)) ->
+            alloc_variables vm1 hm2 (fd.(args) ++ fd.(lvars)) vm2 hm3 -> 
+            sem_exprs ge vm2 hm3 es hm4 vs ->
+            typeof_values vs (extract_types_vinfos fd.(args)) ->
+            bind_parameters vm1 hm4 fd.(args) vs hm5  ->
+            sem_expr ge vm1 hm5 fd.(body) hm6 rv -> 
+            typeof_value rv (fd.(rtype)) ->
+            sem_expr ge vm1 hm1 (App None e es t) hm6 rv 
+| sem_prim_uop : forall ge vm hm e v uop hm' v' t ct,
+                 sem_expr ge vm hm e hm' v ->
+                 transBeePL_type (typeof_expr e) = OK ct ->
+                 sem_unary_operation uop (transBeePL_value_cvalue v) ct hm' = Some v' ->
+                 sem_expr ge vm hm (Prim (Uop uop) (e :: nil) t) hm' (transC_val_bplvalue v')
+| sem_prim_bop : forall ge vm hm cenv e1 e2 t v1 v2 bop hm' hm'' v ct1 ct2 ,
+                 sem_expr ge vm hm e1 hm' v1 ->
+                 sem_expr ge vm hm e2 hm'' v2 ->
+                 transBeePL_type (typeof_expr e1) = OK ct1 ->
+                 transBeePL_type (typeof_expr e2) = OK ct2 ->
+                 sem_binary_operation cenv bop (transBeePL_value_cvalue v1) ct1 (transBeePL_value_cvalue v2) ct2 hm'' = Some v ->
+                 sem_expr ge vm hm (Prim (Bop bop) (e1 :: e2 :: nil) t) hm'' (transC_val_bplvalue v)
+| sem_prim_ref : forall ge vm hm e t ct hm' v l, 
+                 sem_expr ge vm hm e hm' v ->
+                 transBeePL_type (typeof_expr e) = OK ct ->
+                 Mem.alloc hm 0 (sizeof_type t) = (hm', l) ->
+                 sem_expr ge vm hm (Prim Ref (e :: nil) t) hm' (Vloc l Ptrofs.zero)
+| sem_prim_deref : forall ge vm hm e t l ofs hm' v, 
+                   sem_expr ge vm hm e hm' (Vloc l ofs) ->
+                   deref_addr t hm l ofs Full (transC_val_bplvalue v) ->
+                   sem_expr ge vm hm (Prim Deref (e :: nil) t) hm' (transC_val_bplvalue v)
+| sem_prim_massgn : forall ge vm hm e1 e2 l ofs v hm' hm'' hm''' ct1 ct2 bf v' v'',
+                    sem_expr ge vm hm e1 hm' (Vloc l ofs) -> 
+                    sem_expr ge vm hm' e2 hm'' v ->
+                    transBeePL_type (typeof_expr e1) = OK ct1 ->
+                    transBeePL_type (typeof_expr e2) = OK ct2 ->
+                    sem_cast (transBeePL_value_cvalue v) ct2 ct1 hm'' = Some (transBeePL_value_cvalue v') ->
+                    assign_addr (typeof_expr e1) hm'' l ofs bf v' hm''' v'' ->
+                    sem_expr ge vm hm (Prim Massgn (e1 :: e2 :: nil) (typeof_expr e1)) hm''' v''
+| sem_bind : forall ge vm hm x t e e' t' hm' v e'',
              subst x e e' = e'' ->
-             sem_expr ge st' e'' st'' v ->
-             sem_expr ge st (Bind x t e e' t') st'' v
-| sem_cond_true : forall ge st e1 e2 e3 t st' st'' v, 
-                  sem_expr ge st e1 st' (Vbool true) -> 
-                  sem_expr ge st' e2 st'' v ->
-                  sem_expr ge st (Cond e1 e2 e3 t) st'' v
-| sem_cond_false : forall ge st e1 e2 e3 t st' st'' v, 
-                   sem_expr ge st e1 st' (Vbool false) -> 
-                   sem_expr ge st' e3 st'' v ->
-                   sem_expr ge st (Cond e1 e2 e3 t) st'' v
-| sem_addr : forall ge st l,
-             sem_expr ge st (Addr l) st (Vloc l) 
-with sem_exprs : genv -> state -> list expr -> state -> list value -> Prop :=
-| sem_nil : forall ge st,
-            sem_exprs ge st nil st nil
-| sem_cons : forall ge st e es st' v st'' vs,
-             sem_expr ge st e st' v ->
-             sem_exprs ge st' es st'' vs ->
-             sem_exprs ge st (e :: es) st'' (v :: vs).
+             sem_expr ge vm hm e'' hm' v ->
+             sem_expr ge vm hm (Bind x t e e' t') hm' v
+| sem_cond_true : forall ge vm hm e1 hm' e2 hm'' e3 t vb v ct1, 
+                  sem_expr ge vm hm e1 hm' vb -> 
+                  transBeePL_type (typeof_expr e1) = OK ct1 ->
+                  bool_val (transBeePL_value_cvalue vb) ct1 hm = Some true ->
+                  sem_expr ge vm hm' e2 hm'' v ->
+                  sem_expr ge vm hm (Cond e1 e2 e3 t) hm'' v
+| sem_cond_false : forall ge vm hm e1 hm' e2 hm'' e3 t vb v ct1, 
+                   sem_expr ge vm hm e1 hm' vb -> 
+                   transBeePL_type (typeof_expr e1) = OK ct1 ->
+                   bool_val (transBeePL_value_cvalue vb) ct1 hm = Some false ->
+                   sem_expr ge vm hm' e3 hm'' v ->
+                   sem_expr ge vm hm (Cond e1 e2 e3 t) hm'' v
+| sem_addr : forall ge vm hm l ofs,
+             sem_expr ge vm hm (Addr l) hm (Vloc l.(lname) ofs)
+with sem_exprs : genv -> vmap -> mem -> list expr -> mem -> list value -> Prop :=
+| sem_nil : forall ge vm hm,
+            sem_exprs ge vm hm nil hm nil
+| sem_cons : forall ge vm hm hm' hm'' v vs e es,
+             sem_expr ge vm hm e hm' v ->
+             sem_exprs ge vm hm' es hm'' vs ->
+             sem_exprs ge vm hm' (e :: es) hm'' (v :: vs).
 
 
 

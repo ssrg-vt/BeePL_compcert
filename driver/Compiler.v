@@ -170,11 +170,11 @@ Definition transf_c_program (p: Csyntax.program) : res Asm.program :=
   @@@ time "Clight generation" SimplExpr.transl_program
   @@@ transf_clight_program.
 
-Definition transf_beepl_program_csyntax (p : BeePL.module) : res Csyntax.program :=
+Definition transf_beepl_program_csyntax (p : BeePL.program) : res Csyntax.program :=
   OK p
   @@@ time "Csyntax generation" BeePL_Csyntax.BeePL_compcert.
 
-Definition transf_beepl_program (p : BeePL.module) : res Asm.program :=
+Definition transf_beepl_program (p : BeePL.program) : res Asm.program :=
   OK p
   @@@ time "Csyntax generation" transf_beepl_program_csyntax
   @@@ transf_c_program.

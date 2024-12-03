@@ -1,16 +1,14 @@
-Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
+(*Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
-Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps.
-Require Import BeePL_aux BeeTypes.
+Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Memory compcert.lib.Coqlib.
+Require Import BeePL_aux BeeTypes Axioms.
 From mathcomp Require Import all_ssreflect. 
 
 Set Implicit Arguments.
 Unset Printing Implicit Defensive.
 
-Definition loc := positive.
-
 Record vinfo : Type := mkvar { vname : ident; vtype : type }.
-Record linfo : Type := mkloc { lname : loc; ltype : type }.
+Record linfo : Type := mkloc { lname : ident; ltype : type }.
 
 Inductive value : Type :=
 | Vunit : value
@@ -76,150 +74,135 @@ if (v1.(vname) =? v2.(vname))%positive && (eq_type v1.(vtype) v2.(vtype)) then t
 Definition eq_linfo (v1 : linfo) (v2 : linfo) : bool :=
 if (v1.(lname) =? v2.(lname))%positive && (eq_type v1.(ltype) v2.(ltype)) then true else false.
 
-Definition heap := list (linfo * value).
+(*Definition heap := list (linfo * value).*)
 
-Definition vmap := list (vinfo * value).
+Module Type HEAP.
+Parameter heap : Type.
+(* operations on heap *)
 
-Fixpoint is_mem_vmap (x : vinfo) (l : vmap) {struct l} : bool :=
-match l with 
-| nil => false
-| y :: ys => if eq_vinfo x (fst y) then true else is_mem_vmap x ys
+(* Initial heap state *)
+Parameter empty : heap. 
+
+(* [alloc m l] allocates a fresh location l *)
+Parameter alloc : heap -> heap * linfo.
+
+(* [free m l] deallocates a location l *)
+(*Parameter free : heap -> linfo -> heap.*)
+
+(* [load m l] reads the memory at location l and returns the value (option type)*) 
+Parameter load : forall (m : heap) (l : linfo), option value.
+
+(* [store m l v] stores the value v at location l in the memory m and returns the updated memory *)
+(* Should include some cases where we are not allowed to write at an address and it return None *)
+Parameter store : forall (m : heap) (l : linfo) (v : value), option heap.
+
+(* Loadv defines the load operation when address is passed as a value *)
+Definition loadv (m : heap) (addr : value) : option value :=
+match addr with 
+| Vloc l => load m l
+| _ => None
 end.
 
-Fixpoint is_mem_heap (x : linfo) (l : heap) {struct l} : bool :=
-match l with 
-| nil => false
-| y :: ys => if eq_linfo x (fst y) then true else is_mem_heap x ys
+(* Storev defines the store operation when address is passed as a value *)
+Definition storev (m : heap) (addr : value) (v : value) : option heap :=
+match addr with 
+| Vloc l => store m l v
+| _ => None
 end.
 
-Definition get_loc_val_type (k : linfo) : option type :=
-match k.(ltype) with 
-| t => match t with 
-       | Ptype p => None
-       | Reftype h (Bprim b) => Some (Ptype b)
-       | Ftype ts e t => None (* Fix me *)
-       end
-end.
+(* next_location represents the location for next allocation. 
+   It increases by one for each allocation. Locations above next_location
+   are fresh and invalid, i.e. not yet allocated. *)
 
-(*Definition valid_value_loc (k : linfo) (v : value) : Prop :=
-if (eq_type k.(ltype) (Reftype h (Bprim t)) /\ typeof_value v (Ptype t)).  
+Parameter next_location : heap -> linfo.
 
-Lemma valid_value_loc_dec: forall k v,
-{valid_value_loc k v} + {~ valid_value_loc k v}.
+Definition valid_location (m : heap) (l : linfo) := Plt l.(lname) (next_location m).(lname).
+
+(* An address is valid if it is nonempty in memory m 
+Parameter valid_address: forall (m: heap) (l: linfo), bool.*)
+
+End HEAP.
+
+Module Heap <: HEAP.
+
+Record heap' : Type := 
+mkheap { heap_content : PMap.t (value);  (* location -> offset -> value *)
+         next_location : linfo }.
+
+
+(* The memory/heap maps references/locations to values *)
+Definition heap := heap'.
+
+(* Validity of locations: an address is valid if it was previously allocated *)
+Definition valid_location (m: heap) (l: linfo) := Plt l.(lname) (next_location m).(lname).
+
+Theorem valid_not_valid_diff:
+  forall m l l', valid_location m l -> ~(valid_location m l') -> l.(lname) <> l'.(lname).
 Proof.
-rewrite /valid_value_loc. move=> k v. 
-case: k=> //= ln lt. case: lt=> //=.
-+ move=> p. case: v=> //=.
-  + right. rewrite /not. case: t=> //=.
-move=> [] ln lt v. case: lt=> //=.
-+ case: v=> //= p; case: p=> //=.
-  + by left.
-  + by right.
-  + by right.
-  + move=> i hi p. case: p=> //=.
-    + by right.
-    + by left.
-    by right.
-  + move=> p. case: p=> //=.
-    + by right.
-    + by right.
-    by left.
-  + move=> p. case: p=> //=.
-    + by right.
-    + by right.
-    by left.
-  by right.
-+ move=> i b /=. case: v=> //=.
-  + by right.
-  + by right.
-  + by right.
-  by left.
-move=> ts e t /=. case: v=> //=.
-+ by right.
-+ by right.
-+ by right.
-by right.
-Qed.*)
-
-Definition valid_value_var (k : vinfo) (v : value) : Prop :=
-typeof_value v (k.(vtype)).
-
-Lemma valid_value_var_dec: forall k v,
-{valid_value_var k v} + {~ valid_value_var k v}.
-Proof.
-move=> [] ln lt v. case: lt=> //=.
-+ case: v=> //= p; case: p=> //=.
-  + by left.
-  + by right.
-  + by right.
-  + move=> i hi p. case: p=> //=.
-    + by right.
-    + by left.
-    by right.
-  + move=> p. case: p=> //=.
-    + by right.
-    + by right.
-    by left.
-  + move=> p. case: p=> //=.
-    + by right.
-    + by right.
-    by left.
-  by right.
-+ move=> i b /=. case: v=> //=.
-  + by right.
-  + by right.
-  + by right.
-  by left.
-move=> ts e t /=. case: v=> //=.
-+ by right.
-+ by right.
-+ by right.
-by right.
+  intros; red; intros; subst. rewrite /valid_location in H0 H; subst. 
+  rewrite /not in H0. rewrite -H1 in H0. by move: (H0 H).
 Qed.
 
-Fixpoint update_heap (h : heap) (k : linfo) (v : value) : heap := 
-match h with 
-| nil => (k, v) :: nil
-| h :: t => if (eq_linfo k (fst h)) then (k, v) :: t else h :: update_heap t k v
+(* Fix me: add more checks later *)
+Definition valid_access (m : heap) (l : linfo) : Prop :=
+valid_location m l.
+
+Lemma valid_access_dec: forall m l,
+{valid_access m l} + {~ valid_access m l}.
+Proof. 
+move=> m l. case: m=> //= hc hl. case: hl=> //= ln lt.
+case: l=> //= ln' lt'. rewrite /valid_access /valid_location /=.
+by apply plt.
+Qed.
+
+(* Load performs read at an address addr in the memory m *)
+Definition load (m : heap) (addr : linfo) : option value :=
+if valid_access_dec m addr 
+then Some (PMap.get addr.(lname) m.(heap_content)) 
+else None.
+
+Definition loadv (m : heap) (addr : value) : option value :=
+match addr with 
+| Vloc l => load m l
+| _ => None
 end.
 
-Definition fresh_loc (h : heap) (l : linfo) : bool :=
-negb(is_mem_heap l h).
+(* Store performs write at an address addr with the value v *)
+Definition store (m : heap) (addr : linfo) (v : value) : option heap :=
+if valid_access_dec m addr 
+then Some (mkheap (PMap.set addr.(lname) v m.(heap_content)) m.(next_location)) 
+else None.
 
-Fixpoint write_var (h : vmap) (k : vinfo) (v : value) : vmap := 
-match h with 
-| nil => (k, v) :: nil
-| h :: t => if (eq_vinfo k (fst h)) then (k, v) :: t else h :: write_var t k v
+(* Storev defines the store operation when address is passed as a value *)
+Definition storev (m : heap) (addr : value) (v : value) : option heap :=
+match addr with 
+| Vloc l => store m l v
+| _ => None
 end.
 
-Fixpoint write_vars (h : vmap) (ks : list vinfo) (vs : list value) : result error vmap :=
-match ks, vs with 
-| nil, nil => Ok error h
-| k :: ks, v :: vs => (write_vars (write_var h k v) ks vs)
-| _, _ => Error vmap ErrNotAllowed
-end. 
+Definition empty : heap := {| heap_content := (PMap.init (Vunit)); 
+                              next_location := {| lname := 1%positive; ltype := (Ptype Tunit) |} |}.
 
-Fixpoint get_val_loc (h : heap) (k : linfo) : option value :=
-match h with 
-| nil => None 
-| v :: vm => if (eq_linfo k (fst v)) then Some (snd(v)) else get_val_loc vm k
-end.
+(* Allocates a fresh location i.e. the next location after all allocated ones *)
+Definition alloc (m : heap) :=
+({| heap_content := PMap.set m.(next_location).(lname) Vunit m.(heap_content);
+   next_location := {| lname := Pos.succ m.(next_location).(lname); ltype := m.(next_location).(ltype) |} |}, 
+ m.(next_location)).
 
-Fixpoint get_val_var (h : vmap) (k : vinfo) : option value :=
-match h with 
-| nil => None 
-| v :: vm => if (eq_vinfo k (fst v)) && valid_value_var_dec k (snd v) then Some (snd(v)) else get_val_var vm k
-end.
+End Heap.
 
-(* State is made from heap and virtual map (registers to values) *)
-Record state : Type := mkstate {hmem : heap; vmem : vmap}.
+(***** Virtual map *****)
 
-Definition valid_access_vmap (x : vinfo) (vm : vmap) : Prop :=
-is_mem_vmap x vm = true.
+(** The local environment maps local variables to references/locations and types.
+  The current value of the variable is stored in the associated memory
+  location. *)
+Definition vmap := PTree.t (positive * type). (* map variable -> location & type *)
 
-Fixpoint valid_access_vmaps (x : list vinfo) (vm : vmap) : Prop :=
-match x with 
-| nil => True 
-| x :: xs => valid_access_vmap x vm /\ valid_access_vmaps xs vm
-end. 
+(*Definition vmap := list (vinfo * value).*)
 
+Notation heap := Heap.heap.
+
+(* Treated as Opaque in all context withing the entire module or file, means the definitions
+   will not be unfolded automatically during the proofs *)
+Global Opaque Heap.alloc Heap.store Heap.load.
+*)
