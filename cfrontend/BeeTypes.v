@@ -21,6 +21,22 @@ Inductive type : Type :=
 | Reftype : ident -> type -> attr -> type          (* reference type ref<h,int> *)
 | Ftype : list type -> effect -> type -> type       (* function/arrow type *).
 
+Inductive wtype : Type :=
+| Twunit : wtype
+| Twint : wtype
+| Twlong : wtype.
+
+Definition Twptr := if Archi.ptr64 then Twlong else Twint. 
+
+Definition wtype_of_type (t : type) : wtype :=
+match t with 
+| Tunit => Twunit 
+| Tint _ _ _ => Twint
+| Tlong _ _ => Twlong 
+| Reftype _ _ _ => Twptr
+| Ftype _ _ _ => Twptr
+end.
+
 Fixpoint sizeof_type (t : type) : Z :=
 match t with 
 | Tunit => 1
@@ -85,7 +101,15 @@ match p1, p2 with
                                         then (e1 =? e2)%positive && eq_type b1 b2
                                         else false
 | _, _ => false
-end.   
+end. 
+
+Definition eq_wtype (t1 t2 : wtype) : bool :=
+match t1, t2 with 
+| Twunit, Twunit => true 
+| Twint, Twint => true 
+| Twlong, Twlong => true 
+| _, _ => false
+end.  
 
 (** ** Access modes *)
 
@@ -102,7 +126,7 @@ type must be accessed:
 
 Definition access_mode (t : type) : mode :=
 match t with 
-| Tunit => By_nothing
+| Tunit =>  By_nothing (* Fix me *)
 | Tint I8 Signed _ => By_value Mint8signed
 | Tint I8 Unsigned _ => By_value Mint8unsigned
 | Tint I16 Signed _ => By_value Mint16signed
@@ -112,6 +136,15 @@ match t with
 | Tlong _ _ => By_value Mint64
 | Reftype h t _ => By_value Mptr
 | Ftype ts ef t => By_reference
+end.
+
+Definition attr_of_type (t : type) : attr :=
+match t with 
+| Tunit => noattr 
+| Tint sz s a => a
+| Tlong s a => a
+| Reftype h t a => a
+| Ftype ts ef t => noattr
 end.
 
 (****** Translation from BeePL types to Csyntax types ******)

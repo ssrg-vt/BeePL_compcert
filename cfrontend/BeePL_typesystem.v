@@ -1,6 +1,6 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
-Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Coqlib.
+Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Coqlib Memory Ctypes Memtype.
 Require Import BeePL_aux BeePL_mem BeeTypes BeePL BeePL_auxlemmas.
 From mathcomp Require Import all_ssreflect. 
 
@@ -260,7 +260,11 @@ typeof_value v' t ->
 typeof_value v' t'.
 Proof.
 move=> v t t' v'. rewrite /typeof_value /=.
-by case: v=> //=;case: t=> //=; case: t'=> //=.
+case: v=> //=.
++ by case: t=> //=; case: t'=> //=.
++ by case: t=> //=; case: t'=> //=.
++ by case: t=> //=; case: t'=> //=.
+by case: t=> //=; case: t'=> //=.
 Qed.
 
 Lemma eq_type_rel : forall v t t',
@@ -268,7 +272,7 @@ eq_type t t' ->
 typeof_value v t' ->
 typeof_value v t.
 Proof.
-move=> v t t'. case: t'=> //=;case: t=> //= p p'.
+move=> v t t'. by case: t'=> //=;case: t=> //= p p'. 
 Qed.
 
 (**** Substitution preserves typing ****)
@@ -301,6 +305,53 @@ typeof_value v t.
 Proof.
 Admitted.
 
+Lemma deref_addr_val_ty : forall ty m addr ofs v,
+deref_addr ty m addr ofs Full v ->
+typeof_value v ty.
+Proof.
+move=> ty m addr ofs v hd; inversion hd; subst.
+(* by value *)
++ rewrite /transBeePL_value_cvalue /= /Mem.loadv in H0.
+  have hvt := Mem.load_type m chunk addr (Ptrofs.unsigned ofs) v0 H0.
+  case: chunk H H0 hvt=> //=.
+  + case: ty hd=> //=. move=> sz s a. case: sz=> //=.
+    + by case: s=> //=.
+    + by case: s=> //=.
+    by case: v H1=> //=;case: v0=> //=.
+  + case: ty hd=> //=. move=> sz s a. case: sz=> //=.
+    + case: s=> //=. by case: v H1=> //=;case: v0=> //=.
+    + by case: s=> //=.
+    case: v0 H1 hd=> //= i. move=> [] hv; subst. by case: ty=> //=.
+  + case: ty hd=> //=. move=> sz s a. case: sz=> //=.
+    + by case: s=> //=. 
+    by case: v H1=> //=;case: v0=> //=. 
+  + case: ty hd=> //=. move=> sz s a. case: sz=> //=.
+    + by case: s=> //=. 
+    by case: v H1=> //=;case: v0=> //=. 
+  + case: ty hd=> //=. move=> sz s a. case: sz=> //=.
+    + by case: s=> //=. 
+    + by case: v H1=> //=;case: v0=> //=. 
+    by case: v H1=> //=;case: v0=> //=. 
+  + case: ty hd=> //=. move=> sz s a. case: sz=> //=.
+    + by case: s=> //=. 
+    + by case: s=> //=. 
+    + move=> s a. case: s=> //=.
+      + case: v0 H1=> //= i.  
+        by move=> [] hv; subst. 
+      by move=> ptr [] hv; subst. 
+    + by case: v H1=> //=; case: v0=> //=.
+    by case: v H1=> //=; case: v0=> //=.
+  + by case: v0 H1=> //=.
+  + by case: v0 H1=> //=.
+  + case: v0 H1=> //= i. move=> [] hv; subst.
+    by case: ty hd=> //=.
+  case: ty hd=> //= sz s a; case: sz=> //=.
+  + by case: s=> //=.
+  by case: s=> //=.
+case: ty hd H=> //= sz s a. case: sz=> //=.
++ by case: s=> //=.  
+by case: s=> //=.    
+Qed.    
 
 (**** Preservation ****)
 Lemma preservation : forall Gamma Sigma genv vm hm hm' e ef t v, 
@@ -308,7 +359,11 @@ type_expr Gamma Sigma e ef t ->
 sem_expr genv vm hm e hm' v ->
 typeof_value v t.
 Proof.
-Admitted.
+move=> Gamma Sigma genv vm hm hm' e ef t v ht. move: Gamma Sigma ef t ht. 
+elim: e=> //=.
+(* var *)
++ move=> x Gamma Sigma ef t ht he; inversion he; subst.
+  inversion ht; subst. by have := deref_addr_val_ty (vtype x) hm l Ptrofs.zero v H5.
 (*move=> Gamma Sigma genv e ef t st st' v ht he. move: st st' v he.
 induction ht.
 + move=> st st' v he; inversion he; subst.
@@ -371,8 +426,8 @@ induction ht.
   by move: (IHht3 st'0 st' v H8).
 (* Addr *)
 move=> st st' v he; inversion he; subst.
-rewrite /typeof_value /=. by case: bt H H0=> //= p.
-Admitted. *)
+rewrite /typeof_value /=. by case: bt H H0=> //= p.*)
+Admitted.
 
     
     

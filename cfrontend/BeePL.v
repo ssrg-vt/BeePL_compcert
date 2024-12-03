@@ -29,13 +29,30 @@ Inductive value : Type :=
 | Vint64 : int64 -> value
 | Vloc : positive -> ptrofs -> value.
 
-Definition typeof_value (v : value ) (t : BeeTypes.type) : Prop :=
-match v,t with 
-| Vunit, Tunit=> True
-| Vint i, BeeTypes.Tint _ _ _ => True
-| Vint64 i, BeeTypes.Tint _ _ _ => True
-| Vloc p ptrofs, Reftype _ _ _ => True
-| _, _ => False
+(* Pointer will be stores in a 64 bit value or 32 bit value *) 
+Definition default_attr (t : type) := {| attr_volatile := false;  
+                                         attr_alignas := (attr_alignas (attr_of_type t)) |}.
+
+Definition typeof_value (v : value ) (t : type) : Prop :=
+let t := wtype_of_type t in 
+match v with 
+| Vunit => match t with 
+           | Twunit => True 
+           | _ => False 
+           end
+| Vint i => match t with 
+            | Twint => True 
+            | _ => False 
+            end 
+| Vint64 i => match t with 
+              | Twlong => True 
+              | _ => False 
+              end 
+| Vloc p ptrofs => match t with 
+                   | Twlong => Archi.ptr64 = true
+                   | Twint => Archi.ptr64 = false 
+                   | _ => False
+                   end                              
 end.
 
 Definition vals := list value.
@@ -234,14 +251,24 @@ match v with
 end.
 
 (* Converts C value to BeePL value *) 
-Definition transC_val_bplvalue (v : Values.val) : value :=
+(* we don't want to allow int i and then read i to get garbage value *) 
+Definition transC_val_bplvalue (v : Values.val) : res value :=
 match v with 
-| Values.Vundef => Vunit (* Fix me *)
-| Values.Vint i => Vint i
-| Values.Vlong i => Vint64 i
-| Values.Vptr b ofs => Vloc b ofs
-| _ => Vunit (* float case *)
+| Values.Vundef => Error (MSG "Undef values are not allowed" :: nil)
+| Values.Vint i => OK (Vint i)
+| Values.Vlong i => OK (Vint64 i)
+| Values.Vptr b ofs => OK (Vloc b ofs)
+| _ => Error (MSG "Float values are not allowed" :: nil)
 end.
+
+Definition not_undef_or_float (v : Values.val) : Prop :=
+match v with 
+| Values.Vundef => v <> Values.Vundef
+| Values.Vfloat f => v <> Values.Vfloat f
+| Values.Vsingle f => v <> Values.Vsingle f
+| _ => True
+end.
+
 
 (* Operational Semantics *)
 
@@ -251,10 +278,11 @@ end.
     if the access mode is by reference then the pointer [Vloc addr ofs] is returned *)
 (* Add rest like copy, bitfield, volatile, etc once we add arrays and structs *)
 Inductive deref_addr (ty : type) (m : mem) (addr : Values.block) (ofs : ptrofs) : bitfield -> value -> Prop :=
-| deref_addr_value : forall chunk v,
+| deref_addr_value : forall chunk v v',
   access_mode ty = By_value chunk ->
   Mem.loadv chunk m (transBeePL_value_cvalue (Vloc addr ofs)) = Some v ->
-  deref_addr ty m addr ofs Full (transC_val_bplvalue v)
+  transC_val_bplvalue v = OK v' ->
+  deref_addr ty m addr ofs Full v'
 | deref_addr_reference:
   access_mode ty = By_reference ->
   deref_addr ty m addr ofs Full (Vloc addr ofs).
@@ -262,10 +290,12 @@ Inductive deref_addr (ty : type) (m : mem) (addr : Values.block) (ofs : ptrofs) 
 (* [assign_addr ty m addr ofs v] returns the updated memory after storing the value v at address [addr] and offset 
    [ofs] *)
 Inductive assign_addr (ty : type) (m : mem) (addr : Values.block) (ofs : ptrofs) : bitfield -> value -> mem -> value -> Prop :=
-| assign_addr_value : forall v chunk m',
+| assign_addr_value : forall v chunk m' v',
   access_mode ty = By_value chunk ->
+  not_undef_or_float v ->
   Mem.storev chunk m (transBeePL_value_cvalue (Vloc addr ofs)) v = Some m' ->
-  assign_addr ty m addr ofs Full (transC_val_bplvalue v) m' (transC_val_bplvalue v). 
+  transC_val_bplvalue v = OK v' ->
+  assign_addr ty m addr ofs Full v' m' v'. 
 
 (* Allocation of function local variables *)
 (* [alloc_variables vm1 m1 vars vm2 m2] allocates one memory block for each variable
@@ -294,6 +324,7 @@ Inductive bind_parameters (e: vmap): mem -> list vinfo -> list value -> mem -> P
                         bind_parameters e m1 params vl m2 ->
                         bind_parameters e m ({| vname := id; vtype := ty|} :: params) (v1 :: vl) m2.
 
+(* Big step semantics: I want to prove their equivalence with Cstrategy for simpl expressions *)
 Inductive sem_expr : genv -> vmap -> mem -> expr -> mem -> value -> Prop :=
 | sem_var : forall ge vm hm st x v t l, 
             vm!(x.(vname)) = Some (l, t) ->
@@ -329,18 +360,20 @@ Inductive sem_expr : genv -> vmap -> mem -> expr -> mem -> value -> Prop :=
             sem_expr ge vm1 hm5 fd.(body) hm6 rv -> 
             typeof_value rv (fd.(rtype)) ->
             sem_expr ge vm1 hm1 (App None e es t) hm6 rv 
-| sem_prim_uop : forall ge vm hm e v uop hm' v' t ct,
+| sem_prim_uop : forall ge vm hm e v uop hm' v' t ct v'',
                  sem_expr ge vm hm e hm' v ->
                  transBeePL_type (typeof_expr e) = OK ct ->
                  sem_unary_operation uop (transBeePL_value_cvalue v) ct hm' = Some v' ->
-                 sem_expr ge vm hm (Prim (Uop uop) (e :: nil) t) hm' (transC_val_bplvalue v')
-| sem_prim_bop : forall ge vm hm cenv e1 e2 t v1 v2 bop hm' hm'' v ct1 ct2 ,
+                 transC_val_bplvalue v' = OK v'' ->
+                 sem_expr ge vm hm (Prim (Uop uop) (e :: nil) t) hm' v''
+| sem_prim_bop : forall ge vm hm cenv e1 e2 t v1 v2 bop hm' hm'' v ct1 ct2 v',
                  sem_expr ge vm hm e1 hm' v1 ->
                  sem_expr ge vm hm e2 hm'' v2 ->
                  transBeePL_type (typeof_expr e1) = OK ct1 ->
                  transBeePL_type (typeof_expr e2) = OK ct2 ->
                  sem_binary_operation cenv bop (transBeePL_value_cvalue v1) ct1 (transBeePL_value_cvalue v2) ct2 hm'' = Some v ->
-                 sem_expr ge vm hm (Prim (Bop bop) (e1 :: e2 :: nil) t) hm'' (transC_val_bplvalue v)
+                 transC_val_bplvalue v = OK v' ->
+                 sem_expr ge vm hm (Prim (Bop bop) (e1 :: e2 :: nil) t) hm'' v'
 | sem_prim_ref : forall ge vm hm e t ct hm' v l, 
                  sem_expr ge vm hm e hm' v ->
                  transBeePL_type (typeof_expr e) = OK ct ->
@@ -348,8 +381,8 @@ Inductive sem_expr : genv -> vmap -> mem -> expr -> mem -> value -> Prop :=
                  sem_expr ge vm hm (Prim Ref (e :: nil) t) hm' (Vloc l Ptrofs.zero)
 | sem_prim_deref : forall ge vm hm e t l ofs hm' v, 
                    sem_expr ge vm hm e hm' (Vloc l ofs) ->
-                   deref_addr t hm l ofs Full (transC_val_bplvalue v) ->
-                   sem_expr ge vm hm (Prim Deref (e :: nil) t) hm' (transC_val_bplvalue v)
+                   deref_addr t hm l ofs Full v ->
+                   sem_expr ge vm hm (Prim Deref (e :: nil) t) hm' v
 | sem_prim_massgn : forall ge vm hm e1 e2 l ofs v hm' hm'' hm''' ct1 ct2 bf v' v'',
                     sem_expr ge vm hm e1 hm' (Vloc l ofs) -> 
                     sem_expr ge vm hm' e2 hm'' v ->
