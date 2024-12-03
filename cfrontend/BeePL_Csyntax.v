@@ -208,7 +208,7 @@ match gs with
 | g :: gs => gconstant_init_data g :: gconstants_init_datas gs
 end. 
 
-(* Translates BeePL global variable to C global variable *) Print globv.
+(* Translates BeePL global variable to C global variable *) 
 Definition BeePLgd_gd (gv : glob_decl) : res (globvar Ctypes.type)  :=
 do gvt <- transBeePL_type (gv.(gtype));
 OK {| gvar_info := gvt; 

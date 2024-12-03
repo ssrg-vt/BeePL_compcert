@@ -1,6 +1,6 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Ctypes Errors.
-Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST.
+Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps.
 
 Local Open Scope string_scope.
 Local Open Scope error_monad_scope.
@@ -151,49 +151,11 @@ match t with
 end.
 
 (* Typing context *)
-Definition ty_context := list (ident * type).
+Definition ty_context := PTree.t type.
+
 (* To ensure that a location does not contain another location (ref) 
    and only points to basic types like int, bool, unit or pair *)
-Definition store_context := list (ident * type).   
+Definition store_context := PTree.t type.  
 
-Fixpoint remove_var_ty (t : ty_context) (k : ident) (T : type) : ty_context :=
-match t with 
-| nil => nil 
-| x :: xs => if (k =? fst(x))%positive && (eq_type T (snd(x))) then xs else x :: remove_var_ty xs k T
-end.
+Definition extend_context (Gamma : ty_context) (k : ident) (t : type):= PTree.set k t Gamma. 
 
-Fixpoint is_mem (k : ident) (t : ty_context) : bool :=
-match t with 
-| nil => false
-| x :: xs => if (k =? fst(x))%positive then true else is_mem k xs
-end.
-
-Fixpoint extend_context (t : ty_context) (k : ident) (v : type) : ty_context := 
-match t with 
-| nil => ((k, v) :: nil)
-| h :: t => if (k =? fst(h))%positive then (k, v) :: t else h :: extend_context t k v
-end. 
-
-Fixpoint append_context (t1 : ty_context) (t2 : ty_context) : ty_context :=
-match t2 with 
-| nil => t1
-| h :: t =>  append_context (extend_context t1 (fst(h)) (snd(h))) t
-end.
-
-Fixpoint get_ty (t : ty_context) (k : ident) : option type :=
-match t with 
-| nil => None 
-| x :: xs => if (fst(x) =? k)%positive then Some (snd(x)) else get_ty xs k
-end.
-
-Fixpoint extend_contexts (t : ty_context) (ks : list (ident * type)) : ty_context := 
-match ks with 
-| nil => t
-| k :: ks => extend_contexts (extend_context t (fst(k)) (snd(k))) ks
-end. 
-
-Fixpoint get_sty (t : store_context) (k : ident) : option type :=
-match t with 
-| nil => None 
-| x :: xs => if (fst(x) =? k)%positive then Some (snd(x)) else get_sty xs k
-end.
