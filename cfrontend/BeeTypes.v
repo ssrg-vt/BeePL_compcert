@@ -133,7 +133,7 @@ End Eq_types.
 
 Fixpoint eq_type (p1 p2 : type) : bool :=
 match p1, p2 with 
-| Ptype p1, Ptype p2 => eq_primitive_type p1 p1
+| Ptype p1, Ptype p2 => eq_primitive_type p1 p2
 | Ftype ts1 e1 t1, Ftype ts2 e2 t2 => 
   eq_types eq_type ts1 ts2 && eq_effect e1 e2 && eq_type t1 t2
 | Reftype e1 b1 a1, Reftype e2 b2 a2 => if attr_eq a1 a2  

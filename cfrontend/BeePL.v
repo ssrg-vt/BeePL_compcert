@@ -382,14 +382,14 @@ Inductive sem_expr : genv -> vmap -> mem -> expr -> mem -> value -> Prop :=
                    sem_expr ge vm hm e hm' (Vloc l ofs) ->
                    deref_addr t hm l ofs Full v ->
                    sem_expr ge vm hm (Prim Deref (e :: nil) t) hm' v
-| sem_prim_massgn : forall ge vm hm e1 e2 l ofs v hm' hm'' hm''' ct1 ct2 bf v' v'',
+| sem_prim_massgn : forall ge vm hm e1 e2 l ofs v hm' hm'' hm''' ct1 ct2 bf v', (* Fix me *)
                     sem_expr ge vm hm e1 hm' (Vloc l ofs) -> 
                     sem_expr ge vm hm' e2 hm'' v ->
                     transBeePL_type (typeof_expr e1) = OK ct1 ->
                     transBeePL_type (typeof_expr e2) = OK ct2 ->
                     sem_cast (transBeePL_value_cvalue v) ct2 ct1 hm'' = Some (transBeePL_value_cvalue v') ->
-                    assign_addr (typeof_expr e1) hm'' l ofs bf v' hm''' v'' ->
-                    sem_expr ge vm hm (Prim Massgn (e1 :: e2 :: nil) (typeof_expr e1)) hm''' v''
+                    assign_addr (typeof_expr e1) hm'' l ofs bf v' hm''' v' ->
+                    sem_expr ge vm hm (Prim Massgn (e1 :: e2 :: nil) (typeof_expr e1)) hm''' Vunit
 | sem_bind : forall ge vm hm x t e e' t' hm' v e'',
              subst x e e' = e'' ->
              sem_expr ge vm hm e'' hm' v ->
