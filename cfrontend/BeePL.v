@@ -292,7 +292,6 @@ Inductive deref_addr (ty : type) (m : mem) (addr : Values.block) (ofs : ptrofs) 
 Inductive assign_addr (ty : type) (m : mem) (addr : Values.block) (ofs : ptrofs) : bitfield -> value -> mem -> value -> Prop :=
 | assign_addr_value : forall v chunk m' v',
   access_mode ty = By_value chunk ->
-  not_undef_or_float v ->
   Mem.storev chunk m (transBeePL_value_cvalue (Vloc addr ofs)) v = Some m' ->
   transC_val_bplvalue v = OK v' ->
   assign_addr ty m addr ofs Full v' m' v'. 
@@ -331,12 +330,12 @@ Inductive sem_expr : genv -> vmap -> mem -> expr -> mem -> value -> Prop :=
             t = x.(vtype) ->
             deref_addr t hm l Ptrofs.zero Full v ->
             sem_expr ge vm hm (Var x) st v
-| sem_const_int : forall ge vm hm st i t, 
-                   sem_expr ge vm hm (Const (ConsInt i) t) st (Vint i)
-| sem_const_int64 : forall ge vm hm st i t, 
-                  sem_expr ge vm hm (Const (ConsLong i) t) st (Vint64 i)
-| sem_const_unit : forall ge vm hm st,
-                   sem_expr ge vm hm (Const (ConsUnit) (Tunit)) st (Vunit)
+| sem_const_int : forall ge vm hm i t, 
+                   sem_expr ge vm hm (Const (ConsInt i) t) hm (Vint i)
+| sem_const_int64 : forall ge vm hm i t, 
+                  sem_expr ge vm hm (Const (ConsLong i) t) hm (Vint64 i)
+| sem_const_unit : forall ge vm hm,
+                   sem_expr ge vm hm (Const (ConsUnit) (Ptype Tunit)) hm (Vunit)
 | sem_appr : forall ge vm1 hm1 e es t l fd hm2 hm3 hm4 hm5 hm6 vm2 vs rv r hm7,
              sem_expr ge vm1 hm1 e hm2 (Vloc l Ptrofs.zero) ->
              find_fdef ge l = Some (Fun fd) ->

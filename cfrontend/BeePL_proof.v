@@ -10,7 +10,7 @@ From mathcomp Require Import all_ssreflect.
        composition of BeePL and CompCert compiler *****)
 
 (***** Specification for types *****) 
-Inductive rel_type : BeeTypes.type -> Ctypes.type -> Prop :=
+(*Inductive rel_type : BeeTypes.type -> Ctypes.type -> Prop :=
 | rel_tunit : rel_type Tunit (Ctypes.Tvoid)
 | rel_tint : forall sz s a, 
              rel_type (Tint sz s a) (Ctypes.Tint sz s a)
@@ -139,3 +139,5 @@ move=> genv [].
   monadInv h. inversion he; subst. exists (vname vi).
   exists Ptrofs.zero. exists Full. apply esl_var_local.
 Admitted.*)
+
+*)

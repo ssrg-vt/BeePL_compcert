@@ -14,41 +14,56 @@ Inductive effect_label : Type :=
 
 Definition effect := list effect_label.  (* row of effects *)
 
+Inductive primitive_type : Type :=
+| Tunit : primitive_type
+| Tint : intsize -> signedness -> attr -> primitive_type
+| Tlong : signedness -> attr -> primitive_type.
+
+Inductive basic_type : Type :=  
+| Bprim : primitive_type -> basic_type.
+
 Inductive type : Type :=
-| Tunit : type
-| Tint : intsize -> signedness -> attr -> type
-| Tlong : signedness -> attr -> type               (* primitive types *)
-| Reftype : ident -> type -> attr -> type          (* reference type ref<h,int> *)
-| Ftype : list type -> effect -> type -> type       (* function/arrow type *).
+| Ptype : primitive_type -> type                          (* primitive types *)
+| Reftype : ident -> basic_type -> attr -> type           (* reference type ref<h,int> *)
+| Ftype : list type -> effect -> type -> type             (* function/arrow type *).
 
 Inductive wtype : Type :=
 | Twunit : wtype
 | Twint : wtype
 | Twlong : wtype.
 
+(** The following describes types that can be interpreted as a boolean:
+  integers, pointers.  It is used for the semantics of
+  the [!] and [?] operators, as well as the [cond] expression *)
+
+Inductive classify_bool_cases : Type :=
+| bool_case_i     (**r integer *)
+| bool_case_l     (**r long *)
+| bool_default    (** default case to check if it does not have right type to represent bool *).
+
+Definition classify_bool (t : type) : classify_bool_cases :=
+match t with 
+| Ptype t => match t with 
+             | Tunit => bool_default
+             | Tint _ _ _ => bool_case_i
+             | Tlong _ _ => bool_case_l
+             end
+| Reftype _ _ _ => if Archi.ptr64 then bool_case_l else bool_case_i
+| _ => bool_default
+end.
+
 Definition Twptr := if Archi.ptr64 then Twlong else Twint. 
 
 Definition wtype_of_type (t : type) : wtype :=
 match t with 
-| Tunit => Twunit 
-| Tint _ _ _ => Twint
-| Tlong _ _ => Twlong 
-| Reftype _ _ _ => Twptr
+| Ptype p => match p with 
+             | Tunit => Twunit 
+             | Tint _ _ _ => Twint 
+             | Tlong _ _ => Twlong 
+             end
+| Reftype _ _ _ => Twptr 
 | Ftype _ _ _ => Twptr
 end.
-
-Fixpoint sizeof_type (t : type) : Z :=
-match t with 
-| Tunit => 1
-| Tint I8 _ _ => 1
-| Tint I16 _ _ => 2
-| Tint I32 _ _ => 4
-| Tint IBool _ _ => 1
-| Tlong _ _ => 8
-| Reftype h t _ => sizeof_type t + 1 (* 1 taking for the h *)
-| Ftype ts e t => 1
-end.
-
 
 Definition eq_effect_label (e1 e2 : effect_label) : bool :=
 match e1, e2 with 
@@ -67,6 +82,42 @@ match es1, es2 with
 | _, _ => false
 end.
 
+Fixpoint eq_primitive_type (p1 p2 : primitive_type) : bool :=
+match p1, p2 with 
+| Tunit, Tunit => true 
+| Tint sz s a, Tint sz' s' a'=> if intsize_eq sz sz' 
+                                then if signedness_eq s s'
+                                     then if attr_eq a a'
+                                          then true 
+                                          else false
+                                     else false
+                                else false
+| Tlong s a, Tlong s' a' => if signedness_eq s s'
+                            then if attr_eq a a'
+                                 then true 
+                                 else false
+                            else false
+| _, _ => false
+end.
+
+Section Eq_basic_types.
+
+Variable eq_basic_type : basic_type -> basic_type -> bool.
+
+Fixpoint eq_basic_types (bs1 bs2 : list basic_type) : bool :=
+match bs1, bs2 with 
+| nil, nil => true 
+| x :: xs, x' :: xs' => eq_basic_type x x' && eq_basic_types xs xs'
+| _, _ => false
+end.
+
+End Eq_basic_types.
+
+Definition eq_basic_type (b1 b2 : basic_type) : bool :=
+match b1, b2 with 
+| Bprim p1, Bprim p2 => eq_primitive_type p1 p2
+end.
+
 Section Eq_types.
 
 Variable eq_type : type -> type -> bool.
@@ -82,23 +133,11 @@ End Eq_types.
 
 Fixpoint eq_type (p1 p2 : type) : bool :=
 match p1, p2 with 
-| Tunit, Tunit => true 
-| Tint sz s a, Tint sz' s' a'=> if intsize_eq sz sz' 
-                                then if signedness_eq s s'
-                                     then if attr_eq a a'
-                                          then true 
-                                          else false
-                                     else false
-                                else false
-| Tlong s a, Tlong s' a' => if signedness_eq s s'
-                            then if attr_eq a a'
-                                 then true 
-                                 else false
-                            else false
+| Ptype p1, Ptype p2 => eq_primitive_type p1 p1
 | Ftype ts1 e1 t1, Ftype ts2 e2 t2 => 
   eq_types eq_type ts1 ts2 && eq_effect e1 e2 && eq_type t1 t2
 | Reftype e1 b1 a1, Reftype e2 b2 a2 => if attr_eq a1 a2  
-                                        then (e1 =? e2)%positive && eq_type b1 b2
+                                        then (e1 =? e2)%positive && eq_basic_type b1 b2
                                         else false
 | _, _ => false
 end. 
@@ -110,6 +149,28 @@ match t1, t2 with
 | Twlong, Twlong => true 
 | _, _ => false
 end.  
+
+Definition sizeof_ptype (t : primitive_type) : Z :=
+match t with 
+| Tunit => 1
+| Tint I8 _ _ => 1
+| Tint I16 _ _ => 2
+| Tint I32 _ _ => 4
+| Tint IBool _ _ => 1
+| Tlong _ _ => 4
+end.
+
+Definition sizeof_btype (t : basic_type) : Z :=
+match t with 
+| Bprim t => sizeof_ptype t 
+end. 
+
+Definition sizeof_type (t : type) : Z :=
+match t with 
+| Ptype t => sizeof_ptype t 
+| Reftype h t _ => sizeof_btype t
+| Ftype ts e t => 1
+end.
 
 (** ** Access modes *)
 
@@ -123,8 +184,7 @@ type must be accessed:
   (used for [struct] and [union] types)
 - [By_nothing]: no access is possible, e.g. for the [void] type.
 *)
-
-Definition access_mode (t : type) : mode :=
+Definition access_mode_prim (t : primitive_type) : mode :=
 match t with 
 | Tunit =>  By_nothing (* Fix me *)
 | Tint I8 Signed _ => By_value Mint8signed
@@ -134,15 +194,30 @@ match t with
 | Tint I32 _ _ => By_value Mint32
 | Tint IBool _ _ => By_value Mbool
 | Tlong _ _ => By_value Mint64
+end.
+
+Definition access_mode_basic (t : basic_type) : mode :=
+match t with 
+| Bprim t => access_mode_prim t
+end.
+
+Definition access_mode (t : type) : mode :=
+match t with 
+| Ptype t => access_mode_prim t
 | Reftype h t _ => By_value Mptr
 | Ftype ts ef t => By_reference
 end.
 
-Definition attr_of_type (t : type) : attr :=
+Definition attr_of_primitive_type (t : primitive_type) : attr :=
 match t with 
 | Tunit => noattr 
 | Tint sz s a => a
 | Tlong s a => a
+end.
+
+Definition attr_of_type (t : type) : attr :=
+match t with 
+| Ptype t => attr_of_primitive_type t
 | Reftype h t a => a
 | Ftype ts ef t => noattr
 end.
@@ -172,15 +247,20 @@ end.
 
 (* Translation of BeePL types to Clight Types *)
 Fixpoint transBeePL_type (t : BeeTypes.type) : res Ctypes.type :=
-match t with 
-| Tunit => OK (Ctypes.Tint I8 Unsigned {| attr_volatile := false; attr_alignas := Some 1%N |}) (* Fix me *)
-| Tint sz s a => OK (Ctypes.Tint sz s a)
-| Tlong s a => OK (Ctypes.Tlong s a)
-| Reftype h t a => do ct <- transBeePL_type t;
-                 OK (Tpointer ct a)
+match t with
+| Ptype t => match t with  
+             | Tunit => OK (Ctypes.Tint I8 Unsigned {| attr_volatile := false; attr_alignas := Some 1%N |}) (* Fix me *)
+             | Tint sz s a => OK (Ctypes.Tint sz s a)
+             | Tlong s a => OK (Ctypes.Tlong s a)
+             end
+| Reftype h bt a => match bt with 
+                    | Bprim Tunit => OK (Ctypes.Tpointer Ctypes.Tvoid a)
+                    | Bprim (Tint sz s a) => OK (Ctypes.Tpointer (Ctypes.Tint sz s a) a)
+                    | Bprim (Tlong s a) => OK (Ctypes.Tpointer (Ctypes.Tlong s a) a)
+                    end
 | BeeTypes.Ftype ts ef t => do ats <- (transBeePL_types transBeePL_type ts);
                             do rt <- (transBeePL_type t);
-                            OK (Tfunction ats rt {| cc_vararg := Some (Z.of_nat(length(ts))); cc_unproto := false; cc_structret := false |})  
+                            OK (Tfunction ats rt {| cc_vararg := Some (Z.of_nat(length(ts))); cc_unproto := false; cc_structret := false |}) (* Fix me *) 
 end.
 
 (* Typing context *)
