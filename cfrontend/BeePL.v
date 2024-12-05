@@ -207,42 +207,6 @@ Definition empty_vmap: vmap  := (PTree.empty (positive * type)).
    definition of main is stored *)
 Record program: Type :=  mkprogram { bprog_defs : list (positive * decl); bprog_main : positive }.
 
-Section Subs.
-
-Variable subst : ident -> expr -> expr -> expr.
-
-Fixpoint substs (x : ident) (e' : expr) (es : list expr) : list expr :=
-match es with 
-| nil => nil 
-| e1 :: es1 => subst x e' e1 :: substs x e' es1
-end. 
-
-End Subs.
-
-(* Substitution *)
-Fixpoint subst (x:ident) (e':expr) (e:expr) : expr :=
-match e with
-| Var y => if (x =? y.(vname))%positive then e' else e
-| Const c t => Const c t
-| App r e es t => App r (subst x e' e) (substs subst x e' es) t
-| Prim b es t => Prim b (substs subst x e' es) t 
-| Bind y t e1 e2 t' => if (x =? y)%positive then Bind y t e1 e2 t' else Bind y t e1 (subst x e' e2) t'
-| Cond e1 e2 e3 t => Cond (subst x e' e1) (subst x e' e2) (subst x e' e3) t
-| Unit t => Unit t
-| Addr l p => Addr l p
-| Hexpr h e t => Hexpr h (subst x e' e) t
-end.
-
-(* Substitution of multiple variables *)
-Fixpoint substs_multi (xs : list ident) (es' : list expr) (e : expr) : expr :=
-match xs with 
-| nil => e 
-| x' :: xs' => match es' with 
-             | nil => e 
-             | e' :: es' => substs_multi xs' es' (subst x' e' e)
-             end
-end.
-
 Definition bool_to_int (b : bool) : int :=
 match b with 
 | true => (Int.repr 1)
@@ -331,6 +295,52 @@ Inductive bind_parameters (e: vmap): mem -> list vinfo -> list value -> mem -> P
                         bind_parameters e m1 params vl m2 ->
                         bind_parameters e m ({| vname := id; vtype := ty|} :: params) (v1 :: vl) m2.
 
+(* Substitution *)
+Inductive subst : vmap -> mem -> ident -> value -> expr -> mem -> expr -> Prop :=
+| var_subst1 : forall vm hm x v y l hm',
+               (x =? y.(vname))%positive = true ->
+               vm!(y.(vname)) = Some (l, y.(vtype)) ->
+               assign_addr y.(vtype) hm l Ptrofs.zero Full v hm' v ->
+               subst vm hm x v (Var y) hm' (Var y)
+| var_subst2 : forall vm hm x v y,
+               (x =? y.(vname))%positive = false -> 
+               subst vm hm x v (Var y) hm (Var y)
+| const_subst : forall vm hm x v c t,
+                subst vm hm x v (Const c t) hm (Const c t)
+| app_subst : forall vm hm r x v e es t e' hm' hm'' es',
+              subst vm hm x v e hm' e' ->
+              substs vm hm' x v es hm'' es' ->
+              subst vm hm x v (App r e es t) hm'' (App r e' es' t)
+| prim_subst : forall vm hm hm' x v b es es' t,
+               substs vm hm x v es hm' es' ->
+               subst vm hm x v (Prim b es t) hm' (Prim b es' t)
+| bind_subst1 : forall vm hm x v y t e1 e2 t',
+                (x =? y)%positive = true ->
+                subst vm hm x v (Bind y t e1 e2 t') hm (Bind y t e1 e2 t')
+| bind_subst2 : forall vm hm x v y t e1 e2 t' e2' hm',
+                (x =? y)%positive = false ->
+                subst vm hm x v e2 hm' e2' ->
+                subst vm hm x v (Bind y t e1 e2 t') hm (Bind y t e1 e2' t')
+| cond_subst : forall vm hm x v e1 hm' e1' e2 hm'' e2' e3 hm''' e3' t,
+               subst vm hm x v e1 hm' e1' ->
+               subst vm hm' x v e2 hm'' e2' ->
+               subst vm hm'' x v e3 hm''' e3' ->
+               subst vm hm x v (Cond e1 e2 e3 t) hm''' (Cond e1' e2' e3' t)
+| unit_subst : forall vm hm x v,
+               subst vm hm x v (Unit (Ptype Tunit)) hm (Unit (Ptype Tunit))
+| addr_subst : forall vm hm x v l p,
+               subst vm hm x v (Addr l p) hm (Addr l p)
+| hexpr_subst : forall vm hm x v h e t hm' e', 
+                subst vm hm x v e hm' e' ->
+                subst vm hm x v (Hexpr h e t) hm' (Hexpr h e' t)
+with substs : vmap -> mem -> ident -> value -> list expr -> mem -> list expr -> Prop :=
+| substs_nil : forall vm hm x v, 
+               substs vm hm x v nil hm nil
+| substs_cons : forall vm hm hm' hm'' x v e es e' es',
+                subst vm hm x v e hm' e' ->
+                substs vm hm' x v es hm'' es' -> 
+                substs vm hm x v (e :: es) hm'' (e' :: es').
+
 (* Big step semantics: I want to prove their equivalence with Cstrategy for simpl expressions *)
 Inductive sem_expr : genv -> vmap -> mem -> expr -> mem -> value -> Prop :=
 | sem_var : forall ge vm hm st x v t l, 
@@ -398,10 +408,11 @@ Inductive sem_expr : genv -> vmap -> mem -> expr -> mem -> value -> Prop :=
                     sem_cast (transBeePL_value_cvalue v) ct2 ct1 hm'' = Some (transBeePL_value_cvalue v') ->
                     assign_addr (typeof_expr e1) hm'' l ofs bf v' hm''' v' ->
                     sem_expr ge vm hm (Prim Massgn (e1 :: e2 :: nil) (typeof_expr e1)) hm''' Vunit
-| sem_bind : forall ge vm hm x t e e' t' hm' v e'',
-             subst x e e' = e'' ->
-             sem_expr ge vm hm e'' hm' v ->
-             sem_expr ge vm hm (Bind x t e e' t') hm' v
+| sem_bind : forall ge vm hm x t e e' t' hm1 v e'' v' hm2 hm3,
+             sem_expr ge vm hm e hm1 v ->
+             subst vm hm1 x v e' hm2 e'' ->
+             sem_expr ge vm hm2 e'' hm3 v' ->
+             sem_expr ge vm hm (Bind x t e e' t') hm3 v'
 | sem_cond_true : forall ge vm hm e1 hm' e2 hm'' e3 t vb v ct1, 
                   sem_expr ge vm hm e1 hm' vb -> 
                   transBeePL_type (typeof_expr e1) = OK ct1 ->

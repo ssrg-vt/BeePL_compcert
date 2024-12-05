@@ -311,10 +311,11 @@ Qed.
    the assumption we made about [x] when typing [e], we should be
    able to substitute [e'] for each of the occurrences of [x] in [e]
    and obtain a new expression that still has type [t]. *)
-Lemma subst_preservation : forall Gamma Sigma x t e' e ef t', 
+Lemma subst_preservation : forall Gamma Sigma vm hm hm' x t v e ef t' e'', 
 type_expr (extend_context Gamma x.(vname) t) Sigma e ef t' ->
-type_expr Gamma Sigma e' ef t ->
-type_expr Gamma Sigma (subst x.(vname) e' e) ef t'.
+typeof_value v t ->
+subst vm hm x.(vname) v e hm' e'' ->
+type_expr Gamma Sigma e'' ef t'.
 Proof.
 Admitted.
 
@@ -322,13 +323,6 @@ Lemma extend_ty_context_deterministic : forall Gamma Sigma x x' t1 t2 e ef t,
 (x =? x')%positive = false ->
 type_expr (extend_context (extend_context Gamma x t1) x' t2) Sigma e ef t ->
 type_expr (extend_context Gamma x t1) Sigma e ef t. 
-Proof.
-Admitted.
-
-Lemma subst_typing : forall Gamma Sigma genv vm hm hm' x e e' ef t v,
-type_expr Gamma Sigma (subst x e e') ef t ->
-sem_expr genv vm hm (subst x e e') hm' v ->
-typeof_value v t.
 Proof.
 Admitted.
 
