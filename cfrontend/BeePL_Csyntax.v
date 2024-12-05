@@ -80,8 +80,10 @@ match e with
                      do ce'' <- (transBeePL_expr_expr e'');
                      do ct <- (transBeePL_type t);
                      OK (Econdition ce ce' ce'' ct)  
-| Addr l => do ct <- (transBeePL_type (ltype l));
-            OK (Eval (Values.Vptr l.(lname) (Ptrofs.of_ints (Int.repr 0))) ct)
+| Unit t=> do ct <- (transBeePL_type t);
+           OK (Eval (transBeePL_value_cvalue Vunit) ct) (* Fix me *)
+| Addr l ofs => do ct <- (transBeePL_type (ltype l));
+            OK (Eloc l.(lname) ofs l.(lbitfield) ct)
 | Hexpr h e t => OK (Eval (Values.Vundef) Tvoid) (* FIX ME *)
 end.
 
@@ -165,9 +167,10 @@ match e with
                                                    else if (check_var_const e'') 
                                                         then OK (Sifthenelse ce (Sdo ce') (Sreturn (Some (Evalof ce'' ct'))))
                                                         else OK (Sifthenelse ce (Sdo ce') (Sdo ce''))
-                      
-| Addr l => do ct <- (transBeePL_type l.(ltype)); 
-            OK (Sdo (Eval (Values.Vptr l.(lname) (Ptrofs.of_ints (Int.repr 0))) ct))
+| Unit t=> do ct <- (transBeePL_type t);
+           OK (Sreturn (Some (Evalof (Eval (transBeePL_value_cvalue Vunit) ct) ct))) (* Fix me *)
+| Addr l ofs => do ct <- (transBeePL_type (ltype l));
+                OK (Sdo (Eloc l.(lname) ofs l.(lbitfield) ct))                    
 | Hexpr h e t => OK (Sdo (Eval (Values.Vundef) Tvoid)) (* FIX ME *)
 end.
 

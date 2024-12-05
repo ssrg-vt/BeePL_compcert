@@ -60,10 +60,12 @@ Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> P
             type_expr Gamma Sigma e2 ef t ->
             type_expr Gamma Sigma e3 ef t ->
             type_expr Gamma Sigma (Cond e1 e2 e3 t) ef t
-| Ty_loc : forall Gamma Sigma l h bt a,
+| Ty_unit : forall Gamma Sigma,
+            type_expr Gamma Sigma (Unit (Ptype Tunit)) empty_effect (Ptype Tunit)
+| Ty_loc : forall Gamma Sigma l h bt a ofs,
            PTree.get l.(lname) Sigma = Some (Reftype h bt a)  ->
            l.(ltype) = (Reftype h bt a) ->
-           type_expr Gamma Sigma (Addr l) empty_effect (Reftype h bt a) 
+           type_expr Gamma Sigma (Addr l ofs) empty_effect (Reftype h bt a) 
 with type_exprs : ty_context -> store_context -> list expr -> effect -> list type -> Prop :=
 | Ty_nil : forall Gamma Sigma,
            type_exprs Gamma Sigma nil nil nil
@@ -145,10 +147,12 @@ Context (Htcond : forall Gamma Sigma e1 e2 e3 ef tb t,
                   Pt Gamma Sigma e2 ef t -> 
                   Pt Gamma Sigma e3 ef t -> 
                   Pt Gamma Sigma (Cond e1 e2 e3 t) ef t).
-Context (Htloc : forall Gamma Sigma l h bt a, 
+Context (Htunit : forall Gamma Sigma, 
+                  Pt Gamma Sigma (Unit (Ptype Tunit)) empty_effect (Ptype Tunit)).
+Context (Htloc : forall Gamma Sigma l h bt a ofs, 
                  PTree.get l.(lname) Sigma  = Some (Reftype h bt a) ->
                  l.(ltype) = (Reftype h bt a) ->
-                 Pt Gamma Sigma (Addr l) empty_effect (Reftype h bt a)). 
+                 Pt Gamma Sigma (Addr l ofs) empty_effect (Reftype h bt a)). 
 Context (Htnil : forall Gamma Sigma,
                  Pts Gamma Sigma nil nil nil).
 Context (Htcons : forall Gamma Sigma e es t ef ts efs,
@@ -192,6 +196,8 @@ apply type_exprs_type_expr_ind_mut=> //=.
 (* Cond *)
 + move=> Gamma Sigma e1 e2 e3 tb t ef hte1 ht1 hte2 ht2 hte3 ht3.
   by apply Htcond with tb.
+(* Unit *)
++
 move=> Gamma Sigma e es ef efs t ts hte ht htes hts.
 by apply Htcons.
 Qed.
@@ -242,8 +248,9 @@ apply type_expr_indP => //=.
   by move: (ih' ef' t'' H9)=> [] h1 h2; subst.
 + move=> Gamma Sigma e1 e2 e3 ef tb t hb ih1 ih2 ih3 ef' t' ht; inversion ht; subst.
   by move: (ih3 ef' t' H10)=> [] h1 h2; subst.
-+ move=> Gamma Sigma l h bt a hl heq ef' t' ht; inversion ht; subst.
-  by rewrite heq in H3.
++ by move=> Gamma Sigma efs' ts' ht; inversion ht; subst.
++ move=> Gamma Sigma l h bt a ofs hl heq ef' t' ht; inversion ht; subst.
+  by rewrite heq in H6.
 + by move=> Gamma Sigma efs' ts' ht; inversion ht; subst.
 move=> Gamma Sigma e es t ef ts efs ih ih' efs' ts' ht; inversion ht; subst.
 move: (ih ef0 t0 H3)=> [] h1 h2; subst. by move: (ih' efs0 ts0 H6)=> [] h1 h2; subst.

@@ -21,7 +21,7 @@ Inductive gconstant : Type :=
 | Gspace : Z -> gconstant (* uninitialized global variables *). 
 
 Record vinfo : Type := mkvar { vname : ident; vtype : BeeTypes.type }.
-Record linfo : Type := mkloc { lname : ident; ltype : BeeTypes.type }.
+Record linfo : Type := mkloc { lname : ident; ltype : BeeTypes.type; lbitfield : bitfield }.
 
 Inductive value : Type :=
 | Vunit : value
@@ -129,9 +129,10 @@ Inductive expr : Type :=
                                                                       the fist "e" is evaluated to a location  *)
 | Bind : ident -> type -> expr -> expr -> type -> expr             (* let binding: type of continuation *)
 | Cond : expr -> expr -> expr -> type -> expr                      (* if e then e else e *) 
+| Unit : type -> expr                                                      (* unit *)
 (* not intended to be written by programmers:
    Only should play role in operational semantics *)
-| Addr : linfo -> expr                                             (* address *)
+| Addr : linfo -> ptrofs -> expr                                   (* address *)
 | Hexpr : mem -> expr -> type -> expr                              (* heap effect *).
 
 Definition typeof_expr (e : expr) : BeeTypes.type :=
@@ -142,7 +143,8 @@ match e with
 | Prim b es t => t
 | Bind x t e e' t' => t'
 | Cond e e' e'' t => t
-| Addr l => l.(ltype) 
+| Unit t => t
+| Addr l p => l.(ltype) 
 | Hexpr h e t => t
 end.
 
@@ -165,6 +167,11 @@ Inductive decl : Type :=
 | Gvdecl : globv -> decl.
 (*| Tadecl : talias -> decl.*) (* Fix me: Not sure to what global declaration this can be translated to *) 
 
+
+(* Global environments are a component of the dynamic semantics of
+   BeePL language.  A global environment maps symbol names 
+   (names of functions and of global variables)
+   to the corresponding function declarations. *)
 Record genv : Type := 
 mkgenv {genv_defs : PTree.t decl;
         genv_next : positive }.
@@ -187,7 +194,7 @@ match find_def ge l with
 | _ => None
 end.
 
-(***** Virtual map *****)
+(***** Virtual map *****) 
 
 (** The local environment maps local variables to references/locations and types.
   The current value of the variable is stored in the associated memory
@@ -221,7 +228,8 @@ match e with
 | Prim b es t => Prim b (substs subst x e' es) t 
 | Bind y t e1 e2 t' => if (x =? y)%positive then Bind y t e1 e2 t' else Bind y t e1 (subst x e' e2) t'
 | Cond e1 e2 e3 t => Cond (subst x e' e1) (subst x e' e2) (subst x e' e3) t
-| Addr l => Addr l 
+| Unit t => Unit t
+| Addr l p => Addr l p
 | Hexpr h e t => Hexpr h (subst x e' e) t
 end.
 
@@ -406,8 +414,10 @@ Inductive sem_expr : genv -> vmap -> mem -> expr -> mem -> value -> Prop :=
                    bool_val (transBeePL_value_cvalue vb) ct1 hm = Some false ->
                    sem_expr ge vm hm' e3 hm'' v ->
                    sem_expr ge vm hm (Cond e1 e2 e3 t) hm'' v
+| sem_unit : forall ge vm hm, 
+             sem_expr ge vm hm (Unit (Ptype Tunit)) hm Vunit
 | sem_addr : forall ge vm hm l ofs,
-             sem_expr ge vm hm (Addr l) hm (Vloc l.(lname) ofs)
+             sem_expr ge vm hm (Addr l ofs) hm (Vloc l.(lname) ofs)
 with sem_exprs : genv -> vmap -> mem -> list expr -> mem -> list value -> Prop :=
 | sem_nil : forall ge vm hm,
             sem_exprs ge vm hm nil hm nil
