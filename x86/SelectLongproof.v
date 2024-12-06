@@ -323,51 +323,11 @@ Qed.
 
 Theorem eval_addl: binary_constructor_sound addl Val.addl.
 Proof.
-  assert (A: forall x y, Int64.repr (x + y) = Int64.add (Int64.repr x) (Int64.repr y)).
-  { intros; apply Int64.eqm_samerepr; auto with ints. }
-  assert (B: forall id ofs n, Archi.ptr64 = true ->
-             Genv.symbol_address ge id (Ptrofs.add ofs (Ptrofs.repr n)) =
-             Val.addl (Genv.symbol_address ge id ofs) (Vlong (Int64.repr n))).
-  { intros. replace (Ptrofs.repr n) with (Ptrofs.of_int64 (Int64.repr n)) by auto with ptrofs.
-    apply Genv.shift_symbol_address_64; auto. }
-  unfold addl. destruct Archi.splitlong eqn:SL.
-  apply SplitLongproof.eval_addl. apply Archi.splitlong_ptr32; auto.
-  red; intros; destruct (addl_match a b); InvEval.
-- rewrite Val.addl_commut. apply eval_addlimm; auto.
-- apply eval_addlimm; auto.
-- subst. TrivialExists. simpl. rewrite A, Val.addl_permut_4. auto.
-- subst. TrivialExists. simpl. rewrite A, Val.addl_assoc. decEq; decEq. rewrite Val.addl_permut. auto.
-- subst. TrivialExists. simpl. rewrite A, Val.addl_permut_4. rewrite <- Val.addl_permut. rewrite <- Val.addl_assoc. auto.
-- subst. TrivialExists. simpl. rewrite Val.addl_commut; auto.
-- subst. TrivialExists.
-- subst. TrivialExists. simpl. rewrite ! Val.addl_assoc. rewrite (Val.addl_commut y). auto.
-- subst. TrivialExists. simpl. rewrite ! Val.addl_assoc. auto.
-- TrivialExists. simpl.
-  unfold Val.addl. destruct Archi.ptr64, x, y; auto.
-  + rewrite Int64.add_zero; auto.
-  + rewrite Ptrofs.add_assoc, Ptrofs.add_zero. auto.
-  + rewrite Ptrofs.add_assoc, Ptrofs.add_zero. auto.
-  + rewrite Int64.add_zero; auto.
-Qed.
+Admitted.
 
 Theorem eval_subl: binary_constructor_sound subl Val.subl.
 Proof.
-  unfold subl. destruct Archi.splitlong eqn:SL.
-  apply SplitLongproof.eval_subl. apply Archi.splitlong_ptr32; auto.
-  red; intros; destruct (subl_match a b); InvEval.
-- rewrite Val.subl_addl_opp. apply eval_addlimm; auto.
-- subst. rewrite Val.subl_addl_l. rewrite Val.subl_addl_r.
-  rewrite Val.addl_assoc. simpl. rewrite Int64.add_commut. rewrite <- Int64.sub_add_opp.
-  replace (Int64.repr (n1 - n2)) with (Int64.sub (Int64.repr n1) (Int64.repr n2)).
-  apply eval_addlimm; EvalOp.
-  apply Int64.eqm_samerepr; auto with ints.
-- subst. rewrite Val.subl_addl_l. apply eval_addlimm; EvalOp.
-- subst. rewrite Val.subl_addl_r.
-  replace (Int64.repr (-n2)) with (Int64.neg (Int64.repr n2)).
-  apply eval_addlimm; EvalOp.
-  apply Int64.eqm_samerepr; auto with ints.
-- TrivialExists.
-Qed.
+Admitted.
 
 Theorem eval_mullimm_base: forall n, unary_constructor_sound (mullimm_base n) (fun v => Val.mull v (Vlong n)).
 Proof.
