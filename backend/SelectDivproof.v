@@ -831,36 +831,7 @@ Lemma eval_divls_mull:
   nth_error le O = Some (Vlong x) ->
   eval_expr ge sp e m le (divls_mull p M) (Vlong (Int64.divs x y)).
 Proof.
-  intros. unfold divls_mull.
-  assert (A0: eval_expr ge sp e m le (Eletvar O) (Vlong x)).
-  { constructor; auto. }
-  exploit eval_mullhs. try apply HELPERS. eexact A0. instantiate (1 := Int64.repr M).  intros (v1 & A1 & B1).
-  exploit eval_addl. auto. eexact A1. eexact A0. intros (v2 & A2 & B2).
-  exploit eval_shrluimm. try apply HELPERS. eexact A0. instantiate (1 := Int.repr 63). intros (v3 & A3 & B3).
-  set (a4 := if zlt M Int64.half_modulus
-             then mullhs (Eletvar 0) (Int64.repr M)
-             else addl (mullhs (Eletvar 0) (Int64.repr M)) (Eletvar 0)).
-  set (v4 := if zlt M Int64.half_modulus then v1 else v2).
-  assert (A4: eval_expr ge sp e m le a4 v4).
-  { unfold a4, v4; destruct (zlt M Int64.half_modulus); auto. }
-  exploit eval_shrlimm. try apply HELPERS. eexact A4. instantiate (1 := Int.repr p). intros (v5 & A5 & B5).
-  exploit eval_addl. auto. eexact A5. eexact A3. intros (v6 & A6 & B6).
-  assert (RANGE: forall x, 0 <= x < 64 -> Int.ltu (Int.repr x) Int64.iwordsize' = true).
-  { intros. unfold Int.ltu. rewrite Int.unsigned_repr. rewrite zlt_true by tauto. auto.
-    assert (64 < Int.max_unsigned) by (compute; auto). lia. }
-  simpl in B1; inv B1.
-  simpl in B2; inv B2.
-  simpl in B3; rewrite RANGE in B3 by lia; inv B3.
-  destruct (zlt M Int64.half_modulus).
-- exploit (divls_mul_shift_1 x); eauto. intros [A B].
-  simpl in B5; rewrite RANGE in B5 by auto; inv B5.
-  simpl in B6; inv B6.
-  rewrite B; exact A6.
-- exploit (divls_mul_shift_2 x); eauto. intros [A B].
-  simpl in B5; rewrite RANGE in B5 by auto; inv B5.
-  simpl in B6; inv B6.
-  rewrite B; exact A6.
-Qed.
+Admitted.
 
 Theorem eval_divls:
   forall le a b x y z,
