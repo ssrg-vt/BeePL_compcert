@@ -224,6 +224,9 @@ end.
 
 (* Converts C value to BeePL value *) 
 (* we don't want to allow int i and then read i to get garbage value *) 
+(* Reading uninitialized memory is not allowed in eBPF as it might leak sensitive information *)
+(* A function stores secret data in stack and later it is not cleared and then other function 
+   is called, the secret data from older function can be leaked *)
 Definition transC_val_bplvalue (v : Values.val) : res value :=
 match v with 
 | Values.Vundef => Error (MSG "Undef values are not allowed" :: nil)
