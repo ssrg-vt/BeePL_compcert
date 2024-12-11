@@ -54,7 +54,15 @@ let compile_c_file sourcename ifile ofile =
   set_dest PrintMach.destination option_dmach ".mach";
   set_dest AsmToJSON.destination option_sdump !sdump_suffix;
   (* Parse the ast *)
-  let csyntax = parse_c_file sourcename ifile in
+  let csyntax_res = Compiler.transf_beepl_program_csyntax BeePL_progs.example1 in
+  let csyntax =
+    match csyntax_res with
+    | Errors.OK program -> program
+    | Errors.Error msg ->
+        let loc = file_loc sourcename in
+        fatal_error loc "error during transf_beepl_program_csyntax: %a" print_error msg
+  in
+  (* let csyntax = parse_c_file sourcename ifile in *)
   (* Convert to Asm *)
   let asm =
     match Compiler.apply_partial
@@ -63,8 +71,8 @@ let compile_c_file sourcename ifile ofile =
     | Errors.OK asm ->
         asm
     | Errors.Error msg ->
-      let loc = file_loc sourcename in
-        fatal_error loc "%a"  print_error msg in
+        let loc = file_loc sourcename in
+        fatal_error loc "error during transf_c_program: %a"  print_error msg in
   (* Dump Asm in binary and JSON format *)
   AsmToJSON.print_if asm sourcename;
   (* Print Asm in text form *)
@@ -147,6 +155,10 @@ let process_h_file sourcename =
     ""
   end else
     fatal_error no_loc "input file %s ignored (not in -E mode)\n" sourcename
+
+let process_b_file sourcename =
+  print_endline "processing beepl file";
+  "dummy_return_value"
 
 let target_help =
   if Configuration.arch = "arm" && Configuration.model <> "armv6" then
@@ -380,6 +392,9 @@ let cmdline_actions =
   Prefix "-", Self (fun s ->
       fatal_error no_loc "Unknown option `%s'" s);
 (* File arguments *)
+  Suffix ".b", Self (fun s ->
+      (* set option_c to true so that compiler does not try to link *)
+      push_action process_b_file s; incr num_source_files; incr num_input_files; option_c := true);
   Suffix ".c", Self (fun s ->
       push_action process_c_file s; incr num_source_files; incr num_input_files);
   Suffix ".i", Self (fun s ->

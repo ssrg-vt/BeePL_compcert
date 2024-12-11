@@ -32,6 +32,9 @@ DIRS := lib common $(ARCHDIRS) backend cfrontend driver export cparser
 
 COQINCLUDES := $(foreach d, $(DIRS), -R $(d) compcert.$(d))
 
+DIRS += compiler_test/BeePL
+COQINCLUDES += -R compiler_test/BeePL BeePL_progs
+
 ifeq ($(LIBRARY_FLOCQ),local)
 DIRS += flocq/Core flocq/Prop flocq/Calc flocq/IEEE754
 COQINCLUDES += -R flocq Flocq
@@ -135,12 +138,17 @@ BACKEND=\
 
 # C front-end modules (in cfrontend/)
 
-CFRONTEND=BeePL_mem.v BeePL_aux.v BeeTypes.v BeePL.v BeePL_auxlemmas.v BeePL_typesystem.v BeePL_Csyntax.v BeePL_proof.v Ctypes.v Cop.v Csyntax.v Csem.v Ctyping.v Cstrategy.v Cexec.v \
+CFRONTEND=Ctypes.v Cop.v Csyntax.v Csem.v Ctyping.v Cstrategy.v Cexec.v \
   Initializers.v Initializersproof.v \
   SimplExpr.v SimplExprspec.v SimplExprproof.v \
   Clight.v ClightBigstep.v SimplLocals.v SimplLocalsproof.v \
   BeePL_Csyntax.v Cshmgen.v Cshmgenproof.v \
-  Csharpminor.v Cminorgen.v Cminorgenproof.v
+  Csharpminor.v Cminorgen.v Cminorgenproof.v \
+  BeePL_mem.v BeePL_aux.v BeeTypes.v BeePL.v BeePL_auxlemmas.v BeePL_typesystem.v BeePL_Csyntax.v BeePL_proof.v
+
+# BeePL AST 
+
+BEEPL_PROGS=BeePL_progs.v
 
 # Parser
 
@@ -170,7 +178,7 @@ endif
 # All source files
 
 FILES=$(VLIB) $(COMMON) $(BACKEND) $(CFRONTEND) $(DRIVER) $(FLOCQ) \
-  $(MENHIRLIB) $(PARSER) $(EXPORTLIB)
+  $(MENHIRLIB) $(PARSER) $(EXPORTLIB) $(BEEPL_PROGS)
 
 # Generated source files
 

@@ -3,6 +3,9 @@ Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat Pe
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes.
 Require Import BeePL BeePL_mem BeeTypes BeePL_Csyntax Compiler Errors Extraction.
 
+Require Import List.
+Import ListNotations.
+
 Local Open Scope string_scope.
 Local Open Scope error_monad_scope.
 
@@ -63,11 +66,11 @@ Definition example1 : BeePL.program := {| prog_defs := global_definitions;
                                           prog_comp_env_eq := composite_default |}.
 
 
-Definition tcp1 := (transf_beepl_program_csyntax (example1)).
-Definition tasm1 := transf_beepl_program(example1).
+Definition tcp1 := transf_beepl_program_csyntax (example1).
+Definition tasm1 := transf_beepl_program (example1).
 
-(*Compute tcp1.*)
-Extraction "tcp1.ml" tcp1.
+Definition all_programs : list program :=
+  [example1].
 
 (* Generated output *)
 (*        = OK
@@ -123,7 +126,3 @@ Extraction "tcp1.ml" tcp1.
            Ctypes.prog_comp_env_eq := composite_default
          |}
      : res Csyntax.program *)
-
-
-
-
