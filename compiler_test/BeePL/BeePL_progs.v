@@ -78,8 +78,8 @@ Definition example1 : BeePL.program := {| prog_defs := global_definitions;
                                           prog_comp_env_eq := composite_default |}.
 
 
-Definition tcp1 := (transf_beepl_program_csyntax (example1)).
-Definition tasm1 := transf_beepl_program(example1).
+Definition tcp1 := transf_beepl_program_csyntax (example1).
+Definition tasm1 := transf_beepl_program (example1).
 
 Compute tcp1.
 Extraction "tcp1.ml" tcp1.
