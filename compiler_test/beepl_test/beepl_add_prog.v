@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx Coq.Strings.BinaryString.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes.
-Require Import BeePL BeePL_mem BeeTypes BeePL_Csyntax Compiler Errors.
+Require Import BeePL BeePL_mem BeeTypes BeePL_Csyntax Compiler Errors Extraction.
 
 Local Open Scope string_scope.
 Local Open Scope error_monad_scope.
@@ -48,7 +48,7 @@ Definition example1 : program := {| bprog_defs:= (main, f_main) :: nil; bprog_ma
 Definition tcp1 := (transf_beepl_program_csyntax (example1)).
 Definition tasm1 := transf_beepl_program(example1).
 
-
+Extraction "tcp1.ml" tcp1.
 
 (*Compute (transf_beepl_program_csyntax (example1)).*)
 

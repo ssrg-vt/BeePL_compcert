@@ -32,6 +32,8 @@ Definition default_expr := (Eval (Values.Vundef) Tvoid).
 
 Fixpoint transBeePL_expr_expr (e : BeePL.expr) : res Csyntax.expr := 
 match e with 
+| Val v t => do vt <- (transBeePL_type t);
+             OK (Eval (transBeePL_value_cvalue v) vt) 
 | Var x => do xt <- (transBeePL_type (vtype x));
            OK (Evar (vname x) xt)
 | Const c t => match c with 
@@ -97,6 +99,8 @@ end.
 
 Definition transBeePL_expr_st (e : BeePL.expr) : res Csyntax.statement :=
 match e with 
+| Val v t => do vt <- (transBeePL_type t);
+             OK (Sreturn (Some (Eval (transBeePL_value_cvalue v) vt))) 
 | Var x => do ct <- (transBeePL_type x.(vtype));
            OK (Sreturn (Some (Evalof (Evar x.(vname) ct) ct)))
 | Const c t => do ct <- (transBeePL_type t);

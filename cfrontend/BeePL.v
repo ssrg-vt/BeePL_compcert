@@ -119,6 +119,7 @@ Inductive builtin : Type :=
 (* The source language never exposes the heap binding construct hpφ.e directly to the user 
    but during evaluation the reductions on heap operations create heaps and use them. *)
 Inductive expr : Type :=
+| Val : value -> type -> expr                                     (* value *)
 | Var : vinfo -> expr                                              (* variable *)
 | Const : constant -> type -> expr                                 (* constant *)
 | App : option ident -> expr -> list expr -> type -> expr          (* function application: option ident represents 
@@ -137,6 +138,7 @@ Inductive expr : Type :=
 
 Definition typeof_expr (e : expr) : BeeTypes.type :=
 match e with 
+| Val v t => t
 | Var x => x.(vtype)
 | Const x t => t
 | App x e ts t => t
@@ -346,11 +348,13 @@ with substs : vmap -> mem -> ident -> value -> list expr -> mem -> list expr -> 
 
 (* Big step semantics: I want to prove their equivalence with Cstrategy for simpl expressions *)
 Inductive sem_expr : genv -> vmap -> mem -> expr -> mem -> value -> Prop :=
-| sem_var : forall ge vm hm st x v t l, 
+| sem_val : forall ge vm hm v t,
+            sem_expr ge vm hm (Val v t) hm v
+| sem_var : forall ge vm hm x v t l, 
             vm!(x.(vname)) = Some (l, t) ->
             t = x.(vtype) ->
             deref_addr t hm l Ptrofs.zero Full v ->
-            sem_expr ge vm hm (Var x) st v
+            sem_expr ge vm hm (Var x) hm v
 | sem_const_int : forall ge vm hm i t, 
                    sem_expr ge vm hm (Const (ConsInt i) t) hm (Vint i)
 | sem_const_int64 : forall ge vm hm i t, 
