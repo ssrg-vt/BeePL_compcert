@@ -29,19 +29,10 @@ end.
 
 Definition default_expr := (Eval (Values.Vundef) Tvoid).
 
-(*Definition Ederef' (a: Csyntax.expr) (t: Ctypes.type) : Csyntax.expr :=
-  match a with
-  | Eaddrof a' t' => if type_eq t (typeof a') then a' else Ederef a t
-  | _ => Ederef a t
-  end.*)
-
 Fixpoint transBeePL_expr_expr (e : BeePL.expr) : mon Csyntax.expr := 
 match e with 
 | Val v t => do vt <- (transBeePL_type t);
              ret (Eval (transBeePL_value_cvalue v) vt) 
-(*| Valof e t => do ct <- (transBeePL_type t);
-               do ce <- (transBeePL_expr_expr e);
-               ret (Evalof ce ct)*)
 | Var x t => do xt <- (transBeePL_type t);
            ret (Evar x xt)
 | Const c t => match c with 
@@ -115,9 +106,6 @@ Definition transBeePL_expr_st (e : BeePL.expr) : mon Csyntax.statement :=
 match e with 
 | Val v t => do vt <- (transBeePL_type t);
              ret (Sreturn (Some (Eval (transBeePL_value_cvalue v) vt))) 
-(*| Valof e t => do ct <- (transBeePL_type t);
-               do ce <- (transBeePL_expr_expr e);
-               ret (Sreturn (Some (Evalof ce ct)))*)
 | Var x t => do ct <- (transBeePL_type t);
              ret (Sreturn (Some (Evalof (Evar x ct) ct)))
 | Const c t => do ct <- (transBeePL_type t);
@@ -167,12 +155,12 @@ match e with
                                      do ct' <- (transBeePL_type t');
                                      do rt <- (transBeePL_type (BeePL.typeof_expr (e')));
                                      ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid))
-                                                 (Sreturn (Some (Evalof ce' rt))))
+                                                    (Sreturn (Some (Evalof ce' rt))))
                       | Const c t => do ct <- (transBeePL_type t); 
                                      do ce <- (transBeePL_expr_expr e);
                                      do ce' <- (transBeePL_expr_expr e');
                                      ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
-                                                   (Sreturn (Some ce')))
+                                                    (Sreturn (Some ce')))
                       (* can produce side-effects *)
                       | _ => do ct <- (transBeePL_type t);
                              do ce <- (transBeePL_expr_expr e);
@@ -202,9 +190,9 @@ match e with
                      ret (Sdo (Ebuiltin cef cts ces ct))
 end.
 
-(* Translates the BeePL function declaration to C function *) 
+(* Translates the BeePL.function to Csyntax.function *) 
 Definition transBeePL_function_function (fd : BeePL.function) : res (Csyntax.function) :=
-match (transBeePL_type (fd.(BeePL.fn_return)) (initial_generator tt)) with 
+match (BeeTypes.transBeePL_type (fd.(BeePL.fn_return)) (initial_generator tt)) with 
 | Err msg => Error msg
 | Res crt g i => match (transBeePL_types transBeePL_type (unzip2 (fd.(fn_args))) (initial_generator tt)) with 
                 | Err msg => Error msg
@@ -214,10 +202,8 @@ match (transBeePL_type (fd.(BeePL.fn_return)) (initial_generator tt)) with
                                                 | Err msg => Error msg
                                                 | Res fbody g i => OK {| fn_return := crt; 
                                                                          fn_callconv := cc_default; 
-                                                                         fn_params := zip (unzip1 (fd.(fn_args)))
-                                                                                   (from_typelist pt);
-                                                                         fn_vars := zip (unzip1 (fd.(BeePL.fn_vars)))
-                                                                                 (from_typelist vt);
+                                                                         fn_params := zip (unzip1 (fd.(fn_args))) (from_typelist pt);
+                                                                         fn_vars := zip (unzip1 (fd.(BeePL.fn_vars))) (from_typelist vt);
                                                                          fn_body :=  fbody|}
                                     end
                         end
@@ -272,9 +258,9 @@ end.
 Definition transBeePL_globdef_globdef (gd : BeePL.globdef BeePL.fundef BeeTypes.type) : res (AST.globdef fundef Ctypes.type) :=
 match gd with 
 | AST.Gfun f => do cf <- transBeePL_fundef_fundef f;
-            OK (AST.Gfun cf)
-| Gvar g => do cg <- transBeePLglobvar_globvar g;
-            OK (AST.Gvar cg)
+                OK (AST.Gfun cf)
+| AST.Gvar g => do cg <- transBeePLglobvar_globvar g;
+                OK (AST.Gvar cg)
 end.
 
 Fixpoint transBeePL_globdefs_globdefs (gds : list (BeePL.globdef BeePL.fundef BeeTypes.type)) : res (list (AST.globdef fundef Ctypes.type)) :=
@@ -293,7 +279,7 @@ Qed.
 
 (* Missing compositie information and list of public functions *) 
 Definition BeePL_compcert (p : BeePL.program) : res Csyntax.program :=
-  do pds <- transBeePL_globdefs_globdefs (unzip2 (p.(prog_defs)));
+  do pds <- transBeePL_globdefs_globdefs (BeePL_aux.unzip2 (p.(prog_defs)));
   OK {| Ctypes.prog_defs := zip (unzip1 p.(prog_defs)) pds;
         Ctypes.prog_public := prog_public p;
         Ctypes.prog_main := prog_main p;

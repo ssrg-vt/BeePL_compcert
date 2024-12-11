@@ -102,7 +102,6 @@ end.
 Definition typeof_expr (e : expr) : BeeTypes.type :=
 match e with 
 | Val v t => t
-(*| Valof e t => t*)
 | Var x t => t
 | Const x t => t
 | App e ts t => t
@@ -122,12 +121,12 @@ match e with
 end.
 
 Record function : Type := mkfunction { (*fn_sec: option string; XDP ==> SEC("xdp") *)
-                                       fn_return: type;
-                                       fn_effect: effect;
+                                       fn_return: BeeTypes.type;
+                                       fn_effect: BeeTypes.effect;
                                        fn_callconv: calling_convention;
-                                       fn_args: list (ident * type);
-                                       fn_vars: list (ident * type);
-                                       fn_body: expr }.
+                                       fn_args: list (ident * BeeTypes.type); (*TODO: rename to fn_params so it matches Csyntax naming*)
+                                       fn_vars: list (ident * BeeTypes.type);
+                                       fn_body: BeePL.expr }.
 
 Inductive fundef : Type :=
 | Internal : function -> fundef

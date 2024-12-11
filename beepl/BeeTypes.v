@@ -35,8 +35,8 @@ end.
 
 Inductive primitive_type : Type :=
 | Tunit : primitive_type
-| Tint : intsize -> signedness -> attr -> primitive_type
-| Tlong : signedness -> attr -> primitive_type.
+| Tint  : Ctypes.intsize -> Ctypes.signedness -> Ctypes.attr -> primitive_type
+| Tlong : Ctypes.signedness -> Ctypes.attr -> primitive_type.
 
 Inductive basic_type : Type :=  
 | Bprim : primitive_type -> basic_type.

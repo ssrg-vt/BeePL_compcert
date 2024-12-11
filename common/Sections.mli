@@ -47,6 +47,8 @@ type access_mode =
 
 val initialize: unit -> unit
 
+val sections_list_to_string : section_name list -> string
+
 val define_section:
   string -> ?iname:string -> ?uname:string
          -> ?writable:bool -> ?executable:bool -> ?access:access_mode -> unit -> unit
