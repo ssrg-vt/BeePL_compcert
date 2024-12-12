@@ -386,9 +386,10 @@ Qed.  *)
 Admitted.
 
 (**** Preservation ****)
+(* Big step semantics *)
 Lemma preservation : forall Gamma Sigma genv vm hm hm' e ef t v, 
 type_expr Gamma Sigma e ef t (* type_checker(e) *)  ->
-sem_expr genv vm hm e hm' v ->
+bsem_expr genv vm hm e hm' v ->
 typeof_value v t.
 Proof.
 move=> Gamma Sigma genv vm hm hm' e ef t v ht. move: Gamma Sigma ef t ht genv vm hm hm'. 
