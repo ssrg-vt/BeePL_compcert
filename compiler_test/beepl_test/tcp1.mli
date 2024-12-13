@@ -856,13 +856,11 @@ type rettype =
 | Tint16unsigned
 | Tvoid
 
-type calling_convention = { cc_vararg : z option; cc_unproto : 
-                            bool; cc_structret : bool }
+type calling_convention = { cc_vararg : z option; cc_unproto : bool; cc_structret : bool }
 
 val cc_default : calling_convention
 
-type signature = { sig_args : typ list; sig_res : rettype;
-                   sig_cc : calling_convention }
+type signature = { sig_args : typ list; sig_res : rettype; sig_cc : calling_convention }
 
 type memory_chunk =
 | Mbool
@@ -887,8 +885,7 @@ type init_data =
 | Init_space of z
 | Init_addrof of ident * Ptrofs.int
 
-type 'v globvar = { gvar_info : 'v; gvar_init : init_data list;
-                    gvar_readonly : bool; gvar_volatile : bool }
+type 'v globvar = { gvar_info : 'v; gvar_init : init_data list; gvar_readonly : bool; gvar_volatile : bool }
 
 type ('f, 'v) globdef =
 | Gfun of 'f
@@ -951,9 +948,7 @@ type members = member list
 type composite_definition =
 | Composite of ident * struct_or_union * members * attr
 
-type composite = { co_su : struct_or_union; co_members : members;
-                   co_attr : attr; co_sizeof : z; co_alignof : 
-                   z; co_rank : nat }
+type composite = { co_su : struct_or_union; co_members : members; co_attr : attr; co_sizeof : z; co_alignof : z; co_rank : nat }
 
 type composite_env = composite PTree.t
 
@@ -965,11 +960,8 @@ type 'f fundef =
 | Internal of 'f
 | External of external_function * typelist * type0 * calling_convention
 
-type 'f program = { prog_defs : (ident, ('f fundef, type0) globdef)
-                                prod list; prog_public : ident list;
-                    prog_main : ident;
-                    prog_types : composite_definition list;
-                    prog_comp_env : composite_env }
+type 'f program = { prog_defs : (ident, ('f fundef, type0) globdef) prod list; prog_public : ident list; prog_main : ident;
+                    prog_types : composite_definition list; prog_comp_env : composite_env }
 
 type block = positive
 
@@ -1002,9 +994,7 @@ type perm_kind =
 
 module Mem :
  sig
-  type mem' = { mem_contents : memval ZMap.t PMap.t;
-                mem_access : (z -> perm_kind -> permission option)
-                             PMap.t; nextblock : block }
+  type mem' = { mem_contents : memval ZMap.t PMap.t; mem_access : (z -> perm_kind -> permission option) PMap.t; nextblock : block }
 
   type mem = mem'
  end
@@ -1023,8 +1013,7 @@ type primitive_type =
 | Tint1 of intsize * signedness * attr
 | Tlong1 of signedness * attr
 
-type basic_type =
-  primitive_type
+type basic_type = primitive_type
   (* singleton inductive, whose constructor was Bprim *)
 
 type type1 =
@@ -1032,8 +1021,7 @@ type type1 =
 | Reftype of ident * basic_type * attr
 | Ftype of type1 list * effect * type1
 
-val transBeePL_types :
-  (type1 -> type0 res) -> type1 list -> typelist res
+val transBeePL_types : (type1 -> type0 res) -> type1 list -> typelist res
 
 val typelist_list_type : typelist -> type0 list
 
@@ -1112,32 +1100,18 @@ type expr =
 
 val typeof_expr : expr -> type1
 
-type function0 = { fn_return : type1;
-                   fn_callconv : calling_convention;
-                   fn_args : vinfo list; fn_vars : vinfo list;
-                   fn_body : expr }
+type function0 = { fn_return : type1; fn_callconv : calling_convention; fn_args : vinfo list; fn_vars : vinfo list; fn_body : expr }
 
 type fundef0 =
 | Internal0 of function0
 | External0
 
-type init_data0 =
-| Init_int0 of Int.int
-| Init_int1 of Int.int
-| Init_int2 of Int.int
-| Init_int3 of Int64.int
+type 'v globvar0 = 'v globvar
 
-type globvar0 = { gvar_info0 : type1; gvar_init0 : init_data0 list;
-                  gvar_readonly0 : bool; gvar_volatile0 : bool }
+type ('f, 'v) globdef0 = ('f, 'v) globdef
 
-type globdef0 =
-| Gfun0 of fundef0
-| Gvar0 of globvar0
-
-type program0 = { prog_defs0 : (ident, globdef0) prod list;
-                  prog_public0 : ident list; prog_main0 : ident;
-                  prog_types0 : composite_definition list;
-                  prog_comp_env0 : composite_env }
+type program0 = { prog_defs0 : (ident, (fundef0, type1) globdef0) prod list; prog_public0 : ident list; prog_main0 : ident;
+                  prog_types0 : composite_definition list; prog_comp_env0 : composite_env }
 
 val transBeePL_value_cvalue : value -> val0
 
@@ -1188,18 +1162,14 @@ and labeled_statements =
 | LSnil
 | LScons of z option * statement * labeled_statements
 
-type function1 = { fn_return0 : type0;
-                   fn_callconv0 : calling_convention;
-                   fn_params : (ident, type0) prod list;
-                   fn_vars0 : (ident, type0) prod list;
-                   fn_body0 : statement }
+type function1 = { fn_return0 : type0; fn_callconv0 : calling_convention; fn_params : (ident, type0) prod list;
+                   fn_vars0 : (ident, type0) prod list; fn_body0 : statement }
 
 type fundef1 = function1 fundef
 
 type program1 = function1 program
 
-val transBeePL_expr_exprs :
-  (expr -> expr0 res) -> expr list -> exprlist res
+val transBeePL_expr_exprs : (expr -> expr0 res) -> expr list -> exprlist res
 
 val exprlist_list_expr : exprlist -> expr0 list
 
@@ -1215,18 +1185,11 @@ val transBeePL_function_function : function0 -> function1 res
 
 val transBeePL_fundef_fundef : fundef0 -> fundef1 res
 
-val transBeePL_init_data_init_data : init_data0 -> init_data
+val transBeePLglobvar_globvar : type1 globvar0 -> type0 globvar res
 
-val transBeePL_init_datas_init_datas :
-  init_data0 list -> init_data list
+val transBeePL_globdef_globdef : (fundef0, type1) globdef0 -> (fundef1, type0) globdef res
 
-val transBeePLglobvar_globvar : globvar0 -> type0 globvar res
-
-val transBeePL_globdef_globdef :
-  globdef0 -> (fundef1, type0) globdef res
-
-val transBeePL_globdefs_globdefs :
-  globdef0 list -> (fundef1, type0) globdef list res
+val transBeePL_globdefs_globdefs : (fundef0, type1) globdef0 list -> (fundef1, type0) globdef list res
 
 val beePL_compcert : program0 -> program1 res
 
@@ -1252,7 +1215,7 @@ val f_main : function0
 
 val composites : composite_definition list
 
-val global_definitions : (ident, globdef0) prod list
+val global_definitions : (ident, (fundef0, type1) globdef0) prod list
 
 val public_idents : ident list
 

@@ -33,6 +33,7 @@ Record genv := { genv_genv :> Genv.t fundef type; genv_cenv :> composite_env }.
 Definition globalenv (p: program) :=
   {| genv_genv := Genv.globalenv p; genv_cenv := p.(prog_comp_env) |}.
 
+
 (** The local environment maps local variables to block references and types.
   The current value of the variable is stored in the associated memory
   block. *)

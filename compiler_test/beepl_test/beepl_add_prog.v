@@ -45,7 +45,7 @@ Definition f_main : function := {| fn_return := (Ptype (Tint I32 Unsigned dattr)
 
 Definition composites : list composite_definition := nil.
 
-Definition global_definitions : list (ident * globdef) := (main, Gfun(Internal f_main)) :: nil.
+Definition global_definitions : list (ident * globdef fundef type) := (main, Gfun(Internal f_main)) :: nil.
 
 Definition public_idents : list ident := (main :: nil).
 
@@ -66,15 +66,15 @@ Definition example1 : BeePL.program := {| prog_defs := global_definitions;
 Definition tcp1 := (transf_beepl_program_csyntax (example1)).
 Definition tasm1 := transf_beepl_program(example1).
 
-(*Compute tcp1.*)
+Compute tcp1.
 Extraction "tcp1.ml" tcp1.
 
 (* Generated output *)
-(*        = OK
+(*        OK
          {|
            Ctypes.prog_defs :=
              (4%positive,
-             AST.Gfun
+             Gfun
                (Ctypes.Internal
                   {|
                     Csyntax.fn_return := Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |};

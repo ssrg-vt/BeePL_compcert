@@ -106,7 +106,7 @@ Inductive builtin : Type :=
                                 assigns the evaluation of e to the reference cell l *)
 | Uop : Cop.unary_operation -> builtin       (* unary operator *)
 | Bop : Cop.binary_operation -> builtin       (* binary operator *)
-| Run : mem -> builtin      (* eliminate heap effect : [r1-> v1, ..., ern->vn] e 
+| Run : Memory.mem -> builtin      (* eliminate heap effect : [r1-> v1, ..., ern->vn] e 
                                 reduces to e captures the essence of state isolation 
                                 and reduces to a value discarding the heap *).
 
@@ -129,7 +129,7 @@ Inductive expr : Type :=
 (* not intended to be written by programmers:
    Only should play role in operational semantics *)
 | Addr : linfo -> ptrofs -> expr                                   (* address *)
-| Hexpr : mem -> expr -> type -> expr                              (* heap effect *).
+| Hexpr : Memory.mem -> expr -> type -> expr                              (* heap effect *).
 
 Definition is_value (e : expr) : bool :=
 match e with 
@@ -167,30 +167,33 @@ Inductive init_data : Set :=
 | Init_int32 : int -> init_data
 | Init_int64 : int64 -> init_data.
 
-Record globvar : Type := mkglobvar { gvar_info : type;
-                                     gvar_init : list init_data;
-                                     gvar_readonly : bool;
-                                     gvar_volatile : bool }.
+Definition globvar (V : Type) := AST.globvar V.
 
-Inductive globdef : Type :=
-| Gfun : fundef -> globdef
-| Gvar : globvar -> globdef.
+Definition globdef (F V : Type) := AST.globdef F V.
 
-
-Record program : Type := mkprogam { prog_defs : list (ident * globdef);
+Record program  : Type := mkprogam { prog_defs : list (ident * globdef fundef type);
                                     prog_public : list ident;
                                     prog_main : ident;
                                     prog_types : list composite_definition;
                                     prog_comp_env : composite_env;
                                     prog_comp_env_eq : build_composite_env prog_types = OK prog_comp_env }.
 
+(************************** Operation Semantics **************************************)
 (* Global environments are a component of the dynamic semantics of
    BeePL language.  A global environment maps symbol names 
    (names of functions and of global variables)
    to the corresponding function declarations. *) 
-Record genv := { genv_genv :> Genv.t fundef type; genv_cenv :> composite_env }.
+Record genv := { genv_genv :> Genv.t fundef type; genv_cenv :> composite_env }. 
 
-(************************** Operation Semantics **************************************)
+Definition trans_program_astprog (p : program) : AST.program fundef type :=
+@mkprogram fundef type
+   p.(prog_defs)
+   p.(prog_public)
+   p.(prog_main).
+
+Definition globalenv (p: program) :=
+  {| genv_genv := @Genv.globalenv fundef type (trans_program_astprog p); genv_cenv := p.(prog_comp_env) |}.
+
 (***** Virtual map *****) 
 
 (** The local environment maps local variables to references/locations and types.

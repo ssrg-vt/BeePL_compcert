@@ -91,41 +91,35 @@ module Coq_Pos =
 
   let rec add x0 y0 =
     match x0 with
-    | XI p ->
-      (match y0 with
-       | XI q -> XO (add_carry p q)
-       | XO q -> XI (add p q)
-       | XH -> XO (succ p))
-    | XO p ->
-      (match y0 with
-       | XI q -> XI (add p q)
-       | XO q -> XO (add p q)
-       | XH -> XI p)
-    | XH ->
-      (match y0 with
-       | XI q -> XO (succ q)
-       | XO q -> XI q
-       | XH -> XO XH)
+    | XI p -> (match y0 with
+               | XI q -> XO (add_carry p q)
+               | XO q -> XI (add p q)
+               | XH -> XO (succ p))
+    | XO p -> (match y0 with
+               | XI q -> XI (add p q)
+               | XO q -> XO (add p q)
+               | XH -> XI p)
+    | XH -> (match y0 with
+             | XI q -> XO (succ q)
+             | XO q -> XI q
+             | XH -> XO XH)
 
   (** val add_carry : positive -> positive -> positive **)
 
   and add_carry x0 y0 =
     match x0 with
-    | XI p ->
-      (match y0 with
-       | XI q -> XI (add_carry p q)
-       | XO q -> XO (add_carry p q)
-       | XH -> XI (succ p))
-    | XO p ->
-      (match y0 with
-       | XI q -> XO (add_carry p q)
-       | XO q -> XI (add p q)
-       | XH -> XO (succ p))
-    | XH ->
-      (match y0 with
-       | XI q -> XI (succ q)
-       | XO q -> XO (succ q)
-       | XH -> XI XH)
+    | XI p -> (match y0 with
+               | XI q -> XI (add_carry p q)
+               | XO q -> XO (add_carry p q)
+               | XH -> XI (succ p))
+    | XO p -> (match y0 with
+               | XI q -> XO (add_carry p q)
+               | XO q -> XI (add p q)
+               | XH -> XO (succ p))
+    | XH -> (match y0 with
+             | XI q -> XI (succ q)
+             | XO q -> XO (succ q)
+             | XH -> XI XH)
 
   (** val pred_double : positive -> positive **)
 
@@ -170,11 +164,10 @@ module Coq_Pos =
 
   let rec sub_mask x0 y0 =
     match x0 with
-    | XI p ->
-      (match y0 with
-       | XI q -> double_mask (sub_mask p q)
-       | XO q -> succ_double_mask (sub_mask p q)
-       | XH -> IsPos (XO p))
+    | XI p -> (match y0 with
+               | XI q -> double_mask (sub_mask p q)
+               | XO q -> succ_double_mask (sub_mask p q)
+               | XH -> IsPos (XO p))
     | XO p ->
       (match y0 with
        | XI q -> succ_double_mask (sub_mask_carry p q)
@@ -236,21 +229,18 @@ module Coq_Pos =
   | XO p0 -> succ (size p0)
   | XH -> XH
 
-  (** val compare_cont :
-      comparison -> positive -> positive -> comparison **)
+  (** val compare_cont : comparison -> positive -> positive -> comparison **)
 
   let rec compare_cont r0 x0 y0 =
     match x0 with
-    | XI p ->
-      (match y0 with
-       | XI q -> compare_cont r0 p q
-       | XO q -> compare_cont Gt p q
-       | XH -> Gt)
-    | XO p ->
-      (match y0 with
-       | XI q -> compare_cont Lt p q
-       | XO q -> compare_cont r0 p q
-       | XH -> Gt)
+    | XI p -> (match y0 with
+               | XI q -> compare_cont r0 p q
+               | XO q -> compare_cont Gt p q
+               | XH -> Gt)
+    | XO p -> (match y0 with
+               | XI q -> compare_cont Lt p q
+               | XO q -> compare_cont r0 p q
+               | XH -> Gt)
     | XH -> (match y0 with
              | XH -> r0
              | _ -> Lt)
@@ -276,16 +266,14 @@ module Coq_Pos =
 
   let rec coq_lor p q =
     match p with
-    | XI p0 ->
-      (match q with
-       | XI q0 -> XI (coq_lor p0 q0)
-       | XO q0 -> XI (coq_lor p0 q0)
-       | XH -> p)
-    | XO p0 ->
-      (match q with
-       | XI q0 -> XI (coq_lor p0 q0)
-       | XO q0 -> XO (coq_lor p0 q0)
-       | XH -> XI p0)
+    | XI p0 -> (match q with
+                | XI q0 -> XI (coq_lor p0 q0)
+                | XO q0 -> XI (coq_lor p0 q0)
+                | XH -> p)
+    | XO p0 -> (match q with
+                | XI q0 -> XI (coq_lor p0 q0)
+                | XO q0 -> XO (coq_lor p0 q0)
+                | XH -> XI p0)
     | XH -> (match q with
              | XO q0 -> XI q0
              | _ -> q)
@@ -294,16 +282,14 @@ module Coq_Pos =
 
   let rec coq_land p q =
     match p with
-    | XI p0 ->
-      (match q with
-       | XI q0 -> coq_Nsucc_double (coq_land p0 q0)
-       | XO q0 -> coq_Ndouble (coq_land p0 q0)
-       | XH -> Npos XH)
-    | XO p0 ->
-      (match q with
-       | XI q0 -> coq_Ndouble (coq_land p0 q0)
-       | XO q0 -> coq_Ndouble (coq_land p0 q0)
-       | XH -> N0)
+    | XI p0 -> (match q with
+                | XI q0 -> coq_Nsucc_double (coq_land p0 q0)
+                | XO q0 -> coq_Ndouble (coq_land p0 q0)
+                | XH -> Npos XH)
+    | XO p0 -> (match q with
+                | XI q0 -> coq_Ndouble (coq_land p0 q0)
+                | XO q0 -> coq_Ndouble (coq_land p0 q0)
+                | XH -> N0)
     | XH -> (match q with
              | XO _ -> N0
              | _ -> Npos XH)
@@ -312,16 +298,14 @@ module Coq_Pos =
 
   let rec ldiff p q =
     match p with
-    | XI p0 ->
-      (match q with
-       | XI q0 -> coq_Ndouble (ldiff p0 q0)
-       | XO q0 -> coq_Nsucc_double (ldiff p0 q0)
-       | XH -> Npos (XO p0))
-    | XO p0 ->
-      (match q with
-       | XI q0 -> coq_Ndouble (ldiff p0 q0)
-       | XO q0 -> coq_Ndouble (ldiff p0 q0)
-       | XH -> Npos p)
+    | XI p0 -> (match q with
+                | XI q0 -> coq_Ndouble (ldiff p0 q0)
+                | XO q0 -> coq_Nsucc_double (ldiff p0 q0)
+                | XH -> Npos (XO p0))
+    | XO p0 -> (match q with
+                | XI q0 -> coq_Ndouble (ldiff p0 q0)
+                | XO q0 -> coq_Ndouble (ldiff p0 q0)
+                | XH -> Npos p)
     | XH -> (match q with
              | XO _ -> Npos XH
              | _ -> N0)
@@ -340,24 +324,21 @@ module Coq_Pos =
        | XI q0 -> coq_Nsucc_double (coq_lxor p0 q0)
        | XO q0 -> coq_Ndouble (coq_lxor p0 q0)
        | XH -> Npos (XI p0))
-    | XH ->
-      (match q with
-       | XI q0 -> Npos (XO q0)
-       | XO q0 -> Npos (XI q0)
-       | XH -> N0)
+    | XH -> (match q with
+             | XI q0 -> Npos (XO q0)
+             | XO q0 -> Npos (XI q0)
+             | XH -> N0)
 
   (** val testbit : positive -> n -> bool **)
 
   let rec testbit p n0 =
     match p with
-    | XI p0 ->
-      (match n0 with
-       | N0 -> True
-       | Npos n1 -> testbit p0 (pred_N n1))
-    | XO p0 ->
-      (match n0 with
-       | N0 -> False
-       | Npos n1 -> testbit p0 (pred_N n1))
+    | XI p0 -> (match n0 with
+                | N0 -> True
+                | Npos n1 -> testbit p0 (pred_N n1))
+    | XO p0 -> (match n0 with
+                | N0 -> False
+                | Npos n1 -> testbit p0 (pred_N n1))
     | XH -> (match n0 with
              | N0 -> True
              | Npos _ -> False)
@@ -408,13 +389,11 @@ module N =
   let sub n0 m =
     match n0 with
     | N0 -> N0
-    | Npos n' ->
-      (match m with
-       | N0 -> n0
-       | Npos m' ->
-         (match Coq_Pos.sub_mask n' m' with
-          | Coq_Pos.IsPos p -> Npos p
-          | _ -> N0))
+    | Npos n' -> (match m with
+                  | N0 -> n0
+                  | Npos m' -> (match Coq_Pos.sub_mask n' m' with
+                                | Coq_Pos.IsPos p -> Npos p
+                                | _ -> N0))
 
   (** val compare : n -> n -> comparison **)
 
@@ -423,10 +402,9 @@ module N =
     | N0 -> (match m with
              | N0 -> Eq
              | Npos _ -> Lt)
-    | Npos n' ->
-      (match m with
-       | N0 -> Gt
-       | Npos m' -> Coq_Pos.compare n' m')
+    | Npos n' -> (match m with
+                  | N0 -> Gt
+                  | Npos m' -> Coq_Pos.compare n' m')
 
   (** val leb : n -> n -> bool **)
 
@@ -441,43 +419,38 @@ module N =
     match a with
     | XI a' ->
       let Pair (q, r0) = pos_div_eucl a' b in
-      let r' = succ_double r0 in
-      (match leb b r' with
-       | True -> Pair ((succ_double q), (sub r' b))
-       | False -> Pair ((double q), r'))
+      let r' = succ_double r0 in (match leb b r' with
+                                  | True -> Pair ((succ_double q), (sub r' b))
+                                  | False -> Pair ((double q), r'))
     | XO a' ->
       let Pair (q, r0) = pos_div_eucl a' b in
-      let r' = double r0 in
-      (match leb b r' with
-       | True -> Pair ((succ_double q), (sub r' b))
-       | False -> Pair ((double q), r'))
+      let r' = double r0 in (match leb b r' with
+                             | True -> Pair ((succ_double q), (sub r' b))
+                             | False -> Pair ((double q), r'))
     | XH ->
       (match b with
        | N0 -> Pair (N0, (Npos XH))
-       | Npos p ->
-         (match p with
-          | XH -> Pair ((Npos XH), N0)
-          | _ -> Pair (N0, (Npos XH))))
+       | Npos p -> (match p with
+                    | XH -> Pair ((Npos XH), N0)
+                    | _ -> Pair (N0, (Npos XH))))
 
   (** val coq_lor : n -> n -> n **)
 
   let coq_lor n0 m =
     match n0 with
     | N0 -> m
-    | Npos p ->
-      (match m with
-       | N0 -> n0
-       | Npos q -> Npos (Coq_Pos.coq_lor p q))
+    | Npos p -> (match m with
+                 | N0 -> n0
+                 | Npos q -> Npos (Coq_Pos.coq_lor p q))
 
   (** val coq_land : n -> n -> n **)
 
   let coq_land n0 m =
     match n0 with
     | N0 -> N0
-    | Npos p ->
-      (match m with
-       | N0 -> N0
-       | Npos q -> Coq_Pos.coq_land p q)
+    | Npos p -> (match m with
+                 | N0 -> N0
+                 | Npos q -> Coq_Pos.coq_land p q)
 
   (** val ldiff : n -> n -> n **)
 
@@ -493,10 +466,9 @@ module N =
   let coq_lxor n0 m =
     match n0 with
     | N0 -> m
-    | Npos p ->
-      (match m with
-       | N0 -> n0
-       | Npos q -> Coq_Pos.coq_lxor p q)
+    | Npos p -> (match m with
+                 | N0 -> n0
+                 | Npos q -> Coq_Pos.coq_lxor p q)
 
   (** val testbit : n -> n -> bool **)
 
@@ -551,37 +523,32 @@ module Z =
 
   let rec pos_sub x0 y0 =
     match x0 with
-    | XI p ->
-      (match y0 with
-       | XI q -> double (pos_sub p q)
-       | XO q -> succ_double (pos_sub p q)
-       | XH -> Zpos (XO p))
-    | XO p ->
-      (match y0 with
-       | XI q -> pred_double (pos_sub p q)
-       | XO q -> double (pos_sub p q)
-       | XH -> Zpos (Coq_Pos.pred_double p))
-    | XH ->
-      (match y0 with
-       | XI q -> Zneg (XO q)
-       | XO q -> Zneg (Coq_Pos.pred_double q)
-       | XH -> Z0)
+    | XI p -> (match y0 with
+               | XI q -> double (pos_sub p q)
+               | XO q -> succ_double (pos_sub p q)
+               | XH -> Zpos (XO p))
+    | XO p -> (match y0 with
+               | XI q -> pred_double (pos_sub p q)
+               | XO q -> double (pos_sub p q)
+               | XH -> Zpos (Coq_Pos.pred_double p))
+    | XH -> (match y0 with
+             | XI q -> Zneg (XO q)
+             | XO q -> Zneg (Coq_Pos.pred_double q)
+             | XH -> Z0)
 
   (** val add : z -> z -> z **)
 
   let add x0 y0 =
     match x0 with
     | Z0 -> y0
-    | Zpos x' ->
-      (match y0 with
-       | Z0 -> x0
-       | Zpos y' -> Zpos (Coq_Pos.add x' y')
-       | Zneg y' -> pos_sub x' y')
-    | Zneg x' ->
-      (match y0 with
-       | Z0 -> x0
-       | Zpos y' -> pos_sub y' x'
-       | Zneg y' -> Zneg (Coq_Pos.add x' y'))
+    | Zpos x' -> (match y0 with
+                  | Z0 -> x0
+                  | Zpos y' -> Zpos (Coq_Pos.add x' y')
+                  | Zneg y' -> pos_sub x' y')
+    | Zneg x' -> (match y0 with
+                  | Z0 -> x0
+                  | Zpos y' -> pos_sub y' x'
+                  | Zneg y' -> Zneg (Coq_Pos.add x' y'))
 
   (** val opp : z -> z **)
 
@@ -605,16 +572,14 @@ module Z =
   let mul x0 y0 =
     match x0 with
     | Z0 -> Z0
-    | Zpos x' ->
-      (match y0 with
-       | Z0 -> Z0
-       | Zpos y' -> Zpos (Coq_Pos.mul x' y')
-       | Zneg y' -> Zneg (Coq_Pos.mul x' y'))
-    | Zneg x' ->
-      (match y0 with
-       | Z0 -> Z0
-       | Zpos y' -> Zneg (Coq_Pos.mul x' y')
-       | Zneg y' -> Zpos (Coq_Pos.mul x' y'))
+    | Zpos x' -> (match y0 with
+                  | Z0 -> Z0
+                  | Zpos y' -> Zpos (Coq_Pos.mul x' y')
+                  | Zneg y' -> Zneg (Coq_Pos.mul x' y'))
+    | Zneg x' -> (match y0 with
+                  | Z0 -> Z0
+                  | Zpos y' -> Zneg (Coq_Pos.mul x' y')
+                  | Zneg y' -> Zpos (Coq_Pos.mul x' y'))
 
   (** val compare : z -> z -> comparison **)
 
@@ -624,14 +589,12 @@ module Z =
              | Z0 -> Eq
              | Zpos _ -> Lt
              | Zneg _ -> Gt)
-    | Zpos x' ->
-      (match y0 with
-       | Zpos y' -> Coq_Pos.compare x' y'
-       | _ -> Gt)
-    | Zneg x' ->
-      (match y0 with
-       | Zneg y' -> compOpp (Coq_Pos.compare x' y')
-       | _ -> Lt)
+    | Zpos x' -> (match y0 with
+                  | Zpos y' -> Coq_Pos.compare x' y'
+                  | _ -> Gt)
+    | Zneg x' -> (match y0 with
+                  | Zneg y' -> compOpp (Coq_Pos.compare x' y')
+                  | _ -> Lt)
 
   (** val leb : z -> z -> bool **)
 
@@ -675,19 +638,16 @@ module Z =
       let r' = add (mul (Zpos (XO XH)) r0) (Zpos XH) in
       (match ltb r' b with
        | True -> Pair ((mul (Zpos (XO XH)) q), r')
-       | False ->
-         Pair ((add (mul (Zpos (XO XH)) q) (Zpos XH)), (sub r' b)))
+       | False -> Pair ((add (mul (Zpos (XO XH)) q) (Zpos XH)), (sub r' b)))
     | XO a' ->
       let Pair (q, r0) = pos_div_eucl a' b in
       let r' = mul (Zpos (XO XH)) r0 in
       (match ltb r' b with
        | True -> Pair ((mul (Zpos (XO XH)) q), r')
-       | False ->
-         Pair ((add (mul (Zpos (XO XH)) q) (Zpos XH)), (sub r' b)))
-    | XH ->
-      (match leb (Zpos (XO XH)) b with
-       | True -> Pair (Z0, (Zpos XH))
-       | False -> Pair ((Zpos XH), Z0))
+       | False -> Pair ((add (mul (Zpos (XO XH)) q) (Zpos XH)), (sub r' b)))
+    | XH -> (match leb (Zpos (XO XH)) b with
+             | True -> Pair (Z0, (Zpos XH))
+             | False -> Pair ((Zpos XH), Z0))
 
   (** val div_eucl : z -> z -> (z, z) prod **)
 
@@ -711,9 +671,7 @@ module Z =
          (match r0 with
           | Z0 -> Pair ((opp q), Z0)
           | _ -> Pair ((opp (add q (Zpos XH))), (sub b r0)))
-       | Zneg b' ->
-         let Pair (q, r0) = pos_div_eucl a' (Zpos b') in
-         Pair (q, (opp r0)))
+       | Zneg b' -> let Pair (q, r0) = pos_div_eucl a' (Zpos b') in Pair (q, (opp r0)))
 
   (** val div : z -> z -> z **)
 
@@ -733,21 +691,13 @@ module Z =
     | Zpos a0 ->
       (match b with
        | Z0 -> Pair (Z0, a)
-       | Zpos b0 ->
-         let Pair (q, r0) = N.pos_div_eucl a0 (Npos b0) in
-         Pair ((of_N q), (of_N r0))
-       | Zneg b0 ->
-         let Pair (q, r0) = N.pos_div_eucl a0 (Npos b0) in
-         Pair ((opp (of_N q)), (of_N r0)))
+       | Zpos b0 -> let Pair (q, r0) = N.pos_div_eucl a0 (Npos b0) in Pair ((of_N q), (of_N r0))
+       | Zneg b0 -> let Pair (q, r0) = N.pos_div_eucl a0 (Npos b0) in Pair ((opp (of_N q)), (of_N r0)))
     | Zneg a0 ->
       (match b with
        | Z0 -> Pair (Z0, a)
-       | Zpos b0 ->
-         let Pair (q, r0) = N.pos_div_eucl a0 (Npos b0) in
-         Pair ((opp (of_N q)), (opp (of_N r0)))
-       | Zneg b0 ->
-         let Pair (q, r0) = N.pos_div_eucl a0 (Npos b0) in
-         Pair ((of_N q), (opp (of_N r0))))
+       | Zpos b0 -> let Pair (q, r0) = N.pos_div_eucl a0 (Npos b0) in Pair ((opp (of_N q)), (opp (of_N r0)))
+       | Zneg b0 -> let Pair (q, r0) = N.pos_div_eucl a0 (Npos b0) in Pair ((of_N q), (opp (of_N r0))))
 
   (** val quot : z -> z -> z **)
 
@@ -782,11 +732,10 @@ module Z =
   (** val log2 : z -> z **)
 
   let log2 = function
-  | Zpos p0 ->
-    (match p0 with
-     | XI p -> Zpos (Coq_Pos.size p)
-     | XO p -> Zpos (Coq_Pos.size p)
-     | XH -> Z0)
+  | Zpos p0 -> (match p0 with
+                | XI p -> Zpos (Coq_Pos.size p)
+                | XO p -> Zpos (Coq_Pos.size p)
+                | XH -> Z0)
   | _ -> Z0
 
   (** val testbit : z -> z -> bool **)
@@ -821,17 +770,12 @@ module Z =
       (match b with
        | Z0 -> a
        | Zpos b0 -> Zpos (Coq_Pos.coq_lor a0 b0)
-       | Zneg b0 ->
-         Zneg (N.succ_pos (N.ldiff (Coq_Pos.pred_N b0) (Npos a0))))
+       | Zneg b0 -> Zneg (N.succ_pos (N.ldiff (Coq_Pos.pred_N b0) (Npos a0))))
     | Zneg a0 ->
       (match b with
        | Z0 -> a
-       | Zpos b0 ->
-         Zneg (N.succ_pos (N.ldiff (Coq_Pos.pred_N a0) (Npos b0)))
-       | Zneg b0 ->
-         Zneg
-           (N.succ_pos
-             (N.coq_land (Coq_Pos.pred_N a0) (Coq_Pos.pred_N b0))))
+       | Zpos b0 -> Zneg (N.succ_pos (N.ldiff (Coq_Pos.pred_N a0) (Npos b0)))
+       | Zneg b0 -> Zneg (N.succ_pos (N.coq_land (Coq_Pos.pred_N a0) (Coq_Pos.pred_N b0))))
 
   (** val coq_land : z -> z -> z **)
 
@@ -847,10 +791,7 @@ module Z =
       (match b with
        | Z0 -> Z0
        | Zpos b0 -> of_N (N.ldiff (Npos b0) (Coq_Pos.pred_N a0))
-       | Zneg b0 ->
-         Zneg
-           (N.succ_pos
-             (N.coq_lor (Coq_Pos.pred_N a0) (Coq_Pos.pred_N b0))))
+       | Zneg b0 -> Zneg (N.succ_pos (N.coq_lor (Coq_Pos.pred_N a0) (Coq_Pos.pred_N b0))))
 
   (** val coq_lxor : z -> z -> z **)
 
@@ -861,15 +802,12 @@ module Z =
       (match b with
        | Z0 -> a
        | Zpos b0 -> of_N (Coq_Pos.coq_lxor a0 b0)
-       | Zneg b0 ->
-         Zneg (N.succ_pos (N.coq_lxor (Npos a0) (Coq_Pos.pred_N b0))))
+       | Zneg b0 -> Zneg (N.succ_pos (N.coq_lxor (Npos a0) (Coq_Pos.pred_N b0))))
     | Zneg a0 ->
       (match b with
        | Z0 -> a
-       | Zpos b0 ->
-         Zneg (N.succ_pos (N.coq_lxor (Coq_Pos.pred_N a0) (Npos b0)))
-       | Zneg b0 ->
-         of_N (N.coq_lxor (Coq_Pos.pred_N a0) (Coq_Pos.pred_N b0)))
+       | Zpos b0 -> Zneg (N.succ_pos (N.coq_lxor (Coq_Pos.pred_N a0) (Npos b0)))
+       | Zneg b0 -> of_N (N.coq_lxor (Coq_Pos.pred_N a0) (Coq_Pos.pred_N b0)))
 
   (** val eq_dec : z -> z -> sumbool **)
 
@@ -878,14 +816,12 @@ module Z =
     | Z0 -> (match y0 with
              | Z0 -> Left
              | _ -> Right)
-    | Zpos x1 ->
-      (match y0 with
-       | Zpos p0 -> Coq_Pos.eq_dec x1 p0
-       | _ -> Right)
-    | Zneg x1 ->
-      (match y0 with
-       | Zneg p0 -> Coq_Pos.eq_dec x1 p0
-       | _ -> Right)
+    | Zpos x1 -> (match y0 with
+                  | Zpos p0 -> Coq_Pos.eq_dec x1 p0
+                  | _ -> Right)
+    | Zneg x1 -> (match y0 with
+                  | Zneg p0 -> Coq_Pos.eq_dec x1 p0
+                  | _ -> Right)
  end
 
 (** val z_lt_dec : z -> z -> sumbool **)
@@ -968,11 +904,10 @@ let proj_sumbool = function
 
 let rec p_mod_two_p p = function
 | O -> Z0
-| S m ->
-  (match p with
-   | XI q -> Z.succ_double (p_mod_two_p q m)
-   | XO q -> Z.double (p_mod_two_p q m)
-   | XH -> Zpos XH)
+| S m -> (match p with
+          | XI q -> Z.succ_double (p_mod_two_p q m)
+          | XO q -> Z.double (p_mod_two_p q m)
+          | XH -> Zpos XH)
 
 (** val zshiftin : bool -> z -> z **)
 
@@ -984,14 +919,12 @@ let zshiftin b x0 =
 (** val zzero_ext : z -> z -> z **)
 
 let zzero_ext n0 x0 =
-  Z.iter n0 (fun rec0 x1 -> zshiftin (Z.odd x1) (rec0 (Z.div2 x1)))
-    (fun _ -> Z0) x0
+  Z.iter n0 (fun rec0 x1 -> zshiftin (Z.odd x1) (rec0 (Z.div2 x1))) (fun _ -> Z0) x0
 
 (** val zsign_ext : z -> z -> z **)
 
 let zsign_ext n0 x0 =
-  Z.iter (Z.pred n0) (fun rec0 x1 ->
-    zshiftin (Z.odd x1) (rec0 (Z.div2 x1))) (fun x1 ->
+  Z.iter (Z.pred n0) (fun rec0 x1 -> zshiftin (Z.odd x1) (rec0 (Z.div2 x1))) (fun x1 ->
     match match Z.odd x1 with
           | True -> proj_sumbool (zlt Z0 n0)
           | False -> False with
@@ -1018,10 +951,9 @@ let rec p_is_power2 = function
 (** val z_is_power2 : z -> z option **)
 
 let z_is_power2 x0 = match x0 with
-| Zpos p ->
-  (match p_is_power2 p with
-   | True -> Some (Z.log2 x0)
-   | False -> None)
+| Zpos p -> (match p_is_power2 p with
+             | True -> Some (Z.log2 x0)
+             | False -> None)
 | _ -> None
 
 (** val zsize : z -> z **)
@@ -1104,11 +1036,9 @@ module Make =
   let coq_Z_mod_modulus = function
   | Z0 -> Z0
   | Zpos p -> p_mod_two_p p wordsize
-  | Zneg p ->
-    let r0 = p_mod_two_p p wordsize in
-    (match zeq r0 Z0 with
-     | Left -> Z0
-     | Right -> Z.sub modulus r0)
+  | Zneg p -> let r0 = p_mod_two_p p wordsize in (match zeq r0 Z0 with
+                                                  | Left -> Z0
+                                                  | Right -> Z.sub modulus r0)
 
   (** val unsigned : int -> z **)
 
@@ -1118,10 +1048,9 @@ module Make =
   (** val signed : int -> z **)
 
   let signed n0 =
-    let x0 = unsigned n0 in
-    (match zlt x0 half_modulus with
-     | Left -> x0
-     | Right -> Z.sub x0 modulus)
+    let x0 = unsigned n0 in (match zlt x0 half_modulus with
+                             | Left -> x0
+                             | Right -> Z.sub x0 modulus)
 
   (** val repr : z -> int **)
 
@@ -1259,17 +1188,13 @@ module Make =
 
   let rol x0 y0 =
     let n0 = Z.modulo (unsigned y0) zwordsize in
-    repr
-      (Z.coq_lor (Z.shiftl (unsigned x0) n0)
-        (Z.shiftr (unsigned x0) (Z.sub zwordsize n0)))
+    repr (Z.coq_lor (Z.shiftl (unsigned x0) n0) (Z.shiftr (unsigned x0) (Z.sub zwordsize n0)))
 
   (** val ror : int -> int -> int **)
 
   let ror x0 y0 =
     let n0 = Z.modulo (unsigned y0) zwordsize in
-    repr
-      (Z.coq_lor (Z.shiftr (unsigned x0) n0)
-        (Z.shiftl (unsigned x0) (Z.sub zwordsize n0)))
+    repr (Z.coq_lor (Z.shiftr (unsigned x0) n0) (Z.shiftl (unsigned x0) (Z.sub zwordsize n0)))
 
   (** val rolm : int -> int -> int -> int **)
 
@@ -1301,9 +1226,7 @@ module Make =
   (** val add_carry : int -> int -> int -> int **)
 
   let add_carry x0 y0 cin =
-    match zlt
-            (Z.add (Z.add (unsigned x0) (unsigned y0)) (unsigned cin))
-            modulus with
+    match zlt (Z.add (Z.add (unsigned x0) (unsigned y0)) (unsigned cin)) modulus with
     | Left -> zero
     | Right -> one
 
@@ -1320,9 +1243,7 @@ module Make =
   (** val sub_borrow : int -> int -> int -> int **)
 
   let sub_borrow x0 y0 bin =
-    match zlt
-            (Z.sub (Z.sub (unsigned x0) (unsigned y0)) (unsigned bin))
-            Z0 with
+    match zlt (Z.sub (Z.sub (unsigned x0) (unsigned y0)) (unsigned bin)) Z0 with
     | Left -> one
     | Right -> zero
 
@@ -1402,11 +1323,7 @@ module Make =
     match eq_dec d zero with
     | Left -> None
     | Right ->
-      let Pair (q, r0) =
-        Z.div_eucl
-          (Z.add (Z.mul (unsigned nhi) modulus) (unsigned nlo))
-          (unsigned d)
-      in
+      let Pair (q, r0) = Z.div_eucl (Z.add (Z.mul (unsigned nhi) modulus) (unsigned nlo)) (unsigned d) in
       (match zle q max_unsigned with
        | Left -> Some (Pair ((repr q), (repr r0)))
        | Right -> None)
@@ -1417,10 +1334,7 @@ module Make =
     match eq_dec d zero with
     | Left -> None
     | Right ->
-      let Pair (q, r0) =
-        Z.quotrem (Z.add (Z.mul (signed nhi) modulus) (unsigned nlo))
-          (signed d)
-      in
+      let Pair (q, r0) = Z.quotrem (Z.add (Z.mul (signed nhi) modulus) (unsigned nlo)) (signed d) in
       (match match proj_sumbool (zle min_signed q) with
              | True -> proj_sumbool (zle q max_signed)
              | False -> False with
@@ -1431,14 +1345,12 @@ module Make =
 
   let divs_from_divu x0 y0 =
     match lt x0 zero with
-    | True ->
-      (match lt y0 zero with
-       | True -> divu (neg x0) (neg y0)
-       | False -> neg (divu (neg x0) y0))
-    | False ->
-      (match lt y0 zero with
-       | True -> neg (divu x0 (neg y0))
-       | False -> divu x0 y0)
+    | True -> (match lt y0 zero with
+               | True -> divu (neg x0) (neg y0)
+               | False -> neg (divu (neg x0) y0))
+    | False -> (match lt y0 zero with
+                | True -> neg (divu x0 (neg y0))
+                | False -> divu x0 y0)
 
   (** val testbit : int -> z -> bool **)
 
@@ -1459,10 +1371,9 @@ module Make =
     (match match proj_sumbool (zlt (Z.add x1 sz1) modulus) with
            | True -> proj_sumbool (zlt (Z.add x2 sz2) modulus)
            | False -> False with
-     | True ->
-       (match proj_sumbool (zle (Z.add x1 sz1) x2) with
-        | True -> True
-        | False -> proj_sumbool (zle (Z.add x2 sz2) x1))
+     | True -> (match proj_sumbool (zle (Z.add x1 sz1) x2) with
+                | True -> True
+                | False -> proj_sumbool (zle (Z.add x2 sz2) x1))
      | False -> False)
 
   (** val size : int -> z **)
@@ -1483,8 +1394,7 @@ module Make =
   (** val bitfield_insert : z -> z -> int -> int -> int **)
 
   let bitfield_insert pos width n0 p =
-    let mask0 = shl (repr (Z.sub (two_p width) (Zpos XH))) (repr pos)
-    in
+    let mask0 = shl (repr (Z.sub (two_p width) (Zpos XH))) (repr pos) in
     coq_or (shl (zero_ext width p) (repr pos)) (coq_and n0 (not mask0))
  end
 
@@ -1493,8 +1403,7 @@ module Wordsize_32 =
   (** val wordsize : nat **)
 
   let wordsize =
-    S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
-      (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))
+    S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))
  end
 
 module Int = Make(Wordsize_32)
@@ -1655,8 +1564,7 @@ module PMap =
     | Some x0 -> x0
     | None -> fst m
 
-  (** val set :
-      positive -> 'a1 -> 'a1 t -> ('a1, 'a1 PTree.tree) prod **)
+  (** val set : positive -> 'a1 -> 'a1 t -> ('a1, 'a1 PTree.tree) prod **)
 
   let set i x0 m =
     Pair ((fst m), (PTree.set i x0 (snd m)))
@@ -1769,16 +1677,14 @@ type rettype =
 | Tint16unsigned
 | Tvoid
 
-type calling_convention = { cc_vararg : z option; cc_unproto : 
-                            bool; cc_structret : bool }
+type calling_convention = { cc_vararg : z option; cc_unproto : bool; cc_structret : bool }
 
 (** val cc_default : calling_convention **)
 
 let cc_default =
   { cc_vararg = None; cc_unproto = False; cc_structret = False }
 
-type signature = { sig_args : typ list; sig_res : rettype;
-                   sig_cc : calling_convention }
+type signature = { sig_args : typ list; sig_res : rettype; sig_cc : calling_convention }
 
 type memory_chunk =
 | Mbool
@@ -1803,8 +1709,7 @@ type init_data =
 | Init_space of z
 | Init_addrof of ident * Ptrofs.int
 
-type 'v globvar = { gvar_info : 'v; gvar_init : init_data list;
-                    gvar_readonly : bool; gvar_volatile : bool }
+type 'v globvar = { gvar_info : 'v; gvar_init : init_data list; gvar_readonly : bool; gvar_volatile : bool }
 
 type ('f, 'v) globdef =
 | Gfun of 'f
@@ -1867,9 +1772,7 @@ type members = member list
 type composite_definition =
 | Composite of ident * struct_or_union * members * attr
 
-type composite = { co_su : struct_or_union; co_members : members;
-                   co_attr : attr; co_sizeof : z; co_alignof : 
-                   z; co_rank : nat }
+type composite = { co_su : struct_or_union; co_members : members; co_attr : attr; co_sizeof : z; co_alignof : z; co_rank : nat }
 
 type composite_env = composite PTree.t
 
@@ -1881,11 +1784,8 @@ type 'f fundef =
 | Internal of 'f
 | External of external_function * typelist * type0 * calling_convention
 
-type 'f program = { prog_defs : (ident, ('f fundef, type0) globdef)
-                                prod list; prog_public : ident list;
-                    prog_main : ident;
-                    prog_types : composite_definition list;
-                    prog_comp_env : composite_env }
+type 'f program = { prog_defs : (ident, ('f fundef, type0) globdef) prod list; prog_public : ident list; prog_main : ident;
+                    prog_types : composite_definition list; prog_comp_env : composite_env }
 
 type block = positive
 
@@ -1918,9 +1818,7 @@ type perm_kind =
 
 module Mem =
  struct
-  type mem' = { mem_contents : memval ZMap.t PMap.t;
-                mem_access : (z -> perm_kind -> permission option)
-                             PMap.t; nextblock : block }
+  type mem' = { mem_contents : memval ZMap.t PMap.t; mem_access : (z -> perm_kind -> permission option) PMap.t; nextblock : block }
 
   type mem = mem'
  end
@@ -1939,8 +1837,7 @@ type primitive_type =
 | Tint1 of intsize * signedness * attr
 | Tlong1 of signedness * attr
 
-type basic_type =
-  primitive_type
+type basic_type = primitive_type
   (* singleton inductive, whose constructor was Bprim *)
 
 type type1 =
@@ -1948,15 +1845,12 @@ type type1 =
 | Reftype of ident * basic_type * attr
 | Ftype of type1 list * effect * type1
 
-(** val transBeePL_types :
-    (type1 -> type0 res) -> type1 list -> typelist res **)
+(** val transBeePL_types : (type1 -> type0 res) -> type1 list -> typelist res **)
 
 let rec transBeePL_types transBeePL_type0 = function
 | Nil -> OK Tnil
 | Cons (t0, ts0) ->
-  bind (transBeePL_type0 t0) (fun ct ->
-    bind (transBeePL_types transBeePL_type0 ts0) (fun cts -> OK (Tcons
-      (ct, cts))))
+  bind (transBeePL_type0 t0) (fun ct -> bind (transBeePL_types transBeePL_type0 ts0) (fun cts -> OK (Tcons (ct, cts))))
 
 (** val typelist_list_type : typelist -> type0 list **)
 
@@ -1969,9 +1863,7 @@ let rec typelist_list_type = function
 let rec transBeePL_type = function
 | Ptype t1 ->
   (match t1 with
-   | Tunit ->
-     OK (Tint0 (I8, Unsigned, { attr_volatile = False; attr_alignas =
-       (Some (Npos XH)) }))
+   | Tunit -> OK (Tint0 (I8, Unsigned, { attr_volatile = False; attr_alignas = (Some (Npos XH)) }))
    | Tint1 (sz, s, a) -> OK (Tint0 (sz, s, a))
    | Tlong1 (s, a) -> OK (Tlong0 (s, a)))
 | Reftype (_, bt, a) ->
@@ -1981,8 +1873,7 @@ let rec transBeePL_type = function
    | Tlong1 (s, a0) -> OK (Tpointer ((Tlong0 (s, a0)), a0)))
 | Ftype (ts, _, t1) ->
   bind (transBeePL_types transBeePL_type ts) (fun ats ->
-    bind (transBeePL_type t1) (fun rt -> OK (Tfunction (ats, rt,
-      { cc_vararg = (Some (Z.of_nat (length ts))); cc_unproto = False;
+    bind (transBeePL_type t1) (fun rt -> OK (Tfunction (ats, rt, { cc_vararg = (Some (Z.of_nat (length ts))); cc_unproto = False;
       cc_structret = False }))))
 
 (** val unzip1 : ('a1, 'a2) prod list -> 'a1 list **)
@@ -2002,10 +1893,9 @@ let rec unzip2 = function
 let rec zip es1 es2 =
   match es1 with
   | Nil -> Nil
-  | Cons (e1, es3) ->
-    (match es2 with
-     | Nil -> Nil
-     | Cons (e2, es4) -> Cons ((Pair (e1, e2)), (zip es3 es4)))
+  | Cons (e1, es3) -> (match es2 with
+                       | Nil -> Nil
+                       | Cons (e2, es4) -> Cons ((Pair (e1, e2)), (zip es3 es4)))
 
 type unary_operation =
 | Onotbool
@@ -2050,13 +1940,11 @@ type value =
 | Vint64 of Int64.int
 | Vloc of positive * Ptrofs.int
 
-(** val extract_list_rvtypes :
-    vinfo list -> (ident, type1) prod list **)
+(** val extract_list_rvtypes : vinfo list -> (ident, type1) prod list **)
 
 let rec extract_list_rvtypes = function
 | Nil -> Nil
-| Cons (x0, xs) ->
-  Cons ((Pair (x0.vname, x0.vtype)), (extract_list_rvtypes xs))
+| Cons (x0, xs) -> Cons ((Pair (x0.vname, x0.vtype)), (extract_list_rvtypes xs))
 
 type builtin =
 | Ref
@@ -2092,32 +1980,18 @@ let typeof_expr = function
 | Addr (l, _) -> l.ltype
 | Hexpr (_, _, t0) -> t0
 
-type function0 = { fn_return : type1;
-                   fn_callconv : calling_convention;
-                   fn_args : vinfo list; fn_vars : vinfo list;
-                   fn_body : expr }
+type function0 = { fn_return : type1; fn_callconv : calling_convention; fn_args : vinfo list; fn_vars : vinfo list; fn_body : expr }
 
 type fundef0 =
 | Internal0 of function0
 | External0
 
-type init_data0 =
-| Init_int0 of Int.int
-| Init_int1 of Int.int
-| Init_int2 of Int.int
-| Init_int3 of Int64.int
+type 'v globvar0 = 'v globvar
 
-type globvar0 = { gvar_info0 : type1; gvar_init0 : init_data0 list;
-                  gvar_readonly0 : bool; gvar_volatile0 : bool }
+type ('f, 'v) globdef0 = ('f, 'v) globdef
 
-type globdef0 =
-| Gfun0 of fundef0
-| Gvar0 of globvar0
-
-type program0 = { prog_defs0 : (ident, globdef0) prod list;
-                  prog_public0 : ident list; prog_main0 : ident;
-                  prog_types0 : composite_definition list;
-                  prog_comp_env0 : composite_env }
+type program0 = { prog_defs0 : (ident, (fundef0, type1) globdef0) prod list; prog_public0 : ident list; prog_main0 : ident;
+                  prog_types0 : composite_definition list; prog_comp_env0 : composite_env }
 
 (** val transBeePL_value_cvalue : value -> val0 **)
 
@@ -2174,25 +2048,20 @@ and labeled_statements =
 | LSnil
 | LScons of z option * statement * labeled_statements
 
-type function1 = { fn_return0 : type0;
-                   fn_callconv0 : calling_convention;
-                   fn_params : (ident, type0) prod list;
-                   fn_vars0 : (ident, type0) prod list;
-                   fn_body0 : statement }
+type function1 = { fn_return0 : type0; fn_callconv0 : calling_convention; fn_params : (ident, type0) prod list;
+                   fn_vars0 : (ident, type0) prod list; fn_body0 : statement }
 
 type fundef1 = function1 fundef
 
 type program1 = function1 program
 
-(** val transBeePL_expr_exprs :
-    (expr -> expr0 res) -> expr list -> exprlist res **)
+(** val transBeePL_expr_exprs : (expr -> expr0 res) -> expr list -> exprlist res **)
 
 let rec transBeePL_expr_exprs transBeePL_expr_expr0 = function
 | Nil -> OK Enil
 | Cons (e, es0) ->
   bind (transBeePL_expr_expr0 e) (fun ce ->
-    bind (transBeePL_expr_exprs transBeePL_expr_expr0 es0) (fun ces ->
-      OK (Econs (ce, ces))))
+    bind (transBeePL_expr_exprs transBeePL_expr_expr0 es0) (fun ces -> OK (Econs (ce, ces))))
 
 (** val exprlist_list_expr : exprlist -> expr0 list **)
 
@@ -2208,20 +2077,13 @@ let default_expr =
 (** val transBeePL_expr_expr : expr -> expr0 res **)
 
 let rec transBeePL_expr_expr = function
-| Val (v, t0) ->
-  bind (transBeePL_type t0) (fun vt -> OK (Eval
-    ((transBeePL_value_cvalue v), vt)))
-| Var x0 ->
-  bind (transBeePL_type x0.vtype) (fun xt -> OK (Evar (x0.vname, xt)))
+| Val (v, t0) -> bind (transBeePL_type t0) (fun vt -> OK (Eval ((transBeePL_value_cvalue v), vt)))
+| Var x0 -> bind (transBeePL_type x0.vtype) (fun xt -> OK (Evar (x0.vname, xt)))
 | Const (c, t0) ->
   (match c with
-   | ConsInt i ->
-     bind (transBeePL_type t0) (fun it -> OK (Eval ((Vint i), it)))
-   | ConsLong i ->
-     bind (transBeePL_type t0) (fun it -> OK (Eval ((Vlong i), it)))
-   | ConsUnit ->
-     bind (transBeePL_type t0) (fun ut -> OK (Eval ((Vint
-       (Int.repr Z0)), ut))))
+   | ConsInt i -> bind (transBeePL_type t0) (fun it -> OK (Eval ((Vint i), it)))
+   | ConsLong i -> bind (transBeePL_type t0) (fun it -> OK (Eval ((Vlong i), it)))
+   | ConsUnit -> bind (transBeePL_type t0) (fun ut -> OK (Eval ((Vint (Int.repr Z0)), ut))))
 | App (_, e0, es, t0) ->
   bind (transBeePL_expr_expr e0) (fun ce ->
     bind (transBeePL_expr_exprs transBeePL_expr_expr es) (fun ces ->
@@ -2230,45 +2092,33 @@ let rec transBeePL_expr_expr = function
   (match b with
    | Ref ->
      bind (transBeePL_expr_exprs transBeePL_expr_expr es) (fun ces ->
-       bind (transBeePL_type t0) (fun ct -> OK (Eaddrof
-         ((hd default_expr (exprlist_list_expr ces)), ct))))
+       bind (transBeePL_type t0) (fun ct -> OK (Eaddrof ((hd default_expr (exprlist_list_expr ces)), ct))))
    | Deref ->
      bind (transBeePL_expr_exprs transBeePL_expr_expr es) (fun ces ->
-       bind (transBeePL_type t0) (fun ct -> OK (Ederef
-         ((hd default_expr (exprlist_list_expr ces)), ct))))
+       bind (transBeePL_type t0) (fun ct -> OK (Ederef ((hd default_expr (exprlist_list_expr ces)), ct))))
    | Massgn ->
      bind (transBeePL_expr_exprs transBeePL_expr_expr es) (fun ces ->
-       bind (transBeePL_type t0) (fun ct -> OK (Eassign
-         ((hd default_expr (exprlist_list_expr ces)),
+       bind (transBeePL_type t0) (fun ct -> OK (Eassign ((hd default_expr (exprlist_list_expr ces)),
          (hd default_expr (tl (exprlist_list_expr ces))), ct))))
    | Uop o ->
      bind (transBeePL_expr_exprs transBeePL_expr_expr es) (fun ces ->
-       bind (transBeePL_type t0) (fun ct -> OK (Eunop (o,
-         (hd default_expr (exprlist_list_expr ces)), ct))))
+       bind (transBeePL_type t0) (fun ct -> OK (Eunop (o, (hd default_expr (exprlist_list_expr ces)), ct))))
    | Bop o ->
      bind (transBeePL_expr_exprs transBeePL_expr_expr es) (fun ces ->
-       bind (transBeePL_type t0) (fun ct -> OK (Ebinop (o,
-         (hd default_expr (exprlist_list_expr ces)),
+       bind (transBeePL_type t0) (fun ct -> OK (Ebinop (o, (hd default_expr (exprlist_list_expr ces)),
          (hd default_expr (tl (exprlist_list_expr ces))), ct))))
    | Run _ -> OK (Eval (Vundef, Tvoid0)))
 | Bind (x0, t0, e0, e', t') ->
   bind (transBeePL_type t0) (fun ct ->
     bind (transBeePL_expr_expr e0) (fun ce ->
       bind (transBeePL_expr_expr e') (fun ce' ->
-        bind (transBeePL_type t') (fun ct' -> OK (Ecomma ((Eassign
-          ((Evar (x0, ct)), ce, ct)), ce', ct'))))))
+        bind (transBeePL_type t') (fun ct' -> OK (Ecomma ((Eassign ((Evar (x0, ct)), ce, ct)), ce', ct'))))))
 | Cond (e0, e', e'', t0) ->
   bind (transBeePL_expr_expr e0) (fun ce ->
     bind (transBeePL_expr_expr e') (fun ce' ->
-      bind (transBeePL_expr_expr e'') (fun ce'' ->
-        bind (transBeePL_type t0) (fun ct -> OK (Econdition (ce, ce',
-          ce'', ct))))))
-| Unit t0 ->
-  bind (transBeePL_type t0) (fun ct -> OK (Eval
-    ((transBeePL_value_cvalue Vunit), ct)))
-| Addr (l, ofs) ->
-  bind (transBeePL_type l.ltype) (fun ct -> OK (Eloc (l.lname, ofs,
-    l.lbitfield, ct)))
+      bind (transBeePL_expr_expr e'') (fun ce'' -> bind (transBeePL_type t0) (fun ct -> OK (Econdition (ce, ce', ce'', ct))))))
+| Unit t0 -> bind (transBeePL_type t0) (fun ct -> OK (Eval ((transBeePL_value_cvalue Vunit), ct)))
+| Addr (l, ofs) -> bind (transBeePL_type l.ltype) (fun ct -> OK (Eloc (l.lname, ofs, l.lbitfield, ct)))
 | Hexpr (_, _, _) -> OK (Eval (Vundef, Tvoid0))
 
 (** val check_var_const : expr -> bool **)
@@ -2281,12 +2131,8 @@ let check_var_const = function
 (** val transBeePL_expr_st : expr -> statement res **)
 
 let transBeePL_expr_st = function
-| Val (v, t0) ->
-  bind (transBeePL_type t0) (fun vt -> OK (Sreturn (Some (Eval
-    ((transBeePL_value_cvalue v), vt)))))
-| Var x0 ->
-  bind (transBeePL_type x0.vtype) (fun ct -> OK (Sreturn (Some (Evalof
-    ((Evar (x0.vname, ct)), ct)))))
+| Val (v, t0) -> bind (transBeePL_type t0) (fun vt -> OK (Sreturn (Some (Eval ((transBeePL_value_cvalue v), vt)))))
+| Var x0 -> bind (transBeePL_type x0.vtype) (fun ct -> OK (Sreturn (Some (Evalof ((Evar (x0.vname, ct)), ct)))))
 | Const (c, t0) ->
   bind (transBeePL_type t0) (fun ct -> OK (Sreturn (Some (Evalof
     ((match c with
@@ -2296,31 +2142,25 @@ let transBeePL_expr_st = function
 | App (_, e0, es, t0) ->
   bind (transBeePL_expr_expr e0) (fun ce ->
     bind (transBeePL_expr_exprs transBeePL_expr_expr es) (fun ces ->
-      bind (transBeePL_type t0) (fun ct -> OK (Sdo (Ecall (ce, ces,
-        ct))))))
+      bind (transBeePL_type t0) (fun ct -> OK (Sdo (Ecall (ce, ces, ct))))))
 | Prim (b, es, t0) ->
   (match b with
    | Ref ->
      bind (transBeePL_expr_exprs transBeePL_expr_expr es) (fun ces ->
-       bind (transBeePL_type t0) (fun ct -> OK (Sdo (Eaddrof
-         ((hd default_expr (exprlist_list_expr ces)), ct)))))
+       bind (transBeePL_type t0) (fun ct -> OK (Sdo (Eaddrof ((hd default_expr (exprlist_list_expr ces)), ct)))))
    | Deref ->
      bind (transBeePL_expr_exprs transBeePL_expr_expr es) (fun ces ->
-       bind (transBeePL_type t0) (fun ct -> OK (Sdo (Ederef
-         ((hd default_expr (exprlist_list_expr ces)), ct)))))
+       bind (transBeePL_type t0) (fun ct -> OK (Sdo (Ederef ((hd default_expr (exprlist_list_expr ces)), ct)))))
    | Massgn ->
      bind (transBeePL_expr_exprs transBeePL_expr_expr es) (fun ces ->
-       bind (transBeePL_type t0) (fun ct -> OK (Sdo (Eassign
-         ((hd default_expr (exprlist_list_expr ces)),
+       bind (transBeePL_type t0) (fun ct -> OK (Sdo (Eassign ((hd default_expr (exprlist_list_expr ces)),
          (hd default_expr (tl (exprlist_list_expr ces))), ct)))))
    | Uop o ->
      bind (transBeePL_expr_exprs transBeePL_expr_expr es) (fun ces ->
-       bind (transBeePL_type t0) (fun ct -> OK (Sdo (Eunop (o,
-         (hd default_expr (exprlist_list_expr ces)), ct)))))
+       bind (transBeePL_type t0) (fun ct -> OK (Sdo (Eunop (o, (hd default_expr (exprlist_list_expr ces)), ct)))))
    | Bop o ->
      bind (transBeePL_expr_exprs transBeePL_expr_expr es) (fun ces ->
-       bind (transBeePL_type t0) (fun ct -> OK (Sdo (Ebinop (o,
-         (hd default_expr (exprlist_list_expr ces)),
+       bind (transBeePL_type t0) (fun ct -> OK (Sdo (Ebinop (o, (hd default_expr (exprlist_list_expr ces)),
          (hd default_expr (tl (exprlist_list_expr ces))), ct)))))
    | Run _ -> OK (Sdo (Eval (Vundef, Tvoid0))))
 | Bind (x0, t0, e0, e', t') ->
@@ -2330,20 +2170,17 @@ let transBeePL_expr_st = function
        bind (transBeePL_expr_expr e') (fun ce' ->
          bind (transBeePL_type t0) (fun ct ->
            bind (transBeePL_type t') (fun _ ->
-             bind (transBeePL_type (typeof_expr e')) (fun rt -> OK
-               (Ssequence ((Sdo (Eassign ((Evar (x0, ct)), ce,
-               Tvoid0))), (Sreturn (Some (Evalof (ce', rt)))))))))))
+             bind (transBeePL_type (typeof_expr e')) (fun rt -> OK (Ssequence ((Sdo (Eassign ((Evar (x0, ct)), ce, Tvoid0))),
+               (Sreturn (Some (Evalof (ce', rt)))))))))))
    | Const (_, t1) ->
      bind (transBeePL_type t1) (fun ct ->
        bind (transBeePL_expr_expr e0) (fun ce ->
-         bind (transBeePL_expr_expr e') (fun ce' -> OK (Ssequence
-           ((Sdo (Eassign ((Evar (x0, ct)), ce, Tvoid0))), (Sreturn
-           (Some ce')))))))
+         bind (transBeePL_expr_expr e') (fun ce' -> OK (Ssequence ((Sdo (Eassign ((Evar (x0, ct)), ce, Tvoid0))), (Sreturn (Some
+           ce')))))))
    | _ ->
      bind (transBeePL_type t0) (fun ct ->
        bind (transBeePL_expr_expr e0) (fun ce ->
-         bind (transBeePL_expr_expr e') (fun ce' -> OK (Ssequence
-           ((Sdo (Eassign ((Evar (x0, ct)), ce, Tvoid0))), (Sdo ce')))))))
+         bind (transBeePL_expr_expr e') (fun ce' -> OK (Ssequence ((Sdo (Eassign ((Evar (x0, ct)), ce, Tvoid0))), (Sdo ce')))))))
 | Cond (e0, e', e'', t') ->
   bind (transBeePL_expr_expr e0) (fun ce ->
     bind (transBeePL_expr_expr e') (fun ce' ->
@@ -2352,138 +2189,77 @@ let transBeePL_expr_st = function
           match match check_var_const e' with
                 | True -> check_var_const e''
                 | False -> False with
-          | True ->
-            OK (Sifthenelse (ce, (Sreturn (Some (Evalof (ce', ct')))),
-              (Sreturn (Some (Evalof (ce'', ct'))))))
+          | True -> OK (Sifthenelse (ce, (Sreturn (Some (Evalof (ce', ct')))), (Sreturn (Some (Evalof (ce'', ct'))))))
           | False ->
             (match check_var_const e' with
-             | True ->
-               OK (Sifthenelse (ce, (Sreturn (Some (Evalof (ce',
-                 ct')))), (Sdo ce'')))
+             | True -> OK (Sifthenelse (ce, (Sreturn (Some (Evalof (ce', ct')))), (Sdo ce'')))
              | False ->
                (match check_var_const e'' with
-                | True ->
-                  OK (Sifthenelse (ce, (Sdo ce'), (Sreturn (Some
-                    (Evalof (ce'', ct'))))))
+                | True -> OK (Sifthenelse (ce, (Sdo ce'), (Sreturn (Some (Evalof (ce'', ct'))))))
                 | False -> OK (Sifthenelse (ce, (Sdo ce'), (Sdo ce'')))))))))
-| Unit t0 ->
-  bind (transBeePL_type t0) (fun ct -> OK (Sreturn (Some (Evalof
-    ((Eval ((transBeePL_value_cvalue Vunit), ct)), ct)))))
-| Addr (l, ofs) ->
-  bind (transBeePL_type l.ltype) (fun ct -> OK (Sdo (Eloc (l.lname,
-    ofs, l.lbitfield, ct))))
+| Unit t0 -> bind (transBeePL_type t0) (fun ct -> OK (Sreturn (Some (Evalof ((Eval ((transBeePL_value_cvalue Vunit), ct)), ct)))))
+| Addr (l, ofs) -> bind (transBeePL_type l.ltype) (fun ct -> OK (Sdo (Eloc (l.lname, ofs, l.lbitfield, ct))))
 | Hexpr (_, _, _) -> OK (Sdo (Eval (Vundef, Tvoid0)))
 
 (** val transBeePL_function_function : function0 -> function1 res **)
 
 let transBeePL_function_function fd =
   bind (transBeePL_type fd.fn_return) (fun crt ->
-    bind
-      (transBeePL_types transBeePL_type
-        (unzip2 (extract_list_rvtypes fd.fn_args))) (fun pt ->
-      bind
-        (transBeePL_types transBeePL_type
-          (unzip2 (extract_list_rvtypes fd.fn_vars))) (fun vt ->
-        bind (transBeePL_expr_st fd.fn_body) (fun fbody -> OK
-          { fn_return0 = crt; fn_callconv0 = cc_default; fn_params =
-          (zip (unzip1 (extract_list_rvtypes fd.fn_args))
-            (typelist_list_type pt)); fn_vars0 =
-          (zip (unzip1 (extract_list_rvtypes fd.fn_vars))
-            (typelist_list_type vt)); fn_body0 = fbody }))))
+    bind (transBeePL_types transBeePL_type (unzip2 (extract_list_rvtypes fd.fn_args))) (fun pt ->
+      bind (transBeePL_types transBeePL_type (unzip2 (extract_list_rvtypes fd.fn_vars))) (fun vt ->
+        bind (transBeePL_expr_st fd.fn_body) (fun fbody -> OK { fn_return0 = crt; fn_callconv0 = cc_default; fn_params =
+          (zip (unzip1 (extract_list_rvtypes fd.fn_args)) (typelist_list_type pt)); fn_vars0 =
+          (zip (unzip1 (extract_list_rvtypes fd.fn_vars)) (typelist_list_type vt)); fn_body0 = fbody }))))
 
 (** val transBeePL_fundef_fundef : fundef0 -> fundef1 res **)
 
 let transBeePL_fundef_fundef = function
-| Internal0 f ->
-  bind (transBeePL_function_function f) (fun tf -> OK (Internal tf))
+| Internal0 f -> bind (transBeePL_function_function f) (fun tf -> OK (Internal tf))
 | External0 ->
-  Error (Cons ((MSG (String ((Ascii (True, False, True, False, False,
-    False, True, False)), (String ((Ascii (False, False, False, True,
-    True, True, True, False)), (String ((Ascii (False, False, True,
-    False, True, True, True, False)), (String ((Ascii (True, False,
-    True, False, False, True, True, False)), (String ((Ascii (False,
-    True, False, False, True, True, True, False)), (String ((Ascii
-    (False, True, True, True, False, True, True, False)), (String
-    ((Ascii (True, False, False, False, False, True, True, False)),
-    (String ((Ascii (False, False, True, True, False, True, True,
-    False)), (String ((Ascii (False, False, False, False, False, True,
-    False, False)), (String ((Ascii (False, True, True, False, False,
-    True, True, False)), (String ((Ascii (True, False, True, False,
-    True, True, True, False)), (String ((Ascii (False, True, True,
-    True, False, True, True, False)), (String ((Ascii (True, True,
-    False, False, False, True, True, False)), (String ((Ascii (False,
-    False, True, False, True, True, True, False)), (String ((Ascii
-    (True, False, False, True, False, True, True, False)), (String
-    ((Ascii (True, True, True, True, False, True, True, False)),
-    (String ((Ascii (False, True, True, True, False, True, True,
-    False)), (String ((Ascii (False, False, False, False, False, True,
-    False, False)), (String ((Ascii (False, True, True, True, False,
-    True, True, False)), (String ((Ascii (True, True, True, True,
-    False, True, True, False)), (String ((Ascii (False, False, True,
-    False, True, True, True, False)), (String ((Ascii (False, False,
-    False, False, False, True, False, False)), (String ((Ascii (True,
-    True, False, False, True, True, True, False)), (String ((Ascii
-    (True, False, True, False, True, True, True, False)), (String
-    ((Ascii (False, False, False, False, True, True, True, False)),
-    (String ((Ascii (False, False, False, False, True, True, True,
-    False)), (String ((Ascii (True, True, True, True, False, True,
-    True, False)), (String ((Ascii (False, True, False, False, True,
-    True, True, False)), (String ((Ascii (False, False, True, False,
-    True, True, True, False)), (String ((Ascii (True, False, True,
-    False, False, True, True, False)), (String ((Ascii (False, False,
-    True, False, False, True, True, False)),
-    EmptyString))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))),
-    Nil))
+  Error (Cons ((MSG (String ((Ascii (True, False, True, False, False, False, True, False)), (String ((Ascii (False, False, False,
+    True, True, True, True, False)), (String ((Ascii (False, False, True, False, True, True, True, False)), (String ((Ascii (True,
+    False, True, False, False, True, True, False)), (String ((Ascii (False, True, False, False, True, True, True, False)), (String
+    ((Ascii (False, True, True, True, False, True, True, False)), (String ((Ascii (True, False, False, False, False, True, True,
+    False)), (String ((Ascii (False, False, True, True, False, True, True, False)), (String ((Ascii (False, False, False, False,
+    False, True, False, False)), (String ((Ascii (False, True, True, False, False, True, True, False)), (String ((Ascii (True,
+    False, True, False, True, True, True, False)), (String ((Ascii (False, True, True, True, False, True, True, False)), (String
+    ((Ascii (True, True, False, False, False, True, True, False)), (String ((Ascii (False, False, True, False, True, True, True,
+    False)), (String ((Ascii (True, False, False, True, False, True, True, False)), (String ((Ascii (True, True, True, True,
+    False, True, True, False)), (String ((Ascii (False, True, True, True, False, True, True, False)), (String ((Ascii (False,
+    False, False, False, False, True, False, False)), (String ((Ascii (False, True, True, True, False, True, True, False)),
+    (String ((Ascii (True, True, True, True, False, True, True, False)), (String ((Ascii (False, False, True, False, True, True,
+    True, False)), (String ((Ascii (False, False, False, False, False, True, False, False)), (String ((Ascii (True, True, False,
+    False, True, True, True, False)), (String ((Ascii (True, False, True, False, True, True, True, False)), (String ((Ascii
+    (False, False, False, False, True, True, True, False)), (String ((Ascii (False, False, False, False, True, True, True,
+    False)), (String ((Ascii (True, True, True, True, False, True, True, False)), (String ((Ascii (False, True, False, False,
+    True, True, True, False)), (String ((Ascii (False, False, True, False, True, True, True, False)), (String ((Ascii (True,
+    False, True, False, False, True, True, False)), (String ((Ascii (False, False, True, False, False, True, True, False)),
+    EmptyString))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))), Nil))
 
-(** val transBeePL_init_data_init_data : init_data0 -> init_data **)
-
-let transBeePL_init_data_init_data = function
-| Init_int0 i -> Init_int8 i
-| Init_int1 i -> Init_int16 i
-| Init_int2 i -> Init_int32 i
-| Init_int3 i -> Init_int64 i
-
-(** val transBeePL_init_datas_init_datas :
-    init_data0 list -> init_data list **)
-
-let rec transBeePL_init_datas_init_datas = function
-| Nil -> Nil
-| Cons (g, gs0) ->
-  Cons ((transBeePL_init_data_init_data g),
-    (transBeePL_init_datas_init_datas gs0))
-
-(** val transBeePLglobvar_globvar : globvar0 -> type0 globvar res **)
+(** val transBeePLglobvar_globvar : type1 globvar0 -> type0 globvar res **)
 
 let transBeePLglobvar_globvar gv =
-  bind (transBeePL_type gv.gvar_info0) (fun gvt -> OK { gvar_info =
-    gvt; gvar_init = (transBeePL_init_datas_init_datas gv.gvar_init0);
-    gvar_readonly = False; gvar_volatile = False })
+  bind (transBeePL_type gv.gvar_info) (fun gvt -> OK { gvar_info = gvt; gvar_init = gv.gvar_init; gvar_readonly =
+    gv.gvar_readonly; gvar_volatile = gv.gvar_volatile })
 
-(** val transBeePL_globdef_globdef :
-    globdef0 -> (fundef1, type0) globdef res **)
+(** val transBeePL_globdef_globdef : (fundef0, type1) globdef0 -> (fundef1, type0) globdef res **)
 
 let transBeePL_globdef_globdef = function
-| Gfun0 f -> bind (transBeePL_fundef_fundef f) (fun cf -> OK (Gfun cf))
-| Gvar0 g ->
-  bind (transBeePLglobvar_globvar g) (fun cg -> OK (Gvar cg))
+| Gfun f -> bind (transBeePL_fundef_fundef f) (fun cf -> OK (Gfun cf))
+| Gvar g -> bind (transBeePLglobvar_globvar g) (fun cg -> OK (Gvar cg))
 
-(** val transBeePL_globdefs_globdefs :
-    globdef0 list -> (fundef1, type0) globdef list res **)
+(** val transBeePL_globdefs_globdefs : (fundef0, type1) globdef0 list -> (fundef1, type0) globdef list res **)
 
 let rec transBeePL_globdefs_globdefs = function
 | Nil -> OK Nil
 | Cons (d, ds) ->
-  bind (transBeePL_globdef_globdef d) (fun gd ->
-    bind (transBeePL_globdefs_globdefs ds) (fun gds0 -> OK (Cons (gd,
-      gds0))))
+  bind (transBeePL_globdef_globdef d) (fun gd -> bind (transBeePL_globdefs_globdefs ds) (fun gds0 -> OK (Cons (gd, gds0))))
 
 (** val beePL_compcert : program0 -> program1 res **)
 
 let beePL_compcert p =
-  bind (transBeePL_globdefs_globdefs (unzip2 p.prog_defs0))
-    (fun pds -> OK { prog_defs = (zip (unzip1 p.prog_defs0) pds);
-    prog_public = p.prog_public0; prog_main = p.prog_main0;
-    prog_types = p.prog_types0; prog_comp_env = p.prog_comp_env0 })
+  bind (transBeePL_globdefs_globdefs (unzip2 p.prog_defs0)) (fun pds -> OK { prog_defs = (zip (unzip1 p.prog_defs0) pds);
+    prog_public = p.prog_public0; prog_main = p.prog_main0; prog_types = p.prog_types0; prog_comp_env = p.prog_comp_env0 })
 
 (** val apply_partial : 'a1 res -> ('a1 -> 'a2 res) -> 'a2 res **)
 
@@ -2501,28 +2277,17 @@ let time _ f =
 
 let transf_beepl_program_csyntax p =
   apply_partial (OK p)
-    (time (String ((Ascii (True, True, False, False, False, False,
-      True, False)), (String ((Ascii (True, True, False, False, True,
-      True, True, False)), (String ((Ascii (True, False, False, True,
-      True, True, True, False)), (String ((Ascii (False, True, True,
-      True, False, True, True, False)), (String ((Ascii (False, False,
-      True, False, True, True, True, False)), (String ((Ascii (True,
-      False, False, False, False, True, True, False)), (String ((Ascii
-      (False, False, False, True, True, True, True, False)), (String
-      ((Ascii (False, False, False, False, False, True, False,
-      False)), (String ((Ascii (True, True, True, False, False, True,
-      True, False)), (String ((Ascii (True, False, True, False, False,
-      True, True, False)), (String ((Ascii (False, True, True, True,
-      False, True, True, False)), (String ((Ascii (True, False, True,
-      False, False, True, True, False)), (String ((Ascii (False, True,
-      False, False, True, True, True, False)), (String ((Ascii (True,
-      False, False, False, False, True, True, False)), (String ((Ascii
-      (False, False, True, False, True, True, True, False)), (String
-      ((Ascii (True, False, False, True, False, True, True, False)),
-      (String ((Ascii (True, True, True, True, False, True, True,
-      False)), (String ((Ascii (False, True, True, True, False, True,
-      True, False)), EmptyString))))))))))))))))))))))))))))))))))))
-      beePL_compcert)
+    (time (String ((Ascii (True, True, False, False, False, False, True, False)), (String ((Ascii (True, True, False, False, True,
+      True, True, False)), (String ((Ascii (True, False, False, True, True, True, True, False)), (String ((Ascii (False, True,
+      True, True, False, True, True, False)), (String ((Ascii (False, False, True, False, True, True, True, False)), (String
+      ((Ascii (True, False, False, False, False, True, True, False)), (String ((Ascii (False, False, False, True, True, True,
+      True, False)), (String ((Ascii (False, False, False, False, False, True, False, False)), (String ((Ascii (True, True, True,
+      False, False, True, True, False)), (String ((Ascii (True, False, True, False, False, True, True, False)), (String ((Ascii
+      (False, True, True, True, False, True, True, False)), (String ((Ascii (True, False, True, False, False, True, True, False)),
+      (String ((Ascii (False, True, False, False, True, True, True, False)), (String ((Ascii (True, False, False, False, False,
+      True, True, False)), (String ((Ascii (False, False, True, False, True, True, True, False)), (String ((Ascii (True, False,
+      False, True, False, True, True, False)), (String ((Ascii (True, True, True, True, False, True, True, False)), (String
+      ((Ascii (False, True, True, True, False, True, True, False)), EmptyString)))))))))))))))))))))))))))))))))))) beePL_compcert)
 
 (** val dattr : attr **)
 
@@ -2552,32 +2317,27 @@ let main =
 (** val main_body : expr **)
 
 let main_body =
-  Bind (x.vname, (Ptype (Tint1 (I32, Unsigned, dattr))), (Const
-    ((ConsInt (Int.repr (Zpos XH))), (Ptype (Tint1 (I32, Unsigned,
-    dattr))))), (Bind (y.vname, (Ptype (Tint1 (I32, Unsigned,
-    dattr))), (Const ((ConsInt (Int.repr (Zpos (XO XH)))), (Ptype
-    (Tint1 (I32, Unsigned, dattr))))), (Bind (r.vname, (Ptype (Tint1
-    (I32, Unsigned, dattr))), (Prim ((Bop Oadd), (Cons ((Var x), (Cons
-    ((Var y), Nil)))), (Ptype (Tint1 (I32, Unsigned, dattr))))), (Var
-    r), (Ptype (Tint1 (I32, Unsigned, dattr))))), (Ptype Tunit))),
-    (Ptype Tunit))
+  Bind (x.vname, (Ptype (Tint1 (I32, Unsigned, dattr))), (Const ((ConsInt (Int.repr (Zpos XH))), (Ptype (Tint1 (I32, Unsigned,
+    dattr))))), (Bind (y.vname, (Ptype (Tint1 (I32, Unsigned, dattr))), (Const ((ConsInt (Int.repr (Zpos (XO XH)))), (Ptype (Tint1
+    (I32, Unsigned, dattr))))), (Bind (r.vname, (Ptype (Tint1 (I32, Unsigned, dattr))), (Prim ((Bop Oadd), (Cons ((Var x), (Cons
+    ((Var y), Nil)))), (Ptype (Tint1 (I32, Unsigned, dattr))))), (Var r), (Ptype (Tint1 (I32, Unsigned, dattr))))), (Ptype
+    Tunit))), (Ptype Tunit))
 
 (** val f_main : function0 **)
 
 let f_main =
-  { fn_return = (Ptype (Tint1 (I32, Unsigned, dattr))); fn_callconv =
-    cc_default; fn_args = Nil; fn_vars = (Cons (x, (Cons (y, (Cons (r,
-    Nil)))))); fn_body = main_body }
+  { fn_return = (Ptype (Tint1 (I32, Unsigned, dattr))); fn_callconv = cc_default; fn_args = Nil; fn_vars = (Cons (x, (Cons (y,
+    (Cons (r, Nil)))))); fn_body = main_body }
 
 (** val composites : composite_definition list **)
 
 let composites =
   Nil
 
-(** val global_definitions : (ident, globdef0) prod list **)
+(** val global_definitions : (ident, (fundef0, type1) globdef0) prod list **)
 
 let global_definitions =
-  Cons ((Pair (main, (Gfun0 (Internal0 f_main)))), Nil)
+  Cons ((Pair (main, (Gfun (Internal0 f_main)))), Nil)
 
 (** val public_idents : ident list **)
 
@@ -2587,8 +2347,7 @@ let public_idents =
 (** val example1 : program0 **)
 
 let example1 =
-  { prog_defs0 = global_definitions; prog_public0 = public_idents;
-    prog_main0 = main; prog_types0 = composites; prog_comp_env0 =
+  { prog_defs0 = global_definitions; prog_public0 = public_idents; prog_main0 = main; prog_types0 = composites; prog_comp_env0 =
     PTree.empty }
 
 (** val tcp1 : program1 res **)

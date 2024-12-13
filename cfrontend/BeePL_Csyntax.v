@@ -218,23 +218,22 @@ match gs with
 end. 
 
 (* Translates BeePL global variable to C global variable *) 
-Definition transBeePLglobvar_globvar (gv : BeePL.globvar) : res (AST.globvar Ctypes.type)  :=
+Definition transBeePLglobvar_globvar (gv : BeePL.globvar type) : res (AST.globvar Ctypes.type)  :=
 do gvt <- transBeePL_type (gv.(gvar_info));
 OK {| AST.gvar_info := gvt; 
-      AST.gvar_init := transBeePL_init_datas_init_datas (gv.(gvar_init)); 
-      AST.gvar_readonly := false; 
-      AST.gvar_volatile := false |}.
+      AST.gvar_init := (gv.(gvar_init)); 
+      AST.gvar_readonly := gv.(gvar_readonly); 
+      AST.gvar_volatile :=  gv.(gvar_volatile)|}.
 
-
-Definition transBeePL_globdef_globdef (gd : BeePL.globdef) : res (AST.globdef fundef Ctypes.type) :=
+Definition transBeePL_globdef_globdef (gd : BeePL.globdef BeePL.fundef BeeTypes.type) : res (AST.globdef fundef Ctypes.type) :=
 match gd with 
-| Gfun f => do cf <- transBeePL_fundef_fundef f;
+| AST.Gfun f => do cf <- transBeePL_fundef_fundef f;
             OK (AST.Gfun cf)
 | Gvar g => do cg <- transBeePLglobvar_globvar g;
             OK (AST.Gvar cg)
 end.
 
-Fixpoint transBeePL_globdefs_globdefs (gds : list BeePL.globdef) : res (list (AST.globdef fundef Ctypes.type)) :=
+Fixpoint transBeePL_globdefs_globdefs (gds : list (BeePL.globdef BeePL.fundef BeeTypes.type)) : res (list (AST.globdef fundef Ctypes.type)) :=
 match gds with 
 | nil => OK (nil)
 | d :: ds => do gd <-  transBeePL_globdef_globdef d; 
