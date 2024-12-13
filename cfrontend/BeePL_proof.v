@@ -129,30 +129,48 @@ rel_types bts cts).
 Proof.
 Admitted.
 
-(*Section expr_specifications.
+Section specifications.
+
+(* Relates global variables of BeePL and Csyntax *)
+Inductive match_globvar : BeePL.globvar -> AST.globvar Ctypes.type -> Prop :=
+| match_globvar_intro : forall t init t' init' rd vo,
+  transBeePL_type t = OK t' ->
+  rel_type t t' ->
+  transBeePL_init_datas_init_datas init = init' ->
+  match_globvar (mkglobvar t init rd vo) (AST.mkglobvar t' init' rd vo).
 
 (* Relates the function definition of BeePL and Csyntax *)
 (* Fix me: Add external function rel later *)
-Inductive match_fundef (bp : BeePL.program) : BeePL.fun_decl -> Csyntax.fundef -> Prop :=
-| match_fundef_internal : forall bf cf,
-  BeePLfd_function bf = OK cf ->
-  match_fundef bp bf cf.
+Inductive match_function : BeePL.function -> Csyntax.function -> Prop :=
+| match_fun : forall bf cf,
+  transBeePL_function_function bf = OK cf ->
+  match_function bf cf.
 
+(* Relates the fundef of BeePL and Csyntax *)
+(* Fix me: Add external function rel later *)
+Inductive match_fundef : BeePL.fundef -> Csyntax.fundef -> Prop :=
+| match_fundef_internal : forall f cf,
+  transBeePL_fundef_fundef (Internal f) = OK (Ctypes.Internal cf) ->
+  match_fundef (Internal f) (Ctypes.Internal cf).
 
-Definition match_varinfo (v: type) (tv: unit) := True.
+(* Relates the global definitions of BeePL and Csyntax *) 
+Inductive match_globdef : BeePL.globdef -> AST.globdef Csyntax.fundef Ctypes.type -> Prop :=
+| match_gfun : forall f cf,
+  match_fundef f cf ->
+  match_globdef (Gfun f) (AST.Gfun cf)
+| match_gvar : forall g cg,
+  match_globvar g cg ->
+  match_globdef (Gvar g) (AST.Gvar cg).
 
-Check match_program_gen.
-Definition match_prog (p: BeePL.program) (tp: Csyntax.program) : Prop :=
-  match_program_gen match_fundef match_varinfo p p tp.
-
-Locate match_program_gen.
-
-
+End specifications.
 
 Section semantic_preservation.
 
 Variable beePLprog : BeePL.program.
 
-Variable cprog : Csyntax.program.*)
+Variable cprog : Csyntax.program.
+
+End semantic_preservation.
+
 
 

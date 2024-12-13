@@ -56,11 +56,11 @@ unfold build_composite_env; simpl; reflexivity.
 Qed.
 
 Definition example1 : BeePL.program := {| prog_defs := global_definitions;
-                                      prog_public := public_idents;
-                                      prog_main := main;
-                                      prog_types := composites;
-                                      prog_comp_env := PTree.empty composite;
-                                      prog_comp_env_eq := composite_default |}.
+                                          prog_public := public_idents;
+                                          prog_main := main;
+                                          prog_types := composites;
+                                          prog_comp_env := PTree.empty composite;
+                                          prog_comp_env_eq := composite_default |}.
 
 
 Definition tcp1 := (transf_beepl_program_csyntax (example1)).
