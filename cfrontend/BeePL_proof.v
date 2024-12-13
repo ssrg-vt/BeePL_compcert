@@ -2,7 +2,7 @@ Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Linking Ctypes Smallstep SimplExpr.
 Require Import BeePL_aux BeePL_mem BeeTypes BeePL Csyntax Clight Globalenvs BeePL_Csyntax SimplExpr.
-Require Import compcert.common.Errors Initializersproof Cstrategy BeePL_auxlemmas.
+Require Import compcert.common.Errors Initializersproof Cstrategy BeePL_auxlemmas lib.Coqlib.
 
 From mathcomp Require Import all_ssreflect. 
 
@@ -161,6 +161,16 @@ Inductive match_globdef : BeePL.globdef -> AST.globdef Csyntax.fundef Ctypes.typ
 | match_gvar : forall g cg,
   match_globvar g cg ->
   match_globdef (Gvar g) (AST.Gvar cg).
+
+Definition match_ident_globdef (igd1 : ident * BeePL.globdef) 
+  (igd2 : ident *  AST.globdef Csyntax.fundef Ctypes.type) : Prop :=
+fst igd1 = fst igd2 /\ match_globdef (snd igd1) (snd igd2).
+
+Definition match_program_gen (p1 : BeePL.program) (p2 : Csyntax.program) : Prop :=
+  list_forall2 (match_ident_globdef) p1.(prog_defs) p2.(AST.prog_defs)
+  /\ p2.(AST.prog_main) = p1.(prog_main)
+  /\ p2.(AST.prog_public) = p1.(prog_public).
+
 
 End specifications.
 
