@@ -339,140 +339,31 @@ Lemma deref_addr_val_ty : forall ty m addr ofs v,
 deref_addr ty m addr ofs Full v ->
 typeof_value v ty.
 Proof.
-(*move=> ty m addr ofs v hd; inversion hd; subst.
-(* by value *)
-+ rewrite /transBeePL_value_cvalue /= /Mem.loadv in H0.
-  have hvt := Mem.load_type m chunk addr (Ptrofs.unsigned ofs) v0 H0.
-  case: chunk H H0 hvt=> //=.
-  + admit.
-  + case: ty hd=> //=. move=> sz s a. case: sz=> //=.
-    + by case: s=> //=.
-    + by case: s=> //=.
-    by case: v H1=> //=;case: v0=> //=.
-  + case: ty hd=> //=. move=> sz s a. case: sz=> //=.
-    + case: s=> //=. by case: v H1=> //=;case: v0=> //=.
-    + by case: s=> //=.
-    case: v0 H1 hd=> //= i. move=> [] hv; subst. by case: ty=> //=.
-  + case: ty hd=> //=. move=> sz s a. case: sz=> //=.
-    + by case: s=> //=. 
-    by case: v H1=> //=;case: v0=> //=. 
-  + case: ty hd=> //=. move=> sz s a. case: sz=> //=.
-    + by case: s=> //=. 
-    by case: v H1=> //=;case: v0=> //=. 
-  + case: ty hd=> //=. move=> sz s a. case: sz=> //=.
-    + by case: s=> //=. 
-    + by case: v H1=> //=;case: v0=> //=. 
-    by case: v H1=> //=;case: v0=> //=. 
-  + case: ty hd=> //=. move=> sz s a. case: sz=> //=.
-    + by case: s=> //=. 
-    + by case: s=> //=. 
-    + move=> s a. case: s=> //=.
-      + case: v0 H1=> //= i.  
-        by move=> [] hv; subst. 
-      by move=> ptr [] hv; subst. 
-    + by case: v H1=> //=; case: v0=> //=.
-    by case: v H1=> //=; case: v0=> //=.
-  + by case: v0 H1=> //=.
-  + by case: v0 H1=> //=.
-  + case: v0 H1=> //= i. move=> [] hv; subst.
-    by case: ty hd=> //=.
-  case: ty hd=> //= sz s a; case: sz=> //=.
-  + by case: s=> //=.
-  by case: s=> //=.
-case: ty hd H=> //= sz s a. case: sz=> //=.
-+ by case: s=> //=.  
-by case: s=> //=.    
-Qed.  *)
+Admitted.
+
+(**** Progress ****)
+Lemma progress : forall Gamma Sigma genv vm hm e ef t, 
+type_expr Gamma Sigma e ef t ->
+is_value e \/ exists e' hm', sem_expr genv hm vm e hm' e'.
+Proof.
+Admitted.
+
+(**** Preservation ****)
+Lemma preservation : forall Gamma Sigma genv vm hm e ef t hm' e',
+type_expr Gamma Sigma e ef t ->
+sem_expr genv vm hm e hm' e' ->
+type_expr Gamma Sigma e' ef t.
+Proof.
 Admitted.
 
 (**** Preservation ****)
 (* Big step semantics *)
-Lemma preservation : forall Gamma Sigma genv vm hm hm' e ef t v, 
+Lemma bpreservation : forall Gamma Sigma genv vm hm hm' e ef t v, 
 type_expr Gamma Sigma e ef t (* type_checker(e) *)  ->
 bsem_expr genv vm hm e hm' v ->
 typeof_value v t.
 Proof.
-move=> Gamma Sigma genv vm hm hm' e ef t v ht. move: Gamma Sigma ef t ht genv vm hm hm'. 
-elim: e=> //=.
-(*(* var *)
-+ move=> x Gamma Sigma ef t ht genv vm hm hm' he; inversion he; subst. 
-  inversion ht; subst. by have := deref_addr_val_ty (vtype x) hm l Ptrofs.zero v H5.
-(* const *)
-+ by move=> c t Gamma Sigma ef t' ht genv vm hm hm' he; inversion he; subst;inversion ht; subst.
-(* app *)
-+ move=> o e ih es t Gamma Sigma ef t' ht genv vm hm hm' he; inversion he; subst.
-  (* appr *)
-  + inversion ht; subst. inversion H16; subst. admit.
-  (* app *)
-  inversion ht; subst. admit.*)
 Admitted.
-    
-
-
-
-(*move=> Gamma Sigma genv e ef t st st' v ht he. move: st st' v he.
-induction ht.
-+ move=> st st' v he; inversion he; subst.
-  by have := get_val_var_ty st' x v H4.
-(* Const int *)
-+ by move=> st st' v he; inversion he; subst; rewrite /typeof_value.
-(* Const bool *)
-+ by move=> st st' v he; inversion he; subst; rewrite /typeof_value.
-(* Const unit *)
-+ by move=> st st' v he; inversion he; subst; rewrite /typeof_value.
-(* App with return *) 
-+ admit.
-(* App with no return *)
-+ admit.
-(* Ref *)
-+ move=> st st' v he; inversion he; subst. by rewrite /typeof_value /=.
-(* Deref *)
-+ move=> st st' v he; inversion he; subst.
-  by move: (IHht st st' (Vloc l) H1)=> hvt.
-(* Massgn *)
-+ move=> st st' v he; inversion he; subst. by rewrite /typeof_value.
-(* Uop *)
-+ move=> st st' v he. inversion he; subst.
-  have [h1 h2] := sem_unary_operation_val_type op v0 (typeof_expr e) v H7.
-  move: (IHht st st' v0 H6)=> hv0t.
-  have := type_rel_typeof Gamma Sigma e ef t ht. case: e ht IHht he H6 H7 h1 h2=> //=.
-  + by move=> v1 ht IHht he H6 H7 h1 h2 <-.
-  + by move=> c t0 ht IHht he H6 H7 h1 h2 <-.
-  + by move=> o e es t0 ht IHht he H6 H7 h1 h2 <-.
-  move=> b es t0 ht IHht he H6 H7 h1 h2. case: b ht IHht he H6=> //=.
-  + by move=> ht IHht he H6 <-.
-  + by move=> ht IHht he H6 <-.
-  + by move=> ht IHht he H6 <-.
-  + by move=> uop ht IHht he H6 <-.
-  + move=> b ht IHht he H6 heq; subst. rewrite heq /= in h2.
-    move: h2. case: ifP=> //= hc hv. + by have := type_reflex v0 t0 t v h1 hv0t hv. 
-    rewrite hc in heq; subst. by have := type_reflex v0 (Ptype Tbool) t v h1 hv0t hv.
-  + by move=> h ht IHht he H6 <-.
-  + by move=> i t0 e e' t1 ht IHht he H6 ho h1 h2 <-.
-  + by move=> e e1 e2 t' ht IHht he H6 ho h1 h2 <-.
-  + by move=> l ht IHht he H6 ho h1 h2 <-.
-  by move=> h e t' ht IHht he H6 ho h1 h2 <-.
-(* Bop *)
-+ move=> st st' v he; inversion he; subst.
-  move: (IHht1 st st' v1 H8)=> hvt1.
-  move: (IHht2 st' st'' v2 H9)=> hvt2.
-  move: H. case: ifP=> //= hc.
-  + have ht :=  sem_binary_operation_val_type1 op v1 v2 (typeof_expr e) (typeof_expr e') v H10.
-    move=> heq. have htv1' := eq_type_rel v1 tr t heq hvt1. rewrite hc in ht.
-    have hvt := sem_binary_notcmp_type_val1 Gamma Sigma op v1 v2 e e' v ef t H10 ht1 hc. 
-    by have := eq_type_rel v tr t heq hvt.
-  move=> heq. have hvt := sem_binary_cmp_type_val Gamma Sigma op v1 v2 e e' v ef t H10 ht1 hc. 
-  by have := eq_type_rel v tr (Ptype Tbool) heq hvt.
-(* Bind *)
-+ move=> st st' v he. have /= hs := subst_preservation Gamma Sigma {| vname := x; vtype := t |} t e e' ef t' ht2 ht1.
-  inversion he; subst. by have := subst_typing Gamma Sigma genv x e e' ef t' st'0 st' v hs H9.
-(* Cond *)
-+ move=> st st' v he; inversion he; subst.
-  + by move: (IHht2 st'0 st' v H8).
-  by move: (IHht3 st'0 st' v H8).
-(* Addr *)
-move=> st st' v he; inversion he; subst.
-rewrite /typeof_value /=. by case: bt H H0=> //= p.*)
 
     
     

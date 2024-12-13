@@ -6,18 +6,27 @@ Require Import compcert.common.Errors Initializersproof Cstrategy BeePL_auxlemma
 
 From mathcomp Require Import all_ssreflect. 
 
-(***** Correctness proof for the Clight generation from BeePL using 
-       composition of BeePL and CompCert compiler *****)
+(***** Correctness proof for the Csyntax generation from BeePL using BeePL compiler *****)
 
 (***** Specification for types *****) 
-(*Inductive rel_type : BeeTypes.type -> Ctypes.type -> Prop :=
-| rel_tunit : rel_type Tunit (Ctypes.Tvoid)
+Inductive rel_ptype : BeeTypes.primitive_type -> Ctypes.type -> Prop :=
+| rel_tunit : rel_ptype Tunit (Ctypes.Tvoid) (* Fix me *)
 | rel_tint : forall sz s a, 
-             rel_type (Tint sz s a) (Ctypes.Tint sz s a)
+             rel_ptype (Tint sz s a) (Ctypes.Tint sz s a)
 | rel_tlong : forall s a, 
-              rel_type (Tlong s a) (Ctypes.Tlong s a)
+              rel_ptype (Tlong s a) (Ctypes.Tlong s a). 
+
+Inductive rel_btype : BeeTypes.basic_type -> Ctypes.type -> Prop :=
+| rel_bt : forall p ct,
+           rel_ptype p ct ->
+           rel_btype (Bprim p) ct.
+
+Inductive rel_type : BeeTypes.type -> Ctypes.type -> Prop :=
+| rel_pt : forall p ct, 
+           rel_ptype p ct ->
+           rel_type (Ptype p) ct
 | rel_reftype : forall h bt ct a, 
-                rel_type bt ct ->
+                rel_btype bt ct ->
                 rel_type (Reftype h bt a) (Tpointer ct a)
 | rel_ftype : forall ts ef t cts ct,
               rel_types ts cts ->
@@ -32,113 +41,118 @@ with rel_types : list BeeTypes.type -> Ctypes.typelist -> Prop :=
               rel_types bts cts ->
               rel_types (bt :: bts) (Tcons ct cts).
 
-Scheme rel_type_ind2 := Minimality for rel_type Sort Prop
-  with rel_typelist_ind2 := Minimality for rel_types Sort Prop.
-Combined Scheme rel_type_typelist_ind from rel_type_ind2, rel_typelist_ind2.
+Scheme rel_type_ind_mut := Induction for rel_type Sort Prop
+  with rel_typelist_ind_mut := Induction for rel_types Sort Prop.
+Combined Scheme rel_type_typelist_ind_mut from rel_type_ind_mut, rel_typelist_ind_mut.
 
-(*Scheme rel_beety_ind2 := Minimality for BeeTypes.type Sort Prop
-  with rel_beetys_ind2 := Minimality for (list BeeTypes.type) Sort Prop.
-Combined Scheme rel_type_typelist_ind from rel_type_ind2, rel_typelist_ind2.*)
+Section rel_type_ind.
+Context (Rts : list BeeTypes.type -> Ctypes.typelist -> Prop).
+Context (Rt : BeeTypes.type -> Ctypes.type -> Prop).
+Context (Rpt : BeeTypes.primitive_type -> Ctypes.type -> Prop).
+Context (Rbt : BeeTypes.basic_type -> Ctypes.type -> Prop).
+Context (Rtunit : Rpt Tunit (Ctypes.Tvoid)).
+Context (Rtint : forall sz s a, Rpt (Tint sz s a) (Ctypes.Tint sz s a)).
+Context (Rtlong : forall s a, Rpt (Tlong s a) (Ctypes.Tlong s a)).
+Context (Rbth : forall p ct, Rpt p ct -> Rbt (Bprim p) ct).
+Context (Rpth : forall p ct, Rpt p ct -> Rt (Ptype p) ct).
+Context (Rreft : forall h bt a ct, Rbt bt ct -> Rt (Reftype h bt a) (Tpointer ct a)). 
+Context (Rfunt : forall ts ef t cts ct, Rts ts cts -> Rt t ct -> 
+                 Rt (Ftype ts ef t) (Tfunction cts ct 
+                                     {| cc_vararg := Some (Z.of_nat(length(ts))); cc_unproto := false; cc_structret := false |})).
+Context (Rnil : Rts nil Tnil).
+Context (Rcons : forall t ct ts cts, Rt t ct -> Rts ts cts -> Rts (t :: ts) (Tcons ct cts)).
+
+Lemma rel_type_indP : 
+(forall t ct, rel_type t ct -> Rt t ct) /\
+(forall ts cts, rel_types ts cts -> Rts ts cts).
+Proof. 
+apply rel_type_typelist_ind_mut=> //=.
++ move=> p ct /= hr. apply Rpth. case: p hr=> //=.
+  + case: ct=> //=.
+    + by move=> i s a hr;inversion hr.
+    + by move=> s a hr;inversion hr.
+    + by move=> f a hr; inversion hr.
+    + by move=> t a hr; inversion hr.
+    + by move=> t z a hr; inversion hr.
+    + by move=> ts t c hr; inversion hr.
+    + by move=> i a hr; inversion hr.
+    by move=> i a hr; inversion hr.
+  + move=> i s a hr. case: ct hr=> //=.
+    + by move=> hr; inversion hr.
+    + by move=> sz' s' a' hr; inversion hr; subst.
+    + by move=> s' a' hr; inversion hr; subst.
+    + by move=> f a' hr; inversion hr.
+    + by move=> t a' hr; inversion hr.
+    + by move=> t z a' hr; inversion hr.
+    + by move=> t t' c hr; inversion hr.
+    + by move=> i' a' hr; inversion hr.
+    by move=> i' a' hr; inversion hr.
+  + case: ct=> //=.
+    + by move=> s a hr; inversion hr.
+    + by move=> sz s a s' a' hr; inversion hr; subst.
+    + by move=> s a s' a' hr; inversion hr; subst.
+    + by move=> f a s a' hr; inversion hr; subst.
+    + by move=> t a s a' hr; inversion hr.
+    + by move=> t z a s a' hr; inversion hr.
+    + by move=> ts t c s a hr; inversion hr.
+    + by move=> i a s a' hr; inversion hr.
+    by move=> i a s a' hr; inversion hr.
++ move=> h bt ct a hr; inversion hr; subst.
+  apply Rreft. apply Rbth. case: p hr H=> //=.
+  + case: ct=> //=.
+    + by move=> i s a' hr H; inversion H; subst.
+    + by move=> s a' hr H; inversion H; subst.
+    + by move=> f a' hr H; inversion H.
+    + by move=> t a' hr H; inversion H.
+    + by move=> t z a' hr H; inversion H.
+    + by move=> ts t c hr H; inversion H.
+    + by move=> i a' hr H; inversion H.
+    + by move=> i a' hr H; inversion H.
+    + by move=> u s a' hr H; inversion H.
+    by move=> s a' hr H; inversion H.
++ move=> ts ef t cts ct hrs hts hr ht hd.
+  by move: (Rfunt ts ef t cts ct hts ht).
+move=> bt bts ct cts hr ht hrs hts. 
+by move: (Rcons bt ct bts cts ht hts).
+Qed. 
+
+End rel_type_ind.
 
 (***** Proof for correctness of type transformation *****)
-Fixpoint type_translated bt: 
-(forall ct, 
+Lemma type_translated: 
+(forall bt ct, 
 transBeePL_type bt = OK ct ->
-rel_type bt ct) /\ (forall bts cts, 
+rel_type bt ct) /\ 
+(forall bts cts, 
 transBeePL_types transBeePL_type bts = OK cts ->
 rel_types bts cts).
 Proof.
 Admitted.
 
-(***** Translation proof for expr to expr *****)
-Fixpoint expr_no_assgn_func (e : BeePL.expr) : Prop :=
-match e with 
-| Var vi => True 
-| Const c t => True 
-| App o e es t => False
-| Prim b es t => match b with 
-                 | Ref => match es with 
-                          | [:: e1] => expr_no_assgn_func e1
-                          | _ => False 
-                          end 
-                 | Deref => match es with 
-                            | [:: e1] => expr_no_assgn_func e1
-                            | _ => False
-                            end
-                 | Massgn => false 
-                 | Uop o => match es with 
-                            | [:: e1] => expr_no_assgn_func e1
-                            | _ => False 
-                            end
-                 | Bop o => match es with 
-                            | [:: e1; e2] => expr_no_assgn_func e1 /\ 
-                                             expr_no_assgn_func e2
-                            | _ => False 
-                          end
-                 | Run h => false (* Fix me *)
-                 end 
-| Bind x t e e' t' => False
-| Cond e1 e2 e3 t => expr_no_assgn_func e1 /\
-                     expr_no_assgn_func e2 /\ 
-                     expr_no_assgn_func e3
-| Addr l => True 
-| Hexpr h e t => False (* Fix me *)
-end.
+(*Section expr_specifications.
 
-Fixpoint is_rval_expr (e : BeePL.expr) : Prop :=
-match e with 
-| Var vi => False 
-| Const c t => True
-| App o e es t => True  
-| Prim b es t => match b with 
-                 | Ref => True 
-                 | Deref => True 
-                 | Massgn => True 
-                 | Uop o => True 
-                 | Bop o => True
-                 | Run h => False (* Fix me *)
-                end
-| Bind x t e e' t' => True
-| Cond e1 e2 e3 t => True
-| Addr l => False
-| Hexpr h e t => False (* Fix me *)
-end.
+(* Relates the function definition of BeePL and Csyntax *)
+(* Fix me: Add external function rel later *)
+Inductive match_fundef (bp : BeePL.program) : BeePL.fun_decl -> Csyntax.fundef -> Prop :=
+| match_fundef_internal : forall bf cf,
+  BeePLfd_function bf = OK cf ->
+  match_fundef bp bf cf.
 
-Fixpoint is_lval_expr (e : BeePL.expr) : Prop :=
-match e with 
-| Var vi => True 
-| Const c t => False
-| App o e es t => False 
-| Prim b es t => match b with 
-                 | Ref => False 
-                 | Deref => True 
-                 | Massgn => False 
-                 | Uop o => False 
-                 | Bop o => False
-                 | Run h => False (* Fix me *)
-                end
-| Bind x t e e' t' => False
-| Cond e1 e2 e3 t => False
-| Addr l => True 
-| Hexpr h e t => False (* Fix me *)
-end.
 
-(***** Expressions *****) 
-(* Fix me: Define specification 
-           Relate value v with something 
-           Should we prove it for existential? *)
-(*Lemma transl_expr_lvalue : forall genv e ce st st' v cge cenv m,
-is_lval_expr e ->
-sem_expr genv st e st' v ->
-transBeePL_expr_expr e = OK ce -> 
-exists b pofs bf, eval_simple_lvalue cge cenv m ce b pofs bf.
-Proof.
-move=> genv [].
-(* var *)
-+ move=> vi ce st st' v cge cenv m hl he /= h. 
-  monadInv h. inversion he; subst. exists (vname vi).
-  exists Ptrofs.zero. exists Full. apply esl_var_local.
-Admitted.*)
+Definition match_varinfo (v: type) (tv: unit) := True.
 
-*)
+Check match_program_gen.
+Definition match_prog (p: BeePL.program) (tp: Csyntax.program) : Prop :=
+  match_program_gen match_fundef match_varinfo p p tp.
+
+Locate match_program_gen.
+
+
+
+Section semantic_preservation.
+
+Variable beePLprog : BeePL.program.
+
+Variable cprog : Csyntax.program.*)
+
 

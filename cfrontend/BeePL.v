@@ -15,11 +15,6 @@ Inductive constant : Type :=
 | ConsLong : int64 -> constant
 | ConsUnit : constant.
 
-Inductive gconstant : Type := 
-| Gvalue : constant -> gconstant
-| Gloc : positive -> gconstant
-| Gspace : Z -> gconstant (* uninitialized global variables *). 
-
 Record vinfo : Type := mkvar { vname : ident; vtype : BeeTypes.type }.
 Record linfo : Type := mkloc { lname : ident; ltype : BeeTypes.type; lbitfield : bitfield }.
 
@@ -119,7 +114,7 @@ Inductive builtin : Type :=
 (* The source language never exposes the heap binding construct hpφ.e directly to the user 
    but during evaluation the reductions on heap operations create heaps and use them. *)
 Inductive expr : Type :=
-| Val : value -> type -> expr                                     (* value *)
+| Val : value -> type -> expr                                      (* value *)
 | Var : vinfo -> expr                                              (* variable *)
 | Const : constant -> type -> expr                                 (* constant *)
 | App : option ident -> expr -> list expr -> type -> expr          (* function application: option ident represents 
@@ -136,6 +131,12 @@ Inductive expr : Type :=
 | Addr : linfo -> ptrofs -> expr                                   (* address *)
 | Hexpr : mem -> expr -> type -> expr                              (* heap effect *).
 
+Definition is_value (e : expr) : bool :=
+match e with 
+| Val v t => true 
+| _ => false
+end.
+ 
 Definition typeof_expr (e : expr) : BeeTypes.type :=
 match e with 
 | Val v t => t
@@ -150,53 +151,46 @@ match e with
 | Hexpr h e t => t
 end.
 
-(* f(x1 : t1, x2 : t2) : t3 = int x = 0; int y =0; return 0 (* Dummy example *) *)
-Record fun_decl : Type := 
-       mkfunction {fname : ident; args : list vinfo; lvars : list vinfo; rtype : type; body : expr}.
+Record function : Type := mkfunction { fn_return: type;
+                                       fn_callconv: calling_convention;
+                                       fn_args: list vinfo;
+                                       fn_vars: list vinfo;
+                                       fn_body: expr }.
 
-Record glob_decl : Type := mkglobv {gname : ident; gtype : type; gval : list gconstant}.
+Inductive fundef : Type :=
+| Internal : function -> fundef
+| External : fundef. (* Fix me: add later *)
 
-Record talias : Type := mktalias {tname : ident; atype : type}.
+Inductive init_data : Set :=
+| Init_int8 : int -> init_data
+| Init_int16 : int -> init_data
+| Init_int32 : int -> init_data
+| Init_int64 : int64 -> init_data.
 
-Inductive func : Type :=
-| Fun : fun_decl -> func.
+Record globvar : Type := mkglobvar { gvar_info : type;
+                                     gvar_init : list init_data;
+                                     gvar_readonly : bool;
+                                     gvar_volatile : bool }.
 
-Inductive globv : Type :=
-| Glob : glob_decl -> globv.
+Inductive globdef : Type :=
+| Gfun : fundef -> globdef
+| Gvar : globvar -> globdef.
 
-Inductive decl : Type :=
-| Fdecl : func -> decl
-| Gvdecl : globv -> decl.
-(*| Tadecl : talias -> decl.*) (* Fix me: Not sure to what global declaration this can be translated to *) 
+
+Record program : Type := mkprogam { prog_defs : list (ident * globdef);
+                                    prog_public : list ident;
+                                    prog_main : ident;
+                                    prog_types : list composite_definition;
+                                    prog_comp_env : composite_env;
+                                    prog_comp_env_eq : build_composite_env prog_types = OK prog_comp_env }.
 
 (* Global environments are a component of the dynamic semantics of
    BeePL language.  A global environment maps symbol names 
    (names of functions and of global variables)
    to the corresponding function declarations. *) 
-Record genv := { genv_genv :> Genv.t func type; genv_cenv :> composite_env }.
+Record genv := { genv_genv :> Genv.t fundef type; genv_cenv :> composite_env }.
 
-(*Record genv : Type := 
-mkgenv {genv_defs : PTree.t decl;
-        genv_next : positive }.
-
-(* Returns a declaration at location l *)
-Definition find_def (ge : genv) (l : positive) : option decl :=
-PTree.get l ge.(genv_defs). 
-
-(* Returns the function declaration *)
-Definition find_fdef (ge : genv) (l : positive) : option func :=
-match find_def ge l with 
-| Some (Fdecl fd) => Some fd
-| _ => None
-end.
-
-(* Returns the global variable  declaration *)
-Definition find_gdef (ge : genv) (l : positive) : option globv :=
-match find_def ge l with 
-| Some (Gvdecl gd) => Some gd
-| _ => None
-end.*)
-
+(************************** Operation Semantics **************************************)
 (***** Virtual map *****) 
 
 (** The local environment maps local variables to references/locations and types.
@@ -205,10 +199,6 @@ end.*)
 Definition vmap := PTree.t (positive * type). (* map variable -> location & type *)
 
 Definition empty_vmap: vmap  := (PTree.empty (positive * type)).
-
-(* first loc represents where the decl is stored and second loc represents where the 
-   definition of main is stored *)
-Record program: Type :=  mkprogram { bprog_defs : list (positive * decl); bprog_main : positive }.
 
 Definition bool_to_int (b : bool) : int :=
 match b with 
@@ -374,26 +364,26 @@ Inductive bsem_expr : vmap -> mem -> expr -> mem -> value -> Prop :=
                     bsem_expr vm hm (Const (ConsUnit) (Ptype Tunit)) hm (Vunit)
 | bsem_appr : forall vm1 hm1 e es t l fd hm2 hm3 hm4 hm5 hm6 vm2 vs rv r hm7,
               bsem_expr vm1 hm1 e hm2 (Vloc l Ptrofs.zero) ->
-              Genv.find_funct ge (transBeePL_value_cvalue (Vloc l Ptrofs.zero)) = Some (Fun fd) ->
-              list_norepet (fd.(args) ++ fd.(lvars)) ->
-              alloc_variables vm1 hm2 (fd.(args) ++ fd.(lvars)) vm2 hm3 -> 
+              Genv.find_funct ge (transBeePL_value_cvalue (Vloc l Ptrofs.zero)) = Some (Internal fd) ->
+              list_norepet (fd.(fn_args) ++ fd.(fn_vars)) ->
+              alloc_variables vm1 hm2 (fd.(fn_args) ++ fd.(fn_vars)) vm2 hm3 -> 
               bsem_exprs vm2 hm3 es hm4 vs ->
-              typeof_values vs (extract_types_vinfos fd.(args)) ->
-              bind_parameters vm1 hm4 fd.(args) vs hm5  ->
-              bsem_expr vm1 hm5 fd.(body) hm6 rv -> 
+              typeof_values vs (extract_types_vinfos fd.(fn_args)) ->
+              bind_parameters vm1 hm4 fd.(fn_args) vs hm5  ->
+              bsem_expr vm1 hm5 fd.(fn_body) hm6 rv -> 
               bind_parameters vm1 hm6 (r::nil) (rv::nil) hm7 ->
-              typeof_value rv (fd.(rtype)) ->
+              typeof_value rv (fd.(fn_return)) ->
               bsem_expr vm1 hm1 (App (Some r.(vname)) e es t) hm7 rv 
 | bsem_app : forall vm1 hm1 e es t l fd hm2 hm3 hm4 hm5 hm6 vm2 vs rv,
              bsem_expr vm1 hm1 e hm2 (Vloc l Ptrofs.zero) ->
-             Genv.find_funct ge (transBeePL_value_cvalue (Vloc l Ptrofs.zero)) = Some (Fun fd) ->
-             list_norepet (fd.(args) ++ fd.(lvars)) ->
-             alloc_variables vm1 hm2 (fd.(args) ++ fd.(lvars)) vm2 hm3 -> 
+             Genv.find_funct ge (transBeePL_value_cvalue (Vloc l Ptrofs.zero)) = Some (Internal fd) ->
+             list_norepet (fd.(fn_args) ++ fd.(fn_vars)) ->
+             alloc_variables vm1 hm2 (fd.(fn_args) ++ fd.(fn_vars)) vm2 hm3 -> 
              bsem_exprs vm2 hm3 es hm4 vs ->
-             typeof_values vs (extract_types_vinfos fd.(args)) ->
-             bind_parameters vm1 hm4 fd.(args) vs hm5  ->
-             bsem_expr vm1 hm5 fd.(body) hm6 rv -> 
-             typeof_value rv (fd.(rtype)) ->
+             typeof_values vs (extract_types_vinfos fd.(fn_args)) ->
+             bind_parameters vm1 hm4 fd.(fn_args) vs hm5  ->
+             bsem_expr vm1 hm5 fd.(fn_body) hm6 rv -> 
+             typeof_value rv (fd.(fn_return)) ->
              bsem_expr vm1 hm1 (App None e es t) hm6 rv 
 | bsem_prim_uop : forall vm hm e v uop hm' v' t ct v'',
                   bsem_expr vm hm e hm' v ->
@@ -554,16 +544,16 @@ Inductive sem_expr : vmap -> mem -> expr -> mem -> expr -> Prop :=
               sem_expr vm hm e hm' (Val v (typeof_expr e)) ->
               sem_expr vm hm (App (Some r.(vname)) e es t) hm' (App (Some r.(vname)) (Val v (Ftype ts ef rt)) es t)
 | sem_appr2 : forall vm hm v fd vm1 hm1 hm2 hm3 hm4 hm5 vs rv r ts ef rt es t, 
-              Genv.find_funct ge (transBeePL_value_cvalue v) = Some (Fun fd) ->
-              list_norepet (fd.(args) ++ fd.(lvars)) ->
-              alloc_variables vm hm (fd.(args) ++ fd.(lvars)) vm1 hm1 -> 
+              Genv.find_funct ge (transBeePL_value_cvalue v) = Some (Internal fd) ->
+              list_norepet (fd.(fn_args) ++ fd.(fn_vars)) ->
+              alloc_variables vm hm (fd.(fn_args) ++ fd.(fn_vars)) vm1 hm1 -> 
               bsem_exprs ge vm1 hm1 es hm2 vs ->
-              typeof_values vs (extract_types_vinfos fd.(args)) ->
-              bind_parameters vm1 hm2 fd.(args) vs hm3  ->
-              bsem_expr ge vm1 hm3 fd.(body) hm4 rv ->
+              typeof_values vs (extract_types_vinfos fd.(fn_args)) ->
+              bind_parameters vm1 hm2 fd.(fn_args) vs hm3  ->
+              bsem_expr ge vm1 hm3 fd.(fn_body) hm4 rv ->
               bind_parameters vm1 hm4 (r::nil) (rv::nil) hm5 ->
-              typeof_value rv (fd.(rtype)) ->
-              sem_expr vm hm (App (Some r.(vname)) (Val v (Ftype ts ef rt)) es t) hm5 (Val rv fd.(rtype))
+              typeof_value rv (fd.(fn_return)) ->
+              sem_expr vm hm (App (Some r.(vname)) (Val v (Ftype ts ef rt)) es t) hm5 (Val rv fd.(fn_return))
 (* Fix me *)
 | sem_addr : forall vm hm t l bf ofs v,
              deref_addr t hm l ofs bf v ->

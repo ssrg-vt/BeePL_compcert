@@ -36,32 +36,49 @@ Definition main_body := Bind (x.(vname))
                                          (Ptype (Tint I32 Unsigned dattr)))
                              (Ptype Tunit))
                         (Ptype Tunit). 
-                                   
-Definition f_main : decl := Fdecl (Fun {| fname := main;
-                                          args := nil;
-                                          lvars := (x :: y :: r :: nil);
-                                          rtype := (Ptype (Tint I32 Unsigned dattr));
-                                          body := main_body |}).
+               
+Definition f_main : function := {| fn_return := (Ptype (Tint I32 Unsigned dattr));
+                                   fn_callconv := cc_default;
+                                   fn_args := nil;
+                                   fn_vars := (x :: y :: r :: nil);
+                                   fn_body := main_body |}.
 
-Definition example1 : program := {| bprog_defs:= (main, f_main) :: nil; bprog_main := main |}.
+Definition composites : list composite_definition := nil.
+
+Definition global_definitions : list (ident * globdef) := (main, Gfun(Internal f_main)) :: nil.
+
+Definition public_idents : list ident := (main :: nil).
+
+Lemma composite_default :
+build_composite_env nil = OK (PTree.empty composite).
+Proof.
+unfold build_composite_env; simpl; reflexivity.
+Qed.
+
+Definition example1 : BeePL.program := {| prog_defs := global_definitions;
+                                      prog_public := public_idents;
+                                      prog_main := main;
+                                      prog_types := composites;
+                                      prog_comp_env := PTree.empty composite;
+                                      prog_comp_env_eq := composite_default |}.
+
 
 Definition tcp1 := (transf_beepl_program_csyntax (example1)).
 Definition tasm1 := transf_beepl_program(example1).
 
+(*Compute tcp1.*)
 Extraction "tcp1.ml" tcp1.
 
-(*Compute (transf_beepl_program_csyntax (example1)).*)
-
 (* Generated output *)
-(*          = OK
+(*        = OK
          {|
-           prog_defs :=
+           Ctypes.prog_defs :=
              (4%positive,
-             Gfun
-               (Internal
+             AST.Gfun
+               (Ctypes.Internal
                   {|
                     Csyntax.fn_return := Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |};
-                    Csyntax.fn_callconv := {| cc_vararg := Some 0%Z; cc_unproto := false; cc_structret := false |};
+                    Csyntax.fn_callconv := {| cc_vararg := None; cc_unproto := false; cc_structret := false |};
                     Csyntax.fn_params := nil;
                     Csyntax.fn_vars :=
                       (1%positive, Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |})
@@ -71,33 +88,39 @@ Extraction "tcp1.ml" tcp1.
                       Csyntax.Ssequence
                         (Csyntax.Sdo
                            (Csyntax.Eassign
-                              (Csyntax.Evar 1%positive (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
+                              (Csyntax.Evar 1%positive
+                                 (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
                               (Csyntax.Eval (Values.Vint {| Int.intval := 1; Int.intrange := Int.Z_mod_modulus_range' 1 |})
                                  (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |})) Tvoid))
                         (Csyntax.Sdo
                            (Csyntax.Ecomma
                               (Csyntax.Eassign
-                                 (Csyntax.Evar 2%positive (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
+                                 (Csyntax.Evar 2%positive
+                                    (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
                                  (Csyntax.Eval (Values.Vint {| Int.intval := 2; Int.intrange := Int.Z_mod_modulus_range' 2 |})
                                     (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
                                  (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
                               (Csyntax.Ecomma
                                  (Csyntax.Eassign
-                                    (Csyntax.Evar 3%positive (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
+                                    (Csyntax.Evar 3%positive
+                                       (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
                                     (Csyntax.Ebinop Cop.Oadd
-                                       (Csyntax.Evar 1%positive (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
-                                       (Csyntax.Evar 2%positive (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
+                                       (Csyntax.Evar 1%positive
+                                          (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
+                                       (Csyntax.Evar 2%positive
+                                          (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
                                        (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
                                     (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
-                                 (Csyntax.Evar 3%positive (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
+                                 (Csyntax.Evar 3%positive
+                                    (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
                                  (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
                               (Ctypes.Tint I8 Unsigned {| attr_volatile := false; attr_alignas := Some 1%N |})))
                   |})) :: nil;
-           prog_public := nil;
-           prog_main := 4%positive;
-           prog_types := nil;
-           prog_comp_env := PTree.Empty;
-           prog_comp_env_eq := composite_default
+           Ctypes.prog_public := 4%positive :: nil;
+           Ctypes.prog_main := 4%positive;
+           Ctypes.prog_types := nil;
+           Ctypes.prog_comp_env := PTree.Empty;
+           Ctypes.prog_comp_env_eq := composite_default
          |}
      : res Csyntax.program *)
 

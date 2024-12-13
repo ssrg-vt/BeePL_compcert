@@ -178,66 +178,67 @@ match e with
 | Hexpr h e t => OK (Sdo (Eval (Values.Vundef) Tvoid)) (* FIX ME *)
 end.
 
-Definition default_cc (fd : fun_decl) : calling_convention := 
-{| cc_vararg := Some (Z.of_nat (length (fd.(args)))); cc_unproto := false; cc_structret := false |}.
-
-(* Translates the BeePL function declaration to C function declaration *)
-(* For now we have only internal functions: later change it to include the case of external function *)
-Definition BeePLfd_function (fd : fun_decl) : res (Ctypes.fundef function) :=
-do crt <- transBeePL_type (fd.(rtype));
-do pt <- (transBeePL_types transBeePL_type (unzip2 (extract_list_rvtypes (fd.(args)))));
-do vt <- (transBeePL_types transBeePL_type (unzip2 (extract_list_rvtypes (fd.(lvars)))));
-do fbody <- transBeePL_expr_st (fd.(body));
-OK (Internal {| fn_return := crt; 
-                fn_callconv := default_cc(fd); 
-                fn_params := zip (unzip1 (extract_list_rvtypes (fd.(args))))
+(* Translates the BeePL function declaration to C function *)
+Definition transBeePL_function_function (fd : BeePL.function) : res (Csyntax.function) :=
+do crt <- transBeePL_type (fd.(BeePL.fn_return));
+do pt <- (transBeePL_types transBeePL_type (unzip2 (extract_list_rvtypes (fd.(fn_args)))));
+do vt <- (transBeePL_types transBeePL_type (unzip2 (extract_list_rvtypes (fd.(BeePL.fn_vars)))));
+do fbody <- transBeePL_expr_st (fd.(BeePL.fn_body));
+OK {| fn_return := crt; 
+                fn_callconv := cc_default; 
+                fn_params := zip (unzip1 (extract_list_rvtypes (fd.(fn_args))))
                                  (typelist_list_type pt);
-                fn_vars := zip (unzip1 (extract_list_rvtypes (fd.(lvars))))
+                fn_vars := zip (unzip1 (extract_list_rvtypes (fd.(BeePL.fn_vars))))
                                (typelist_list_type vt);
-                fn_body :=  fbody|}).
+                fn_body :=  fbody|}.
+
+
+Definition transBeePL_fundef_fundef (fd : BeePL.fundef) : res Csyntax.fundef :=
+match fd with 
+| Internal f => do tf <- transBeePL_function_function f;
+                OK (Ctypes.Internal tf)
+| _ => Error (MSG "External function not supported" :: nil)
+end.
 
 (* Translates the value that is assigned to global variable to C global variable data *)
-Definition gconstant_init_data (g : BeePL.gconstant) : init_data :=
+
+Definition transBeePL_init_data_init_data (g : BeePL.init_data) : AST.init_data :=
 match g with 
-| Gvalue c => match c with 
-              | ConsInt i => Init_int32 i
-              | ConsLong i => Init_int64 i
-              | ConsUnit => Init_int32 (Int.repr 0)
-              end
-| Gloc p => Init_addrof p (Ptrofs.of_ints (Int.repr 0))
-| Gspace z => Init_space z
+| Init_int8 i => AST.Init_int8 i
+| Init_int16 i => AST.Init_int16 i
+| Init_int32 i => AST.Init_int32 i
+| Init_int64 i => AST.Init_int64 i
 end. 
 
 (* Translates the list of global variable data to list of C global variable data *)
-Fixpoint gconstants_init_datas (gs : list BeePL.gconstant) : list init_data :=
+Fixpoint transBeePL_init_datas_init_datas (gs : list BeePL.init_data) : list AST.init_data :=
 match gs with 
 | nil => nil
-| g :: gs => gconstant_init_data g :: gconstants_init_datas gs
+| g :: gs => transBeePL_init_data_init_data g :: transBeePL_init_datas_init_datas gs
 end. 
 
 (* Translates BeePL global variable to C global variable *) 
-Definition BeePLgd_gd (gv : glob_decl) : res (globvar Ctypes.type)  :=
-do gvt <- transBeePL_type (gv.(gtype));
-OK {| gvar_info := gvt; 
-      gvar_init := gconstants_init_datas(gv.(gval)); 
-      gvar_readonly := false; 
-      gvar_volatile := false |}.
+Definition transBeePLglobvar_globvar (gv : BeePL.globvar) : res (AST.globvar Ctypes.type)  :=
+do gvt <- transBeePL_type (gv.(gvar_info));
+OK {| AST.gvar_info := gvt; 
+      AST.gvar_init := transBeePL_init_datas_init_datas (gv.(gvar_init)); 
+      AST.gvar_readonly := false; 
+      AST.gvar_volatile := false |}.
 
-(* Translates a BeePL declaration to C declaration *)
-Definition BeePLdecl_gdef (d : BeePL.decl) : res (globdef (Ctypes.fundef function) Ctypes.type) :=
-match d with 
-| Fdecl (Fun fd) => do cfd <- (BeePLfd_function fd); OK (Gfun cfd)
-| Gvdecl (Glob gd) => do gv <- (BeePLgd_gd gd) ; OK (Gvar gv)
-(*| Tadecl ta => *) (* Fix me *)
+
+Definition transBeePL_globdef_globdef (gd : BeePL.globdef) : res (AST.globdef fundef Ctypes.type) :=
+match gd with 
+| Gfun f => do cf <- transBeePL_fundef_fundef f;
+            OK (AST.Gfun cf)
+| Gvar g => do cg <- transBeePLglobvar_globvar g;
+            OK (AST.Gvar cg)
 end.
 
-(* Translates a list of BeePL declarations to C declarations *)
-Fixpoint BeePLdecls_gdefs (ds : list BeePL.decl) : 
-res (list (globdef (Ctypes.fundef function) Ctypes.type)) :=
-match ds with 
+Fixpoint transBeePL_globdefs_globdefs (gds : list BeePL.globdef) : res (list (AST.globdef fundef Ctypes.type)) :=
+match gds with 
 | nil => OK (nil)
-| d :: ds => do gd <- BeePLdecl_gdef d; 
-             do gds <- BeePLdecls_gdefs ds;
+| d :: ds => do gd <-  transBeePL_globdef_globdef d; 
+             do gds <- transBeePL_globdefs_globdefs ds;
              OK (gd :: gds)
 end.
 
@@ -248,16 +249,12 @@ unfold build_composite_env; simpl; reflexivity.
 Qed.
 
 (* Missing compositie information and list of public functions *) 
-Definition BeePL_compcert (m : BeePL.program) : res Csyntax.program :=
-do cfd <- (BeePLdecls_gdefs (unzip2 (m.(bprog_defs)))); 
-OK {| prog_defs := (zip (unzip1 (m.(bprog_defs))) cfd);
-      prog_public := nil;
-      prog_main := m.(bprog_main);
-      prog_types := nil;
-      prog_comp_env := (PTree.empty composite);
-      prog_comp_env_eq := composite_default |}.
-
-(*Definition BeePL_compcert (m : BeePL.module) : res (AST.program (Ctypes.fundef function) type) :=
-do cfd <- (BeePLdecls_gdefs (unzip2 (fst(m))));
- OK (mkprogram (zip (unzip1 (fst (m))) cfd) nil (snd(m))).*)
+Definition BeePL_compcert (p : BeePL.program) : res Csyntax.program :=
+  do pds <- transBeePL_globdefs_globdefs (unzip2 (p.(prog_defs)));
+  OK {| Ctypes.prog_defs := zip (unzip1 p.(prog_defs)) pds;
+        Ctypes.prog_public := prog_public p;
+        Ctypes.prog_main := prog_main p;
+        Ctypes.prog_types := prog_types p;
+        Ctypes.prog_comp_env := prog_comp_env p;
+        Ctypes.prog_comp_env_eq := prog_comp_env_eq p |}.
 
