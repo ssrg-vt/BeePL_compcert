@@ -172,11 +172,11 @@ Definition globvar (V : Type) := AST.globvar V.
 Definition globdef (F V : Type) := AST.globdef F V.
 
 Record program  : Type := mkprogam { prog_defs : list (ident * globdef fundef type);
-                                    prog_public : list ident;
-                                    prog_main : ident;
-                                    prog_types : list composite_definition;
-                                    prog_comp_env : composite_env;
-                                    prog_comp_env_eq : build_composite_env prog_types = OK prog_comp_env }.
+                                     prog_public : list ident;
+                                     prog_main : ident;
+                                     prog_types : list composite_definition;
+                                     prog_comp_env : composite_env;
+                                     prog_comp_env_eq : build_composite_env prog_types = OK prog_comp_env }.
 
 (************************** Operation Semantics **************************************)
 (* Global environments are a component of the dynamic semantics of
@@ -285,14 +285,14 @@ Inductive alloc_variables : vmap -> mem -> list vinfo -> vmap -> mem -> Prop :=
   [bind_parameters e m1 params args m2] stores the values [args]
   in the memory blocks corresponding to the variables [params].
   [m1] is the initial memory state and [m2] the final memory state. *)
-Inductive bind_parameters (e: vmap): mem -> list vinfo -> list value -> mem -> Prop :=
-| bind_parameters_nil: forall m,
-                       bind_parameters e m nil nil m
-| bind_parameters_cons: forall m id ty params v1 vl v1' b m1 m2,
-                        PTree.get id e = Some(b, ty) ->
-                        assign_addr ty m b Ptrofs.zero Full v1 m1 v1' ->
-                        bind_parameters e m1 params vl m2 ->
-                        bind_parameters e m ({| vname := id; vtype := ty|} :: params) (v1 :: vl) m2.
+Inductive bind_variables (e: vmap): mem -> list vinfo -> list value -> mem -> Prop :=
+| bind_variables_nil: forall m,
+                      bind_variables e m nil nil m
+| bind_variables_cons: forall m id ty params v1 vl v1' b m1 m2,
+                       PTree.get id e = Some(b, ty) ->
+                       assign_addr ty m b Ptrofs.zero Full v1 m1 v1' ->
+                       bind_variables e m1 params vl m2 ->
+                       bind_variables e m ({| vname := id; vtype := ty|} :: params) (v1 :: vl) m2.
 
 (* Substitution *)
 Inductive subst : vmap -> mem -> ident -> value -> expr -> mem -> expr -> Prop :=
@@ -372,9 +372,9 @@ Inductive bsem_expr : vmap -> mem -> expr -> mem -> value -> Prop :=
               alloc_variables vm1 hm2 (fd.(fn_args) ++ fd.(fn_vars)) vm2 hm3 -> 
               bsem_exprs vm2 hm3 es hm4 vs ->
               typeof_values vs (extract_types_vinfos fd.(fn_args)) ->
-              bind_parameters vm1 hm4 fd.(fn_args) vs hm5  ->
+              bind_variables vm1 hm4 fd.(fn_args) vs hm5  ->
               bsem_expr vm1 hm5 fd.(fn_body) hm6 rv -> 
-              bind_parameters vm1 hm6 (r::nil) (rv::nil) hm7 ->
+              bind_variables vm1 hm6 (r::nil) (rv::nil) hm7 ->
               typeof_value rv (fd.(fn_return)) ->
               bsem_expr vm1 hm1 (App (Some r.(vname)) e es t) hm7 rv 
 | bsem_app : forall vm1 hm1 e es t l fd hm2 hm3 hm4 hm5 hm6 vm2 vs rv,
@@ -384,7 +384,7 @@ Inductive bsem_expr : vmap -> mem -> expr -> mem -> value -> Prop :=
              alloc_variables vm1 hm2 (fd.(fn_args) ++ fd.(fn_vars)) vm2 hm3 -> 
              bsem_exprs vm2 hm3 es hm4 vs ->
              typeof_values vs (extract_types_vinfos fd.(fn_args)) ->
-             bind_parameters vm1 hm4 fd.(fn_args) vs hm5  ->
+             bind_variables vm1 hm4 fd.(fn_args) vs hm5  ->
              bsem_expr vm1 hm5 fd.(fn_body) hm6 rv -> 
              typeof_value rv (fd.(fn_return)) ->
              bsem_expr vm1 hm1 (App None e es t) hm6 rv 
@@ -552,9 +552,9 @@ Inductive sem_expr : vmap -> mem -> expr -> mem -> expr -> Prop :=
               alloc_variables vm hm (fd.(fn_args) ++ fd.(fn_vars)) vm1 hm1 -> 
               bsem_exprs ge vm1 hm1 es hm2 vs ->
               typeof_values vs (extract_types_vinfos fd.(fn_args)) ->
-              bind_parameters vm1 hm2 fd.(fn_args) vs hm3  ->
+              bind_variables vm1 hm2 fd.(fn_args) vs hm3  ->
               bsem_expr ge vm1 hm3 fd.(fn_body) hm4 rv ->
-              bind_parameters vm1 hm4 (r::nil) (rv::nil) hm5 ->
+              bind_variables vm1 hm4 (r::nil) (rv::nil) hm5 ->
               typeof_value rv (fd.(fn_return)) ->
               sem_expr vm hm (App (Some r.(vname)) (Val v (Ftype ts ef rt)) es t) hm5 (Val rv fd.(fn_return))
 (* Fix me *)

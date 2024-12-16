@@ -82,7 +82,7 @@ match es1, es2 with
 | _, _ => false
 end.
 
-Fixpoint eq_primitive_type (p1 p2 : primitive_type) : bool :=
+Definition eq_primitive_type (p1 p2 : primitive_type) : bool :=
 match p1, p2 with 
 | Tunit, Tunit => true 
 | Tint sz s a, Tint sz' s' a'=> if intsize_eq sz sz' 
@@ -239,11 +239,17 @@ end.
 
 End translate_types.
 
-Fixpoint typelist_list_type (ts : Ctypes.typelist) : list Ctypes.type :=
+Fixpoint from_typelist (ts : Ctypes.typelist) : list Ctypes.type :=
 match ts with
 | Tnil => nil
-| Tcons t ts => t :: typelist_list_type ts
+| Tcons t ts => t :: from_typelist ts
 end. 
+
+Fixpoint to_typelist (ts : list Ctypes.type) : Ctypes.typelist :=
+match  ts with 
+| nil => Tnil
+| t :: ts => Tcons t (to_typelist ts)
+end.
 
 (* Translation of BeePL types to Clight Types *)
 Fixpoint transBeePL_type (t : BeeTypes.type) : res Ctypes.type :=

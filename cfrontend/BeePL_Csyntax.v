@@ -187,9 +187,9 @@ do fbody <- transBeePL_expr_st (fd.(BeePL.fn_body));
 OK {| fn_return := crt; 
                 fn_callconv := cc_default; 
                 fn_params := zip (unzip1 (extract_list_rvtypes (fd.(fn_args))))
-                                 (typelist_list_type pt);
+                                 (from_typelist pt);
                 fn_vars := zip (unzip1 (extract_list_rvtypes (fd.(BeePL.fn_vars))))
-                               (typelist_list_type vt);
+                               (from_typelist vt);
                 fn_body :=  fbody|}.
 
 
