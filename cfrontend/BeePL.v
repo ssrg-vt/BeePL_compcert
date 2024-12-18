@@ -251,6 +251,7 @@ end.
 Inductive deref_addr (ty : type) (m : mem) (addr : Values.block) (ofs : ptrofs) : bitfield -> value -> Prop :=
 | deref_addr_value : forall chunk v v',
   access_mode ty = By_value chunk ->
+  type_is_volatile ty = false ->
   Mem.loadv chunk m (transBeePL_value_cvalue (Vloc addr ofs)) = Some v ->
   transC_val_bplvalue v = OK v' ->
   deref_addr ty m addr ofs Full v'
@@ -396,7 +397,7 @@ Inductive bsem_expr : vmap -> mem -> expr -> mem -> value -> Prop :=
                   bsem_expr vm hm (Prim (Uop uop) (e :: nil) t) hm' v''
 | bsem_prim_bop : forall vm hm cenv e1 e2 t v1 v2 bop hm' hm'' v ct1 ct2 v',
                   bsem_expr vm hm e1 hm' v1 ->
-                  bsem_expr vm hm e2 hm'' v2 ->
+                  bsem_expr vm hm' e2 hm'' v2 ->
                   transBeePL_type (typeof_expr e1) = OK ct1 ->
                   transBeePL_type (typeof_expr e2) = OK ct2 ->
                   sem_binary_operation cenv bop (transBeePL_value_cvalue v1) ct1 (transBeePL_value_cvalue v2) ct2 hm'' = Some v ->
@@ -462,17 +463,18 @@ Inductive sem_expr : vmap -> mem -> expr -> mem -> expr -> Prop :=
                  sem_expr vm hm (Val (Vint i) t) hm (Val (Vint i) t)
 | sem_val_int64 : forall vm hm i t,
                   sem_expr vm hm (Val (Vint64 i) t) hm (Val (Vint64 i) t)
-| sem_val_loc : forall vm hm t v l,
-                deref_addr t hm l Ptrofs.zero Full v ->
-                sem_expr vm hm (Val (Vloc l Ptrofs.zero) t) hm (Val v t)
+| sem_val_loc : forall vm hm t v l ofs,
+                deref_addr t hm l ofs Full v ->
+                sem_expr vm hm (Val (Vloc l ofs) t) hm (Val v t)
 | sem_var : forall vm hm x t l,
             vm!(x.(vname)) = Some (l, t) ->
             t = x.(vtype) ->
             sem_expr vm hm (Var x) hm (Val (Vloc l Ptrofs.zero) t)
 | sem_gvar : forall vm hm x t l,
              vm!(x.(vname)) = None ->
+             t = x.(vtype) ->
              Genv.find_symbol ge x.(vname) = Some l ->
-             sem_expr vm hm (Var x) hm (Addr {| lname := l; ltype := t; lbitfield := Full |}  Ptrofs.zero)
+             sem_expr vm hm (Var x) hm (Val (Vloc l Ptrofs.zero) t)
 | sem_const_int : forall vm hm i t, 
                   sem_expr vm hm (Const (ConsInt i) t) hm (Val (Vint i) t)
 | sem_const_int64 : forall vm hm i t, 
@@ -509,9 +511,9 @@ Inductive sem_expr : vmap -> mem -> expr -> mem -> expr -> Prop :=
 | sem_prim_deref : forall vm hm e t hm' e',
                    sem_expr vm hm e hm' e' ->
                    sem_expr vm hm (Prim Deref (e :: nil) t) hm' (Prim Deref (e' :: nil) t)
-| sem_prim_derefv : forall vm hm v tv t ofs l,
-                    deref_addr t hm l ofs Full v ->
-                    sem_expr vm hm (Prim Deref (Val (Vloc l ofs) tv:: nil) t) hm (Val v t)
+| sem_prim_derefv : forall vm hm tv t ofs l,
+                    sem_expr vm hm (Prim Deref (Val (Vloc l ofs) tv:: nil) t) hm 
+                    (Addr {| lname := l; ltype := t; lbitfield := Full |} ofs)
 | sem_prim_massgn1 : forall vm hm e1 e2 t e1' hm',
                      sem_expr vm hm e1 hm' e1' ->
                      sem_expr vm hm (Prim Massgn (e1 :: e2 :: nil) t) hm' (Prim Massgn (e1' :: e2 :: nil) t) 

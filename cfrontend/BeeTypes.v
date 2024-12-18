@@ -222,6 +222,13 @@ match t with
 | Ftype ts ef t => noattr
 end.
 
+
+Definition type_is_volatile (t : type) : bool :=
+match access_mode t with 
+| By_value _ => attr_volatile (attr_of_type t)
+| _ => false
+end.
+
 (****** Translation from BeePL types to Csyntax types ******)
 
 Section translate_types.
