@@ -492,6 +492,8 @@ Proof.
 Admitted.
 
 (* Big step semantics with rvalue *) 
+(* If an expression evaluates to a value then in the c semantics if the expression is 
+   evaluated in RV position then it should also produce the same value *)
 Lemma bsem_cexpr_rval : forall e ce m m' v ct,
 bsem_expr bge benv m e m' v ->
 transBeePL_type (typeof_expr e) = OK ct ->
@@ -502,6 +504,8 @@ Admitted.
 
 
 (* Big step semantics with rvalue *) 
+(* If an expression evaluates to a value then in the c semantics if the expression is 
+   evaluated in LV position then it should produce a location (deref, var)*)
 Lemma bsem_cexpr_lval : forall e ce m m' v ct l ofs bf,
 bsem_expr bge benv m e m' v ->
 transBeePL_type (typeof_expr e) = OK ct ->
@@ -593,7 +597,18 @@ move=> m e m' v ce. move: m m' v. elim: e=> //=.
         by apply htr2.
       apply esr_binop with (transBeePL_value_cvalue v1) (transBeePL_value_cvalue v2).
       + by apply esr_val.
-      by apply esr_val.    
+      + by apply esr_val.
+      rewrite /Csyntax.typeof /=. 
+      have heq : Ctypes.prog_comp_env cprog = cenv0. (* need a way to say the generated comp env is same as obtained from cprog *)
+      + admit. 
+      by rewrite heq.
+    by have := bv_cv_reflex v0 v H12.
+  (* Run *)
+  + admit. 
+  (* Let-binding *)
+  + move=> i t e ih e' ih' t' m m' v he ht hs. monadInv ht; subst.
+    inversion hs; subst. inversion he; subst.
+    
 Admitted.
 
 
