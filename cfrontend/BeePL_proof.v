@@ -228,6 +228,12 @@ move=> e ce ht. elim: e ht=> //=.
 + move=> [].
 Admitted.
 
+Lemma transBeePL_expr_expr_type_equiv : forall e ce,
+transBeePL_expr_expr e = OK ce ->
+transBeePL_type (typeof_expr e) = OK (Csyntax.typeof ce).
+Proof.
+Admitted. 
+
 Lemma tranBeePL_expr_stmt_spec: forall e ce,
 transBeePL_expr_st e = OK ce ->
 tr_expr_stmt e ce.
@@ -436,6 +442,16 @@ Lemma senv_preserved : Senv.equiv (Csem.genv_genv cge) bge.
 Proof.
 Admitted.
 
+(* Equivalence between vmaps benv and cenv *)
+Lemma equiv_benv_cenv : forall vi l ct, 
+(transBeePL_type (vtype vi) = OK ct ->
+benv ! (vname vi) = Some (l, vtype vi) ->
+cenv ! (vname vi) = Some (l, ct)) /\
+(benv ! (vname vi) = None ->
+cenv ! (vname vi) = None).
+Proof.
+Admitted.
+
 (* Preservation of function ptr *) 
 Lemma function_ptr_translated : forall v f,
 Genv.find_funct_ptr bge v = Some f ->
@@ -491,285 +507,154 @@ Csem.assign_loc cge cty m addr ofs bf cv tr m' cv'.
 Proof.
 Admitted.
 
-(* Big step semantics with rvalue *) 
-(* If an expression evaluates to a value then in the c semantics if the expression is 
-   evaluated in RV position then it should also produce the same value *)
-Lemma bsem_cexpr_rval : forall e ce m m' v ct,
-bsem_expr bge benv m e m' v ->
-transBeePL_type (typeof_expr e) = OK ct ->
-transBeePL_expr_expr e = OK ce ->
-exists tr, eval_expr cge cenv m Csem.RV ce tr m' (Eval (transBeePL_value_cvalue v) ct).
+(* Expressions with no side-effects at LV poisition *)
+Inductive is_simple_lval : BeePL.expr -> Prop :=
+| Lvar : forall vi, 
+         is_simple_lval (Var vi)
+| Lderef : forall e t, 
+           is_simple_rval e ->
+           is_simple_lval (Prim Deref [::e] t)
+(* Expressions with no side-effects at RV poisition *)
+with is_simple_rval : BeePL.expr -> Prop :=
+| Rval : forall v t, 
+         is_simple_rval (Val v t)
+| Rconst : forall c t,
+           is_simple_rval (Const c t)
+| Rref : forall e t,
+         is_simple_lval e ->
+         is_simple_rval (Prim Ref [::e] t)
+| Ruop : forall o e t, 
+         is_simple_rval e ->
+         is_simple_rval (Prim (Uop o) [::e] t)
+| Rbop : forall o e1 e2 t,
+         is_simple_rval e1 ->
+         is_simple_rval e2 ->
+         is_simple_rval (Prim (Bop o) [:: e1; e2] t).
+
+Scheme is_simple_lval_mut := Minimality for is_simple_rval Sort Prop
+  with is_simple_rval_mut := Minimality for is_simple_lval Sort Prop.
+Combined Scheme is_simple_lval_rval_mut from is_simple_lval_mut, is_simple_rval_mut.
+
+Section Is_simple_lval_rval_ind.
+
+Context (Pl : BeePL.expr -> Prop).
+Context (Pr : BeePL.expr -> Prop).
+Context (Hlvar : forall vi, Pl (Var vi)).
+Context (Hlderef : forall e t, Pr e -> Pl (Prim Deref [::e] t)).
+Context (Hrval : forall v t, Pr (Val v t)).
+Context (Hrconst : forall c t, Pr (Const c t)).
+Context (Hrref : forall e t, Pl e -> Pr (Prim Ref [::e] t)).
+Context (Hruop : forall o e t, Pr e -> Pr (Prim (Uop o) [::e] t)).
+Context (Hrbop : forall o e1 e2 t, Pr e1 -> Pr e2 -> Pr (Prim (Bop o) [::e1; e2] t)).
+
+Lemma is_simple_lval_rval_ind : 
+(forall e, is_simple_rval e -> Pr e) /\ (forall e, is_simple_lval e -> Pl e).
 Proof.
-Admitted.
+apply is_simple_lval_rval_mut=> //=.
++ move=> e t hs he. by move: (Hrref e t he).
++ move=> o e t hs he. by move: (Hruop o e t he).
++ move=> o e1 e2 t hs he1 hs' he2. by move: (Hrbop o e1 e2 t he1 he2).
+move=> e t hs he. by move: (Hlderef e t he).
+Qed.
 
+End Is_simple_lval_rval_ind.
 
 (* Big step semantics with rvalue *) 
 (* If an expression evaluates to a value then in the c semantics if the expression is 
+   evaluated in RV position then it should also produce the same value 
+   If an expression evaluates to a value then in the c semantics if the expression is 
    evaluated in LV position then it should produce a location (deref, var)*)
-Lemma bsem_cexpr_lval : forall e ce m m' v ct l ofs bf,
-bsem_expr bge benv m e m' v ->
-transBeePL_type (typeof_expr e) = OK ct ->
-transBeePL_expr_expr e = OK ce ->
-exists tr, eval_expr cge cenv m Csem.LV ce tr m' (Eloc l ofs bf ct).
-Proof.
-Admitted.
+Lemma bsem_cexpr_rval : 
+(forall e, 
+ is_simple_rval e -> 
+  (forall m m' v, 
+    bsem_expr bge benv m e m' v ->
+    forall ct, 
+     transBeePL_type (typeof_expr e) = OK ct ->
+    forall ce, 
+     transBeePL_expr_expr e = OK ce ->
+    eval_simple_rvalue cge cenv m ce (transBeePL_value_cvalue v))) /\
+(forall e, is_simple_lval e ->
+  (forall m m' v, 
+    bsem_expr bge benv m e m' v ->
+    forall ct, 
+     transBeePL_type (typeof_expr e) = OK ct ->
+    forall ce, 
+     transBeePL_expr_expr e = OK ce ->
+    exists l ofs bf, eval_simple_lvalue cge cenv m ce l ofs bf)).
 
-
-(* Big step semantics of BeePL to big step semantics of Cstrategy *) 
-Lemma bsem_cexpr_preserve : forall m e m' v ce,
-bsem_expr bge benv m e m' v ->
-transBeePL_expr_expr e = OK ce ->
-sim_bexpr_cexpr benv e ce ->
-exists cv tr cm', eval_expression cge cenv m ce tr cm' cv /\
-transBeePL_value_cvalue v = cv.
 Proof.
-move=> m e m' v ce. move: m m' v. elim: e=> //=.
-(* Val *)
-+ move=> v' t' m m' v he ht hs. monadInv ht; subst; rewrite /=.
-  exists (transBeePL_value_cvalue v'). exists Events.E0. exists m. split=> //=.
-  + apply eval_expression_intro with (Eval (transBeePL_value_cvalue v') x).
-    apply eval_val. by apply esr_val.
-  by inversion he; subst.
+apply is_simple_lval_rval_ind=> //=. 
 (* Var *)
-+ move=> vi m m' v he ht hs. monadInv ht; subst; rewrite /=.
++ move=> vi m m' v he ct ht ce hte. monadInv hte; subst.
   inversion he; subst.
   (* local *)
-  + admit.
+  + exists l. exists Ptrofs.zero. exists Full. apply esl_var_local.
+    have [h1 h2]:= equiv_benv_cenv vi l x. by move: (h1 EQ H0).
   (* global *)
-  admit.
-(* Const *)
-+ admit.
-(* App *)
-+ admit.
-(* Builtin *)
-+ move=> [].   
-  (* Ref *)
-  + move=> es t m m' v he ht hs. monadInv ht; subst; rewrite /=.
-    case: es he hs EQ=> //=.
-    + move=> he. by inversion he.
-    move=> e es he. inversion he; subst.
-    move=> hs ht. monadInv ht; subst.
-    rewrite /exprlist_list_expr /=. rewrite /exprlist_list_expr /= in hs.
-    have [tr htr] := bsem_cexpr_lval e x1 m m' v0 ct l Ptrofs.zero Full H4 H7 EQ.
-    exists (Values.Vptr l Ptrofs.zero). eexists tr. exists m'. split=> //=.
-    apply eval_expression_intro with (Csyntax.Eaddrof (Eloc l Ptrofs.zero Full ct) x0).
-    + apply eval_addrof. by inversion hs; subst. 
-    apply esr_addrof. by apply esl_loc.
-  (* Deref *)
-  + move=> es t m m' v he ht hs. monadInv ht; subst; rewrite /=.
-    case: es he hs EQ=> //=.
-    + move=> he. by inversion he.
-    move=> e es he. inversion he; subst.
-    move=> hs ht. monadInv ht; subst.
-    rewrite /exprlist_list_expr /=. rewrite /exprlist_list_expr /= in hs.
-    inversion hs; subst; rewrite /=.
-    admit.
-  (* Massgn *)
-  + admit.
-  (* Op *)
-  + move=> u es t m m' v he ht hs. monadInv ht; subst; rewrite /=.
-    inversion hs; subst. inversion he; subst. 
-    rewrite /exprlist_list_expr /= in EQ. monadInv EQ; subst; rewrite /=. 
-    have [tr h] := bsem_cexpr_rval e1 x1 m m' v0 ct H3 H7 EQ0.
-    exists v'. exists tr. exists m'. split=> //=. 
-    + apply eval_expression_intro with (Csyntax.Eunop u (Eval (transBeePL_value_cvalue v0) ct) x0). 
-      + by apply eval_unop. 
-      apply esr_unop with (transBeePL_value_cvalue v0).
-      + by apply esr_val.
-      by have heq := typec_expr e1 ct x1 H7 EQ0; subst.
-    by have := bv_cv_reflex v' v H11.
-  (* Bop *)
-  + move=> b es t m m' v he ht hs. monadInv ht; subst; rewrite /=.
-    case: es he hs EQ=> //=.
-    + move=> he. by inversion he.
-    move=> e es he. inversion he; subst.
-    move=> hs ht. monadInv ht; subst. inversion EQ2. monadInv EQ2; subst; rewrite /=.
-    rewrite /exprlist_list_expr /=. rewrite /exprlist_list_expr /= in hs.
-    inversion hs; subst; rewrite /=.
-    have [tr1 htr1] := bsem_cexpr_rval e x1 m hm' v1 ct1 H3 H7 EQ.
-    have [tr2 htr2] := bsem_cexpr_rval e2 x hm' m' v2 ct2 H4 H10 EQ0.
-    exists v0. exists (Events.Eapp tr1 tr2). exists m'. split=> //=.
-    + apply eval_expression_intro with 
-      (Csyntax.Ebinop b (Eval (transBeePL_value_cvalue v1) ct1) 
-                        (Eval (transBeePL_value_cvalue v2) ct2) x0).
-      + apply eval_binop with hm'.
-        + by apply htr1.
-        by apply htr2.
-      apply esr_binop with (transBeePL_value_cvalue v1) (transBeePL_value_cvalue v2).
-      + by apply esr_val.
-      + by apply esr_val.
-      rewrite /Csyntax.typeof /=. 
-      have heq : Ctypes.prog_comp_env cprog = cenv0. (* need a way to say the generated comp env is same as obtained from cprog *)
-      + admit. 
-      by rewrite heq.
-    by have := bv_cv_reflex v0 v H12.
-  (* Run *)
-  + admit. 
-  (* Let-binding *)
-  + move=> i t e ih e' ih' t' m m' v he ht hs. monadInv ht; subst.
-    inversion hs; subst. inversion he; subst.
+  + exists l. exists Ptrofs.zero. exists Full. apply esl_var_global.
+    have [h1 h2]:= equiv_benv_cenv vi l x. by move: (h2 H0). 
+    by rewrite symbols_preserved.
+(* Deref *)
++ move=> e t hi m m' v he ct ht ce hte.
+Admitted.   
     
-Admitted.
 
-
-(* Returns true if the expression can be in the position of LV *)
-Definition is_lbeepl (e : BeePL.expr) : bool :=
-match e with 
-| Val v t => false
-| Var v => true 
-| Const c t => false
-| App id e es t => false 
-| Prim b es t => match b with 
-                 | Ref => false
-                 | Deref => true 
-                 | Massgn => false 
-                 | Uop o => false
-                 | Bop o => false
-                 | Run h => false (* Fix me *)
-                 end
-| Bind x t e e' t' => false
-| Cond e1 e2 e3 t => false
-| Unit t => false
-| Addr l ofs => false 
-| Hexpr m e t => false (* Fix me *)
-end.
-
-Section Is_simples.
-
-Variable is_simple : BeePL.expr -> bool.
-
-Fixpoint is_simples (es : list BeePL.expr) : bool :=
-match es with 
-| nil => true 
-| e :: es => is_simple e && is_simples es
-end.
-
-End Is_simples.
-
-(* Return true for simple (non-effectful) expressions *)
-Fixpoint is_simple (e : BeePL.expr) : bool :=
-match e with 
-| Val v t => true
-| Var v => true 
-| Const c t => true
-| App id e es t => false 
-| Prim b es t => match b with 
-                 | Ref => is_simples is_simple es
-                 | Deref => is_simples is_simple es 
-                 | Massgn => is_simples is_simple es 
-                 | Uop o => is_simples is_simple es
-                 | Bop o => is_simples is_simple es
-                 | Run h => false (* Fix me *)
-                 end
-| Bind x t e e' t' => false
-| Cond e1 e2 e3 t => false
-| Unit t => true
-| Addr l ofs => true 
-| Hexpr m e t => false (* Fix me *)
-end.
-
-Lemma bsem_lexpr_preserve : forall m e m' v ce,
-bsem_expr bge benv m e m' v ->
-is_lbeepl e = true ->
-transBeePL_expr_expr e = OK ce ->
-sim_bexpr_cexpr benv e ce ->
-exists l ofs bv, eval_simple_lvalue cge cenv m ce l ofs bv. 
-Proof.
-move=> m e m' v ce he hl ht htr. elim: e he hl ht htr=> //=.
+(*apply (is_simple_lval_rval_ind is_simple_lval is_simple_rval). with (is_simple_lval).  e (fun e => is_simple_rval e))=> //=. is_simple_rval. inversion h.
+elim: e=> //=. 
+(* Val *)
++ move=> v t hs ce m m' v' ct he ht hte. monadInv hte; subst; rewrite /=.
+  inversion he; subst. rewrite EQ in ht. by apply esr_val.
 (* Var *)
-+ move=> vi he _ ht htr. inversion he; subst.
-  (* local *)
-  + monadInv ht; subst. inversion htr; subst.
-    move: (H5 cenv (vname vi)). case: ifP=> //= h h'.
-    exists l, Ptrofs.zero, Full. apply esl_var_local.
-    move: (h' l). by move=> [] h1 h2.
-  + case: h'=> //= h1 h2. by rewrite H0 in h1.
-  (* global *)
-  monadInv ht; subst. inversion htr; subst.
-  move: (H6 cenv (vname vi)). case: ifP=> //= h h'.
-  + by rewrite H0 in h.
-  case: h'=> [] h1 h2.
-  exists l, Ptrofs.zero, Full. apply esl_var_global.
-  + by apply h2.
-  by rewrite symbols_preserved.
-(* Builtin-deref *)
-+ move=> [] //= es t he _ ht htr. monadInv ht.
-  inversion htr; subst. rewrite /transBeePL_expr_exprs /= in EQ. 
-  monadInv EQ; subst. rewrite /exprlist_list_expr /=. 
-  inversion he; subst. exists l, ofs, Full.
-  (*by have := eval_Ederef m e m' l ofs x1 x0 H4 EQ0.*) admit.
-Admitted.
++ move=> v hs ce m m' v' ct hv. by inversion hs.
+(* Const *)
++ move=> c. case: c=> //=. 
+  (* int *)
+  + move=> i t hs ce m m' v ct he ht hte. inversion he; subst. monadInv hte; subst; rewrite /=.
+    rewrite EQ in ht. case: ht=> ht'. by apply esr_val.
+  (* long *)
+  + move=> i t hs ce m m' v ct he ht hte. inversion he; subst. monadInv hte; subst; rewrite /=.
+    rewrite EQ in ht. case: ht=> ht'. by apply esr_val.
+  (* unit *)
+  move=> t hs ce m m' v ct he ht hte. inversion he; subst. monadInv hte; subst; rewrite /=.
+  rewrite EQ in ht. case: ht=> ht'. by apply esr_val.
+(* App *)
++ move=> o e ih es t hs ce m m' v ct he. by inversion hs.
+(* Builtin *)
++ move=> b. case: b=> //=.
+  (* Ref *)
+  + move=> es t hs ce m m' v ct. elim: es hs=> //=.
+    (* nil *)
+    + move=> _ he. by inversion he; subst.
+    (* cons *)
+    move=> e es hi /= hs he ht hte. monadInv hte; subst.
+    monadInv EQ; subst. inversion he; subst. inversion EQ; subst.
+    rewrite /transBeePL_value_cvalue /=. apply esr_addrof.
+    inversion hs; subst. by have := bsem_cexpr_lval e x1 m m' v0 ct0 l Ptrofs.zero Full H4 H7 EQ0.
+  (* Deref *)
+  + move=> es t hs ce m m' v ct he ht hte. monadInv hte; subst; rewrite /=.
+    inversion hs; subst.
+  (* Massgn *)
+  + move=> es t hs ce m m' v ct he ht hte. by inversion hs.
+  (* Uop *)
+  + move=> u es t hs ce m m' v ct he ht hte. monadInv hte; subst; rewrite /=.
+    inversion hs; subst. inversion he; subst; rewrite /=. inversion EQ; subst.
+    monadInv H1; subst; rewrite /=.
+    apply esr_unop with (transBeePL_value_cvalue v0).
+    + admit. (* no inductive hypothesis *)
+    have hct := typec_expr e ct0 x1 H6 EQ0; subst.
+    by have hv := bv_cv_reflex v' v H10; subst.
 
-(* Preservation of expression semantics with respect to small-step semantics *)
-(* Tweak lemma to not include cases where the expression take step to another expression *)
-Lemma sem_lexpr_preserve : forall m e m' e' ce,
-sem_expr bge benv m e m' e' ->
-is_lbeepl e = true ->
-transBeePL_expr_expr e = OK ce ->
-sim_bexpr_cexpr benv e ce ->
-exists ce', Csem.lred cge cenv ce m ce' m' /\ sim_bexpr_cexpr benv e' ce'.
-Proof.
-move=> m e m' e' ce he hl ht hs. elim: e he hl ht hs=> //=.
-(* Var *)
-+ move=> v he _ ht htr. inversion he; subst. monadInv ht.
-  inversion htr; subst. 
-  (* local var *)
-  + exists (Csyntax.Eloc l Ptrofs.zero Full x). 
-    move: (H4 cenv (vname v)). case: ifP=> //= hs h.
-    + split=> //=.
-      + apply Csem.red_var_local. by move: (h l)=> [].
-      by apply sim_val_loc.
-    case: h=> //= h1 h2. by rewrite H0 in h1.
-  (* global var *)
-  monadInv ht. exists (Csyntax.Eloc l Ptrofs.zero Full x). split=> //=.
-  + apply Csem.red_var_global. inversion htr; subst.
-    move: (H5 cenv (vname v)). case: ifP=> //= h h'.
-    + rewrite /isSome in h. by rewrite H0 /= in h.
-    by case: h'=> //=.
-  + by rewrite symbols_preserved.
-  by apply sim_val_loc.
-(* Builtin: Deref *)
-+ move=> [] //= es t he _ ht htr.
-  monadInv ht; subst. inversion he; subst; rewrite /=.
-  + rewrite /transBeePL_expr_exprs /= in EQ. monadInv EQ; subst.
-    rewrite /exprlist_list_expr /=. inversion htr; subst.  
-    admit.
-  rewrite /transBeePL_expr_exprs /= in EQ. monadInv EQ; subst.
-  rewrite /exprlist_list_expr /=. inversion htr; subst. 
-  exists (Eloc l ofs Full x0). split=> //=.
-  + monadInv EQ0; subst. rewrite H2 /=. apply Csem.red_deref.
-  by apply sim_addr.
-Admitted.
+    
 
-Definition is_rbeepl (e : BeePL.expr) : bool :=
-match e with 
-| Val v t => true
-| Var v => false 
-| Const c t => true
-| App id e es t => false  
-| Prim b es t => match b with 
-                 | Ref => true
-                 | Deref => true 
-                 | Massgn => false 
-                 | Uop o => true
-                 | Bop o => true
-                 | Run h => false (* Fix me *)
-                 end
-| Bind x t e e' t' => false
-| Cond e1 e2 e3 t => false
-| Unit t => true
-| Addr l ofs => false 
-| Hexpr m e t => false (* Fix me *)
-end.
 
-Lemma sem_rexpr_preserve : forall m e m' e' ce,
-sem_expr bge benv m e m' e' ->
-is_rbeepl e = true ->
-transBeePL_expr_expr e = OK ce ->
-sim_bexpr_cexpr benv e ce ->
-exists ce' tr, Csem.rred cge ce m tr ce' m' /\ sim_bexpr_cexpr benv e' ce'.
-Proof.
-Admitted. 
+/andP [] hse hses he. inversion he; subst.
+    move=> ht hte. monadInv hte; subst. rewrite /transBeePL_value_cvalue /=.
+    apply esr_addrof. monadInv EQ; subst. inversion EQ; subst; rewrite /=.
+  
+
+
+Admitted.*) 
 
 (* Preservation of allocation of variables between BeePL and Csyntax *)
 Lemma alloc_variables_preserved: forall m m' benv' vrs cvrs cvrs' cvrs'' cts,

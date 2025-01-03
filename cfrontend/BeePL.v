@@ -389,20 +389,20 @@ Inductive bsem_expr : vmap -> mem -> expr -> mem -> value -> Prop :=
              bsem_expr vm1 hm5 fd.(fn_body) hm6 rv -> 
              typeof_value rv (fd.(fn_return)) ->
              bsem_expr vm1 hm1 (App None e es t) hm6 rv 
-| bsem_prim_uop : forall vm hm e v uop hm' v' t ct v'',
-                  bsem_expr vm hm e hm' v ->
+| bsem_prim_uop : forall vm hm e v uop  v' t ct v'',
+                  bsem_expr vm hm e hm v ->
                   transBeePL_type (typeof_expr e) = OK ct ->
-                  sem_unary_operation uop (transBeePL_value_cvalue v) ct hm' = Some v' ->
+                  sem_unary_operation uop (transBeePL_value_cvalue v) ct hm = Some v' ->
                   transC_val_bplvalue v' = OK v'' ->
-                  bsem_expr vm hm (Prim (Uop uop) (e :: nil) t) hm' v''
-| bsem_prim_bop : forall vm hm cenv e1 e2 t v1 v2 bop hm' hm'' v ct1 ct2 v',
-                  bsem_expr vm hm e1 hm' v1 ->
-                  bsem_expr vm hm' e2 hm'' v2 ->
+                  bsem_expr vm hm (Prim (Uop uop) (e :: nil) t) hm v''
+| bsem_prim_bop : forall vm hm cenv e1 e2 t v1 v2 bop v ct1 ct2 v',
+                  bsem_expr vm hm e1 hm v1 ->
+                  bsem_expr vm hm e2 hm v2 ->
                   transBeePL_type (typeof_expr e1) = OK ct1 ->
                   transBeePL_type (typeof_expr e2) = OK ct2 ->
-                  sem_binary_operation cenv bop (transBeePL_value_cvalue v1) ct1 (transBeePL_value_cvalue v2) ct2 hm'' = Some v ->
+                  sem_binary_operation cenv bop (transBeePL_value_cvalue v1) ct1 (transBeePL_value_cvalue v2) ct2 hm = Some v ->
                   transC_val_bplvalue v = OK v' ->
-                  bsem_expr vm hm (Prim (Bop bop) (e1 :: e2 :: nil) t) hm'' v'
+                  bsem_expr vm hm (Prim (Bop bop) (e1 :: e2 :: nil) t) hm v'
 | bsem_prim_ref : forall vm hm e t ct hm' v l, 
                   bsem_expr vm hm e hm' v ->
                   transBeePL_type (typeof_expr e) = OK ct ->
