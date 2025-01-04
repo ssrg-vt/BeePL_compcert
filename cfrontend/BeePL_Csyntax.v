@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx Coq.Strings.BinaryString.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Coq.Lists.List.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes Coqlib SimplExpr.
-Require Import BeePL_aux BeePL BeeTypes Csyntax Errors.
+Require Import BeePL_aux BeePL BeeTypes Csyntax Errors SimplExpr.
 
 Local Open Scope string_scope.
 Local Open Scope error_monad_scope.
@@ -30,11 +30,11 @@ end.
 
 Definition default_expr := (Eval (Values.Vundef) Tvoid).
 
-Definition Ederef' (a: Csyntax.expr) (t: Ctypes.type) : Csyntax.expr :=
+(*Definition Ederef' (a: Csyntax.expr) (t: Ctypes.type) : Csyntax.expr :=
   match a with
   | Eaddrof a' t' => if type_eq t (typeof a') then a' else Ederef a t
   | _ => Ederef a t
-  end.
+  end.*)
 
 Fixpoint transBeePL_expr_expr (e : BeePL.expr) : res Csyntax.expr := 
 match e with 
@@ -58,7 +58,7 @@ match e with
                               ct) 
                  | Deref => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                             do ct <- (transBeePL_type t);
-                            OK (Ederef' (hd default_expr (exprlist_list_expr ces)) 
+                            OK (Ederef (hd default_expr (exprlist_list_expr ces)) 
                                 ct)   
                  | Massgn => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                              do ct <- (transBeePL_type t);
@@ -126,7 +126,7 @@ match e with
                                    ct))   
                  | Deref => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                             do ct <- (transBeePL_type t);
-                            OK (Sdo (Ederef' (hd default_expr (exprlist_list_expr ces)) 
+                            OK (Sdo (Ederef (hd default_expr (exprlist_list_expr ces)) 
                                      ct))   
                  | Massgn => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                              do ct <- (transBeePL_type t);
