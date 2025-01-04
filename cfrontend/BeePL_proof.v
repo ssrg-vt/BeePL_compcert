@@ -565,19 +565,19 @@ End Is_simple_lval_rval_ind.*)
    If an expression evaluates to a value then in the c semantics if the expression is 
    evaluated in LV position then it should produce a location (deref, var)*)
 Lemma bsem_cexpr_simple : 
-(forall e, 
-  (forall m m' v, 
+(forall bge benv m e l ofs bf, 
+    bsem_expr_slv bge benv m e l ofs bf ->
+    forall ce, 
+     transBeePL_expr_expr e = OK ce ->
+    eval_simple_lvalue cge cenv m ce l ofs bf) /\
+(forall bge benv m e m' v, 
     bsem_expr_srv bge benv m e m' v ->
     forall ce, 
      transBeePL_expr_expr e = OK ce ->
-    eval_simple_rvalue cge cenv m ce (transBeePL_value_cvalue v))) /\
-(forall e, 
-  (forall m l ofs bf, 
-    bsem_expr_slv bge benv m e l ofs bf ->
-    forall ce l ofs bf, 
-     transBeePL_expr_expr e = OK ce ->
-    eval_simple_lvalue cge cenv m ce l ofs bf)).
+    eval_simple_rvalue cge cenv m ce (transBeePL_value_cvalue v)).
+
 Proof.
+apply bsem_expr_slv_rlv_ind=> //=.
 Admitted.
 
 (*Lemma bsem_cexpr_rval : 
