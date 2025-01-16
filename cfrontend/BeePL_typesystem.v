@@ -341,7 +341,7 @@ typeof_value v ty.
 Proof.
 Admitted.
 
-(**** Progress ****)
+(**** Progress ***
 Lemma progress : forall Gamma Sigma genv vm hm e ef t, 
 type_expr Gamma Sigma e ef t ->
 is_value e \/ exists e' hm', sem_expr genv hm vm e hm' e'.
@@ -363,7 +363,7 @@ type_expr Gamma Sigma e ef t (* type_checker(e) *)  ->
 bsem_expr genv vm hm e hm' v ->
 typeof_value v t.
 Proof.
-Admitted.
+Admitted.*)
 
     
     
