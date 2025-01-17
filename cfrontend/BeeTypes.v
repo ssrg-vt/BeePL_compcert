@@ -186,7 +186,7 @@ type must be accessed:
 *)
 Definition access_mode_prim (t : primitive_type) : mode :=
 match t with 
-| Tunit =>  By_nothing (* Fix me *)
+| Tunit => By_nothing (* Fix me *)
 | Tint I8 Signed _ => By_value Mint8signed
 | Tint I8 Unsigned _ => By_value Mint8unsigned
 | Tint I16 Signed _ => By_value Mint16signed
@@ -262,14 +262,16 @@ end.
 Fixpoint transBeePL_type (t : BeeTypes.type) : res Ctypes.type :=
 match t with
 | Ptype t => match t with  
-             | Tunit => OK (Ctypes.Tint I8 Unsigned {| attr_volatile := false; attr_alignas := Some 1%N |}) (* Fix me *)
+             (* | Tunit => OK (Ctypes.Tint I8 Unsigned {| attr_volatile := false; attr_alignas := Some 1%N |}) (* Fix me *) *)
+             (* If we want the above version then we necessarily will want to change the access mode to the Int as well *)
+             | Tunit => OK (Ctypes.Tvoid)
              | Tint sz s a => OK (Ctypes.Tint sz s a)
              | Tlong s a => OK (Ctypes.Tlong s a)
              end
-| Reftype h bt a => match bt with 
-                    | Bprim Tunit => OK (Ctypes.Tpointer Ctypes.Tvoid a)
-                    | Bprim (Tint sz s a) => OK (Ctypes.Tpointer (Ctypes.Tint sz s a) a)
-                    | Bprim (Tlong s a) => OK (Ctypes.Tpointer (Ctypes.Tlong s a) a)
+| Reftype h bt a_ref => match bt with
+                    | Bprim Tunit => OK (Ctypes.Tpointer Ctypes.Tvoid a_ref)
+                    | Bprim (Tint sz s a_inner) => OK (Ctypes.Tpointer (Ctypes.Tint sz s a_inner) a_ref)
+                    | Bprim (Tlong s a_inner) => OK (Ctypes.Tpointer (Ctypes.Tlong s a_inner) a_ref)
                     end
 | BeeTypes.Ftype ts ef t => do ats <- (transBeePL_types transBeePL_type ts);
                             do rt <- (transBeePL_type t);
