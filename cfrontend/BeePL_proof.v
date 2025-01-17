@@ -221,6 +221,8 @@ move=> e ce ht. elim: e ht=> //=.
   + move=> i. by apply tr_val_int.
   + move=> i. by apply tr_val_long.
   move=> l ofs. by apply tr_val_loc.
+(* Valof *)
++ admit.
 (* var *)
 + move=> vi ht. monadInv ht.
   by apply tr_var.
@@ -608,10 +610,14 @@ apply bsem_expr_slv_rlv_ind=> //=.
   by apply esr_val.
 (* Const unit *)
 + move=> m ce [] hce /=; subst. by apply esr_val.
-(* Loc *)
-+ move=> m e t l ofs bf v hi ht ce hte /=.
-  (* don't know how to evaluate deref on the rv position *)
-  admit.
+(* Valof *)
++ move=> m e t l ofs bf v hi ht heq hvt ce hte /=; subst.
+  monadInv hte; subst. apply esr_rvalof with l ofs bf.
+  + by move: (hi x0 EQ1).
+  + have h := transBeePL_expr_expr_type_equiv e x0 EQ1. 
+    rewrite EQ in h. by case: h.
+  + by have := non_volatile_type_preserved (typeof_expr e) x hvt EQ.
+  by have := deref_addr_translated (typeof_expr e) m l ofs bf v x (transBeePL_value_cvalue v) ht EQ refl_equal.
 (* Uop *)
 + move=> m e v uop v' t ct v'' hi /= ht ho hv' ce hte.
   monadInv hte; subst. monadInv EQ; subst.
@@ -694,4 +700,3 @@ Admitted.
 (* Refer: sstep_simulation in SimplExprproof.v *)
 
 End semantic_preservation.
-

@@ -40,6 +40,9 @@ Fixpoint transBeePL_expr_expr (e : BeePL.expr) : res Csyntax.expr :=
 match e with 
 | Val v t => do vt <- (transBeePL_type t);
              OK (Eval (transBeePL_value_cvalue v) vt) 
+| Valof e t => do ct <- (transBeePL_type t);
+               do ce <- (transBeePL_expr_expr e);
+               OK (Evalof ce ct)
 | Var x => do xt <- (transBeePL_type (vtype x));
            OK (Evar (vname x) xt)
 | Const c t => match c with 
@@ -47,10 +50,10 @@ match e with
                | ConsLong i => do it <- (transBeePL_type t); OK (Eval (Values.Vlong i) it)
                | ConsUnit => do ut <- (transBeePL_type t); OK (Eval (Values.Vint (Int.repr 0)) ut) 
                end
-| App r e es t => do ce <- (transBeePL_expr_expr e); 
-                  do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
-                  do ct <- (transBeePL_type t);
-                  OK (Ecall ce ces ct)
+| App e es t => do ce <- (transBeePL_expr_expr e); 
+                do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
+                do ct <- (transBeePL_type t);
+                OK (Ecall ce ces ct)
 | Prim b es t => match b with 
                  | Ref => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                           do ct <- (transBeePL_type t);
@@ -107,6 +110,9 @@ Definition transBeePL_expr_st (e : BeePL.expr) : res Csyntax.statement :=
 match e with 
 | Val v t => do vt <- (transBeePL_type t);
              OK (Sreturn (Some (Eval (transBeePL_value_cvalue v) vt))) 
+| Valof e t => do ct <- (transBeePL_type t);
+               do ce <- (transBeePL_expr_expr e);
+               OK (Sreturn (Some (Evalof ce ct)))
 | Var x => do ct <- (transBeePL_type x.(vtype));
            OK (Sreturn (Some (Evalof (Evar x.(vname) ct) ct)))
 | Const c t => do ct <- (transBeePL_type t);
@@ -115,10 +121,10 @@ match e with
                                       | ConsLong i => Eval (Values.Vlong i) ct
                                       | ConsUnit => Eval (Values.Vint (Int.repr 0)) ct
                                       end) ct)))
-| App r e es t => do ce <- (transBeePL_expr_expr e);
-                  do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
-                  do ct <- (transBeePL_type t);
-                  OK (Sdo (Ecall ce ces ct))  
+| App e es t => do ce <- (transBeePL_expr_expr e);
+                do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
+                do ct <- (transBeePL_type t);
+                OK (Sdo (Ecall ce ces ct))  
 | Prim b es t => match b with 
                  | Ref => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                           do ct <- (transBeePL_type t);
