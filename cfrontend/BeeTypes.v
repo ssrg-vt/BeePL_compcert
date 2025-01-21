@@ -262,12 +262,11 @@ end.
 Fixpoint transBeePL_type (t : BeeTypes.type) : res Ctypes.type :=
 match t with
 | Ptype t => match t with  
-             (* | Tunit => OK (Ctypes.Tint I8 Unsigned {| attr_volatile := false; attr_alignas := Some 1%N |}) (* Fix me *) *)
-             (* If we want the above version then we necessarily will want to change the access mode to the Int as well *)
-             | Tunit => OK (Ctypes.Tvoid)
+             | Tunit => OK (Ctypes.Tint I8 Unsigned {| attr_volatile := false; attr_alignas := Some 1%N |}) (* Fix me *)
              | Tint sz s a => OK (Ctypes.Tint sz s a)
              | Tlong s a => OK (Ctypes.Tlong s a)
              end
+(* Keeping the Reftype change for now because think this was a genuine mistake *)
 | Reftype h bt a_ref => match bt with
                     | Bprim Tunit => OK (Ctypes.Tpointer Ctypes.Tvoid a_ref)
                     | Bprim (Tint sz s a_inner) => OK (Ctypes.Tpointer (Ctypes.Tint sz s a_inner) a_ref)

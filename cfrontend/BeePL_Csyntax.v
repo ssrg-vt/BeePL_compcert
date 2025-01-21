@@ -68,8 +68,7 @@ match e with
                              OK (Eassign (hd default_expr (exprlist_list_expr ces))
                                     (hd default_expr (tl (exprlist_list_expr ces)))
                                  ct)
-                 | Run h => do ct <- transBeePL_type t;
-                            OK (Eval (Values.Vundef) ct)
+                 | Run h => OK (Eval (Values.Vundef) Tvoid) (* Fix me *)
                  | Uop o => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                             do ct <- (transBeePL_type t);
                             OK (Eunop o
@@ -96,8 +95,7 @@ match e with
            OK (Eval (transBeePL_value_cvalue Vunit) ct) (* Fix me *)
 | Addr l ofs => do ct <- (transBeePL_type (ltype l));
             OK (Eloc l.(lname) ofs l.(lbitfield) ct)
-| Hexpr h e t => do ct <- transBeePL_type t; (* This gives Qed in auxlemmas but probably isn't what we want *)
-                OK (Eval (Values.Vundef) ct)
+| Hexpr h e t => OK (Eval (Values.Vundef) Tvoid) (* FIX ME *)
 end.
 
 Definition check_var_const (e : BeePL.expr) : bool :=
