@@ -100,13 +100,13 @@ if (v1.(lname) =? v2.(lname))%positive && (eq_type v1.(ltype) v2.(ltype)) then t
 
 Inductive builtin : Type :=
 | Ref : builtin              (* allocation : ref t e allocates e of type t 
-                                and returns the fresh address *)
+                                and returns the fresh address *) (* rvalue *)
 | Deref : builtin            (* dereference : deref t e returns the value of type t 
-                                present at location e *)
+                                present at location e *) (* lvalue *)
 | Massgn : builtin           (* assign value at a location l (l := e) 
                                 assigns the evaluation of e to the reference cell l *)
-| Uop : Cop.unary_operation -> builtin       (* unary operator *)
-| Bop : Cop.binary_operation -> builtin       (* binary operator *)
+| Uop : Cop.unary_operation -> builtin       (* unary operator *) (* rvalue *)
+| Bop : Cop.binary_operation -> builtin       (* binary operator *) (* rvalue *)
 | Run : Memory.mem -> builtin      (* eliminate heap effect : [r1-> v1, ..., ern->vn] e 
                                 reduces to e captures the essence of state isolation 
                                 and reduces to a value discarding the heap *).
@@ -115,22 +115,20 @@ Inductive builtin : Type :=
 (* The source language never exposes the heap binding construct hpφ.e directly to the user 
    but during evaluation the reductions on heap operations create heaps and use them. *)
 Inductive expr : Type :=
-| Val : value -> type -> expr                                      (* value *)
-| Valof : expr -> type -> expr                                     (* eval location at right-hand side : deref *)
-| Var : vinfo -> expr                                              (* variable *)
-| Const : constant -> type -> expr                                 (* constant *)
-| App : expr -> list expr -> type -> expr                          (* function application *)
-| Prim : builtin -> list expr -> type -> expr                      (* primitive functions: arrow : 
-                                                                      for now I want to treat them not like functions
-                                                                      during the semantics of App, we always make sure that
-                                                                      the fist "e" is evaluated to a location  *)
+| Val : value -> type -> expr                                      (* value *) (* rvalue *)
+| Valof : expr -> type -> expr                                     (* not written by programmer, 
+                                                                      but denotes read from a location at rvalue *)
+| Var : vinfo -> expr                                              (* variable *) (* lvalue *)
+| Const : constant -> type -> expr                                 (* constant *) (* rvalue *)
+| App : expr -> list expr -> type -> expr                          (* function application *) (* rvalue *)
+| Prim : builtin -> list expr -> type -> expr                      (* primitive operations *)
 | Bind : ident -> type -> expr -> expr -> type -> expr             (* let binding: type of continuation *)
 | Cond : expr -> expr -> expr -> type -> expr                      (* if e then e else e *) 
 | Unit : type -> expr                                                      (* unit *)
 (* not intended to be written by programmers:
    Only should play role in operational semantics *)
 | Addr : linfo -> ptrofs -> expr                                   (* address *)
-| Hexpr : Memory.mem -> expr -> type -> expr                              (* heap effect *).
+| Hexpr : Memory.mem -> expr -> type -> expr                       (* heap effect *).
 
 Definition is_value (e : expr) : bool :=
 match e with 
@@ -569,8 +567,6 @@ Inductive rreduction : expr -> Memory.mem -> expr -> Memory.mem -> Prop :=
                typeof_expr e = t ->
                BeeTypes.type_is_volatile t = false ->
                rreduction (Valof (Addr {| lname := l; ltype := t; lbitfield := bf |} ofs) t) hm (Val v t) hm
-| rred_addr : forall hm l t ofs bf,
-              rreduction (Addr {| lname := l; ltype := t; lbitfield := bf |} ofs) hm (Val (Vloc l ofs) t) hm
 | rred_ref : forall hm v tv t hm' l, 
              Mem.alloc hm 0 (sizeof_type tv) = (hm', l) ->
              assign_addr tv hm' l Ptrofs.zero Full v hm' v ->
@@ -590,12 +586,12 @@ Inductive rreduction : expr -> Memory.mem -> expr -> Memory.mem -> Prop :=
               transBeePL_type tv = OK ctv ->
               bool_val (transBeePL_value_cvalue v) ctv hm = Some b ->
               rreduction (Cond (Val v tv) e1 e2 t) hm (if b then e1 else e2) hm
-| rred_massgn : forall hm l ofs tv1 v tv2 ct1 ct2 t hm' v' bf,
-                transBeePL_type tv1 = OK ct1 ->
+| rred_massgn : forall hm l ofs v tv2 ct1 ct2 t hm' v' bf,
+                transBeePL_type t = OK ct1 ->
                 transBeePL_type tv2 = OK ct2 ->
                 sem_cast (transBeePL_value_cvalue v) ct2 ct1 hm = Some (transBeePL_value_cvalue v') ->
-                assign_addr tv1 hm l ofs bf v' hm' v' ->
-                rreduction (Prim Massgn (Val (Vloc l ofs) tv1 :: Val v tv2 :: nil) t) hm (Val v' tv1) hm'
+                assign_addr t hm l ofs bf v' hm' v' ->
+                rreduction (Prim Massgn ((Addr {| lname := l; ltype := t; lbitfield := bf |} ofs) :: Val v tv2 :: nil) t) hm (Val v' t) hm'
 | rred_bind : forall vm hm x v e2 e2' t t' hm',
               subst vm hm x v e2 hm' e2' ->
               rreduction (Bind x t (Val v t) e2 t') hm e2' hm'

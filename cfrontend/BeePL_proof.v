@@ -133,17 +133,9 @@ Section specifications.
 
 (* Simpler specification for expressions translations *) 
 Inductive sim_bexpr_cexpr : vmap -> BeePL.expr -> Csyntax.expr -> Prop :=
-| sim_val_unit : forall le t ct, (* Fix me *)
-                 transBeePL_type t = OK ct ->
-                 sim_bexpr_cexpr le (BeePL.Val Vunit t) (Csyntax.Eval (transBeePL_value_cvalue Vunit) ct)
-| sim_val_int : forall le i t ct,
-                transBeePL_type t = OK ct ->
-                sim_bexpr_cexpr le (BeePL.Val (Vint i) t) (Csyntax.Eval (Values.Vint i) ct)
-| sim_val_long : forall le i t ct,
-                 sim_bexpr_cexpr le (BeePL.Val (Vint64 i) t) (Csyntax.Eval (Values.Vlong i) ct)
-| sim_val_loc : forall le l ofs t ct,
-                transBeePL_type t = OK ct ->
-                sim_bexpr_cexpr le (BeePL.Val (Vloc l ofs) t) (Csyntax.Eval (Values.Vptr l ofs) ct)
+| sim_val : forall le v t ct, 
+            transBeePL_type t = OK ct ->
+            sim_bexpr_cexpr le (BeePL.Val v t) (Csyntax.Eval (transBeePL_value_cvalue v) ct)
 | sim_valof : forall le e t ct ce,
               transBeePL_type t = OK ct ->
               sim_bexpr_cexpr le e ce ->
@@ -177,7 +169,7 @@ Inductive sim_bexpr_cexpr : vmap -> BeePL.expr -> Csyntax.expr -> Prop :=
                     sim_bexpr_cexpr le e1 ce1 ->
                     sim_bexpr_cexpr le e2 ce2 ->
                     sim_bexpr_cexpr le (BeePL.Prim Massgn (e1 :: e2 :: nil) t) (Csyntax.Eassign ce1 ce2 ct)
-| sim_prim_op : forall le o e1 t ct ce1, 
+| sim_prim_uop : forall le o e1 t ct ce1, 
                 transBeePL_type t = OK ct ->
                 sim_bexpr_cexpr le e1 ce1 ->
                 sim_bexpr_cexpr le (BeePL.Prim (Uop o) (e1 :: nil) t) (Csyntax.Eunop o ce1 ct)
@@ -222,15 +214,6 @@ transBeePL_expr_expr e = OK ce ->
 sim_bexpr_cexpr vm e ce.
 Proof.
 move=> vm e ce ht. elim: e ht=> //=.
-(* val *)
-+ move=> v t ht. monadInv ht.
-  case: v=> //=.
-  + by apply sim_val_unit.
-  + move=> i. by apply sim_val_int.
-  + move=> i. by apply sim_val_long.
-  move=> l ofs. by apply sim_val_loc.
-(* Valof *)
-+ move=> e hi t /= ht. monadInv ht. admit.
 Admitted.
 
 Lemma transBeePL_expr_expr_type_equiv : forall e ce,
@@ -459,58 +442,6 @@ Csem.assign_loc cge cty m addr ofs bf cv tr m' cv'.
 Proof.
 Admitted.
 
-(* Expressions with no side-effects at LV poisition 
-Inductive is_simple_lval : BeePL.expr -> Prop :=
-| Lvar : forall vi, 
-         is_simple_lval (Var vi)
-| Lderef : forall e t, 
-           is_simple_rval e ->
-           is_simple_lval (Prim Deref [::e] t)
-(* Expressions with no side-effects at RV poisition *)
-with is_simple_rval : BeePL.expr -> Prop :=
-| Rval : forall v t, 
-         is_simple_rval (Val v t)
-| Rconst : forall c t,
-           is_simple_rval (Const c t)
-| Rref : forall e t,
-         is_simple_lval e ->
-         is_simple_rval (Prim Ref [::e] t)
-| Ruop : forall o e t, 
-         is_simple_rval e ->
-         is_simple_rval (Prim (Uop o) [::e] t)
-| Rbop : forall o e1 e2 t,
-         is_simple_rval e1 ->
-         is_simple_rval e2 ->
-         is_simple_rval (Prim (Bop o) [:: e1; e2] t).
-
-Scheme is_simple_lval_mut := Minimality for is_simple_rval Sort Prop
-  with is_simple_rval_mut := Minimality for is_simple_lval Sort Prop.
-Combined Scheme is_simple_lval_rval_mut from is_simple_lval_mut, is_simple_rval_mut.
-
-Section Is_simple_lval_rval_ind.
-
-Context (Pl : BeePL.expr -> Prop).
-Context (Pr : BeePL.expr -> Prop).
-Context (Hlvar : forall vi, Pl (Var vi)).
-Context (Hlderef : forall e t, Pr e -> Pl (Prim Deref [::e] t)).
-Context (Hrval : forall v t, Pr (Val v t)).
-Context (Hrconst : forall c t, Pr (Const c t)).
-Context (Hrref : forall e t, Pl e -> Pr (Prim Ref [::e] t)).
-Context (Hruop : forall o e t, Pr e -> Pr (Prim (Uop o) [::e] t)).
-Context (Hrbop : forall o e1 e2 t, Pr e1 -> Pr e2 -> Pr (Prim (Bop o) [::e1; e2] t)).
-
-Lemma is_simple_lval_rval_ind : 
-(forall e, is_simple_rval e -> Pr e) /\ (forall e, is_simple_lval e -> Pl e).
-Proof.
-apply is_simple_lval_rval_mut=> //=.
-+ move=> e t hs he. by move: (Hrref e t he).
-+ move=> o e t hs he. by move: (Hruop o e t he).
-+ move=> o e1 e2 t hs he1 hs' he2. by move: (Hrbop o e1 e2 t he1 he2).
-move=> e t hs he. by move: (Hlderef e t he).
-Qed.
-
-End Is_simple_lval_rval_ind.*)
-
 (* Big step semantics with rvalue *) 
 (* If an expression evaluates to a value then in the c semantics if the expression is 
    evaluated in RV position then it should also produce the same value 
@@ -680,8 +611,68 @@ by apply sim_addr.
 Qed.
 
 (* Equivalence between right reduction top level *)
-
-
-
+Lemma equiv_rreduction : forall e m e' m' ce,
+rreduction bge e m e' m' ->
+transBeePL_expr_expr e = OK ce ->
+exists ce' t, Csem.rred cge ce m t ce' m' /\ sim_bexpr_cexpr benv e' ce'.
+Proof.
+move=> e m e' m' ce hr. induction hr; subst; rewrite /=.
+(* valof *)
++ move=> hr. monadInv hr; subst. monadInv EQ1; subst.
+  exists (Eval (transBeePL_value_cvalue v) x1). exists Events.E0.
+  split=> //=.
+  + rewrite EQ in EQ0. case: EQ0=> EQ1; subst. apply Csem.red_rvalof.
+    by have := deref_addr_translated (typeof_expr e) hm l ofs bf v x1 
+            (transBeePL_value_cvalue v) H EQ refl_equal.
+  by apply sim_val.
+(* ref *) (* Fix me *)
++ move=> hr. monadInv hr; subst. monadInv EQ; subst. monadInv EQ0; subst.
+  exists (Eval (Values.Vptr l Ptrofs.zero) x0). exists Events.E0.
+  split=> //=.
+  + admit.
+  admit.
+(* uop *)
++ move=> hr. monadInv hr; subst. monadInv EQ; subst. monadInv EQ0; subst; rewrite /=.
+  exists (Eval v' x0). exists Events.E0. split=> //=.
+  + apply Csem.red_unop. rewrite H in EQ1. case: EQ1=> EQ2; subst.
+    rewrite H in EQ. by case: EQ=> EQ1; subst.
+  have <- /= := bv_cv_reflex v' v'' H1. by apply sim_val.
+(* bop *)
++ move=> hr. monadInv hr; subst. monadInv EQ; subst.
+  monadInv EQ0; subst. monadInv EQ; subst. monadInv EQ0; subst; rewrite /=.
+  exists (Eval v x0). exists Events.E0. split=> //=.
+  + apply Csem.red_binop. have -> := comp_env_preserved.
+    rewrite H in EQ2. case: EQ2=> EQ2'; subst. 
+    rewrite H0 in EQ. by case: EQ=> EQ'; subst.
+  have <- /= := bv_cv_reflex v v' H2. by apply sim_val.
+(* cond *) (* cond steps to Eparen which we don't have in our language *)
++ move=> hr. monadInv hr; subst. monadInv EQ; subst; rewrite /=.
+  exists (Eparen (if b then x0 else x1) x2 x2). exists Events.E0.
+  split=> //=.
+  + apply Csem.red_condition. rewrite H in EQ3. by case: EQ3=> EQ3'; subst.
+    case: b H0=> //=.
+    + move=> H0. admit.
+    admit.
+(* massgn *)
++ move=> hr. monadInv hr; subst. monadInv EQ; subst; rewrite /=.
+  monadInv EQ0; subst. monadInv EQ; subst. monadInv EQ0; subst; rewrite /=.
+  exists (Eval (transBeePL_value_cvalue v') x0). exists Events.E0. split=> //=.
+  + rewrite EQ1 in EQ2. case: EQ2=> EQ2'; subst.
+    apply Csem.red_assign with (transBeePL_value_cvalue v').
+    + rewrite H0 in EQ. case: EQ=> EQ'; subst. rewrite H in EQ1. 
+      by case: EQ1=> EQ1'; subst.
+    rewrite H in EQ1. case: EQ1=> EQ1'; subst.
+    by have := assgn_addr_translated t hm l ofs bf v' hm' x Events.E0
+            (transBeePL_value_cvalue v') v' (transBeePL_value_cvalue v') H2 
+            H refl_equal refl_equal.
+  by apply sim_val.
+(* bind *) (* need to think about how bind translates *)
++ move=> hr. monadInv hr; subst. monadInv EQ1; subst. exists x2.
+  exists Events.E0. split=> //=.
+  + admit.
+  admit.
+(* unit *)
+admit.
+Admitted.   
   
 End semantic_preservation.
