@@ -621,11 +621,12 @@ Inductive callreduction : expr -> Memory.mem -> fundef -> list value -> type -> 
    after the expression under consideration has evaluated completely *)
 Inductive cont: Type :=
 | Kstop : cont 
-| Kdo : cont -> cont (* after [x] in [x;] *)
+| Kdo : cont -> cont          (* after [x] in [x;] *)
 | Klet : expr -> cont -> cont (* after x=e1 in bind x = e1 in e2) *)
 | Kcond : expr -> expr -> cont -> cont (* after [x] in if {x} {e1} {e2} *)
 | Kcall : function -> (* calling function *)
           vmap ->     (* local env of calling function *)
+          (expr -> expr) ->   (* context of the call *)
           type ->     (* type of call expression *)
           cont -> cont.          
 
@@ -634,29 +635,149 @@ Inductive cont: Type :=
    from a calling function to a called function [CallState], or the symmetrical transition
    from a function back to its caller [ReturnState] *)
 Inductive state : Type :=
-| ExprState (f : function)
+| ExprState (f : function)            (* reduction of an expression *)
             (e : expr)
             (k : cont)
-            (e : vmap)
+            (vm : vmap)
             (m : Memory.mem) : state
-| CallState (fd : fundef)
+| CallState (fd : fundef)             (* calling a function *)
             (args : list value)
             (k : cont)
             (m : Memory.mem) : state
-| StuckState.
+| StuckState                          (* undefined behvaior occured *).
 
+(* Reduction contexts *)
+(* Kind can be a left value or a right value position representing the position of reduction *)
+Inductive kind : Type := LV | RV.
+
+Inductive context : kind -> kind -> (expr -> expr) -> Prop :=
+| ctx_top : forall k,
+            context k k (fun x => x)
+(* Valof e t, where e is evaluated at LV position *)
+| ctx_valof : forall k C t,
+              context k LV C ->
+              context k RV (fun x => Valof (C x) t)
+(* Ref e t, where e is evaluated at RV position *)
+| ctx_ref : forall k C t,
+            context k RV C ->
+            context k RV (fun x => Prim Ref [:: C x] t)
+(* Deref e t, where e is evaluated at RV position, but deref is evaluated in LV *)
+| ctx_deref : forall k C t,
+              context k RV C ->
+              context k LV (fun x => Prim Deref [:: C x] t)
+(* e1 := e2, evaluates in two rules *)
+| ctx_massgn1 : forall k C t e2, 
+                context k LV C ->
+                context k RV (fun x => Prim Massgn (C x :: e2 :: nil) t)
+| ctx_massgn2 : forall k C t e1,
+                context k RV C ->
+                context k RV (fun x => Prim Massgn (e1 :: C x :: nil) t)
+(* uop(e), where e is evaluated at RV position *)
+| ctx_uop : forall k C t o,
+            context k RV C ->
+            context k RV (fun x => Prim (Uop o) [:: (C x)] t)
+(* bop(e1,e2), where e1 is evaluated at RV in first rule and e2 is evaluated at RV in second rule *)
+| ctx_bop1 : forall k C t o e2,
+             context k RV C ->
+             context k RV (fun x => Prim (Bop o) ((C x) :: e2 :: nil) t)
+| ctx_bop2 : forall k C t o e1,
+             context k RV C ->
+             context k RV (fun x => Prim (Bop o) (e1 :: (C x) :: nil) t)
+| ctx_cond : forall k C t e2 e3,
+             context k RV C ->
+             context k RV (fun x => Cond (C x) e2 e3 t)
+| ctx_bind : forall k C t r t' e,
+             context k RV C ->
+             context k RV (fun x => Bind r t' (C x) e t)
+| ctx_app1 : forall k C t es,
+             context k RV C ->
+             context k RV (fun x => App (C x) es t)
+| ctx_app2 : forall k C t e,
+             contexts k C ->
+             context k RV (fun x => App e (C x) t) 
+(* fix me : add the case for hexpr *)
+with contexts : kind -> (expr -> list expr) -> Prop :=
+| ctx_hd : forall k C el,
+           context k RV C ->
+           contexts k (fun x => (C x) :: el)
+| ctx_tl : forall k C e1,
+           contexts k C ->
+           contexts k (fun x => e1 :: (C x)).
+              
+(* Relation representing safe execution of expressions *)
+Inductive expr_safe : kind -> expr -> Memory.mem -> Prop :=
+| expr_safe_val : forall v t m,
+                  expr_safe RV (Val v t) m
+| expr_safe_loc : forall l t m,
+                  expr_safe LV (Addr l t) m
+| expr_safe_lred : forall e m e' m' to C,
+                   lreduction e m e' m' ->
+                   context LV to C ->
+                   expr_safe to (C e) m
+| expr_safe_rred : forall e m e' m' to C,
+                   rreduction e m e' m' ->
+                   context RV to C -> 
+                   expr_safe to (C e) m
+| expr_safe_call : forall e m fd args t to C,
+                   callreduction e m fd args t ->
+                   context RV to C ->
+                   expr_safe to (C e) m.
+
+Definition not_stuck (e : expr) (m : Memory.mem) : Prop :=
+forall k C e',
+context k RV C -> e = C e' -> expr_safe k e' m.
+
+(* Reduction semantics *) 
 Inductive ssem : state -> state -> Prop :=
-| s_val : forall hm k f v t,
-          ssem (ExprState f (Val v t) (Kdo k) vm hm) (ExprState f (Unit (Ptype Tunit)) k vm hm).
+| s_lreduction : forall C f e k e' m m',
+                 lreduction e m e' m' ->
+                 context LV RV C ->
+                 ssem (ExprState f (C e) k vm m) (ExprState f (C e') k vm m')
+| s_rreduction : forall C f e k m e' m',
+                 rreduction e m e' m' ->
+                 context RV RV C ->
+                 ssem (ExprState f (C e) k vm m) (ExprState f (C e') k vm m')
+| s_call : forall C f e k m fd args t,
+           callreduction e m fd args t ->
+           context RV RV C ->
+           ssem (ExprState f (C e) k vm m) (CallState fd args (Kcall f vm C t k) m)
+| s_stuck : forall C f e k m K,
+            context K RV C ->
+            ~(expr_safe K e m) ->
+            ssem (ExprState f (C e) k vm m) StuckState
+| s_val : forall m k f v t,
+          ssem (ExprState f (Val v t) (Kdo k) vm m) (ExprState f (Unit (Ptype Tunit)) k vm m)
+| s_internal_fun : forall f vargs k m m' m'',
+                   list_norepet (f.(fn_args) ++ f.(fn_vars)) ->
+                   alloc_variables empty_vmap m (f.(fn_args) ++ f.(fn_vars)) vm m' -> 
+                   bind_variables vm m' f.(fn_args) vargs m'' ->
+                   ssem (CallState (Internal f) vargs k m) (ExprState f f.(fn_body) k vm m'')
+| s_cond1 : forall f e1 e2 e3 t k m,
+            ssem (ExprState f (Cond e1 e2 e3 t) k vm m) (ExprState f e1 (Kcond e2 e3 k) vm m)
+| s_cond2 : forall f v e2 e3 t k m ct b,
+            transBeePL_type t = OK ct ->
+            bool_val (transBeePL_value_cvalue v) ct m = Some b -> 
+            ssem (ExprState f (Val v t) (Kcond e2 e3 k) vm m) (ExprState f (if b then e2 else e3) k vm m)
+(* add one more rule for bind to evaluate e1 *)
+| s_bind1 : forall f x t' v e2 t k m e2' m',
+            subst vm m x v e2 m' e2' ->
+            ssem (ExprState f (Bind x t' (Val v t') e2 t) k vm m) (ExprState f e2' k vm m').
+
+Definition step (s : state) (s' : state) : Prop :=
+ssem s s'.
 
 End Small_step_semantics.
+
+(* Whole program semantics *) (* Fix me *)
+(* Execution of whole program is defined as sequences of transition from initial state 
+   to a final state. An initial state is a CallState corresponding to invocation 
+   of the main function of the program *)
 
                
 (*Section Small_step_semantics.
 
 Variable ge : genv. 
 
-(*** Small step semantics ***) 
 Inductive sem_expr : vmap -> Memory.mem -> expr -> Memory.mem -> expr -> Prop :=
 | sem_val_unit : forall vm hm,
                  sem_expr vm hm (Val Vunit (Ptype Tunit)) hm (Val Vunit (Ptype Tunit))
