@@ -19,12 +19,12 @@ Inductive sim_bexpr_cexpr : vmap -> BeePL.expr -> Csyntax.expr -> Prop :=
               transBeePL_type t = OK ct ->
               sim_bexpr_cexpr le e ce ->
               sim_bexpr_cexpr le (BeePL.Valof e t) (Csyntax.Evalof ce ct)
-| sim_var_local : forall (le:BeePL.vmap) (le':Csem.env) x ct,
-                  transBeePL_type x.(vtype) = OK ct ->
+| sim_var : forall (le:BeePL.vmap) (le':Csem.env) x ct,
+                   transBeePL_type x.(vtype) = OK ct ->
                   (forall le' id, if isSome (le ! id) 
                                     then (forall l, le ! id = Some (l, vtype x) /\ le' ! id = Some (l, ct)) 
                                     else le ! id = None /\ le' ! id = None) ->
-                  sim_bexpr_cexpr le (BeePL.Var x) (Csyntax.Evar x.(vname) ct)
+            sim_bexpr_cexpr le (BeePL.Var x) (Csyntax.Evar x.(vname) ct)
 | sim_const_int : forall le i t ct,
                   transBeePL_type t = OK ct ->
                   sim_bexpr_cexpr le (BeePL.Const (ConsInt i) t) (Csyntax.Eval (Values.Vint i) ct)
@@ -82,17 +82,121 @@ Inductive sim_bexpr_cexpr : vmap -> BeePL.expr -> Csyntax.expr -> Prop :=
  
 
 (* Complete me *)  
-Inductive sim_bexpr_cstmt : BeePL.expr -> Csyntax.statement -> Prop :=
-| sim_val_st : forall v t ct cv,
+Inductive sim_bexpr_cstmt : vmap -> BeePL.expr -> Csyntax.statement -> Prop :=
+| sim_val_st : forall le v t ct cv,
                transBeePL_type t = OK ct ->
                transBeePL_value_cvalue v = cv ->
-               sim_bexpr_cstmt (BeePL.Val v t) 
-                               (Csyntax.Sreturn (Some (Eval (transBeePL_value_cvalue v) ct))).
-(*| sim_valof_st : forall e t ct ce,
+               sim_bexpr_cstmt le (BeePL.Val v t) 
+                                  (Csyntax.Sreturn (Some (Eval (transBeePL_value_cvalue v) ct)))
+| sim_valof_st : forall le e t ct ce,
                  transBeePL_type t = OK ct ->
-                 transBeePL_expr_expr e = OK ce ->*)
-
-
+                 sim_bexpr_cexpr le e ce ->
+                 sim_bexpr_cstmt le (BeePL.Valof e t)
+                                    (Csyntax.Sreturn (Some (Evalof ce ct)))
+| sim_var_st : forall (le:BeePL.vmap) (le':Csem.env) x ct,
+                   transBeePL_type x.(vtype) = OK ct ->
+                  (forall le' id, if isSome (le ! id) 
+                                    then (forall l, le ! id = Some (l, vtype x) /\ le' ! id = Some (l, ct)) 
+                                    else le ! id = None /\ le' ! id = None) ->
+                sim_bexpr_cstmt le (BeePL.Var x) (Csyntax.Sreturn (Some (Evalof (Csyntax.Evar (vname x) ct) ct)))
+| sim_const_int_st : forall le i t ct,
+                     transBeePL_type t = OK ct ->
+                     sim_bexpr_cstmt le (BeePL.Const (ConsInt i) t) 
+                                        (Csyntax.Sreturn (Some (Evalof (Csyntax.Eval (Values.Vint i) ct) ct)))
+| sim_const_long_st : forall le i t ct,
+                      transBeePL_type t = OK ct ->
+                      sim_bexpr_cstmt le (BeePL.Const (ConsLong i) t) 
+                                        (Csyntax.Sreturn (Some (Evalof (Csyntax.Eval (Values.Vlong i) ct) ct)))
+| sim_const_uint_st : forall le cv ct,
+                      transBeePL_value_cvalue Vunit = cv ->
+                      transBeePL_type (Ptype Tunit) = OK ct ->
+                      sim_bexpr_cstmt le (BeePL.Const ConsUnit (Ptype Tunit))
+                                        (Csyntax.Sreturn (Some (Evalof (Csyntax.Eval cv ct) ct)))
+| sim_prim_ref_st : forall le e t ct ce, 
+                    transBeePL_type t = OK ct ->
+                    sim_bexpr_cexpr le e ce ->
+                    sim_bexpr_cstmt le (BeePL.Prim Ref (e :: nil) t) (Sdo (Csyntax.Eaddrof ce ct))
+| sim_prim_deref_st : forall le e t ct ce,
+                      transBeePL_type t = OK ct ->
+                      sim_bexpr_cexpr le e ce ->
+                      sim_bexpr_cstmt le (BeePL.Prim Deref (e :: nil) t) (Sdo (Csyntax.Ederef ce ct))
+| sim_prim_massgn_st : forall le e1 e2 t ce1 ce2 ct,
+                       transBeePL_type t = OK ct ->
+                       sim_bexpr_cexpr le e1 ce1 ->
+                       sim_bexpr_cexpr le e2 ce2 ->
+                       sim_bexpr_cstmt le (BeePL.Prim Massgn (e1 :: e2 :: nil) t) (Sdo (Csyntax.Eassign ce1 ce2 ct))
+| sim_prim_uop_st : forall le o e1 t ct ce1, 
+                    transBeePL_type t = OK ct ->
+                    sim_bexpr_cexpr le e1 ce1 ->
+                    sim_bexpr_cstmt le (BeePL.Prim (Uop o) (e1 :: nil) t) (Sdo (Csyntax.Eunop o ce1 ct))
+| sim_prim_bop_st : forall le o e1 e2 t ct ce1 ce2,
+                    transBeePL_type t = OK ct ->
+                    sim_bexpr_cexpr le e1 ce1 ->
+                    sim_bexpr_cexpr le e2 ce2 ->
+                    sim_bexpr_cstmt le (BeePL.Prim (Bop o) (e1 :: e2 :: nil) t) (Sdo (Csyntax.Ebinop o ce1 ce2 ct))
+| sim_prim_run_st : forall le h t,
+                    sim_bexpr_cstmt le (BeePL.Prim (Run h) nil t) (Sdo (Eval (Values.Vundef) Tvoid)) (* Fix me *)
+| sim_bind_var_st : forall le x t e x' t' ct ct' ce ce', 
+                     transBeePL_type t = OK ct ->
+                     transBeePL_type t' = OK ct' ->
+                     sim_bexpr_cexpr le e ce ->
+                     sim_bexpr_cexpr le (Var x') ce' ->
+                     sim_bexpr_cstmt le (BeePL.Bind x t e (Var x') t') 
+                                        (Csyntax.Ssequence (Sdo (Eassign (Csyntax.Evar x ct) ce Tvoid)) (Csyntax.Sreturn (Some (Evalof ce' ct'))))
+| sim_bind_const_st : forall le x t e c t' ct ct' ce ce', 
+                     transBeePL_type t = OK ct ->
+                     transBeePL_type t' = OK ct' ->
+                     sim_bexpr_cexpr le e ce ->
+                     sim_bexpr_cexpr le (Const c t') ce' ->
+                     sim_bexpr_cstmt le (BeePL.Bind x t e (Const c t') t') 
+                                        (Csyntax.Ssequence (Sdo (Eassign (Csyntax.Evar x ct) ce Tvoid)) (Csyntax.Sreturn (Some (Evalof ce' ct'))))
+| sim_bind_st : forall le x t e e' t' ct ct' ce ce', (* Fix me *)
+                transBeePL_type t = OK ct ->
+                transBeePL_type t' = OK ct' ->
+                sim_bexpr_cexpr le e ce ->
+                sim_bexpr_cexpr le e' ce' ->
+                sim_bexpr_cstmt le (BeePL.Bind x t e e' t') 
+                                   (Csyntax.Ssequence (Sdo (Eassign (Csyntax.Evar x ct) ce Tvoid)) (Csyntax.Sreturn (Some (Evalof ce' ct'))))
+| sim_cond_vars_st : forall le e1 e2 e3 t ct ce1 ce2 ce3,
+                     transBeePL_type t = OK ct ->
+                     sim_bexpr_cexpr le e1 ce1 ->
+                     sim_bexpr_cexpr le e2 ce2 ->
+                     sim_bexpr_cexpr le e3 ce3 ->
+                     check_var_const e2 ->
+                     check_var_const e3 ->
+                     sim_bexpr_cstmt le (BeePL.Cond e1 e2 e3 t) 
+                                        (Csyntax.Sifthenelse ce1 (Csyntax.Sreturn (Some (Evalof ce2 ct))) (Csyntax.Sreturn (Some (Evalof ce3 ct))))
+| sim_cond_var1_st : forall le e1 e2 e3 t ct ce1 ce2 ce3,
+                     transBeePL_type t = OK ct ->
+                     sim_bexpr_cexpr le e1 ce1 ->
+                     sim_bexpr_cexpr le e2 ce2 ->
+                     sim_bexpr_cexpr le e3 ce3 ->
+                     check_var_const e2 ->
+                     sim_bexpr_cstmt le (BeePL.Cond e1 e2 e3 t) 
+                                        (Csyntax.Sifthenelse ce1 (Csyntax.Sreturn (Some (Evalof ce2 ct))) (Csyntax.Sdo ce3))
+| sim_cond_var2_st : forall le e1 e2 e3 t ct ce1 ce2 ce3,
+                     transBeePL_type t = OK ct ->
+                     sim_bexpr_cexpr le e1 ce1 ->
+                     sim_bexpr_cexpr le e2 ce2 ->
+                     sim_bexpr_cexpr le e3 ce3 ->
+                     check_var_const e3 ->
+                     sim_bexpr_cstmt le (BeePL.Cond e1 e2 e3 t) 
+                                        (Csyntax.Sifthenelse ce1 (Csyntax.Sdo ce2) (Csyntax.Sreturn (Some (Evalof ce2 ct))))
+| sim_cond_st : forall le e1 e2 e3 t ct ce1 ce2 ce3,
+                transBeePL_type t = OK ct ->
+                sim_bexpr_cexpr le e1 ce1 ->
+                sim_bexpr_cexpr le e2 ce2 ->
+                sim_bexpr_cexpr le e3 ce3 ->
+                sim_bexpr_cstmt le (BeePL.Cond e1 e2 e3 t) 
+                                   (Csyntax.Sifthenelse ce1 (Csyntax.Sdo ce2) (Csyntax.Sdo ce3))
+| sim_unit_st : forall le t ct, (* Fix me *)
+                transBeePL_type t = OK ct ->
+                sim_bexpr_cstmt le (BeePL.Unit t) (Csyntax.Sreturn (Some (Csyntax.Evalof (Csyntax.Eval (transBeePL_value_cvalue Vunit) ct) ct)))
+| sim_addr_st : forall le l ofs ct,
+                transBeePL_type l.(ltype) = OK ct ->
+                sim_bexpr_cstmt le (BeePL.Addr l ofs) (Csyntax.Sdo (Csyntax.Eloc l.(lname) ofs l.(lbitfield) ct))
+| sim_hexpr_st : forall le h e t, (* Fix me *)
+                 sim_bexpr_cstmt le (BeePL.Hexpr h e t) (Sdo (Eval (Values.Vundef) Tvoid)).
 
 Lemma tranBeePL_expr_expr_spec: forall vm e ce,
 transBeePL_expr_expr e = OK ce ->
@@ -107,9 +211,9 @@ transBeePL_type (typeof_expr e) = OK (Csyntax.typeof ce).
 Proof.
 Admitted. 
 
-Lemma tranBeePL_expr_stmt_spec: forall e ce,
+Lemma tranBeePL_expr_stmt_spec: forall vm e ce,
 transBeePL_expr_st e = OK ce ->
-sim_bexpr_cstmt e ce.
+sim_bexpr_cstmt vm e ce.
 Proof.
 Admitted.
 
@@ -122,7 +226,7 @@ Inductive match_globvar : BeePL.globvar type -> AST.globvar Ctypes.type -> Prop 
 
 (* Relates the function definition of BeePL and Csyntax *)
 Inductive match_function : BeePL.function -> Csyntax.function -> Prop :=
-| match_fun : forall bf cf,
+| match_fun : forall vm bf cf,
   transBeePL_type (BeePL.fn_return bf) = OK (Csyntax.fn_return cf) ->
   BeePL.fn_callconv bf = Csyntax.fn_callconv cf ->
   extract_vars_vinfos (BeePL.fn_args bf) = unzip1 (Csyntax.fn_params cf) ->
@@ -131,7 +235,7 @@ Inductive match_function : BeePL.function -> Csyntax.function -> Prop :=
   extract_vars_vinfos (BeePL.fn_vars bf) = unzip1 (Csyntax.fn_vars cf) ->
   transBeePL_types transBeePL_type (extract_types_vinfos (BeePL.fn_vars bf)) = 
   OK (to_typelist (unzip2 (Csyntax.fn_vars cf))) ->
-  sim_bexpr_cstmt (BeePL.fn_body bf) (Csyntax.fn_body cf) ->
+  sim_bexpr_cstmt vm (BeePL.fn_body bf) (Csyntax.fn_body cf) ->
   match_function bf cf.
 
 Lemma tranBeePL_function_spec: forall bf cf,
@@ -461,47 +565,93 @@ exists cenv', Csem.bind_parameters cge cenv m (zip cvrs cts) cenv' m'.
 Proof.
 Admitted.
 
+Lemma val_cannot_be_reduced : forall e m e' m',
+is_val e -> 
+~ (rreduction bge benv e m e' m') /\
+~ (lreduction bge benv e m e' m').
+Proof.
+move=> e. elim: e=> //= v t m e' m' _ /=. split=> //=.
++ move=> h. by inversion h.
+move=> h. by inversion h.
+Qed.
+
 (* Preservation of semantics of expressions in BeePL and expressions in Csyntax *) 
 (* Refer: sstep_simulation in SimplExprproof.v *)
 
 (* Equivalence between left reduction top level *)
 Lemma equiv_lreduction : forall e m e' m' ce, 
+is_reduced_form e = true /\ is_lv e = true ->
 lreduction bge benv e m e' m' ->
 transBeePL_expr_expr e = OK ce ->
 match_env benv cenv ->
 exists ce', Csem.lred cge cenv ce m ce' m' /\ sim_bexpr_cexpr benv e' ce'.
 Proof.
-move=> e m e' m' ce hl. induction hl. 
-(* local var *)
-+ move=> /= he henv. monadInv he; subst.
-  exists (Eloc l Ptrofs.zero Full x0). 
+move=> e m e' m' ce hc hl. move: m m' e' ce hl hc. elim: e=> //=. 
+(* val *)
++ by move=> v t m m' e' ce hl [] _ //=. 
+(* valof *)
++ move=> e hi t m m' e' ce hl [] _ //=.
+(* var *)
++ move=> v m m' e' ce hl _ he hm. monadInv he; subst.
+  inversion hl; subst. case: hm=> [hm1 hm2].
+  (* local *)
+  + exists (Eloc l Ptrofs.zero Full x). 
+    split=> //=.
+    + apply Csem.red_var_local. by move: (hm1 (vname v) l (vtype v) x H0 EQ). 
+    by apply sim_addr. 
+  (* global *)
+  exists (Eloc l Ptrofs.zero Full x). 
   split=> //=.
-  + apply Csem.red_var_local. case: henv=> h1 h2.
-    by move: (h1 (vname x) l (vtype x) x0 H EQ).
-  by apply sim_addr.  
-(* global var *)
-+ move=> /= he henv. monadInv he; subst.
-  exists (Eloc l Ptrofs.zero Full x0). 
-  split=> //=.
-  + apply Csem.red_var_global. case: henv=> h1 h2.
-    + by move: (h2 (vname x) H).
-    by have := symbols_preserved (vname x)=> ->. 
+  + apply Csem.red_var_global. case: hm=> hm1 hm2.
+    + by move: (hm2 (vname v) H0).
+    by have := symbols_preserved (vname v)=> ->. 
   by apply sim_addr.
-(* deref *)
-move=> /= he henv. monadInv he; subst.
-monadInv EQ; subst. monadInv EQ0; subst; rewrite /=.
-exists (Eloc l ofs Full x0). split=> //=.
-+ by apply Csem.red_deref.
-by apply sim_addr.
+(* const *)
++ by move=> c t m m' e' ce hl [] //=.
+(* call *)
++ by move=> e hi es t m m' e' ce hl [] //=.
+(* prim *)
++ move=> [].
+  (* ref *)
+  + by move=> es t m m' e' ce hl [] //=.
+  (* deref *)
+  + move=> es t m m' e' ce hl hc he hm. inversion hl; subst. 
+    + monadInv he; subst. 
+      rewrite /= in EQ. monadInv EQ; subst. monadInv EQ0; subst.
+      case: hm=> [hm1 hm2];rewrite /=.
+      exists (Eloc l ofs Full x0). split=> //=.
+      + by apply Csem.red_deref.
+      by apply sim_addr.
+    rewrite /is_vals in hc. move: hc. move=> [] /andP [] hc _ _.
+    have [H4' H4''] := val_cannot_be_reduced e m e'0 m' hc. 
+    rewrite /not in H4'. by move: (H4' H4).
+  (* massgn *)
+  + by move=> es t m m' e' ce hl [] //=.
+  (* uop *)
+  + by move=> u es t m m' e' ce hl [] //=.
+  (* bop *)
+  + by move=> b es t m m' e' ce hl [] //=.
+  (* run *)
+  by move=> m es t m' m'' e' ce hl [] //=.
+(* bind *)
++ by move=> x t e hi e' hi' t' m m' e'' ce hl [] //=. 
+(* cond *)
++ by move=> e hi e1 hi1 e2 hi2 t m m' e' ce hl [] //=.
+(* unit *)
++ by move=> t m m' e' ce hl [] //=.
+(* addr *)
++ by move=> l ofs m m' e' ce hl [] //=.
+(* hexpr *)
+by move=> m e hi t m1 m2 e' ce hl [] //=.
 Qed.
 
 (* Equivalence between right reduction top level *)
 Lemma equiv_rreduction : forall e m e' m' ce,
-rreduction bge e m e' m' ->
+rreduction bge benv e m e' m' ->
 transBeePL_expr_expr e = OK ce ->
 exists ce' t, Csem.rred cge ce m t ce' m' /\ sim_bexpr_cexpr benv e' ce'.
 Proof.
-move=> e m e' m' ce hr. induction hr; subst; rewrite /=.
+(*move=> e m e' m' ce hr. induction hr; subst; rewrite /=.
 (* valof *)
 + move=> hr. monadInv hr; subst. monadInv EQ1; subst.
   exists (Eval (transBeePL_value_cvalue v) x1). exists Events.E0.
@@ -557,7 +707,7 @@ move=> e m e' m' ce hr. induction hr; subst; rewrite /=.
   + admit.
   admit.
 (* unit *)
-admit.
+admit.*)
 Admitted.  
 
 (*** Matching between continuations ***) 
@@ -566,23 +716,13 @@ Inductive match_bcont_ccont : composite_env -> BeePL.cont -> Csem.cont -> Prop :
 | match_Kdo : forall bc cc,
               match_bcont_ccont bprog.(prog_comp_env) bc cc ->
               match_bcont_ccont bprog.(prog_comp_env) (BeePL.Kdo bc) (Csem.Kdo cc)
-| match_Klet : forall be cst cb cc, 
-               transBeePL_expr_st be = OK cst ->
-               sim_bexpr_cstmt be cst -> 
-               match_bcont_ccont bprog.(prog_comp_env) (Klet be cb) (Csem.Kseq cst cc)
-| match_Kcall : forall bf cf vm cenv BC CC bt ct bc cc,
+| match_Kcall : forall bf cf vm cenv CC bt ct bc cc,
                 (* add linking order ?? *)
                 transBeePL_function_function bf = OK cf ->
                 match_env benv cenv ->
                 match_bcont_ccont bprog.(prog_comp_env) bc cc ->
-                match_bcont_ccont bprog.(prog_comp_env) (BeePL.Kcall bf vm BC bt bc) 
-                                       (Csem.Kcall cf cenv CC ct cc)
-| match_Kcond : forall be1 be2 bc cst1 cst2 cc,
-                transBeePL_expr_st be1 = OK cst1 ->
-                transBeePL_expr_st be2 = OK cst2 ->
-                match_bcont_ccont bprog.(prog_comp_env) bc cc ->
-                match_bcont_ccont bprog.(prog_comp_env) (BeePL.Kcond be1 be2 bc)
-                                              (Csem.Kifthenelse cst1 cst2 cc).
+                match_bcont_ccont bprog.(prog_comp_env) (BeePL.Kcall bf vm bt bc) 
+                                       (Csem.Kcall cf cenv CC ct cc).
 
 (*** Matching between states ***) 
 Inductive match_bstate_cstate : BeePL.state -> Csem.state -> Prop :=
@@ -597,7 +737,7 @@ Inductive match_bstate_cstate : BeePL.state -> Csem.state -> Prop :=
 | match_state : forall bf cf be cst bc cc m, (* Fix me *)
                 transBeePL_function_function bf = OK cf ->
                 transBeePL_expr_st be = OK cst ->
-                sim_bexpr_cstmt be cst ->
+                sim_bexpr_cstmt benv be cst ->
                 match_env benv cenv ->
                 match_bcont_ccont bprog.(prog_comp_env) bc cc ->
                 match_bstate_cstate (BeePL.ExprState bf be bc benv m) 
@@ -610,5 +750,44 @@ Inductive match_bstate_cstate : BeePL.state -> Csem.state -> Prop :=
                                         (Csem.Callstate cfd cvs cc m)
 | match_stuckstate : match_bstate_cstate (BeePL.StuckState) (Csem.Stuckstate).
 
-  
+
+Lemma lreduction_kind: forall e m e' m', 
+lreduction bge benv e m e' m' -> BeePL.expr_kind e = Csem.LV.
+Proof.
+induction 1; auto.
+Qed.
+
+
+Lemma rreduction_kind: forall e m e' m', 
+rreduction bge benv e m e' m' -> BeePL.expr_kind e = Csem.RV.
+Proof.
+induction 1; auto.
+Qed.
+
+Lemma callreduction_kind: forall e m fd args t, 
+callreduction bge e m fd args t -> BeePL.expr_kind e = Csem.RV.
+Proof.
+induction 1; auto.
+Qed.
+
+(* Simulation proof *)
+(*         ==
+     BS1 ------- CS1
+     |          |
+     |        + | t
+     v          v
+     BS2 ------- CS2
+           ==                         I
+*)
+
+(* == represents the match_bstate_cstate relation, which represents the equivalence relation 
+      between the states of BeePL and Csyntax *)
+Lemma equiv_bstep_cstep : forall bs1 bs2,
+BeePL.step bge benv bs1 bs2 ->
+forall cs1, match_bstate_cstate bs1 cs1 ->
+exists cs2 t, Csem.step cge cs1 t cs2 /\ match_bstate_cstate bs2 cs2.
+Proof.
+induction 1; intros.
+Admitted.
+
 End semantic_preservation.
