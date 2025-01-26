@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Globalenvs compcert.lib.Coqlib Ctypes.
-Require Import BeePL_aux BeeTypes Axioms Memory Int Cop Memtype Errors Csem.
+Require Import BeePL_aux BeeTypes Axioms Memory Int Cop Memtype Errors Csem SimplExpr.
 From mathcomp Require Import all_ssreflect. 
 
 Set Implicit Arguments.
@@ -404,17 +404,17 @@ with bsem_expr_srv : Memory.mem -> expr -> value -> Prop :=
                 typeof_expr e = t ->
                 BeeTypes.type_is_volatile t = false ->
                 bsem_expr_srv hm (Valof e t) v
-| bsem_prim_uop : forall hm e v uop  v' t ct v'',
+| bsem_prim_uop : forall hm e v uop  v' t ct v'' g g' i,
                   bsem_expr_srv hm e v ->
-                  transBeePL_type (typeof_expr e) = OK ct ->
+                  transBeePL_type (typeof_expr e) g = Res ct g' i ->
                   sem_unary_operation uop (transBeePL_value_cvalue v) ct hm = Some v' ->
                   transC_val_bplvalue v' = OK v'' ->
                   bsem_expr_srv hm (Prim (Uop uop) (e :: nil) t) v''
-| bsem_prim_bop : forall hm e1 e2 t v1 v2 bop v ct1 ct2 v',
+| bsem_prim_bop : forall hm e1 e2 t v1 v2 bop v ct1 ct2 v' g g' g'' i i',
                   bsem_expr_srv hm e1 v1 ->
                   bsem_expr_srv hm e2 v2 ->
-                  transBeePL_type (typeof_expr e1) = OK ct1 ->
-                  transBeePL_type (typeof_expr e2) = OK ct2 ->
+                  transBeePL_type (typeof_expr e1) g = Res ct1 g' i ->
+                  transBeePL_type (typeof_expr e2) g' = Res ct2 g'' i'->
                   sem_binary_operation ge bop (transBeePL_value_cvalue v1) ct1 (transBeePL_value_cvalue v2) ct2 hm = Some v ->
                   transC_val_bplvalue v = OK v' ->
                   bsem_expr_srv hm (Prim (Bop bop) (e1 :: e2 :: nil) t) v'
@@ -440,11 +440,11 @@ Inductive bsem_expr : vmap -> Memory.mem -> expr -> Memory.mem -> value -> Prop 
                   Mem.alloc hm 0 (sizeof_type (typeof_expr e)) = (hm', l) ->
                   assign_addr (typeof_expr e) hm' l Ptrofs.zero Full v hm' v ->
                   bsem_expr vm hm (Prim Ref (e :: nil) t) hm' (Vloc l Ptrofs.zero)
-| bsem_prim_massgn : forall vm hm e1 e2 l ofs v hm' ct1 ct2 bf v', (* Fix me *)
+| bsem_prim_massgn : forall vm hm e1 e2 l ofs v hm' ct1 ct2 bf v' g g' g'' i i', (* Fix me *)
                      bsem_expr_slv hm e1 l ofs bf -> 
                      bsem_expr_srv hm e2 v ->
-                     transBeePL_type (typeof_expr e1) = OK ct1 ->
-                     transBeePL_type (typeof_expr e2) = OK ct2 ->
+                     transBeePL_type (typeof_expr e1) g = Res ct1 g' i ->
+                     transBeePL_type (typeof_expr e2) g' = Res ct2 g'' i' ->
                      sem_cast (transBeePL_value_cvalue v) ct2 ct1 hm = Some (transBeePL_value_cvalue v') ->
                      assign_addr (typeof_expr e1) hm l ofs bf v' hm' v' ->
                      bsem_expr vm hm (Prim Massgn (e1 :: e2 :: nil) (typeof_expr e1)) hm' Vunit
@@ -453,15 +453,15 @@ Inductive bsem_expr : vmap -> Memory.mem -> expr -> Memory.mem -> value -> Prop 
               subst vm hm x v e' hm1 e'' ->
               bsem_expr vm hm1 e'' hm2 v' ->
               bsem_expr vm hm (Bind x t e e' t') hm2 v'
-| bsem_cond_true : forall vm hm e1 e2 hm' e3 t vb v ct1, 
+| bsem_cond_true : forall vm hm e1 e2 hm' e3 t vb v ct1 g i, 
                    bsem_expr_srv hm e1 vb -> 
-                   transBeePL_type (typeof_expr e1) = OK ct1 ->
+                   transBeePL_type (typeof_expr e1) (initial_generator tt) = Res ct1 g i ->
                    bool_val (transBeePL_value_cvalue vb) ct1 hm = Some true ->
                    bsem_expr vm hm e2 hm' v ->
                    bsem_expr vm hm (Cond e1 e2 e3 t) hm' v
-| bsem_cond_false : forall vm hm e1 hm' e2 e3 t vb v ct1, 
+| bsem_cond_false : forall vm hm e1 hm' e2 e3 t vb v ct1 g i, 
                     bsem_expr_srv hm e1 vb -> 
-                    transBeePL_type (typeof_expr e1) = OK ct1 ->
+                    transBeePL_type (typeof_expr e1) (initial_generator tt) = Res ct1 g i ->
                     bool_val (transBeePL_value_cvalue vb) ct1 hm = Some false ->
                     bsem_expr vm hm e3 hm' v ->
                     bsem_expr vm hm (Cond e1 e2 e3 t) hm' v
@@ -515,17 +515,17 @@ Context (Pvalof : forall hm e t l ofs bf v,
                   typeof_expr e = t ->
                   BeeTypes.type_is_volatile t = false ->
                   Prv hm (Valof e t) v).
-Context (Puop : forall hm e v uop  v' t ct v'',
+Context (Puop : forall hm e v uop  v' t ct v'' g g' i',
                 Prv hm e v ->
-                transBeePL_type (typeof_expr e) = OK ct ->
+                transBeePL_type (typeof_expr e) g = Res ct g' i' ->
                 sem_unary_operation uop (transBeePL_value_cvalue v) ct hm = Some v' ->
                 transC_val_bplvalue v' = OK v'' ->
                 Prv hm (Prim (Uop uop) (e :: nil) t) v'').
-Context (Pbop : forall hm e1 e2 t v1 v2 bop v ct1 ct2 v',
+Context (Pbop : forall hm e1 e2 t v1 v2 bop v ct1 ct2 v' g g' g'' i i',
                 Prv hm e1 v1 ->
                 Prv hm e2 v2 ->
-                transBeePL_type (typeof_expr e1) = OK ct1 ->
-                transBeePL_type (typeof_expr e2) = OK ct2 ->
+                transBeePL_type (typeof_expr e1) g = Res ct1 g' i ->
+                transBeePL_type (typeof_expr e2) g' = Res ct2 g'' i'->
                 sem_binary_operation ge bop (transBeePL_value_cvalue v1) ct1 (transBeePL_value_cvalue v2) ct2 hm = Some v ->
                 transC_val_bplvalue v = OK v' ->
                 Prv hm (Prim (Bop bop) (e1 :: e2 :: nil) t) v').
@@ -587,7 +587,7 @@ with rreduction : expr -> Memory.mem -> expr -> Memory.mem -> Prop :=
 | rred_valof1 : forall hm e t e' hm',
                 lreduction e hm e' hm' ->
                 rreduction (Valof e t) hm (Valof e' t) hm'
-| rred_ref : forall hm v tv t hm' l, 
+| rred_ref : forall hm v tv t hm' l, (* fix me *) (* stack allocation *)
              Mem.alloc hm 0 (sizeof_type tv) = (hm', l) ->
              assign_addr tv hm' l Ptrofs.zero Full v hm' v ->
              rreduction (Prim Ref [:: (Val v tv)] t) hm (Val (Vloc l Ptrofs.zero) tv) hm'
@@ -595,7 +595,7 @@ with rreduction : expr -> Memory.mem -> expr -> Memory.mem -> Prop :=
               rreduction e hm e' hm' ->
               rreduction (Prim Ref [:: e] t) hm (Prim Ref [:: e] t) hm'
 | rred_uop : forall hm v t ct uop v' v'',
-             transBeePL_type t = OK ct ->
+             transBeePL_type t = ret ct ->
              sem_unary_operation uop (transBeePL_value_cvalue v) ct hm = Some v' -> 
              transC_val_bplvalue v' = OK v'' ->
              rreduction (Prim (Uop uop) ((Val v t) :: nil) t) hm (Val v'' t) hm
@@ -603,8 +603,8 @@ with rreduction : expr -> Memory.mem -> expr -> Memory.mem -> Prop :=
               rreduction e hm e' hm' ->
               rreduction (Prim (Uop uop) (e :: nil) t) hm (Prim (Uop uop) (e' :: nil) t) hm'
 | rred_bop : forall hm bop v1 t1 v2 t2 ct1 ct2 t v v',
-             transBeePL_type t1 = OK ct1 ->
-             transBeePL_type t2 = OK ct2 ->
+             transBeePL_type t1 = ret ct1 ->
+             transBeePL_type t2 = ret ct2 ->
              sem_binary_operation ge bop (transBeePL_value_cvalue v1) ct1 (transBeePL_value_cvalue v2) ct2 hm = Some v ->
              transC_val_bplvalue v = OK v' ->
              rreduction (Prim (Bop bop) ((Val v1 t1) :: (Val v2 t2) :: nil) t) hm (Val v' t) hm
@@ -615,15 +615,15 @@ with rreduction : expr -> Memory.mem -> expr -> Memory.mem -> Prop :=
               rreduction e2 hm e2' hm' ->
               rreduction (Prim (Bop bop) ((Val v1 t1) :: e2 :: nil) t) hm (Prim (Bop bop) ((Val v1 t1) :: e2' :: nil) t) hm'
 | rred_cond : forall hm v e1 e2 tv t ctv b, 
-              transBeePL_type tv = OK ctv ->
+              transBeePL_type tv = ret ctv ->
               bool_val (transBeePL_value_cvalue v) ctv hm = Some b ->
               rreduction (Cond (Val v tv) e1 e2 t) hm (if b then e1 else e2) hm
 | rred_cond1 : forall hm e1 e2 e3 t e1' hm', 
                rreduction e1 hm e1' hm' ->
                rreduction (Cond e1 e2 e3 t) hm (Cond e1' e2 e3 t) hm
 | rred_massgn : forall hm l ofs v tv2 ct1 ct2 t hm' v' bf,
-                transBeePL_type t = OK ct1 ->
-                transBeePL_type tv2 = OK ct2 ->
+                transBeePL_type t = ret ct1 ->
+                transBeePL_type tv2 = ret ct2 ->
                 sem_cast (transBeePL_value_cvalue v) ct2 ct1 hm = Some (transBeePL_value_cvalue v') ->
                 assign_addr t hm l ofs bf v' hm' v' ->
                 rreduction (Prim Massgn ((Addr {| lname := l; ltype := t; lbitfield := bf |} ofs) :: Val v tv2 :: nil) t) hm (Val v' t) hm'
@@ -734,7 +734,7 @@ end.
 
 Definition is_rv (e : expr) : bool :=
 match e with 
-| Val v t => true
+| Val v t => false
 | Valof e t => true
 | Var v => false 
 | Const c t => true
@@ -754,21 +754,15 @@ match e with
 | Hexpr m e t => false (* fix me *)
 end.
 
-Section Is_reduced_forms.
-
-Variable is_reduced_form : expr -> bool.
-
-Fixpoint is_reduced_forms (es : list expr) : bool :=
-match es with 
-| nil => true 
-| e :: es => is_reduced_form e && is_reduced_forms es
-end.
-
-End Is_reduced_forms.
-
 Definition is_val (e : expr) : bool :=
 match e with 
 | Val v t => true 
+| _ => false
+end.
+
+Definition is_addr (e : expr) : bool :=
+match e with 
+| Addr l t => true 
 | _ => false
 end.
 
@@ -778,23 +772,26 @@ match es with
 | e :: es => is_val e && is_vals es
 end.
 
-Fixpoint is_reduced_form (e : expr) : bool :=
+Definition is_reduced_form (e : expr) : bool :=
 match e with 
 | Val v t => true 
-| Valof e t => is_reduced_form e
+| Valof e t => is_addr e
 | Var v => true 
 | Const c t => true 
 | App e es t => false 
 | Prim b es t => match b with 
-                 | Ref => is_reduced_forms is_reduced_form es 
+                 | Ref => is_vals es 
                  | Deref => is_vals es
-                 | Massgn => is_reduced_forms is_reduced_form es
-                 | Uop o => is_reduced_forms is_reduced_form es 
-                 | Bop o => is_reduced_forms is_reduced_form es 
+                 | Massgn => match es with 
+                             | (e1 :: e2 :: nil) => is_addr e1 && is_val e2
+                             | _ => false
+                             end
+                 | Uop o => is_vals es 
+                 | Bop o => is_vals es 
                  | Run h => false (* fix me *)
                  end
-| Bind x t e1 e2 t' => is_reduced_form e1
-| Cond e1 e2 e3 t => is_reduced_form e1
+| Bind x t e1 e2 t' => is_vals (e1 :: e2 :: nil)
+| Cond e1 e2 e3 t => is_val e1
 | Unit t => true 
 | Addr l ofs => true
 | Hexpr m e t => false (* fix me *)
@@ -882,7 +879,7 @@ Context (Prref1 : forall hm e t e' hm',
                   Prred e hm e' hm' ->
                   Prred (Prim Ref [:: e] t) hm (Prim Ref [:: e] t) hm').
 Context (Pruop : forall hm v t ct uop v' v'',
-                 transBeePL_type t = OK ct ->
+                 transBeePL_type t = ret ct ->
                  sem_unary_operation uop (transBeePL_value_cvalue v) ct hm = Some v' -> 
                  transC_val_bplvalue v' = OK v'' ->
                  Prred (Prim (Uop uop) ((Val v t) :: nil) t) hm (Val v'' t) hm).
@@ -890,8 +887,8 @@ Context (Pruop1 : forall hm t uop e e' hm',
                   Prred e hm e' hm' ->
                   Prred (Prim (Uop uop) (e :: nil) t) hm (Prim (Uop uop) (e' :: nil) t) hm').
 Context (Prbop : forall hm bop v1 t1 v2 t2 ct1 ct2 t v v',
-                 transBeePL_type t1 = OK ct1 ->
-                 transBeePL_type t2 = OK ct2 ->
+                 transBeePL_type t1 = ret ct1 ->
+                 transBeePL_type t2 = ret ct2 ->
                  sem_binary_operation ge bop (transBeePL_value_cvalue v1) ct1 (transBeePL_value_cvalue v2) ct2 hm = Some v ->
                  transC_val_bplvalue v = OK v' ->
                  Prred (Prim (Bop bop) ((Val v1 t1) :: (Val v2 t2) :: nil) t) hm (Val v' t) hm).
@@ -902,15 +899,15 @@ Context (Prbop2 : forall hm bop v1 t1 t e2 e2' hm',
                   Prred e2 hm e2' hm' ->
                   Prred (Prim (Bop bop) ((Val v1 t1) :: e2 :: nil) t) hm (Prim (Bop bop) ((Val v1 t1) :: e2' :: nil) t) hm').
 Context (Prcond : forall hm v e1 e2 tv t ctv b, 
-                  transBeePL_type tv = OK ctv ->
+                  transBeePL_type tv = ret ctv ->
                   bool_val (transBeePL_value_cvalue v) ctv hm = Some b ->
                   Prred (Cond (Val v tv) e1 e2 t) hm (if b then e1 else e2) hm).
 Context (Prcond1 : forall hm e1 e2 e3 t e1' hm', 
                    Prred e1 hm e1' hm' ->
                    Prred (Cond e1 e2 e3 t) hm (Cond e1' e2 e3 t) hm).
 Context (Prmassgn : forall hm l ofs v tv2 ct1 ct2 t hm' v' bf,
-                    transBeePL_type t = OK ct1 ->
-                    transBeePL_type tv2 = OK ct2 ->
+                    transBeePL_type t = ret ct1 ->
+                    transBeePL_type tv2 = ret ct2 ->
                     sem_cast (transBeePL_value_cvalue v) ct2 ct1 hm = Some (transBeePL_value_cvalue v') ->
                     assign_addr t hm l ofs bf v' hm' v' ->
                     Prred (Prim Massgn ((Addr {| lname := l; ltype := t; lbitfield := bf |} ofs) :: Val v tv2 :: nil) t) hm (Val v' t) hm').

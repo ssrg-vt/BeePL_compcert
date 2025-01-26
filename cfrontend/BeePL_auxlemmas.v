@@ -6,23 +6,23 @@ Require Import compcert.common.Errors Initializersproof Cstrategy lib.Coqlib Err
 
 From mathcomp Require Import all_ssreflect. 
 
-Lemma access_mode_preserved : forall ty cty md, 
+Lemma access_mode_preserved : forall ty cty md g g' i, 
 access_mode ty = md ->
-transBeePL_type ty = OK cty ->
+transBeePL_type ty g =  Res cty g' i ->
 Ctypes.access_mode cty = md.
 Proof.
 Admitted.
 
-Lemma non_volatile_type_preserved : forall ty cty,
+Lemma non_volatile_type_preserved : forall ty cty g g' i',
 type_is_volatile ty = false ->
-transBeePL_type ty = OK cty ->
+transBeePL_type ty g = Res cty g' i' ->
 Ctypes.type_is_volatile cty = false.
 Proof.
 Admitted.
 
-Lemma typec_expr : forall e ct ce,
-transBeePL_type (typeof_expr e) = OK ct ->
-transBeePL_expr_expr e = OK ce ->
+Lemma typec_expr : forall e ct ce g g' g'' i i',
+transBeePL_type (typeof_expr e) g = Res ct g' i ->
+transBeePL_expr_expr e  g' = Res ce g'' i' ->
 ct = Csyntax.typeof ce.
 Proof.
 Admitted.

@@ -118,11 +118,11 @@ End rel_type_ind.
 
 (***** Proof for correctness of type transformation *****)
 Lemma type_translated: 
-(forall bt ct, 
-transBeePL_type bt = OK ct ->
+(forall bt ct g g' i, 
+transBeePL_type bt g = Res ct g' i ->
 rel_type bt ct) /\ 
-(forall bts cts, 
-transBeePL_types transBeePL_type bts = OK cts ->
+(forall bts cts g g' i, 
+transBeePL_types transBeePL_type bts g = Res cts g' i ->
 rel_types bts cts).
 Proof.
 Admitted.

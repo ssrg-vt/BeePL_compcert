@@ -4,20 +4,19 @@ Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes Coqlib Si
 Require Import BeePL_aux BeePL BeeTypes Csyntax Errors SimplExpr.
 
 Local Open Scope string_scope.
-Local Open Scope error_monad_scope.
-
+Local Open Scope gensym_monad_scope.
 (**** BeePL Compiler *****)
 Section transBeePL_exprs.
 
-Variables transBeePL_expr_expr : BeePL.expr -> res Csyntax.expr.
+Variables transBeePL_expr_expr : BeePL.expr -> mon Csyntax.expr.
 
 (* Translates list of BeePL expressions to list of C expressions *)
-Fixpoint transBeePL_expr_exprs (es : list BeePL.expr) : res Csyntax.exprlist :=
+Fixpoint transBeePL_expr_exprs (es : list BeePL.expr) : mon Csyntax.exprlist :=
 match es with 
-| nil => OK Enil 
+| nil => ret Enil 
 | e :: es => do ce <- (transBeePL_expr_expr e);
              do ces <- (transBeePL_expr_exprs es);
-             OK (Econs ce ces)
+             ret (Econs ce ces)
 end.
 
 End transBeePL_exprs.
@@ -36,47 +35,48 @@ Definition default_expr := (Eval (Values.Vundef) Tvoid).
   | _ => Ederef a t
   end.*)
 
-Fixpoint transBeePL_expr_expr (e : BeePL.expr) : res Csyntax.expr := 
+Fixpoint transBeePL_expr_expr (e : BeePL.expr) : mon Csyntax.expr := 
 match e with 
 | Val v t => do vt <- (transBeePL_type t);
-             OK (Eval (transBeePL_value_cvalue v) vt) 
+             ret (Eval (transBeePL_value_cvalue v) vt) 
 | Valof e t => do ct <- (transBeePL_type t);
                do ce <- (transBeePL_expr_expr e);
-               OK (Evalof ce ct)
+               ret (Evalof ce ct)
 | Var x => do xt <- (transBeePL_type (vtype x));
-           OK (Evar (vname x) xt)
+           ret (Evar (vname x) xt)
 | Const c t => match c with 
-               | ConsInt i => do it <- (transBeePL_type t); OK (Eval (Values.Vint i) it)
-               | ConsLong i => do it <- (transBeePL_type t); OK (Eval (Values.Vlong i) it)
-               | ConsUnit => do ut <- (transBeePL_type t); OK (Eval (Values.Vint (Int.repr 0)) ut) 
+               | ConsInt i => do it <- (transBeePL_type t); ret (Eval (Values.Vint i) it)
+               | ConsLong i => do it <- (transBeePL_type t); ret (Eval (Values.Vlong i) it)
+               | ConsUnit => do ut <- (transBeePL_type t); ret (Eval (Values.Vint (Int.repr 0)) ut) 
                end
 | App e es t => do ce <- (transBeePL_expr_expr e); 
                 do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                 do ct <- (transBeePL_type t);
-                OK (Ecall ce ces ct)
+                ret (Ecall ce ces ct)
 | Prim b es t => match b with 
                  | Ref => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                           do ct <- (transBeePL_type t);
-                          OK (Eaddrof (hd default_expr (exprlist_list_expr ces)) 
-                              ct) 
+                          do tv <- (gensym ct);
+                          ret (Ecomma (Eassign (Evar tv ct) (hd default_expr (exprlist_list_expr ces)) ct) (Eaddrof (Evar tv ct) ct)
+                              ct) (* Fix me *) 
                  | Deref => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                             do ct <- (transBeePL_type t);
-                            OK (Ederef (hd default_expr (exprlist_list_expr ces)) 
+                            ret (Ederef (hd default_expr (exprlist_list_expr ces)) 
                                 ct)   
                  | Massgn => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                              do ct <- (transBeePL_type t);
-                             OK (Eassign (hd default_expr (exprlist_list_expr ces))
+                             ret (Eassign (hd default_expr (exprlist_list_expr ces))
                                     (hd default_expr (tl (exprlist_list_expr ces)))
                                  ct)
-                 | Run h => OK (Eval (Values.Vundef) Tvoid) (* Fix me *)
+                 | Run h => ret (Eval (Values.Vundef) Tvoid) (* Fix me *)
                  | Uop o => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                             do ct <- (transBeePL_type t);
-                            OK (Eunop o
+                            ret (Eunop o
                                 (hd default_expr (exprlist_list_expr ces)) 
                                 ct)
                  | Bop o => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                             do ct <- (transBeePL_type t);
-                            OK (Ebinop o
+                            ret (Ebinop o
                                   (hd default_expr (exprlist_list_expr ces)) 
                                   (hd default_expr (tl (exprlist_list_expr ces)))
                                 ct)
@@ -85,17 +85,17 @@ match e with
                       do ce <- (transBeePL_expr_expr e);
                       do ce' <- (transBeePL_expr_expr e');
                       do ct' <- (transBeePL_type t');
-                      OK (Ecomma (Eassign (Evar x ct) ce ct) ce' ct') 
+                      ret (Ecomma (Eassign (Evar x ct) ce ct) ce' ct') 
 | Cond e e' e'' t => do ce <- (transBeePL_expr_expr e);
                      do ce' <- (transBeePL_expr_expr e');
                      do ce'' <- (transBeePL_expr_expr e'');
                      do ct <- (transBeePL_type t);
-                     OK (Econdition ce ce' ce'' ct)  
+                     ret (Econdition ce ce' ce'' ct)  
 | Unit t=> do ct <- (transBeePL_type t);
-           OK (Eval (transBeePL_value_cvalue Vunit) ct) (* Fix me *)
+           ret (Eval (transBeePL_value_cvalue Vunit) ct) (* Fix me *)
 | Addr l ofs => do ct <- (transBeePL_type (ltype l));
-            OK (Eloc l.(lname) ofs l.(lbitfield) ct)
-| Hexpr h e t => OK (Eval (Values.Vundef) Tvoid) (* FIX ME *)
+            ret (Eloc l.(lname) ofs l.(lbitfield) ct)
+| Hexpr h e t => ret (Eval (Values.Vundef) Tvoid) (* FIX ME *)
 end.
 
 Definition check_var_const (e : BeePL.expr) : bool :=
@@ -106,17 +106,17 @@ match e with
 end.
 
 
-Definition transBeePL_expr_st (e : BeePL.expr) : res Csyntax.statement :=
+Definition transBeePL_expr_st (e : BeePL.expr) : mon Csyntax.statement :=
 match e with 
 | Val v t => do vt <- (transBeePL_type t);
-             OK (Sreturn (Some (Eval (transBeePL_value_cvalue v) vt))) 
+             ret (Sreturn (Some (Eval (transBeePL_value_cvalue v) vt))) 
 | Valof e t => do ct <- (transBeePL_type t);
                do ce <- (transBeePL_expr_expr e);
-               OK (Sreturn (Some (Evalof ce ct)))
+               ret (Sreturn (Some (Evalof ce ct)))
 | Var x => do ct <- (transBeePL_type x.(vtype));
-           OK (Sreturn (Some (Evalof (Evar x.(vname) ct) ct)))
+           ret (Sreturn (Some (Evalof (Evar x.(vname) ct) ct)))
 | Const c t => do ct <- (transBeePL_type t);
-               OK (Sreturn (Some (Evalof (match c with 
+               ret (Sreturn (Some (Evalof (match c with 
                                       | ConsInt i => Eval (Values.Vint i) ct
                                       | ConsLong i => Eval (Values.Vlong i) ct
                                       | ConsUnit => Eval (Values.Vint (Int.repr 0)) ct
@@ -124,30 +124,30 @@ match e with
 | App e es t => do ce <- (transBeePL_expr_expr e);
                 do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                 do ct <- (transBeePL_type t);
-                OK (Sdo (Ecall ce ces ct))  
+                ret (Sdo (Ecall ce ces ct))  
 | Prim b es t => match b with 
                  | Ref => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                           do ct <- (transBeePL_type t);
-                          OK (Sdo (Eaddrof (hd default_expr (exprlist_list_expr ces)) 
-                                   ct))   
+                          ret (Sdo (Eaddrof (hd default_expr (exprlist_list_expr ces)) 
+                                   ct)) (* Fix me *)
                  | Deref => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                             do ct <- (transBeePL_type t);
-                            OK (Sdo (Ederef (hd default_expr (exprlist_list_expr ces)) 
+                            ret (Sdo (Ederef (hd default_expr (exprlist_list_expr ces)) 
                                      ct))   
                  | Massgn => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                              do ct <- (transBeePL_type t);
-                             OK (Sdo (Eassign (hd default_expr (exprlist_list_expr ces))
+                             ret (Sdo (Eassign (hd default_expr (exprlist_list_expr ces))
                                               (hd default_expr (tl (exprlist_list_expr ces)))
                                       ct)) 
-                 | Run h => OK (Sdo (Eval (Values.Vundef) Tvoid)) (* Fix me *)
+                 | Run h => ret (Sdo (Eval (Values.Vundef) Tvoid)) (* Fix me *)
                  | Uop o => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                             do ct <- (transBeePL_type t); 
-                            OK (Sdo (Eunop o 
+                            ret (Sdo (Eunop o 
                                      (hd default_expr (exprlist_list_expr ces)) 
                                      ct)) 
                  | Bop o => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                             do ct <- (transBeePL_type t);
-                            OK (Sdo (Ebinop o 
+                            ret (Sdo (Ebinop o 
                                      (hd default_expr (exprlist_list_expr ces)) 
                                      (hd default_expr (tl (exprlist_list_expr ces)))
                                      ct))
@@ -159,18 +159,18 @@ match e with
                                   do ct <- (transBeePL_type t);
                                   do ct' <- (transBeePL_type t');
                                   do rt <- (transBeePL_type (BeePL.typeof_expr (e')));
-                                  OK (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid))
+                                  ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid))
                                                 (Sreturn (Some (Evalof ce' rt))))
                       | Const c t => do ct <- (transBeePL_type t); 
                                      do ce <- (transBeePL_expr_expr e);
                                      do ce' <- (transBeePL_expr_expr e');
-                                     OK (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
+                                     ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
                                                    (Sreturn (Some ce')))
                       (* can produce side-effects *)
                       | _ => do ct <- (transBeePL_type t);
                              do ce <- (transBeePL_expr_expr e);
                              do ce' <- (transBeePL_expr_expr e');
-                             OK (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
+                             ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
                                            (Sdo ce'))
                     end
 | Cond e e' e'' t' => do ce <- (transBeePL_expr_expr e);
@@ -178,32 +178,41 @@ match e with
                       do ce'' <- (transBeePL_expr_expr e'');
                       do ct' <- (transBeePL_type t');
                       if (check_var_const e' && check_var_const e'') (* check for expressions with side-effects *)
-                      then OK (Sifthenelse ce (Sreturn (Some (Evalof ce' ct'))) (Sreturn (Some (Evalof ce'' ct'))))
-                      else if (check_var_const e') then OK (Sifthenelse ce (Sreturn (Some (Evalof ce' ct'))) (Sdo ce''))
+                      then ret (Sifthenelse ce (Sreturn (Some (Evalof ce' ct'))) (Sreturn (Some (Evalof ce'' ct'))))
+                      else if (check_var_const e') then ret (Sifthenelse ce (Sreturn (Some (Evalof ce' ct'))) (Sdo ce''))
                                                    else if (check_var_const e'') 
-                                                        then OK (Sifthenelse ce (Sdo ce') (Sreturn (Some (Evalof ce'' ct'))))
-                                                        else OK (Sifthenelse ce (Sdo ce') (Sdo ce''))
+                                                        then ret (Sifthenelse ce (Sdo ce') (Sreturn (Some (Evalof ce'' ct'))))
+                                                        else ret (Sifthenelse ce (Sdo ce') (Sdo ce''))
 | Unit t=> do ct <- (transBeePL_type t);
-           OK (Sreturn (Some (Evalof (Eval (transBeePL_value_cvalue Vunit) ct) ct))) (* Fix me *)
+           ret (Sreturn (Some (Evalof (Eval (transBeePL_value_cvalue Vunit) ct) ct))) (* Fix me *)
 | Addr l ofs => do ct <- (transBeePL_type (ltype l));
-                OK (Sdo (Eloc l.(lname) ofs l.(lbitfield) ct))                    
-| Hexpr h e t => OK (Sdo (Eval (Values.Vundef) Tvoid)) (* FIX ME *)
+                ret (Sdo (Eloc l.(lname) ofs l.(lbitfield) ct))                    
+| Hexpr h e t => ret (Sdo (Eval (Values.Vundef) Tvoid)) (* FIX ME *)
 end.
 
-(* Translates the BeePL function declaration to C function *)
+(* Translates the BeePL function declaration to C function *) 
 Definition transBeePL_function_function (fd : BeePL.function) : res (Csyntax.function) :=
-do crt <- transBeePL_type (fd.(BeePL.fn_return));
-do pt <- (transBeePL_types transBeePL_type (unzip2 (extract_list_rvtypes (fd.(fn_args)))));
-do vt <- (transBeePL_types transBeePL_type (unzip2 (extract_list_rvtypes (fd.(BeePL.fn_vars)))));
-do fbody <- transBeePL_expr_st (fd.(BeePL.fn_body));
-OK {| fn_return := crt; 
-                fn_callconv := cc_default; 
-                fn_params := zip (unzip1 (extract_list_rvtypes (fd.(fn_args))))
-                                 (from_typelist pt);
-                fn_vars := zip (unzip1 (extract_list_rvtypes (fd.(BeePL.fn_vars))))
-                               (from_typelist vt);
-                fn_body :=  fbody|}.
+match (transBeePL_type (fd.(BeePL.fn_return)) (initial_generator tt)) with 
+| Err msg => Error msg
+| Res crt g i => match (transBeePL_types transBeePL_type (unzip2 (extract_list_rvtypes (fd.(fn_args)))) (initial_generator tt)) with 
+                | Err msg => Error msg
+                | Res pt g i => match (transBeePL_types transBeePL_type (unzip2 (extract_list_rvtypes (fd.(BeePL.fn_vars)))) (initial_generator tt)) with 
+                                | Err msg => Error msg
+                                | Res vt g i => match (transBeePL_expr_st (fd.(BeePL.fn_body)) (initial_generator tt)) with 
+                                                | Err msg => Error msg
+                                                | Res fbody g i => OK {| fn_return := crt; 
+                                                                         fn_callconv := cc_default; 
+                                                                         fn_params := zip (unzip1 (extract_list_rvtypes (fd.(fn_args))))
+                                                                                   (from_typelist pt);
+                                                                         fn_vars := zip (unzip1 (extract_list_rvtypes (fd.(BeePL.fn_vars))))
+                                                                                 (from_typelist vt);
+                                                                         fn_body :=  fbody|}
+                                    end
+                        end
+            end
+end.
 
+Local Open Scope error_monad_scope.
 
 Definition transBeePL_fundef_fundef (fd : BeePL.fundef) : res Csyntax.fundef :=
 match fd with 
@@ -231,11 +240,13 @@ end.
 
 (* Translates BeePL global variable to C global variable *) 
 Definition transBeePLglobvar_globvar (gv : BeePL.globvar type) : res (AST.globvar Ctypes.type)  :=
-do gvt <- transBeePL_type (gv.(gvar_info));
-OK {| AST.gvar_info := gvt; 
-      AST.gvar_init := (gv.(gvar_init)); 
-      AST.gvar_readonly := gv.(gvar_readonly); 
-      AST.gvar_volatile :=  gv.(gvar_volatile)|}.
+match transBeePL_type (gv.(gvar_info)) (initial_generator tt) with 
+| Err msg => Error msg
+| Res gvt g i => OK {| AST.gvar_info := gvt; 
+                       AST.gvar_init := (gv.(gvar_init)); 
+                       AST.gvar_readonly := gv.(gvar_readonly); 
+                       AST.gvar_volatile :=  gv.(gvar_volatile)|}
+end.
 
 Definition transBeePL_globdef_globdef (gd : BeePL.globdef BeePL.fundef BeeTypes.type) : res (AST.globdef fundef Ctypes.type) :=
 match gd with 

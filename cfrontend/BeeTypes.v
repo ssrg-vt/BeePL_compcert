@@ -1,9 +1,10 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Ctypes Errors.
-Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps.
+Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps SimplExpr.
 
 Local Open Scope string_scope.
 Local Open Scope error_monad_scope.
+Local Open Scope gensym_monad_scope.
 
 Inductive effect_label : Type :=
 | Panic : effect_label               (* exception effect *)
@@ -233,15 +234,15 @@ end.
 
 Section translate_types.
 
-Variable transBeePL_type : BeeTypes.type -> res Ctypes.type.
+Variable transBeePL_type : BeeTypes.type -> mon Ctypes.type.
 
 (* Translates a list of BeePL types to list of Clight types *) 
-Fixpoint transBeePL_types (ts : list BeeTypes.type) : res Ctypes.typelist :=
+Fixpoint transBeePL_types (ts : list BeeTypes.type) : mon Ctypes.typelist :=
 match ts with 
-| nil => OK Tnil
+| nil => ret Tnil
 | t :: ts => do ct <- (transBeePL_type t);
              do cts <- (transBeePL_types ts);
-             OK (Tcons ct cts)
+             ret (Tcons ct cts)
 end.
 
 End translate_types.
@@ -258,22 +259,23 @@ match  ts with
 | t :: ts => Tcons t (to_typelist ts)
 end.
 
-(* Translation of BeePL types to Clight Types *)
-Fixpoint transBeePL_type (t : BeeTypes.type) : res Ctypes.type :=
+(* Translation of BeePL types to Clight Types *) 
+Fixpoint transBeePL_type (t : BeeTypes.type) : mon Ctypes.type :=
 match t with
 | Ptype t => match t with  
-             | Tunit => OK (Ctypes.Tint I8 Unsigned {| attr_volatile := false; attr_alignas := Some 1%N |}) (* Fix me *)
-             | Tint sz s a => OK (Ctypes.Tint sz s a)
-             | Tlong s a => OK (Ctypes.Tlong s a)
+             | Tunit => ret (Ctypes.Tint I8 Unsigned {| attr_volatile := false; attr_alignas := Some 1%N |}) (* Fix me *)
+             | Tint sz s a => ret (Ctypes.Tint sz s a)
+             | Tlong s a => ret (Ctypes.Tlong s a)
              end
 | Reftype h bt a => match bt with 
-                    | Bprim Tunit => OK (Ctypes.Tpointer Ctypes.Tvoid a)
-                    | Bprim (Tint sz s a) => OK (Ctypes.Tpointer (Ctypes.Tint sz s a) a)
-                    | Bprim (Tlong s a) => OK (Ctypes.Tpointer (Ctypes.Tlong s a) a)
+                    | Bprim Tunit => ret (Ctypes.Tpointer Ctypes.Tvoid a)
+                    | Bprim (Tint sz s a) => ret (Ctypes.Tpointer (Ctypes.Tint sz s a) a)
+                    | Bprim (Tlong s a) => ret (Ctypes.Tpointer (Ctypes.Tlong s a) a)
                     end
 | BeeTypes.Ftype ts ef t => do ats <- (transBeePL_types transBeePL_type ts);
                             do rt <- (transBeePL_type t);
-                            OK (Tfunction ats rt {| cc_vararg := Some (Z.of_nat(length(ts))); cc_unproto := false; cc_structret := false |}) (* Fix me *) 
+                            ret (Tfunction ats rt {| cc_vararg := Some (Z.of_nat(length(ts))); 
+                                                     cc_unproto := false; cc_structret := false |}) (* Fix me *) 
 end.
 
 (* Typing context *)
