@@ -205,12 +205,6 @@ Proof.
 move=> vm e ce ht. elim: e ht=> //=.
 Admitted.
 
-Lemma transBeePL_expr_expr_type_equiv : forall e ce g g' i,
-transBeePL_expr_expr e g = Res ce g' i ->
-transBeePL_type (typeof_expr e) g = Res (Csyntax.typeof ce) g' i.
-Proof.
-Admitted. 
-
 Lemma tranBeePL_expr_stmt_spec: forall vm e ce g g' i,
 transBeePL_expr_st e g = Res ce g' i ->
 sim_bexpr_cstmt vm e ce.
@@ -438,17 +432,6 @@ Csem.assign_loc cge cty m addr ofs bf cv tr m' cv'.
 Proof.
 Admitted.
 
-(* Since translation of types does not depend on the generator, it 
-   should produce the same result irrespective of them *)
-Lemma type_preserved_generator : forall t r r' g1 g2 g3 i1 i2,
-Ple (gen_next g1) (gen_next g2) ->
-Ple (gen_next g1) (gen_next g3) ->
-transBeePL_type t g1 = Res r g2 i1 ->
-transBeePL_type t g2 = Res r' g3 i2 ->
-r = r'. 
-Proof.
-Admitted.
-
 (* Big step semantics with rvalue *) 
 (* If an expression evaluates to a value then in the c semantics if the expression is 
    evaluated in RV position then it should also produce the same value 
@@ -523,19 +506,30 @@ apply bsem_expr_slv_rlv_ind=> //=.
   move=> [] h1 h2; subst. apply esr_rvalof with l ofs bf.
   + by move: (hi r1 g'' g' i1 he2 henv).
   + have h := transBeePL_expr_expr_type_equiv e r1 g'' g' i1 he2. 
-    by have := type_preserved_generator (typeof_expr e) r (Csyntax.typeof r1) g g'' g' i'' i1 i'' i' he1 h.
+    by have := type_preserved_generator (typeof_expr e) r (Csyntax.typeof r1) 
+            g g'' g'' g' i'' i1 i'' i1 he1 h.
   + by have := non_volatile_type_preserved (typeof_expr e) r g g'' i'' hvt he1. 
   by have := deref_addr_translated (typeof_expr e) m l ofs bf v r (transBeePL_value_cvalue v) g g'' i'' ht he1 refl_equal.
-(*(* Uop *)
-+ move=> m e v uop v' t ct v'' hi /= ht ho hv' ce hte henv.
-  monadInv hte; subst. monadInv EQ; subst.
-  rewrite /exprlist_list_expr /=. apply esr_unop with (transBeePL_value_cvalue v).
-  + by move: (hi x1 EQ0 henv).
+(* Uop *)
++ move=> m e v uop v' t ct v'' g g' i hi ht /= heq ho hv' ce g1 g2 i1 hte henv.
+  rewrite /SimplExpr.bind in hte. 
+  case he1: (transBeePL_expr_expr e g1) hte=> [er | r1 g1' i1'] //=.
+  case ht1: (transBeePL_type t g1')=> [er' | r2 g2' i2'] //=.
+  move=> [] h1 h2; subst; rewrite /=. rewrite /exprlist_list_expr /=. 
+  apply esr_unop with (transBeePL_value_cvalue v).
+  + by move: (hi r1 g1 g1' i1' he1 henv).
   have heq := bv_cv_reflex v' v'' hv'; subst.
-  have ht' := transBeePL_expr_expr_type_equiv e x1 EQ0.
-  rewrite ht' in ht. by case: ht=> ->.
-(* Bop *)
-+ move=> m e1 e2 t v1 v2 bop v ct1 ct2 v' hi1 hi2 ht1 ht2 ho hv ce hte henv.
+  have ht' := transBeePL_expr_expr_type_equiv e r1 g1 g1' i1' he1.
+  have heq1 := type_preserved_generator (typeof_expr e) (Csyntax.typeof r1) r2 
+               g1 g1' g1' g2 i1' i2' i1' i2' ht' ht1.
+  rewrite -heq1 in ht1.
+  by have heq' := type_preserved_generator (typeof_expr e) (Csyntax.typeof r1) ct g1' g2 g g' i2' i
+          i2' i ht1 ht; subst.
+(*(* Bop *)
++ move=> m e1 e2 t v1 v2 bop v ct1 ct2 v' g g' g'' i i' hi1 hi2 ht1 ht2 ho hv ce g1 g2 i1 hte henv.
+  rewrite /SimplExpr.bind in hte. 
+  case hte1 : (transBeePL_expr_expr e1 g1) hte=> [er | re1 ge1 ie1] //=.
+  case hte2 : (transBeePL_expr_expr e2 ge1
   monadInv hte; subst. monadInv EQ; subst. monadInv EQ; subst.
   rewrite /exprlist_list_expr /=. 
   apply esr_binop with (transBeePL_value_cvalue v1) (transBeePL_value_cvalue v2).
