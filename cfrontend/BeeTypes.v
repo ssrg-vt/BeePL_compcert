@@ -1,6 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
-Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Ctypes Errors.
+Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL PeanoNat Coq.NArith.BinNat Ctypes Errors.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps SimplExpr.
+From mathcomp Require Import all_ssreflect. 
 
 Local Open Scope string_scope.
 Local Open Scope error_monad_scope.
@@ -232,6 +233,18 @@ end.
 
 (****** Translation from BeePL types to Csyntax types ******)
 
+Fixpoint from_typelist (ts : Ctypes.typelist) : list Ctypes.type :=
+match ts with
+| Tnil => nil
+| Tcons t ts => t :: from_typelist ts
+end. 
+
+Fixpoint to_typelist (ts : list Ctypes.type) : Ctypes.typelist :=
+match  ts with 
+| nil => Tnil
+| t :: ts => Tcons t (to_typelist ts)
+end.
+
 Section translate_types.
 
 Variable transBeePL_type : BeeTypes.type -> mon Ctypes.type.
@@ -247,36 +260,110 @@ end.
 
 End translate_types.
 
-Fixpoint from_typelist (ts : Ctypes.typelist) : list Ctypes.type :=
+(* Translation of BeePL types to Clight Types *)
+Fixpoint transBeePL_type (t : BeeTypes.type) : mon Ctypes.type :=
+  let fix transBeePL_types (ts : list BeeTypes.type) : mon Ctypes.typelist :=
 match ts with
-| Tnil => nil
-| Tcons t ts => t :: from_typelist ts
-end. 
-
-Fixpoint to_typelist (ts : list Ctypes.type) : Ctypes.typelist :=
-match  ts with 
-| nil => Tnil
-| t :: ts => Tcons t (to_typelist ts)
+| nil => ret Tnil
+| t1 :: ts1 => do ct <- (transBeePL_type t1);
+               do cts <- (transBeePL_types ts1);
+               ret (Tcons ct cts)
+end in
+match t with
+| Ptype t => match t with
+             | Tunit => ret (Ctypes.Tint I8 Unsigned {| attr_volatile := false; attr_alignas := Some (N.of_nat 1%N) |}) (* Fix me *)
+             | Tint sz s a => ret (Ctypes.Tint sz s a)
+             | Tlong s a => ret (Ctypes.Tlong s a)
+             end
+| Reftype h bt a => match bt with
+                    | Bprim Tunit => ret (Ctypes.Tpointer Ctypes.Tvoid a)
+                    | Bprim (Tint sz s a) => ret (Ctypes.Tpointer (Ctypes.Tint sz s a) a)
+                    | Bprim (Tlong s a) => ret (Ctypes.Tpointer (Ctypes.Tlong s a) a)
+                    end
+| BeeTypes.Ftype ts ef t => do ats <- (transBeePL_types ts);
+                            do rt <- (transBeePL_type t);
+                            ret (Tfunction ats rt {| cc_vararg := Some (Z.of_nat(length(ts)));
+                                                     cc_unproto := false; cc_structret := false |}) (* Fix me *)
 end.
 
-(* Translation of BeePL types to Clight Types *) 
-Fixpoint transBeePL_type (t : BeeTypes.type) : mon Ctypes.type :=
+(*Fixpoint transBeePL_type (t : BeeTypes.type) : mon Ctypes.type :=
 match t with
 | Ptype t => match t with  
-             | Tunit => ret (Ctypes.Tint I8 Unsigned {| attr_volatile := false; attr_alignas := Some 1%N |}) (* Fix me *)
+             | Tunit => ret (Ctypes.Tint I8 Unsigned {| attr_volatile := false; attr_alignas := Some (N.of_nat 1)%N |}) (* Fix me *)
              | Tint sz s a => ret (Ctypes.Tint sz s a)
              | Tlong s a => ret (Ctypes.Tlong s a)
              end
 | Reftype h bt a => match bt with 
                     | Bprim Tunit => ret (Ctypes.Tpointer Ctypes.Tvoid a)
-                    | Bprim (Tint sz s a) => ret (Ctypes.Tpointer (Ctypes.Tint sz s a) a)
-                    | Bprim (Tlong s a) => ret (Ctypes.Tpointer (Ctypes.Tlong s a) a)
+                    | Bprim (Tint sz s a') => ret (Ctypes.Tpointer (Ctypes.Tint sz s a') a)
+                    | Bprim (Tlong s a') => ret (Ctypes.Tpointer (Ctypes.Tlong s a') a)
                     end
 | BeeTypes.Ftype ts ef t => do ats <- (transBeePL_types transBeePL_type ts);
                             do rt <- (transBeePL_type t);
                             ret (Tfunction ats rt {| cc_vararg := Some (Z.of_nat(length(ts))); 
                                                      cc_unproto := false; cc_structret := false |}) (* Fix me *) 
 end.
+
+Inductive transBeePL_type_spec : BeeTypes.type -> Ctypes.type -> Prop :=
+| trans_ptype_unit : transBeePL_type_spec (Ptype Tunit) (Ctypes.Tint I8 Unsigned {| attr_volatile := false; attr_alignas := Some (N.of_nat 1)%N |})
+| trans_ptype_int : forall sz s a,
+                    transBeePL_type_spec (Ptype (Tint sz s a)) (Ctypes.Tint sz s a)
+| trans_ptype_long : forall s a,
+                     transBeePL_type_spec (Ptype (Tlong s a)) (Ctypes.Tlong s a)
+| trans_reftype_unit : forall h a, transBeePL_type_spec (Reftype h (Bprim Tunit) a) (Ctypes.Tpointer Ctypes.Tvoid a)
+| trans_reftype_int : forall h sz s a a', transBeePL_type_spec (Reftype h (Bprim (Tint sz s a)) a') (Ctypes.Tpointer (Ctypes.Tint sz s a) a')
+| trans_reftype_long : forall h s a a', transBeePL_type_spec (Reftype h (Bprim (Tlong s a')) a) (Ctypes.Tpointer (Ctypes.Tlong s a') a)
+| trans_ftype : forall ts ef t cts ct,
+                (forall t', In t' ts -> exists ct', transBeePL_type_spec t' ct') ->
+                transBeePL_type_spec t ct ->
+                transBeePL_type_spec (Ftype ts ef t) (Tfunction cts ct {| cc_vararg := Some (Z.of_nat(length(ts))); 
+                                                                              cc_unproto := false; cc_structret := false |}).
+
+Lemma transBeePL_type_ind :
+forall (P : BeeTypes.type -> Ctypes.type -> Prop),
+  (forall p, P (Ptype p)) ->
+    (forall h bt a, P (Reftype h bt a)) ->
+    (forall ts ef t,
+        (forall t', In t' ts -> P t') -> P t -> P (Ftype ts ef t)) ->
+    forall t, P t.
+
+Lemma gen_next_trans : forall g3 g1 g',
+Coqlib.Ple (gen_next g3) (gen_next g1) ->
+Coqlib.Ple (gen_next g1) (gen_next g') ->
+Coqlib.Ple (gen_next g3) (gen_next g').
+Proof.
+Admitted.
+
+Lemma transBeePL_type_satisfy_spec : forall t ct g g' i',
+transBeePL_type t g = Res ct g' i' ->
+transBeePL_type_spec t ct.
+Proof.
+move=> t ct g g' i'. move: g g' i' ct. elim: t=> //=.
++ move=> p g g' i' ct. case: p=> //=.
+  + move=> [] h1 h2; subst. by apply trans_ptype_unit.
+  + move=> i s a [] h1 h2; subst. by apply trans_ptype_int.
+  move=> s a [] h1 h2; subst. by apply trans_ptype_long.
++ move=> i b a g g' i' ct. case: b=> //= p. case: p=> //=.
+  + move=> [] h1 h2; subst. by apply trans_reftype_unit.  
+  + move=> i'' s a' [] h1 h2; subst. by apply  trans_reftype_int.
+   move=> s a' [] h1 h2; subst. by apply  trans_reftype_long.
+move=> ts ef t hi g g' i' ct /= h. rewrite /SimplExpr.bind /= in h.
+case hts: (transBeePL_types transBeePL_type ts g) h=> [er | r1 g1 i1] //=.
+case ht: (transBeePL_type t g1) => [er' | r2 g2 i2] //=.
+move=> [] h1 h2; subst. apply trans_ftype.
++ move: g r1 g1 i1 hts i2 ht i'. elim: ts=> //=.
+  move=> t' ts his g r1 g1 i1. rewrite /SimplExpr.bind /=.
+  case ht1: (transBeePL_type t' g)=> [er'' | r3 g3 i3] //=.
+  case hts1: (transBeePL_types transBeePL_type ts g3)=> [er''' | r4 g4 i4] //=.
+  move=> [] h1 h2; subst; rewrite /=. move=> i2 ht i t''.
+  move=> [] heq //=; subst.
+  + exists r3. admit.
+  have hg := gen_next_trans g3 g1 g' i4 i2.
+  by move: (his g3 r4 g1 i4 hts1 i2 ht hg t'' heq).
+by move: (hi g1 g' i2 r2 ht).
+Admitted.*)
+
+
 
 (* Typing context *)
 Definition ty_context := PTree.t type.
@@ -285,5 +372,5 @@ Definition ty_context := PTree.t type.
    and only points to basic types like int, bool, unit or pair *)
 Definition store_context := PTree.t type.  
 
-Definition extend_context (Gamma : ty_context) (k : ident) (t : type):= PTree.set k t Gamma. 
+Definition extend_context (Gamma : ty_context) (k : ident) (t : type) := PTree.set k t Gamma. 
 

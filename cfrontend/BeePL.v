@@ -407,6 +407,7 @@ with bsem_expr_srv : Memory.mem -> expr -> value -> Prop :=
 | bsem_prim_uop : forall hm e v uop  v' t ct v'' g g' i,
                   bsem_expr_srv hm e v ->
                   transBeePL_type (typeof_expr e) g = Res ct g' i ->
+                  t = (typeof_expr e) ->
                   sem_unary_operation uop (transBeePL_value_cvalue v) ct hm = Some v' ->
                   transC_val_bplvalue v' = OK v'' ->
                   bsem_expr_srv hm (Prim (Uop uop) (e :: nil) t) v''
@@ -515,9 +516,10 @@ Context (Pvalof : forall hm e t l ofs bf v,
                   typeof_expr e = t ->
                   BeeTypes.type_is_volatile t = false ->
                   Prv hm (Valof e t) v).
-Context (Puop : forall hm e v uop  v' t ct v'' g g' i',
+Context (Puop : forall hm e v uop  v' t ct v'' g g' i,
                 Prv hm e v ->
-                transBeePL_type (typeof_expr e) g = Res ct g' i' ->
+                transBeePL_type (typeof_expr e) g = Res ct g' i ->
+                t = (typeof_expr e) ->
                 sem_unary_operation uop (transBeePL_value_cvalue v) ct hm = Some v' ->
                 transC_val_bplvalue v' = OK v'' ->
                 Prv hm (Prim (Uop uop) (e :: nil) t) v'').
