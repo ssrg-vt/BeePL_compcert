@@ -2,7 +2,7 @@ Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx FunI
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Linking.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Linking Ctypes Smallstep SimplExpr.
 Require Import BeePL BeePL_aux BeePL_mem BeeTypes BeePL Csyntax Clight Globalenvs BeePL_Csyntax SimplExpr.
-Require Import compcert.common.Errors Initializersproof Cstrategy lib.Coqlib Errors.
+Require Import compcert.common.Errors Initializersproof Cstrategy compcert.lib.Coqlib Errors.
 
 From mathcomp Require Import all_ssreflect. 
 
@@ -11,27 +11,27 @@ access_mode ty = md ->
 transBeePL_type ty g =  Res cty g' i ->
 Ctypes.access_mode cty = md.
 Proof.
-  intros ty cty md HACCESS HTRANS.
+  intros ty cty md g g' i HACCESS HTRANS.
   destruct ty eqn:Ety; simpl in HACCESS.
   (* Case: Ptype *)
   - destruct p eqn:Ep; simpl in *.
     (* Tunit *)
     + admit.
     (* Tint *)
-    + destruct i; destruct s; monadInv HTRANS; eauto.
+    + destruct i0; destruct s;
+      injection HTRANS as EQ; subst;
+      eauto.
     (* Tlong *)
-    + destruct s; monadInv HTRANS; eauto.
+    + destruct s;
+      injection HTRANS as EQ; subst;
+      eauto.
   (* Case: Reftype *)
   - destruct b; simpl in *;
     destruct p; simpl in *;
-    monadInv HTRANS;
+    injection HTRANS as EQ; subst.
     eauto.
   (* Case: Ftype *)
-  - monadInv HTRANS.
-    destruct (transBeePL_types transBeePL_type l) eqn:?;
-    try discriminate.
-    destruct (transBeePL_type t) eqn:?; try discriminate.
-    reflexivity.
+  - admit.
 Admitted.
 
 Lemma non_volatile_type_preserved : forall ty cty g g' i',
