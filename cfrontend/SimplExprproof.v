@@ -2121,8 +2121,8 @@ Lemma sstep_simulation:
      (plus step1 tge S1' t S2' \/
        (star step1 tge S1' t S2' /\ measure S2 < measure S1)%nat)
   /\ match_states S2 S2'.
-Proof.
-  induction 1; intros; inv MS.
+Proof. 
+  induction 1; intros; inv MS.  
 - (* do 1 *)
   inv TR. inv H0.
   econstructor; split.
