@@ -307,3 +307,5 @@ Definition store_context := PTree.t type.
 
 Definition extend_context (Gamma : ty_context) (k : ident) (t : type) := PTree.set k t Gamma. 
 
+
+

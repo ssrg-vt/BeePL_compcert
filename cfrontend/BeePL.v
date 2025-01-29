@@ -693,6 +693,13 @@ Inductive state : Type :=
             (m : Memory.mem) : state
 | StuckState                          (* undefined behvaior occured *).
 
+Definition is_ExprState (s : state) : bool :=
+match s with 
+| ExprState f e k vm m => true
+| CallState fd args k m => false
+| StuckState => false
+end.
+
 (* Reduction contexts *) 
 Definition expr_kind (e: expr) : Csem.kind :=
 match e with
@@ -778,7 +785,8 @@ match es with
 | e :: es => is_val e && is_vals es
 end.
 
-Definition is_reduced_form (e : expr) : bool :=
+(* When the subexpressions are reduced to value *)
+Definition is_top_level (e : expr) : bool :=
 match e with 
 | Val v t => true 
 | Valof e t => is_addr e
@@ -946,6 +954,7 @@ Context (Prcons : forall e es hm hm' hm'' e' es',
                   Prreds es hm' es' hm'' ->
                   Prreds (e :: es) hm (e' :: es') hm'').
 
+(* Complete Me *)
 Lemma lreduction_rreduction_rreductions_ind : 
 (forall e hm e' hm', lreduction ge vm e hm e' hm' -> Plred e hm e' hm) /\
 (forall e hm e' hm', rreduction ge vm e hm e' hm' -> Prred e hm e' hm) /\

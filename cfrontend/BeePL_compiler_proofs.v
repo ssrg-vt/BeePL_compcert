@@ -629,7 +629,7 @@ Qed.
 
 (* Equivalence between left reduction top level *)
 Lemma equiv_lreduction : forall e m e' m' ce g g' i, 
-is_reduced_form e = true /\ is_lv e = true ->
+is_top_level e = true /\ is_lv e = true ->
 lreduction bge benv e m e' m' ->
 transBeePL_expr_expr e g = Res ce g' i ->
 match_env benv cenv ->
@@ -700,7 +700,7 @@ Qed.
 
 (* Equivalence between right reduction top level *)
 Lemma equiv_rreduction : forall e m e' m' ce g g' i,
-is_reduced_form e = true /\ is_rv e = true ->
+is_top_level e = true /\ is_rv e = true ->
 rreduction bge benv e m e' m' ->
 transBeePL_expr_expr e g = Res ce g' i ->
 exists ce' t, Csem.rred cge ce m t ce' m' /\ sim_bexpr_cexpr benv e' ce'.
