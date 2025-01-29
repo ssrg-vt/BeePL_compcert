@@ -123,18 +123,7 @@ Ple (gen_next g3) (gen_next g4) ->
 transBeePL_type t g1 = Res r g2 i1 ->
 transBeePL_type t g3 = Res r' g4 i2 ->
 r = r'.
-Proof.
-move=> t r r' g1 g2 g3 g4 i1 i2 hp hp'. move: r r' g1 g2 g3 g4 i1 i2 hp hp'. elim: t=> //=.
-+ move=> p. case: p=> //=.
-  + by move=> r r' g1 g2 g3 g4 i1 i2 hp hp' [] h1 h2 [] h1' h2'; subst.
-  + by move=> r r' i s a g1 g2 g3 g4 i1 i2 hp hp' [] h1 h2 [] h1' h2'; subst.
-  by move=> r r' s a g1 g2 g3 g4 i1 i2 hp hp' [] h1 h2 [] h1' h2'; subst.
-+ move=> id b a r r' g1 g2 g3 g4 i1 i2 hp hp'. case: b=> //= p.
-  case: p=> //=.
-  + by move=> [] h1 h2 [] h3 h4; subst.
-  + by move=> i s a' [] h1 h2 [] h3 h4; subst.
-  by move=> s a' [] h1 h2 [] h3 h4; subst.
-move=> es ef t hi r r' g1 g2 g3 g4 i1 i2 hp hp'.
+Proof. (* use inductive principle proved in BeeTypes.v *)
 Admitted.
 
 Lemma transBeePL_expr_expr_type_equiv : forall e ce g g' i,
