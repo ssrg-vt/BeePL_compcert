@@ -128,8 +128,10 @@ match e with
 | Prim b es t => match b with 
                  | Ref => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                           do ct <- (transBeePL_type t);
-                          ret (Sdo (Eaddrof (hd default_expr (exprlist_list_expr ces)) 
-                                   ct)) (* Fix me *)
+                          do tv <- (gensym ct);
+                          ret (Sdo (Ecomma (Eassign (Evar tv ct) (hd default_expr (exprlist_list_expr ces)) ct) 
+                                   (Eaddrof (Evar tv ct) ct)
+                              ct)) (* Fix me *)
                  | Deref => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                             do ct <- (transBeePL_type t);
                             ret (Sdo (Ederef (hd default_expr (exprlist_list_expr ces)) 

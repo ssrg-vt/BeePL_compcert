@@ -280,22 +280,22 @@ end.
 
 
 Lemma transBeePL_type_ind :
-  forall (P : BeeTypes.type -> Prop),
-    (forall (t : primitive_type), P (Ptype t)) ->
-    (forall (h : ident) (bt : basic_type) (a : attr), P (Reftype h bt a)) ->
-    (forall (ts : list BeeTypes.type) (ef : effect) (t : BeeTypes.type),
-       Forall P ts -> P t -> P (Ftype ts ef t)) ->
-    forall t : BeeTypes.type, P t.
+forall (P : BeeTypes.type -> Prop),
+ (forall (t : primitive_type), P (Ptype t)) ->
+ (forall (h : ident) (bt : basic_type) (a : attr), P (Reftype h bt a)) ->
+ (forall (ts : list BeeTypes.type) (ef : effect) (t : BeeTypes.type),
+  Forall P ts -> P t -> P (Ftype ts ef t)) ->
+forall t : BeeTypes.type, P t.
 Proof.
-  intros P Hprim Href Hfun.
-  fix IH 1.
-  intros t.
-  destruct t as [p | h bt a | ts ef t].
-  - apply Hprim.
-  - apply Href.
-  - apply Hfun.
-    + induction ts as [| t' ts' IHts]; constructor; auto.
-    + apply IH.
+intros P Hprim Href Hfun.
+fix IH 1.
+intros t.
+destruct t as [p | h bt a | ts ef t].
+- apply Hprim.
+- apply Href.
+- apply Hfun.
++ induction ts as [| t' ts' IHts]; constructor; auto.
++ apply IH.
 Qed.
 
 (* Typing context *)
