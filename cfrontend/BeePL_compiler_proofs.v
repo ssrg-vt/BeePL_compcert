@@ -666,7 +666,7 @@ move=> e m e' m' ce g g' i hc hl. move: m m' e' ce hl hc. elim: e=> //=.
   (* ref *)
   + by move=> es t m m' e' ce hl [] //=.
   (* deref *)
-  + move=> es t m m' e' ce hl hc /= he hm. inversion hl; subst.
+  + move=> es t m m' e' ce hl hc /= he hm. inversion hl; subst. 
     + rewrite /transBeePL_expr_exprs /= /SimplExpr.bind /= in he.
       case ht: (transBeePL_type tv g) he=> [er | r g'' i'] //=.
       case  ht': (transBeePL_type t g'')=> [er1 | r1 g1 i1] //=.
