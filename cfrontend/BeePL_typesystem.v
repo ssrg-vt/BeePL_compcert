@@ -374,7 +374,20 @@ Lemma deref_addr_val_ty : forall ty m addr ofs v,
 deref_addr ty m addr ofs Full v ->
 typeof_value v ty.
 Proof.
+  intros.
+  inversion H; subst; clear H.
+  - destruct (transC_val_bplvalue v0) eqn:?.
+    inversion H2; subst.
+    destruct v0; try discriminate; admit.
+    discriminate.
+  - destruct ty; try discriminate.
+    + destruct p; simpl in *; try discriminate; eauto.
+      destruct i; simpl in *; try discriminate; eauto.
+      destruct s; simpl in *; try discriminate; eauto.
+      destruct s; simpl in *; try discriminate; eauto.
+    admit. 
 Admitted.
+      
 
 (* Value typing *)
 (* A value does not produce any effect *)
