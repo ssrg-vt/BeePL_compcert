@@ -305,5 +305,9 @@ Definition ty_context := PTree.t type.
    and only points to basic types like int, bool, unit or pair *)
 Definition store_context := PTree.t type.  
 
+Definition empty_context := (PTree.empty type).
+
 Definition extend_context (Gamma : ty_context) (k : ident) (t : type) := PTree.set k t Gamma. 
+
+
 

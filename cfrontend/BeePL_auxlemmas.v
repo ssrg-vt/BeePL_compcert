@@ -117,6 +117,7 @@ Qed.
 
 (* Since translation of types does not depend on the generator, it 
    should produce the same result irrespective of them *)
+(* Coqlib.v has lot of lemmas related to Ple *)
 Lemma type_preserved_generator : forall t r r' g1 g2 g3 g4 i1 i2,
 Ple (gen_next g1) (gen_next g2) ->
 Ple (gen_next g3) (gen_next g4) ->
@@ -131,3 +132,25 @@ transBeePL_expr_expr e g = Res ce g' i ->
 transBeePL_type (typeof_expr e) g = Res (Csyntax.typeof ce) g' i.
 Proof.
 Admitted. 
+
+Lemma val_cannot_be_reduced : forall bge benv e m e' m',
+is_val e -> 
+~ (rreduction bge benv e m e' m') /\
+~ (lreduction bge benv e m e' m').
+Proof.
+move=> bge benv e. elim: e=> //= v t m e' m' _ /=. split=> //=.
++ move=> h. by inversion h.
+move=> h. by inversion h.
+Qed.
+
+Lemma addr_cannot_be_reduced : forall bge benv e m e' m',
+is_addr e -> 
+~ (rreduction bge benv e m e' m') /\
+~ (lreduction bge benv e m e' m').
+Proof.
+move=> beg benv e. elim: e=> //= v t m e' m' _ /=. split=> //=.
++ move=> h. by inversion h.
+move=> h. by inversion h.
+Qed.
+
+

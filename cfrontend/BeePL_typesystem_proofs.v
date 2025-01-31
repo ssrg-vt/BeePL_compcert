@@ -126,3 +126,22 @@ transBeePL_types transBeePL_type bts g = Res cts g' i ->
 rel_types bts cts).
 Proof.
 Admitted.
+
+(*
+Lemma type_exprsE : forall Gamma Sigma es efs ts,
+type_exprs Gamma Sigma es efs ts ->
+match es with 
+| [::] => efs = [::] /\ ts = [::]
+| e1 :: es1 => exists ef1 t1 efs1 ts1,
+               type_expr Gamma Sigma e1 ef1 t1 /\  
+               type_exprs Gamma Sigma es1 efs1 ts1 /\
+               es = e1 :: es1 /\ efs = ef1 ++ efs1 /\ ts = t1 :: ts1
+end.
+Proof.
+move=> Gamma Sigma es efs ts hs. elim: es hs=> //=.
++ by move=> hs; inversion hs.
+move=> e es ih hs; inversion hs; subst.
+by exists ef, t, efs0, ts0; split=> //=.
+Qed.  *)    
+
+
