@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Coqlib Memory Ctypes Memtype.
-Require Import BeePL_aux BeePL_mem BeeTypes BeePL BeePL_auxlemmas BeePL_compiler_proofs.
+Require Import BeePL_aux BeePL_mem BeeTypes BeePL.
 From mathcomp Require Import all_ssreflect. 
 
 Definition empty_effect : effect := nil. 
@@ -322,6 +322,51 @@ Lemma extend_ty_context_deterministic : forall Gamma Sigma x x' t1 t2 e ef t,
 type_expr (extend_context (extend_context Gamma x t1) x' t2) Sigma e ef t ->
 type_expr (extend_context Gamma x t1) Sigma e ef t. 
 Proof.
+  intros Gamma Sigma x x' t1 t2 e ef t Hneq Htype.
+  induction Htype.
+  - constructor.
+  - constructor.
+  - constructor.
+  - constructor.
+  - constructor.
+    assumption.
+  - constructor.
+    + unfold extend_context in *.
+      destruct (PTree.get (vname x0) (PTree.set x' t2 (PTree.set x t1 Gamma))) eqn:Hget;
+      apply PTree.gss.
+    + assumption.
+  - eapply Ty_constint with (Gamma := extend_context Gamma x t1).
+    apply H.
+  - eapply Ty_constlong with (Gamma := extend_context Gamma x t1).
+    apply H.
+  - eapply Ty_constunit with (Gamma := extend_context Gamma x t1).
+    apply H.
+  - eapply Ty_app with (Gamma := extend_context Gamma x t1).
+    apply IHHtype.
+  - admit.
+  - eapply Ty_prim_ref with (Gamma := extend_context Gamma x t1).
+    apply IHHtype.
+  - eapply Ty_prim_deref with (Gamma := extend_context Gamma x t1).
+    apply IHHtype.
+  - eapply Ty_prim_massgn with (Gamma := extend_context Gamma x t1).
+    + apply IHHtype1.
+    + apply IHHtype2.
+  - eapply Ty_prim_uop with (Gamma := extend_context Gamma x t1).
+    apply IHHtype.
+  - eapply Ty_prim_bop with (Gamma := extend_context Gamma x t1).
+    + apply IHHtype1.
+    + apply IHHtype2.
+  - eapply Ty_bind with (Gamma := extend_context Gamma x t1).
+    + apply IHHtype1.
+    + admit.
+  - eapply Ty_cond with (Gamma := extend_context Gamma x t1).
+    + apply IHHtype1.
+    + apply H.
+    + apply IHHtype2.
+    + apply IHHtype3.
+  - constructor.
+  - eapply Ty_addr with (Gamma := extend_context Gamma x t1).
+    apply H.
 Admitted.
 
 (* Complete Me *)
