@@ -454,12 +454,12 @@ Lemma bsem_cexpr_simple :
 Proof.
 apply bsem_expr_slv_rlv_ind=> //=.
 (* LVar *)
-+ move=> m x t l hm ht g g' i ce hte henv; subst. rewrite /SimplExpr.bind in hte. 
-  case ht: (transBeePL_type (vtype x) g') hte=> [er | r g'' i'] //=.
-  move=> [] h1 h2; subst.
-  apply esl_var_local. by have := equiv_local_benv_cenv x l (vtype x) r g' i i' henv ht hm.
++ move=> m x t l h a hm ht g g' i ce hte henv; subst. rewrite /SimplExpr.bind in hte. 
+  case htt: (transBeePL_type (vtype x) g') hte=> [er | r g'' i'] //=.
+  move=> [] h1 h2; subst. rewrite -ht in hm.
+  apply esl_var_local. by have := equiv_local_benv_cenv x l (vtype x) r g' i i' henv htt hm.
 (* GVar *)
-+ move=> m x t l hm /= he ht g g' i ce hte henv. 
++ move=> m x t l h a hm /= he ht g g' i ce hte henv. 
   rewrite /SimplExpr.bind in hte. 
   case hte': (transBeePL_type (vtype x) g') hte=> [er | r g'' i'] //=.
   move=> [] h1 h2; subst.
@@ -604,26 +604,6 @@ exists cenv', Csem.bind_parameters cge cenv m (zip cvrs cts) cenv' m'.
 Proof.
 Admitted.
 
-Lemma val_cannot_be_reduced : forall e m e' m',
-is_val e -> 
-~ (rreduction bge benv e m e' m') /\
-~ (lreduction bge benv e m e' m').
-Proof.
-move=> e. elim: e=> //= v t m e' m' _ /=. split=> //=.
-+ move=> h. by inversion h.
-move=> h. by inversion h.
-Qed.
-
-Lemma addr_cannot_be_reduced : forall e m e' m',
-is_addr e -> 
-~ (rreduction bge benv e m e' m') /\
-~ (lreduction bge benv e m e' m').
-Proof.
-move=> e. elim: e=> //= v t m e' m' _ /=. split=> //=.
-+ move=> h. by inversion h.
-move=> h. by inversion h.
-Qed.
-
 (* Preservation of semantics of expressions in BeePL and expressions in Csyntax *) 
 (* Refer: sstep_simulation in SimplExprproof.v *)
 
@@ -648,15 +628,15 @@ move=> e m e' m' ce g g' i hc hl. move: m m' e' ce hl hc. elim: e=> //=.
   (* local *)
   + exists (Eloc l Ptrofs.zero Full r). 
     split=> //=.
-    + apply Csem.red_var_local. by move: (hm1 (vname v) l (vtype v) r g g' i' H0 ht).
-    by apply sim_addr with g g' i'; rewrite /=. 
+    + apply Csem.red_var_local. rewrite -H1 in H0. by move: (hm1 (vname v) l (vtype v) r g g' i' H0 ht).
+    apply sim_addr with g g' i'; rewrite /=. by rewrite H1 /= in ht.
   (* global *)
   exists (Eloc l Ptrofs.zero Full r). 
   split=> //=.
   + apply Csem.red_var_global. case: hm=> hm1 hm2.
     + by move: (hm2 (vname v) H0).
     by have := symbols_preserved (vname v)=> ->. 
-  by apply sim_addr with g g' i'.
+  apply sim_addr with g g' i'. by rewrite H1 /= in ht.
 (* const *)
 + by move=> c t m m' e' ce hl [] //=.
 (* call *)
@@ -668,15 +648,20 @@ move=> e m e' m' ce g g' i hc hl. move: m m' e' ce hl hc. elim: e=> //=.
   (* deref *)
   + move=> es t m m' e' ce hl hc /= he hm. inversion hl; subst. 
     + rewrite /transBeePL_expr_exprs /= /SimplExpr.bind /= in he.
-      case ht: (transBeePL_type tv g) he=> [er | r g'' i'] //=.
-      case  ht': (transBeePL_type t g'')=> [er1 | r1 g1 i1] //=.
-      move=> [] h1 h2; subst; rewrite /=.
-      case: hm=> [hm1 hm2];rewrite /=.
-      exists (Eloc l ofs Full r1). split=> //=.
-      + by apply Csem.red_deref.
-      by apply sim_addr with g'' g' i1.
+      case ht0: t0 he=> [ | sz s ai | s ai] //=.
+      + move=> [] h1 h2; subst. inversion hl; subst. exists (Eloc l ofs Full (Tpointer Tvoid a)). split=> //=.
+        + by apply Csem.red_deref.
+        apply sim_addr with g' g' i; rewrite /=. rewrite /ret /=. admit.
+      + move=> [] h1 h2; subst. inversion hl; subst. exists (Eloc l ofs Full (Tpointer (Ctypes.Tint sz s ai) a)). 
+        split=> //=.
+        + by apply Csem.red_deref.
+        apply sim_addr with g' g' i; rewrite /=. rewrite /ret /=. admit.
+      + move=> [] h1 h2; subst. inversion hl; subst. exists (Eloc l ofs Full (Tpointer (Ctypes.Tlong s ai) a)). 
+        split=> //=.
+        + by apply Csem.red_deref.
+        apply sim_addr with g' g' i; rewrite /=. rewrite /ret /=. admit.
     rewrite /is_vals in hc. move: hc. move=> [] /andP [] hc _ _.
-    have [H4' H4''] := val_cannot_be_reduced e m e'0 m' hc. 
+    have [H4' H4''] := val_cannot_be_reduced bge benv e m e'0 m' hc. 
     rewrite /not in H4'. by move: (H4' H4).
   (* massgn *)
   + by move=> es t m m' e' ce hl [] //=.
@@ -696,7 +681,7 @@ move=> e m e' m' ce g g' i hc hl. move: m m' e' ce hl hc. elim: e=> //=.
 + by move=> l ofs m m' e' ce hl [] //=.
 (* hexpr *)
 by move=> m e hi t m1 m2 e' ce hl [] //=.
-Qed.
+Admitted.
 
 (* Equivalence between right reduction top level *)
 Lemma equiv_rreduction : forall e m e' m' ce g g' i,
@@ -709,7 +694,7 @@ move=> e m e' m' ce g g' i hc hl. move: m m' e' ce hl hc. elim: e=> //=.
 (* val *)
 + by move=> v t m m' e' ce hr [] //=. 
 (* valof *)
-+ move=> e hi t m m' e' ce hr [] hc _ he. rewrite /SimplExpr.bind in he.
++ (*move=> e hi t m m' e' ce hr [] hc _ he. rewrite /SimplExpr.bind in he.
   case ht: (transBeePL_type t g) he=> [er | r1 g1 i1] //=.
   case he: (transBeePL_expr_expr e g1)=> [er' | r2 g2 i2] //=.
   move=> [] h1 h2; subst. inversion hr; subst. inversion he; subst.
@@ -724,7 +709,7 @@ move=> e m e' m' ce g g' i hc hl. move: m m' e' ce hl hc. elim: e=> //=.
                  (transBeePL_value_cvalue v) g1 g' i0 H1 h0 refl_equal. 
     by apply sim_val with g1 g' i0.
   have [h1 h2] := addr_cannot_be_reduced e m e'0 m' hc. 
-  rewrite /not in h2. by move: (h2 H4).
+  rewrite /not in h2. by move: (h2 H4).*) admit.
 (* var *)
 + by move=> v m m' e' ce hr [] //=.
 (* const *)
@@ -764,9 +749,9 @@ move=> e m e' m' ce g g' i hc hl. move: m m' e' ce hl hc. elim: e=> //=.
                 g2 g' i3 H7 ht3 refl_equal refl_equal. 
       by apply sim_val with g2 g' i3.
     + move=> [] /andP [] he1 he2 _.
-      have [hf1 hf2] := addr_cannot_be_reduced e1 m e1' m' he1.
+      have [hf1 hf2] := addr_cannot_be_reduced bge benv e1 m e1' m' he1.
       move: hf1. by move=> [].
-    + move=> [] hv _. have [h1 h2]:= val_cannot_be_reduced e2 m e2' m' hv.
+    + move=> [] hv _. have [h1 h2]:= val_cannot_be_reduced bge benv e2 m e2' m' hv.
       move: h1. by move=> [].
   (* uop *)
   + move=> u es t m m' e' ce hr [] //= hv _ hte. inversion hr; subst.
@@ -780,7 +765,7 @@ move=> e m e' m' ce g g' i hc hl. move: m m' e' ce hl hc. elim: e=> //=.
         by have heq := type_preserved_generator t ct r3 g0 g'0 g g1' i' i3 i' i3 H2 ht2; subst.
     have heq := bv_cv_reflex v' v'' H7; subst.
     by apply sim_val with g1' g' i2'.
-  move: hv. rewrite /=. move=> /andP [] hv _. have [h1 h2] := val_cannot_be_reduced e m e'0 m' hv.
+  move: hv. rewrite /=. move=> /andP [] hv _. have [h1 h2] := val_cannot_be_reduced bge benv e m e'0 m' hv.
   move: h1. by move=> [].
   (* bop *)
   + move=> b es t m m' e' ce hr [] //= hv _ hte. inversion hr; subst.
@@ -795,9 +780,9 @@ move=> e m e' m' ce g g' i hc hl. move: m m' e' ce hl hc. elim: e=> //=.
       + apply Csem.red_binop. by have -> := comp_env_preserved.
       have <- /= := bv_cv_reflex v v' H8. by apply sim_val with g3 g' i4.
     + rewrite /= in hv. move: hv. move=> /andP [] he1 /andP [] he2 _.
-    + have [h1 h2] := val_cannot_be_reduced e1 m e1' m' he1. move: h1. by move=> [].
+    + have [h1 h2] := val_cannot_be_reduced bge benv e1 m e1' m' he1. move: h1. by move=> [].
     rewrite /= in hv. move: hv. move=> /andP [] he2 _.
-    have [h1 h2] := val_cannot_be_reduced e2 m e2' m' he2.
+    have [h1 h2] := val_cannot_be_reduced bge benv e2 m e2' m' he2.
     move: h2. by move=> [].
   (* run *)
   by move=> m es t m1 m' e' ce hr [] //=. (* fix me *)
@@ -820,7 +805,7 @@ move=> e m e' m' ce g g' i hc hl. move: m m' e' ce hl hc. elim: e=> //=.
     + apply Csem.red_condition.
       by have heq := type_preserved_generator tv r4 ctv g g1 g0 g'0 i5 i0 i5 i0 ht2 H6; subst.
     admit. (* cannot be solved as condition takes step to Eparen in Csyntax *)
-  have [h1 h2] := val_cannot_be_reduced e m' e1' hm' hv. move: h1. by move=> [].
+  have [h1 h2] := val_cannot_be_reduced bge benv e m' e1' hm' hv. move: h1. by move=> [].
 (* unit *)
 + by move=> t m m' e' ce hr [] //=. 
 (* addr *)

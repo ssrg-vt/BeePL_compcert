@@ -373,11 +373,11 @@ Section Big_step_semantics.
 Variable (ge : BeePL.genv).
 Variable (vm : vmap).
 
-(* Would be useful in proving equivalence with Cstrategy for simpl expressions *)
+(* Would be useful in proving equivalence with Cstrategy for simpl expressions *) Print linfo.
 Inductive bsem_expr_slv : Memory.mem -> expr -> positive -> ptrofs -> bitfield -> Prop :=
-| bsem_var : forall hm x t l, 
-              vm!(x.(vname)) = Some (l, t) ->
-              t = x.(vtype) ->
+| bsem_var : forall hm x t l h a, 
+              vm!(x.(vname)) = Some (l, Reftype h (Bprim t) a) ->
+              x.(vtype) = Reftype h (Bprim t) a ->
               bsem_expr_slv hm (Var x) l Ptrofs.zero Full
 | bsem_gvar : forall hm x t l, 
               vm!(x.(vname)) = None ->
@@ -489,14 +489,14 @@ Variable (vm : vmap).
 
 Context (Plv : Memory.mem -> expr -> positive -> ptrofs -> bitfield -> Prop).
 Context (Prv : Memory.mem -> expr -> value -> Prop).
-Context (Plvar : forall hm x t l, 
-                 vm!(x.(vname)) = Some (l, t) ->
-                 t = x.(vtype) ->
+Context (Plvar : forall hm x t l h a, 
+                 vm!(x.(vname)) = Some (l, Reftype h (Bprim t) a) ->
+                 x.(vtype) = Reftype h (Bprim t) a ->
                  Plv hm (Var x) l Ptrofs.zero Full).
-Context (Pgvar : forall hm x t l,
+Context (Pgvar : forall hm x t l h a,
                  vm!(x.(vname)) = None ->
                  Genv.find_symbol ge x.(vname) = Some l ->
-                 t = x.(vtype) ->
+                 x.(vtype) = Reftype h (Bprim t) a ->
                  Plv hm (Var x) l Ptrofs.zero Full).
 Context (Paddr : forall hm l ofs,
                  Plv hm (Addr l ofs) l.(lname) ofs l.(lbitfield)).
@@ -566,28 +566,28 @@ Inductive callreduction : expr -> Memory.mem -> fundef -> list value -> type -> 
              callreduction (App (Val v (Ftype ts ef rt)) vargs t) hm (Internal fd) vargs' t.
 
 Inductive lreduction : expr -> Memory.mem -> expr -> Memory.mem -> Prop :=
-| lred_var_local : forall hm x t l,
-                   vm!(x.(vname)) = Some (l, t) ->
-                   t = x.(vtype) ->
-                   lreduction (Var x) hm (Addr {| lname := l; ltype := t; lbitfield := Full |} Ptrofs.zero) hm
-| lred_var_global : forall hm x t l,
+| lred_var_local : forall hm x t l h a,
+                   vm!(x.(vname)) = Some (l, Reftype h (Bprim t) a) ->
+                   x.(vtype) = Reftype h (Bprim t) a ->
+                   lreduction (Var x) hm (Addr {| lname := l; ltype := Reftype h (Bprim t) a; lbitfield := Full |} Ptrofs.zero) hm
+| lred_var_global : forall hm x t l h a,
                     vm!(x.(vname)) = None ->
-                    t = x.(vtype) ->
+                    x.(vtype) = Reftype h (Bprim t) a ->
                     Genv.find_symbol ge x.(vname) = Some l ->
-                    lreduction (Var x) hm (Addr {| lname := l; ltype := t; lbitfield := Full |} Ptrofs.zero) hm
-| lred_deref : forall hm l ofs tv t,
-               lreduction (Prim Deref (Val (Vloc l ofs) tv:: nil) t) hm 
-               (Addr {| lname := l; ltype := t; lbitfield := Full |} ofs) hm
+                    lreduction (Var x) hm (Addr {| lname := l; ltype := Reftype h (Bprim t) a; lbitfield := Full |} Ptrofs.zero) hm
+| lred_deref : forall hm l ofs t h a,
+               lreduction (Prim Deref (Val (Vloc l ofs) (Reftype h (Bprim t) a):: nil) (Reftype h (Bprim t) a)) hm 
+               (Addr {| lname := l; ltype := Reftype h (Bprim t) a; lbitfield := Full |} ofs) hm
 | lred_deref1 : forall hm e e' t hm',
                 rreduction e hm e' hm' ->
                 lreduction (Prim Deref [:: e] t) hm  (Prim Deref [:: e'] t) hm'
 
 with rreduction : expr -> Memory.mem -> expr -> Memory.mem -> Prop :=
-| rred_valof : forall hm e t l ofs bf v,
+| rred_valof : forall hm e t l ofs bf v h a,
                deref_addr (typeof_expr e) hm l ofs bf v ->
-               typeof_expr e = t ->
-               BeeTypes.type_is_volatile t = false ->
-               rreduction (Valof (Addr {| lname := l; ltype := t; lbitfield := bf |} ofs) t) hm (Val v t) hm
+               typeof_expr e = (Ptype t) ->
+               BeeTypes.type_is_volatile (Ptype t) = false ->
+               rreduction (Valof (Addr {| lname := l; ltype := Reftype h (Bprim t) a; lbitfield := bf |} ofs) (Ptype t)) hm (Val v (Ptype t)) hm
 | rred_valof1 : forall hm e t e' hm',
                 lreduction e hm e' hm' ->
                 rreduction (Valof e t) hm (Valof e' t) hm'
@@ -863,17 +863,18 @@ Variable (vm : vmap).
 Context (Plred : expr -> Memory.mem -> expr -> Memory.mem -> Prop).
 Context (Prred : expr -> Memory.mem -> expr -> Memory.mem -> Prop).
 Context (Prreds : list expr -> Memory.mem -> list expr -> Memory.mem -> Prop).
-Context (Plrvarl : forall hm x t l, 
-                   vm!(x.(vname)) = Some (l, t) ->
-                   t = x.(vtype) ->
-                   Plred (Var x) hm (Addr {| lname := l; ltype := t; lbitfield := Full |} Ptrofs.zero) hm).
-Context (Plrvarg : forall hm x t l,
+Context (Plrvarl : forall hm x t l h a,
+                   vm!(x.(vname)) = Some (l, Reftype h (Bprim t) a) ->
+                   x.(vtype) = Reftype h (Bprim t) a ->
+                   Plred (Var x) hm (Addr {| lname := l; ltype := Reftype h (Bprim t) a; lbitfield := Full |} Ptrofs.zero) hm).
+Context (Plrvarg : forall hm x t l h a,
                    vm!(x.(vname)) = None ->
-                   t = x.(vtype) ->
+                   x.(vtype) = Reftype h (Bprim t) a ->
                    Genv.find_symbol ge x.(vname) = Some l ->
-                   Plred (Var x) hm (Addr {| lname := l; ltype := t; lbitfield := Full |} Ptrofs.zero) hm).
-Context (Plderef : forall hm l ofs tv t,
-                   Plred (Prim Deref (Val (Vloc l ofs) tv:: nil) t) hm (Addr {| lname := l; ltype := t; lbitfield := Full |} ofs) hm).
+                   Plred (Var x) hm (Addr {| lname := l; ltype := Reftype h (Bprim t) a; lbitfield := Full |} Ptrofs.zero) hm).
+Context (Plderef : forall hm l ofs t h a,
+                   Plred (Prim Deref (Val (Vloc l ofs) (Reftype h (Bprim t) a):: nil) (Reftype h (Bprim t) a)) hm 
+                         (Addr {| lname := l; ltype := Reftype h (Bprim t) a; lbitfield := Full |} ofs) hm).
 Context (Plderef1 : forall hm e e' t hm',
                     Prred e hm e' hm' ->
                     Plred (Prim Deref [:: e] t) hm  (Prim Deref [:: e'] t) hm').

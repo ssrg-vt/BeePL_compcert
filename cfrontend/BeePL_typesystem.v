@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Coqlib Memory Ctypes Memtype.
-Require Import BeePL_aux BeePL_mem BeeTypes BeePL BeePL_auxlemmas.
+Require Import BeePL_aux BeePL_mem BeeTypes BeePL BeePL_auxlemmas BeePL_compiler_proofs.
 From mathcomp Require Import all_ssreflect. 
 
 Definition empty_effect : effect := nil. 
@@ -68,10 +68,9 @@ Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> P
             type_expr Gamma Sigma (Cond e1 e2 e3 t) (ef1 ++ ef2 ++ ef3) t
 | Ty_unit : forall Gamma Sigma,
             type_expr Gamma Sigma (Unit (Ptype Tunit)) empty_effect (Ptype Tunit)
-| Ty_addr : forall Gamma Sigma l h bt a ofs,
-            PTree.get l.(lname) (extend_context Sigma l.(lname) l.(ltype)) = Some (Reftype h bt a)  ->
-            l.(ltype) = (Reftype h bt a) ->
-            type_expr Gamma Sigma (Addr l ofs) empty_effect (Reftype h bt a) 
+| Ty_addr : forall Gamma Sigma l ofs h t a,
+            l.(ltype) = Reftype h (Bprim t) a ->
+            type_expr Gamma Sigma (Addr l ofs) empty_effect l.(ltype) 
 (* fix me : Run, Hexpr *)
 with type_exprs : ty_context -> store_context -> list expr -> effect -> list type -> Prop :=
 | Ty_nil : forall Gamma Sigma,
@@ -84,22 +83,6 @@ with type_exprs : ty_context -> store_context -> list expr -> effect -> list typ
 Scheme type_expr_ind_mut := Induction for type_expr Sort Prop
   with type_exprs_ind_mut := Induction for type_exprs Sort Prop.
 Combined Scheme type_exprs_type_expr_ind_mut from type_exprs_ind_mut, type_expr_ind_mut.
-
-Lemma type_exprsE : forall Gamma Sigma es efs ts,
-type_exprs Gamma Sigma es efs ts ->
-match es with 
-| [::] => efs = [::] /\ ts = [::]
-| e1 :: es1 => exists ef1 t1 efs1 ts1,
-               type_expr Gamma Sigma e1 ef1 t1 /\  
-               type_exprs Gamma Sigma es1 efs1 ts1 /\
-               es = e1 :: es1 /\ efs = ef1 ++ efs1 /\ ts = t1 :: ts1
-end.
-Proof.
-move=> Gamma Sigma es efs ts hs. elim: es hs=> //=.
-+ by move=> hs; inversion hs.
-move=> e es ih hs; inversion hs; subst.
-by exists ef, t, efs0, ts0; split=> //=.
-Qed.      
 
 Section type_expr_ind.
 Context (Pts : ty_context -> store_context -> list expr -> effect -> list type -> Prop).
@@ -162,9 +145,8 @@ Context (Htcond : forall Gamma Sigma e1 e2 e3 ef1 ef2 ef3 tb t,
 Context (Htunit : forall Gamma Sigma, 
                   Pt Gamma Sigma (Unit (Ptype Tunit)) empty_effect (Ptype Tunit)).
 Context (Htloc : forall Gamma Sigma l h bt a ofs, 
-                 PTree.get l.(lname) (extend_context Sigma l.(lname) l.(ltype))  = Some (Reftype h bt a) ->
                  l.(ltype) = (Reftype h bt a) ->
-                 Pt Gamma Sigma (Addr l ofs) empty_effect (Reftype h bt a)). 
+                 Pt Gamma Sigma (Addr l ofs) empty_effect l.(ltype)). 
 Context (Htnil : forall Gamma Sigma,
                  Pts Gamma Sigma nil nil nil).
 Context (Htcons : forall Gamma Sigma e es t ef ts efs,
@@ -207,6 +189,8 @@ apply type_exprs_type_expr_ind_mut=> //=.
 (* Cond *)
 + move=> Gamma Sigma e1 e2 e3 tb t ef1 ef2 ef3 hte1 ht1 hte2 ht2 hte3 ht3.
   by apply Htcond with tb.
+(* Addr *)
++ move=> Gamma Sigma l ofs h t a hteq; subst. by apply Htloc with h (Bprim t) a.
 move=> Gamma Sigma e es ef efs t ts hte ht htes hts.
 by apply Htcons.
 Qed.
@@ -263,8 +247,7 @@ apply type_expr_indP => //=.
   move: (ih1 ef0 tb0 H5)=> [] h1 h2; subst. move: (ih2 ef4 t' H9)=> [] h1' h2'; subst.
   by move: (ih3 ef5 t' H10)=> [] h1'' h2''; subst.
 + by move=> Gamma Sigma efs' ts' ht; inversion ht; subst.
-+ move=> Gamma Sigma l h bt a ofs hl heq ef' t' ht; inversion ht; subst.
-  by rewrite heq in H6.
++ by move=> Gamma Sigma l h bt a ofs hl ef' t' ht; inversion ht; subst.
 + by move=> Gamma Sigma efs' ts' ht; inversion ht; subst.
 move=> Gamma Sigma e es t ef ts efs ih ih' efs' ts' ht; inversion ht; subst.
 move: (ih ef0 t0 H3)=> [] h1 h2; subst. by move: (ih' efs0 ts0 H6)=> [] h1 h2; subst.
@@ -353,8 +336,73 @@ Admitted.
 Lemma value_typing : forall Gamma Sigma ef t v,
 type_expr Gamma Sigma (Val v t) ef t ->
 ef = empty_effect.
-Admitted.
+Proof.
+move=> Gamma Sigma ef t v ht. elim: v ht=> //=.
+(* unit *)
++ move=> ht. by inversion ht.
+(* int *)
++ move=> i ht. by inversion ht.
+(* long *)
++ move=> i ht. by inversion ht.
+move=> l ofs ht. by inversion ht.
+Qed.
 
+(* Subject reduction *)
+(* A well-typed expression remains well-typed under top-level lreduction *)
+Lemma sreduction_lreduction : forall Gamma Sigma genv ef t vm e m e' m', 
+type_expr Gamma Sigma e ef t ->
+is_top_level e = true /\ is_lv e = true ->
+lreduction genv vm e m e' m' ->
+type_expr Gamma Sigma e' ef t.
+Proof.
+move=> Gamma Sigma genv ef t vm e m e' m'.
+elim: e=> //=.
+(* val *)
++ by move=> v t' ht [] //=.
+(* valof *)
++ by move=> e hi t' ht [] //=.
+(* var *)
++ move=> v ht _ hl. inversion hl; subst.
+  (* local *)
+  + inversion ht; subst. rewrite H1. 
+    by apply Ty_addr with h t0 a. 
+  (* global *)
+  + inversion ht; subst. rewrite H1.
+    by apply Ty_addr with h t0 a. 
+(* const *)
++ by move=> c t' ht [] //=.
+(* app *)
++ by move=> e hi es t' ht [] //=.
+(* prim *)
++ move=> [] //=.
+  (* ref *)
+  + by move=> es t' ht [] //=.
+  (* deref *)
+  + move=> es t' ht [] hes _ hl. inversion ht; subst.
+    inversion ht; subst. inversion hl; subst.
+    rewrite /is_vals in hes. move: hes.
+    move=> /andP [] hc _.
+    have [h1 h2] := val_cannot_be_reduced genv vm e m e'0 m' hc.
+    move: h1. by move=> [].
+  (* massgn *)
+  + by move=> es t' ht [] h1 //=. 
+  (* uop *)
+  + by move=> u es t' ht [] //=.
+  (* bop *)
+  + by move=> b es t' ht [] //=.
+  (* run *)
+  by move=> m'' es t' ht [] //=.
+(* bind *)
++ by move=> x t' e hi e'' ht t'' ht' [] //=.
+(* cond *)
++ by move=> e he1 e1 he2 e3 he3 t' ht [] //=.
+(* unit *)
++ by move=> t' ht [] //=.
+(* addr *)
++ by move=> l ofs ht [] //=.
+by move=> m'' e hi t' ht [] //=.
+Qed.
+    
 (**** Progress ****) 
 
 (* A well-typed top-level program always makes progress or is a value *)
@@ -372,13 +420,6 @@ admit. (* how to get the location as it can be only obtained from vm *)
 (* deref *)
 rewrite /is_top_level /= in hc1. 
 elim: e ht hc2 IHht hc1=> //=.
-move=> v t ht _ hi _. right. elim: v ht hi=> //=.
-+ move=> ht. by inversion ht; subst.
-+ move=> i ht. by inversion ht; subst.
-+ move=> i ht. by inversion ht; subst.
-move=> l ofs ht hi. inversion ht; subst.
-exists (Addr {| lname := l; ltype := Ptype bt; lbitfield := Full |} ofs). 
-exists m. by apply lred_deref.
 Admitted.
 
 (* A well-typed top-level program always makes progress or is a value *)
