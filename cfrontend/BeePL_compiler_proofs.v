@@ -422,6 +422,7 @@ apply Csem.deref_loc_reference.
 by have := BeePL_auxlemmas.access_mode_preserved ty cty By_reference g g' i H ht.
 Qed.
 
+(* Complete Me *)
 (* Preservation of assign_addr between BeePL and Csyntax *) 
 Lemma assgn_addr_translated : forall ty m addr ofs bf v m' cty tr cv v' cv' g g' i,
 assign_addr ty m addr ofs bf v m' v' ->
@@ -438,12 +439,12 @@ Admitted.
    If an expression evaluates to a value then in the c semantics if the expression is 
    evaluated in LV position then it should produce a location (deref, var)*)
 Lemma bsem_cexpr_simple : 
-(forall m e l ofs bf, 
-    bsem_expr_slv bge benv m e l ofs bf ->
+(forall m e l ofs, 
+    bsem_expr_slv bge benv m e l ofs ->
     forall ce g g' i, 
      transBeePL_expr_expr e g = Res ce g' i ->
      match_env benv cenv ->
-    eval_simple_lvalue cge cenv m ce l ofs bf) /\
+    eval_simple_lvalue cge cenv m ce l.(lname) ofs l.(lbitfield)) /\
 (forall m e v, 
     bsem_expr_srv bge benv m e v ->
     forall ce g g' i, 
@@ -499,17 +500,17 @@ apply bsem_expr_slv_rlv_ind=> //=.
   rewrite /SimplExpr.bind /= in hce. move: hce.
   move=> [] h1 h2; subst. by apply esr_val.
 (* Valof *)
-+ move=> m e t l ofs bf v hi ht heq hvt ce g g' i' hte henv /=; subst.
++ move=> m e t l ofs v hi ht heq hvt ce g g' i' hte henv /=; subst.
   rewrite /SimplExpr.bind in hte.
   case he1:(transBeePL_type (typeof_expr e) g) hte=> [er | r g'' i''] //=.
   case he2: (transBeePL_expr_expr e g'')=> [er1 | r1 g1 i1] //=.
-  move=> [] h1 h2; subst. apply esr_rvalof with l ofs bf.
+  move=> [] h1 h2; subst. apply esr_rvalof with l.(lname) ofs l.(lbitfield).
   + by move: (hi r1 g'' g' i1 he2 henv).
   + have h := transBeePL_expr_expr_type_equiv e r1 g'' g' i1 he2. 
     by have := type_preserved_generator (typeof_expr e) r (Csyntax.typeof r1) 
             g g'' g'' g' i'' i1 i'' i1 he1 h.
   + by have := non_volatile_type_preserved (typeof_expr e) r g g'' i'' hvt he1. 
-  by have := deref_addr_translated (typeof_expr e) m l ofs bf v r (transBeePL_value_cvalue v) g g'' i'' ht he1 refl_equal.
+  by have := deref_addr_translated (typeof_expr e) m l.(lname) ofs l.(lbitfield) v r (transBeePL_value_cvalue v) g g'' i'' ht he1 refl_equal.
 (* Uop *)
 + move=> m e v uop v' t ct v'' g g' i hi ht /= heq ho hv' ce g1 g2 i1 hte henv.
   rewrite /SimplExpr.bind in hte. 
@@ -550,12 +551,12 @@ move=> [] h1 h2 henv /=; subst. by apply esr_val.
 Qed.
 
 Lemma bsem_cexpr_lsimple : 
-forall m e l ofs bf, 
-    bsem_expr_slv bge benv m e l ofs bf ->
+forall m e l ofs, 
+    bsem_expr_slv bge benv m e l ofs ->
     forall ce g g' i, 
      transBeePL_expr_expr e g = Res ce g' i ->
      match_env benv cenv ->
-    eval_simple_lvalue cge cenv m ce l ofs bf.
+    eval_simple_lvalue cge cenv m ce l.(lname) ofs l.(lbitfield).
 Proof.
 exact (proj1 (bsem_cexpr_simple)).
 Qed.
@@ -582,6 +583,7 @@ eval_simple_list cge cenv m ces cts (transBeePL_values_cvalues vs).
 Proof.
 Admitted.
 
+(* Complete Me *)
 (* Preservation of allocation of variables between BeePL and Csyntax *)
 Lemma alloc_variables_preserved: forall m m' benv' vrs cvrs cvrs' cvrs'' cts g g' i,
 BeePL.alloc_variables benv m vrs benv' m' ->
@@ -593,6 +595,7 @@ exists cenv', Csem.alloc_variables cge cenv m (zip cvrs cts) cenv' m'.
 Proof.
 Admitted.
 
+(* Complete Me *)
 (* Preservation of bind parameters between BeePL and Csyntax *)
 Lemma bind_variables_preserved: forall m m' benv' vrs cvrs cvrs' cvrs'' cts g g' i,
 BeePL.bind_variables benv m vrs benv' m' ->
@@ -606,7 +609,6 @@ Admitted.
 
 (* Preservation of semantics of expressions in BeePL and expressions in Csyntax *) 
 (* Refer: sstep_simulation in SimplExprproof.v *)
-
 (* Equivalence between left reduction top level *)
 Lemma equiv_lreduction : forall e m e' m' ce g g' i, 
 is_top_level e = true /\ is_lv e = true ->

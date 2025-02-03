@@ -347,6 +347,34 @@ move=> Gamma Sigma ef t v ht. elim: v ht=> //=.
 move=> l ofs ht. by inversion ht.
 Qed.
 
+Section Subject_Reduction.
+
+Variable (bge : genv).
+Variable (benv : vmap).
+
+(* Subject reduction : Big step semantics *) 
+Lemma bsreduction_lreduction :  
+(forall m e l ofs,
+    bsem_expr_slv bge benv m e l ofs ->
+    forall Gamma Sigma ef t, 
+    type_expr Gamma Sigma e ef t ->
+    l.(ltype) = t) /\
+(forall m e v, 
+    bsem_expr_srv bge benv m e v ->
+    forall Gamma Sigma ef t, 
+     type_expr Gamma Sigma e ef t ->
+     typeof_value v t).
+Proof.
+apply bsem_expr_slv_rlv_ind=> //=.
+(* Var *)
++ move=> m x t l h attr hx hv Gamma Sigma ef t' ht.
+  by inversion ht; subst.
+(* Gvar *)
+Admitted.
+
+
+End Subject_Reduction.
+
 (* Subject reduction *)
 (* A well-typed expression remains well-typed under top-level lreduction *)
 Lemma sreduction_lreduction : forall Gamma Sigma genv ef t vm e m e' m', 
