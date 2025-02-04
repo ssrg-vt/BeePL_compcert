@@ -29,11 +29,31 @@ Inductive value : Type :=
 Definition default_attr (t : type) := {| attr_volatile := false;  
                                          attr_alignas := (attr_alignas (attr_of_type t)) |}.
 
-Definition typeof_value (v : value ) (t : type) : Prop :=
+Definition typeof_value (v : value) (t : wtype) : Prop :=
+match v with 
+| Vunit => match t with 
+           | Twuint => True 
+           end
+| Vint i => match t with 
+           | Twint => True 
+           | _ => False 
+           end
+| Vint64 i => match t with 
+           | Twlong => True 
+           | _ => False 
+           end
+| Vloc p ptrofs => match t with 
+                   | Twlong => Archi.ptr64 = true
+                   | Twint => Archi.ptr64 = false 
+                   | _ => False
+                   end    
+end.
+
+(*Definition typeof_value (v : value ) (t : type) : Prop :=
 let t := wtype_of_type t in 
 match v with 
 | Vunit => match t with 
-           | Twunit => True 
+           | Twint => True 
            | _ => False 
            end
 | Vint i => match t with 
@@ -49,13 +69,13 @@ match v with
                    | Twint => Archi.ptr64 = false 
                    | _ => False
                    end                              
-end.
+end.*)
 
 Definition vals := list value.
 
 Definition of_int (i : int) : value := Vint i.
 
-Fixpoint typeof_values (vs : list value) (ts : list BeeTypes.type) : Prop :=
+Fixpoint typeof_values (vs : list value) (ts : list BeeTypes.wtype) : Prop :=
 match vs, ts with 
 | nil, nil => True
 | v :: vs, t :: ts => typeof_value v t /\ typeof_values vs ts
@@ -274,9 +294,9 @@ end.
 (* Add rest like copy, bitfield, volatile, etc once we add arrays and structs *)
 Inductive deref_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : ptrofs) : bitfield -> value -> Prop :=
 | deref_addr_value : forall chunk v v',
-  access_mode ty = By_value chunk ->
+  access_mode ty = By_value (transl_memory_chunk chunk) ->
   type_is_volatile ty = false ->
-  Mem.loadv chunk m (transBeePL_value_cvalue (Vloc addr ofs)) = Some v ->
+  Mem.loadv (transl_memory_chunk chunk) m (transBeePL_value_cvalue (Vloc addr ofs)) = Some v ->
   transC_val_bplvalue v = OK v' ->
   deref_addr ty m addr ofs Full v'
 | deref_addr_reference:
@@ -287,8 +307,8 @@ Inductive deref_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : p
    [ofs] *)
 Inductive assign_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : ptrofs) : bitfield -> value -> Memory.mem -> value -> Prop :=
 | assign_addr_value : forall v chunk m' v',
-  access_mode ty = By_value chunk ->
-  Mem.storev chunk m (transBeePL_value_cvalue (Vloc addr ofs)) v = Some m' ->
+  access_mode ty = By_value (transl_memory_chunk chunk) ->
+  Mem.storev (transl_memory_chunk chunk) m (transBeePL_value_cvalue (Vloc addr ofs)) v = Some m' ->
   transC_val_bplvalue v = OK v' ->
   assign_addr ty m addr ofs Full v' m' v'. 
 
@@ -473,7 +493,7 @@ Inductive bsem_expr : vmap -> Memory.mem -> expr -> Memory.mem -> value -> Prop 
               list_norepet (fd.(fn_args) ++ fd.(fn_vars)) ->
               alloc_variables vm1 hm2 (fd.(fn_args) ++ fd.(fn_vars)) vm2 hm3 -> 
               bsem_expr_srvs hm3 es vs ->
-              typeof_values vs (extract_types_vinfos fd.(fn_args)) ->
+              typeof_values vs (wtypes_of_types (extract_types_vinfos fd.(fn_args))) ->
               bind_variables vm1 hm3 fd.(fn_args) vs hm4  ->
               bsem_expr vm1 hm4 fd.(fn_body) hm5 rv -> 
               (*bind_variables vm1 hm5 (r::nil) (rv::nil) hm6 ->

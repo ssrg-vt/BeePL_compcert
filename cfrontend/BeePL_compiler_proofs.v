@@ -409,8 +409,8 @@ transBeePL_value_cvalue v = cv ->
 Csem.deref_loc cge cty m addr ofs bf Events.E0 cv.
 Proof.
 move=> ty m addr ofs bf v cty cv g g' i hd ht hv. inversion hd; subst.
-+ apply Csem.deref_loc_value with chunk.
-  + by have := BeePL_auxlemmas.access_mode_preserved ty cty (By_value chunk) g g' i H ht.
++ apply Csem.deref_loc_value with (transl_memory_chunk chunk).
+  + by have := BeePL_auxlemmas.access_mode_preserved ty cty (By_value (transl_memory_chunk chunk)) g g' i H ht.
   + by have := non_volatile_type_preserved ty cty g g' i H0 ht.
   rewrite /transBeePL_value_cvalue in H1. rewrite H1 /=.
   case: v hd H2=> //=.

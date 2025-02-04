@@ -67,6 +67,12 @@ match t with
 | Ftype _ _ _ => Twptr
 end.
 
+Fixpoint wtypes_of_types (t : list type) : list wtype :=
+match t with 
+| nil => nil
+| x :: xs => wtype_of_type x :: wtypes_of_types xs
+end.
+
 Definition eq_effect_label (e1 e2 : effect_label) : bool :=
 match e1, e2 with 
 | Panic, Panic => true 
@@ -101,6 +107,38 @@ match p1, p2 with
                             else false
 | _, _ => false
 end.
+
+Inductive bmemory_chunk : Type :=
+| BMbool : bmemory_chunk
+| BMint8signed : bmemory_chunk
+| BMint8unsigned : bmemory_chunk
+| BMint16signed : bmemory_chunk
+| BMint16unsigned : bmemory_chunk
+| BMint32 : bmemory_chunk
+| BMint64 : bmemory_chunk.
+
+Definition transl_memory_chunk (b : bmemory_chunk) : memory_chunk :=
+match b with 
+| BMbool => Mbool
+| BMint8signed => Mint8signed
+| BMint8unsigned => Mint8unsigned
+| BMint16signed => Mint16signed
+| BMint16unsigned => Mint16unsigned
+| BMint32 => Mint32
+| BMint64 => Mint64
+end.
+
+Definition typeof_chunk (c : bmemory_chunk) : wtype :=
+match c with 
+| BMbool => Twint
+| BMint8signed => Twint
+| BMint8unsigned => Twint
+| BMint16signed => Twint
+| BMint16unsigned => Twint
+| BMint32 => Twint
+| BMint64 => Twlong
+end.
+
 
 Section Eq_basic_types.
 
@@ -263,7 +301,7 @@ End translate_types.
 Fixpoint transBeePL_type (t : BeeTypes.type) : mon Ctypes.type :=
 match t with
 | Ptype t => match t with  
-             | Tunit => ret (Ctypes.Tint I8 Unsigned {| attr_volatile := false; attr_alignas := Some (N.of_nat 1)%N |}) (* Fix me *)
+             | Tunit => ret Ctypes.Tvoid (* Fix me *)
              | Tint sz s a => ret (Ctypes.Tint sz s a)
              | Tlong s a => ret (Ctypes.Tlong s a)
              end
