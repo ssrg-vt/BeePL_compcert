@@ -373,22 +373,22 @@ Section Big_step_semantics.
 Variable (ge : BeePL.genv).
 Variable (vm : vmap).
 
-(* Would be useful in proving equivalence with Cstrategy for simpl expressions *) Print linfo.
-Inductive bsem_expr_slv : Memory.mem -> expr -> positive -> ptrofs -> bitfield -> Prop :=
+(* Would be useful in proving equivalence with Cstrategy for simpl expressions *)
+Inductive bsem_expr_slv : Memory.mem -> expr -> linfo -> ptrofs -> Prop :=
 | bsem_var : forall hm x t l h a, 
               vm!(x.(vname)) = Some (l, Reftype h (Bprim t) a) ->
               x.(vtype) = Reftype h (Bprim t) a ->
-              bsem_expr_slv hm (Var x) l Ptrofs.zero Full
+              bsem_expr_slv hm (Var x) {| lname := l; ltype := Reftype h (Bprim t) a; lbitfield := Full |} Ptrofs.zero
 | bsem_gvar : forall hm x t l, 
               vm!(x.(vname)) = None ->
               Genv.find_symbol ge x.(vname) = Some l ->
               t = x.(vtype) ->
-              bsem_expr_slv hm (Var x) l Ptrofs.zero Full
+              bsem_expr_slv hm (Var x) {| lname := l; ltype := x.(vtype); lbitfield := Full |} Ptrofs.zero
 | bsem_addr : forall hm l ofs,
-              bsem_expr_slv hm (Addr l ofs) l.(lname) ofs l.(lbitfield)
+              bsem_expr_slv hm (Addr l ofs) l ofs
 | bsem_prim_deref : forall hm e t l ofs, 
                     bsem_expr_srv hm e (Vloc l ofs) ->
-                    bsem_expr_slv hm (Prim Deref (e :: nil) t) l ofs Full
+                    bsem_expr_slv hm (Prim Deref (e :: nil) t) {| lname := l; ltype := t; lbitfield := Full |} ofs
 with bsem_expr_srv : Memory.mem -> expr -> value -> Prop :=
 | bsem_val : forall hm v t,
              bsem_expr_srv hm (Val v t) v
@@ -398,9 +398,9 @@ with bsem_expr_srv : Memory.mem -> expr -> value -> Prop :=
                      bsem_expr_srv hm (Const (ConsLong i) t) (Vint64 i)
 | bsem_const_uint : forall hm, 
                     bsem_expr_srv hm (Const (ConsUnit) (Ptype Tunit)) (Vunit)
-| bsem_val_rv : forall hm e t l ofs bf v,
-                bsem_expr_slv hm e l ofs bf ->
-                deref_addr (typeof_expr e) hm l ofs bf v ->
+| bsem_val_rv : forall hm e t l ofs v,
+                bsem_expr_slv hm e l ofs ->
+                deref_addr (typeof_expr e) hm l.(lname) ofs l.(lbitfield) v ->
                 typeof_expr e = t ->
                 BeeTypes.type_is_volatile t = false ->
                 bsem_expr_srv hm (Valof e t) v
@@ -443,12 +443,12 @@ Inductive bsem_expr : vmap -> Memory.mem -> expr -> Memory.mem -> value -> Prop 
                   assign_addr (typeof_expr e) hm' l Ptrofs.zero Full v hm' v ->
                   bsem_expr vm hm (Prim Ref (e :: nil) t) hm' (Vloc l Ptrofs.zero)
 | bsem_prim_massgn : forall vm hm e1 e2 l ofs v hm' ct1 ct2 bf v' g g' g'' i i', (* Fix me *)
-                     bsem_expr_slv hm e1 l ofs bf -> 
+                     bsem_expr_slv hm e1 l ofs -> 
                      bsem_expr_srv hm e2 v ->
                      transBeePL_type (typeof_expr e1) g = Res ct1 g' i ->
                      transBeePL_type (typeof_expr e2) g' = Res ct2 g'' i' ->
                      sem_cast (transBeePL_value_cvalue v) ct2 ct1 hm = Some (transBeePL_value_cvalue v') ->
-                     assign_addr (typeof_expr e1) hm l ofs bf v' hm' v' ->
+                     assign_addr (typeof_expr e1) hm l.(lname) ofs bf v' hm' v' ->
                      bsem_expr vm hm (Prim Massgn (e1 :: e2 :: nil) (typeof_expr e1)) hm' Vunit
 | bsem_bind : forall vm hm x t e e' t' hm1 v e'' v' hm2,
               bsem_expr_srv hm e v ->
@@ -487,22 +487,22 @@ Section Bsem_expr_slv_srv_mut.
 Variable (ge : genv).
 Variable (vm : vmap).
 
-Context (Plv : Memory.mem -> expr -> positive -> ptrofs -> bitfield -> Prop).
+Context (Plv : Memory.mem -> expr -> linfo -> ptrofs -> Prop).
 Context (Prv : Memory.mem -> expr -> value -> Prop).
 Context (Plvar : forall hm x t l h a, 
                  vm!(x.(vname)) = Some (l, Reftype h (Bprim t) a) ->
                  x.(vtype) = Reftype h (Bprim t) a ->
-                 Plv hm (Var x) l Ptrofs.zero Full).
+                 Plv hm (Var x) {| lname := l; ltype := Reftype h (Bprim t) a; lbitfield := Full |} Ptrofs.zero).
 Context (Pgvar : forall hm x t l h a,
                  vm!(x.(vname)) = None ->
                  Genv.find_symbol ge x.(vname) = Some l ->
                  x.(vtype) = Reftype h (Bprim t) a ->
-                 Plv hm (Var x) l Ptrofs.zero Full).
+                 Plv hm (Var x) {| lname := l; ltype := x.(vtype); lbitfield := Full |} Ptrofs.zero).
 Context (Paddr : forall hm l ofs,
-                 Plv hm (Addr l ofs) l.(lname) ofs l.(lbitfield)).
+                 Plv hm (Addr l ofs) l ofs).
 Context (Pderef : forall hm e t l ofs,
                   Prv hm e (Vloc l ofs) ->
-                  Plv hm (Prim Deref (e :: nil) t) l ofs Full).
+                  Plv hm (Prim Deref (e :: nil) t)  {| lname := l; ltype := t; lbitfield := Full |} ofs).
 Context (Pval : forall hm v t,
                  Prv hm (Val v t) v).
 Context (Pci : forall hm i t, 
@@ -511,9 +511,9 @@ Context (Pcl : forall hm i t,
                Prv hm (Const (ConsLong i) t) (Vint64 i)).
 Context (Pcu : forall hm, 
                Prv hm (Const (ConsUnit) (Ptype Tunit)) Vunit).
-Context (Pvalof : forall hm e t l ofs bf v,
-                  Plv hm e l ofs bf ->
-                  deref_addr (typeof_expr e) hm l ofs bf v ->
+Context (Pvalof : forall hm e t l ofs v,
+                  Plv hm e l ofs ->
+                  deref_addr (typeof_expr e) hm l.(lname) ofs l.(lbitfield) v ->
                   typeof_expr e = t ->
                   BeeTypes.type_is_volatile t = false ->
                   Prv hm (Valof e t) v).
@@ -536,8 +536,9 @@ Context (Pbop : forall hm e1 e2 t v1 v2 bop v ct1 ct2 v' g g' g'' i i',
 Context (Punit : forall hm, 
                  Prv hm (Unit (Ptype Tunit)) Vunit).
 
+(* Complete Me *)
 Lemma bsem_expr_slv_rlv_ind : 
-(forall hm e l ofs bf, bsem_expr_slv ge vm hm e l ofs bf -> Plv hm e l ofs bf) /\
+(forall hm e l ofs, bsem_expr_slv ge vm hm e l ofs -> Plv hm e l ofs) /\
 (forall hm e v, bsem_expr_srv ge vm hm e v -> Prv hm e v).
 Proof.
 apply bsem_expr_slv_srv_mut=> //=.
@@ -965,125 +966,4 @@ apply lreduction_rreduction_rreductions_mut=> //=.
 Admitted.
 
 End Lreduction_Rreduction_Mult.
-
-(* Whole program semantics *) (* Fix me *)
-(* Execution of whole program is defined as sequences of transition from initial state 
-   to a final state. An initial state is a CallState corresponding to invocation 
-   of the main function of the program *)
-
-               
-(*Section Small_step_semantics.
-
-Variable ge : genv. 
-
-Inductive sem_expr : vmap -> Memory.mem -> expr -> Memory.mem -> expr -> Prop :=
-| sem_val_unit : forall vm hm,
-                 sem_expr vm hm (Val Vunit (Ptype Tunit)) hm (Val Vunit (Ptype Tunit))
-| sem_val_int : forall vm hm i t,
-                 sem_expr vm hm (Val (Vint i) t) hm (Val (Vint i) t)
-| sem_val_int64 : forall vm hm i t,
-                  sem_expr vm hm (Val (Vint64 i) t) hm (Val (Vint64 i) t)
-| sem_val_loc : forall vm hm t l ofs,
-                sem_expr vm hm (Val (Vloc l ofs) t) hm (Val (Vloc l ofs) t)
-| sem_var : forall vm hm x t l,
-            vm!(x.(vname)) = Some (l, t) ->
-            t = x.(vtype) ->
-            sem_expr vm hm (Var x) hm 
-            (Addr {| lname := l; ltype := t; lbitfield := Full |} Ptrofs.zero)
-| sem_gvar : forall vm hm x t l,
-             vm!(x.(vname)) = None ->
-             t = x.(vtype) ->
-             Genv.find_symbol ge x.(vname) = Some l ->
-             sem_expr vm hm (Var x) hm 
-             (Addr {| lname := l; ltype := t; lbitfield := Full |} Ptrofs.zero)
-| sem_const_int : forall vm hm i t, 
-                  sem_expr vm hm (Const (ConsInt i) t) hm (Val (Vint i) t)
-| sem_const_int64 : forall vm hm i t, 
-                    sem_expr vm hm (Const (ConsLong i) t) hm (Val (Vint64 i) t)
-| sem_const_unit : forall vm hm,
-                   sem_expr vm hm (Const (ConsUnit) (Ptype Tunit)) hm (Val (Vunit) (Ptype Tunit))
-| sem_prim_uop : forall vm hm uop e e' hm' t,
-                 sem_expr vm hm e hm' e' -> 
-                 sem_expr vm hm (Prim (Uop uop) (e :: nil) t) hm' (Prim (Uop uop) (e' :: nil) t)
-| sem_prim_uopv : forall vm hm uop e v hm' t ct v' v'',
-                  transBeePL_type (typeof_expr e) = OK ct ->
-                  sem_unary_operation uop (transBeePL_value_cvalue v) ct hm' = Some v' -> 
-                  transC_val_bplvalue v' = OK v'' ->
-                  sem_expr vm hm (Prim (Uop uop) ((Val v (typeof_expr e)) :: nil) t) hm (Val v'' t)
-| sem_prim_bop1 : forall vm hm uop e1 e1' e2 hm' t,
-                 sem_expr vm hm e1 hm' e1' -> 
-                 sem_expr vm hm (Prim (Bop uop) (e1 :: e2 :: nil) t) hm' (Prim (Bop uop) (e1' :: e2 :: nil) t)
-| sem_prim_bop2 : forall vm hm uop e2 e2' hm' tv t v,
-                  sem_expr vm hm e2 hm' e2' -> 
-                  sem_expr vm hm (Prim (Bop uop) ((Val v tv) :: e2 :: nil) t) hm' (Prim (Bop uop) ((Val v t) :: e2' :: nil) t)
-| sem_prim_bopv : forall cenv vm hm bop v1 t1 v2 t2 hm' ct1 ct2 t v v',
-                  transBeePL_type t1 = OK ct1 ->
-                  transBeePL_type t2 = OK ct2 ->
-                  sem_binary_operation cenv bop (transBeePL_value_cvalue v1) ct1 (transBeePL_value_cvalue v2) ct2 hm' = Some v ->
-                  transC_val_bplvalue v = OK v' ->
-                  sem_expr vm hm (Prim (Bop bop) ((Val v1 t1) :: (Val v2 t2) :: nil) t) hm' (Val v' t)
-| sem_prim_ref : forall vm hm e e' t hm',
-                 sem_expr vm hm e hm' e' ->
-                 sem_expr vm hm (Prim Ref (e :: nil) t) hm' (Prim Ref (e' :: nil) t)
-| sem_prim_refv : forall vm hm v tv t ct hm' hm'' l,
-                  transBeePL_type tv = OK ct ->
-                  Mem.alloc hm 0 (sizeof_type t) = (hm', l) ->
-                  assign_addr tv hm' l Ptrofs.zero Full v hm'' v ->
-                  sem_expr vm hm (Prim Ref ((Val v tv) :: nil) t) hm'' (Val (Vloc l Ptrofs.zero) t)
-| sem_prim_deref : forall vm hm e t hm' e',
-                   sem_expr vm hm e hm' e' ->
-                   sem_expr vm hm (Prim Deref (e :: nil) t) hm' (Prim Deref (e' :: nil) t)
-| sem_prim_derefv : forall vm hm tv t ofs l,
-                    sem_expr vm hm (Prim Deref (Val (Vloc l ofs) tv:: nil) t) hm 
-                    (Addr {| lname := l; ltype := t; lbitfield := Full |} ofs)
-| sem_prim_massgn1 : forall vm hm e1 e2 t e1' hm',
-                     sem_expr vm hm e1 hm' e1' ->
-                     sem_expr vm hm (Prim Massgn (e1 :: e2 :: nil) t) hm' (Prim Massgn (e1' :: e2 :: nil) t) 
-| sem_prim_massgn2 : forall vm hm l ofs e2 e2' t tv hm',
-                     sem_expr vm hm e2 hm' e2' ->
-                     sem_expr vm hm (Prim Massgn (Val (Vloc l ofs) tv :: e2 :: nil) t) hm' (Prim Massgn (Val (Vloc l ofs) tv :: e2' :: nil) t)
-| sem_prim_massgnv : forall vm hm l ofs tv1 v tv2 ct1 ct2 t hm' v' bf,
-                     transBeePL_type tv1 = OK ct1 ->
-                     transBeePL_type tv2 = OK ct2 ->
-                     sem_cast (transBeePL_value_cvalue v) ct2 ct1 hm = Some (transBeePL_value_cvalue v') ->
-                     assign_addr tv1 hm l ofs bf v' hm' v' ->
-                     sem_expr vm hm (Prim Massgn (Val (Vloc l ofs) tv1 :: Val v tv2 :: nil) t) hm' (Val Vunit (Ptype Tunit))
-| sem_bind1 : forall vm hm x e1 e1' e2 t t' hm',
-              sem_expr vm hm e1 hm' e1' ->
-              sem_expr vm hm (Bind x t e1 e2 t') hm' (Bind x t e1' e2 t')
-| sem_bind2 : forall vm hm x v e2 e2' t t' hm',
-              subst vm hm x v e2 hm' e2' ->
-              sem_expr vm hm (Bind x t (Val v t) e2 t') hm' e2'
-| sem_condt : forall vm hm v tv e2 e3 ct t,
-              transBeePL_type tv = OK ct ->
-              bool_val (transBeePL_value_cvalue v) ct hm = Some true ->
-              sem_expr vm hm (Cond (Val v tv) e2 e3 t) hm e2
-| sem_condf : forall vm hm v tv e2 e3 ct t,
-              transBeePL_type tv = OK ct ->
-              bool_val (transBeePL_value_cvalue v) ct hm = Some false ->
-              sem_expr vm hm (Cond (Val v tv) e2 e3 t) hm e3
-| sem_cond : forall vm hm e1 e2 e3 t e1' hm',
-             sem_expr vm hm e1 hm' e1' ->
-             sem_expr vm hm (Cond e1 e2 e3 t) hm (Cond e1' e2 e3 t)
-| sem_unit : forall vm hm,
-             sem_expr vm hm (Unit (Ptype Tunit)) hm (Val Vunit (Ptype Tunit))
-| sem_appr1 : forall vm hm r e es t v hm' ts ef rt,
-              sem_expr vm hm e hm' (Val v (typeof_expr e)) ->
-              sem_expr vm hm (App (Some r.(vname)) e es t) hm' (App (Some r.(vname)) (Val v (Ftype ts ef rt)) es t)
-| sem_appr2 : forall vm hm v fd vm1 hm1 hm2 hm3 hm4 hm5 vs rv r ts ef rt es t, 
-              Genv.find_funct ge (transBeePL_value_cvalue v) = Some (Internal fd) ->
-              list_norepet (fd.(fn_args) ++ fd.(fn_vars)) ->
-              alloc_variables vm hm (fd.(fn_args) ++ fd.(fn_vars)) vm1 hm1 -> 
-              bsem_expr_srvs ge vm1 hm1 es hm2 vs ->
-              typeof_values vs (extract_types_vinfos fd.(fn_args)) ->
-              bind_variables vm1 hm2 fd.(fn_args) vs hm3  ->
-              bsem_expr ge vm1 hm3 fd.(fn_body) hm4 rv ->
-              bind_variables vm1 hm4 (r::nil) (rv::nil) hm5 ->
-              typeof_value rv (fd.(fn_return)) ->
-              sem_expr vm hm (App (Some r.(vname)) (Val v (Ftype ts ef rt)) es t) hm5 (Val rv fd.(fn_return))
-| sem_addr : forall vm hm t l bf ofs v,
-             deref_addr t hm l ofs bf v ->
-             sem_expr vm hm (Addr {| lname := l; ltype := t; lbitfield := bf |} ofs) hm (Val v t).
-
-End Small_step_semantics.*)
 
