@@ -51,7 +51,7 @@ transBeePL_type (typeof_expr e) g = Res (Csyntax.typeof ce) g' i.
 Proof.
 Admitted. 
 
-
+(*
 Lemma val_cannot_be_reduced : forall bge benv e m e' m',
 is_val e -> 
 ~ (rreduction bge benv e m e' m') /\
@@ -70,7 +70,7 @@ Proof.
 move=> beg benv e. elim: e=> //= v t m e' m' _ /=. split=> //=.
 + move=> h. by inversion h.
 move=> h. by inversion h.
-Qed.
+Qed.*)
 
 
 

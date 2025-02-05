@@ -508,103 +508,19 @@ End Subject_Reduction.
 
 (* Subject reduction *)
 (* A well-typed expression remains well-typed under top-level lreduction *)
-Lemma sreduction_lreduction : forall Gamma Sigma genv ef t vm e m e' m', 
+Lemma slreduction : forall Gamma Sigma genv ef t vm e m e' m', 
 type_expr Gamma Sigma e ef t ->
-is_top_level e = true /\ is_lv e = true ->
 lreduction genv vm e m e' m' ->
 type_expr Gamma Sigma e' ef t.
 Proof.
-move=> Gamma Sigma genv ef t vm e m e' m'.
-elim: e=> //=.
-(* val *)
-+ by move=> v t' ht [] //=.
-(* valof *)
-+ by move=> e hi t' ht [] //=.
-(* var *)
-+ move=> v ht _ hl. inversion hl; subst.
-  (* local *)
-  + inversion ht; subst. rewrite H1. 
-    by apply Ty_addr with h t0 a. 
-  (* global *)
-  + inversion ht; subst. rewrite H1.
-    by apply Ty_addr with h t0 a. 
-(* const *)
-+ by move=> c t' ht [] //=.
-(* app *)
-+ by move=> e hi es t' ht [] //=.
-(* prim *)
-+ move=> [] //=.
-  (* ref *)
-  + by move=> es t' ht [] //=.
-  (* deref *)
-  + move=> es t' ht [] hes _ hl. inversion ht; subst.
-    inversion ht; subst. inversion hl; subst.
-    rewrite /is_vals in hes. move: hes.
-    move=> /andP [] hc _.
-    have [h1 h2] := val_cannot_be_reduced genv vm e m e'0 m' hc.
-    move: h1. by move=> [].
-  (* massgn *)
-  + by move=> es t' ht [] h1 //=. 
-  (* uop *)
-  + by move=> u es t' ht [] //=.
-  (* bop *)
-  + by move=> b es t' ht [] //=.
-  (* run *)
-  by move=> m'' es t' ht [] //=.
-(* bind *)
-+ by move=> x t' e hi e'' ht t'' ht' [] //=.
-(* cond *)
-+ by move=> e he1 e1 he2 e3 he3 t' ht [] //=.
-(* unit *)
-+ by move=> t' ht [] //=.
-(* addr *)
-+ by move=> l ofs ht [] //=.
-by move=> m'' e hi t' ht [] //=.
+move=> Gamma Sigma genv ef t vm e m e' m' ht he.
+induction he=> //=.
++ inversion ht; subst. rewrite H0. by apply Ty_addr with h t0 a. 
++ inversion ht; subst. rewrite H0. by apply Ty_addr with h t0 a.
+by inversion ht; subst.
 Qed.
     
-(**** Progress ****) 
 
-(* A well-typed top-level program always makes progress or is a value *)
-(* Take small-step semantics into consideration *) 
-Lemma progress_lreduction : forall Gamma Sigma genv ef t vm e m, 
-type_expr Gamma Sigma e ef t ->
-is_top_level e = true /\ is_lv e = true ->
-is_val e \/ exists e' m', lreduction genv vm e m e' m'.
-Proof.
-move=> Gamma Sigma genv ef t vm e m ht [] hc1 hc2.
-induction ht=> //=.
-(* var *)
-+ inversion H; subst. right. rewrite /= in hc1. 
-admit. (* how to get the location as it can be only obtained from vm *)
-(* deref *)
-rewrite /is_top_level /= in hc1. 
-elim: e ht hc2 IHht hc1=> //=.
-Admitted.
-
-(* A well-typed top-level program always makes progress or is a value *)
-(* Take small-step semantics into consideration *) 
-Lemma progress_rreduction : forall Gamma Sigma genv ef t vm e m, 
-type_expr Gamma Sigma e ef t ->
-is_val e \/ exists e' m', rreduction genv vm e m e' m'.
-Proof.
-Admitted.
-
-(**** Preservation ****)
-Lemma preservation_lreduction : forall Gamma Sigma genv ef t vm e m e' m', 
-type_expr Gamma Sigma e ef t ->
-is_top_level e = true /\ is_lv e = true ->
-lreduction genv vm e m e' m' ->
-type_expr Gamma Sigma e' ef t.
-Proof.
-Admitted.
-
-Lemma preservation_rreduction : forall Gamma Sigma genv ef t vm e m e' m', 
-type_expr Gamma Sigma e ef t ->
-is_top_level e = true /\ is_rv e = true ->
-rreduction genv vm e m e' m' ->
-type_expr Gamma Sigma e' ef t.
-Proof.
-Admitted.
 
     
     
