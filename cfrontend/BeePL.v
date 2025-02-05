@@ -49,28 +49,6 @@ match v with
                    end    
 end.
 
-(*Definition typeof_value (v : value ) (t : type) : Prop :=
-let t := wtype_of_type t in 
-match v with 
-| Vunit => match t with 
-           | Twint => True 
-           | _ => False 
-           end
-| Vint i => match t with 
-            | Twint => True 
-            | _ => False 
-            end 
-| Vint64 i => match t with 
-              | Twlong => True 
-              | _ => False 
-              end 
-| Vloc p ptrofs => match t with 
-                   | Twlong => Archi.ptr64 = true
-                   | Twint => Archi.ptr64 = false 
-                   | _ => False
-                   end                              
-end.*)
-
 Definition vals := list value.
 
 Definition of_int (i : int) : value := Vint i.
@@ -193,10 +171,16 @@ Definition type_of_function (f: function) (ef : effect) : type :=
   Ftype (extract_types_vinfos (fn_args f)) ef (fn_return f).
 
 Definition type_of_fundef (f: fundef) (ef : effect) : type :=
-  match f with
-  | Internal fd => type_of_function fd ef
-  | External  => (Ptype Tunit) (* Fix me: add later *)
-  end.
+match f with
+| Internal fd => type_of_function fd ef
+| External  => (Ptype Tunit) (* Fix me: add later *)
+end.
+
+Definition get_return_type (f : fundef) : type :=
+match f with 
+| Internal fd => fn_return fd
+| External => (Ptype Tunit) (* Fix me: add later *)
+end.
 
 Inductive init_data : Set :=
 | Init_int8 : int -> init_data
@@ -388,12 +372,50 @@ with substs : vmap -> Memory.mem -> ident -> value -> list expr -> Memory.mem ->
                 substs vm hm' x v es hm'' es' -> 
                 substs vm hm x v (e :: es) hm'' (e' :: es').
 
-Section Big_step_semantics.
+Fixpoint is_simple_expr (e : expr) : bool :=
+match e with 
+| Val v t => true 
+| Valof e t => is_simple_expr e && negb(type_is_volatile (typeof_expr e))
+| Var v => true 
+| Const c t => true
+| App e es t => false 
+| Prim o es t => match o with 
+                 | Ref => match es with 
+                          | [:: e] => is_simple_expr e
+                          | _ => false
+                          end
+                 | Deref => match es with 
+                            | [:: e] => is_simple_expr e
+                            | _ => false
+                            end
+                 | Massgn => false
+                 | Uop o => match es with 
+                            | [:: e] => is_simple_expr e
+                            |  _ => false
+                            end
+                 | Bop o => match es with 
+                            | [:: e1; e2] => is_simple_expr e1 && is_simple_expr e2
+                            | _ => false
+                            end
+                 | Run h => false 
+                 end
+| Bind x t e e' t' => false
+| Cond e1 e2 e3 t => false 
+| Unit t => true 
+| Addr l ofs => true 
+| Hexpr m e t => false
+end.
+
+Section Simpl_big_step_semantics.
 
 Variable (ge : BeePL.genv).
 Variable (vm : vmap).
 
 (* Would be useful in proving equivalence with Cstrategy for simpl expressions *)
+(* Simple expressions have interesting properties: their evaluations always
+   terminate, and preserve the memory state.
+   We seize this opportunity to define a big-step semantics for simple
+   expressions. *)
 Inductive bsem_expr_slv : Memory.mem -> expr -> linfo -> ptrofs -> Prop :=
 | bsem_var : forall hm x t l h a, 
               vm!(x.(vname)) = Some (l, Reftype h (Bprim t) a) ->
@@ -455,53 +477,162 @@ Inductive bsem_expr_srvs : Memory.mem -> list expr -> list value -> Prop :=
                        bsem_expr_srvs hm es vs ->
                        bsem_expr_srvs hm (e :: es) (v :: vs).
 
-(* Big step semantics for expressions with effects *)
-Inductive bsem_expr : vmap -> Memory.mem -> expr -> Memory.mem -> value -> Prop :=
-| bsem_prim_ref : forall vm hm e v t hm' l, 
-                  bsem_expr_srv hm e v ->
-                  Mem.alloc hm 0 (sizeof_type (typeof_expr e)) = (hm', l) ->
-                  assign_addr (typeof_expr e) hm' l Ptrofs.zero Full v hm' v ->
-                  bsem_expr vm hm (Prim Ref (e :: nil) t) hm' (Vloc l Ptrofs.zero)
-| bsem_prim_massgn : forall vm hm e1 e2 l ofs v hm' ct1 ct2 bf v' g g' g'' i i', (* Fix me *)
-                     bsem_expr_slv hm e1 l ofs -> 
-                     bsem_expr_srv hm e2 v ->
-                     transBeePL_type (typeof_expr e1) g = Res ct1 g' i ->
-                     transBeePL_type (typeof_expr e2) g' = Res ct2 g'' i' ->
-                     sem_cast (transBeePL_value_cvalue v) ct2 ct1 hm = Some (transBeePL_value_cvalue v') ->
-                     assign_addr (typeof_expr e1) hm l.(lname) ofs bf v' hm' v' ->
-                     bsem_expr vm hm (Prim Massgn (e1 :: e2 :: nil) (typeof_expr e1)) hm' Vunit
-| bsem_bind : forall vm hm x t e e' t' hm1 v e'' v' hm2,
-              bsem_expr_srv hm e v ->
-              subst vm hm x v e' hm1 e'' ->
-              bsem_expr vm hm1 e'' hm2 v' ->
-              bsem_expr vm hm (Bind x t e e' t') hm2 v'
-| bsem_cond_true : forall vm hm e1 e2 hm' e3 t vb v ct1 g i, 
-                   bsem_expr_srv hm e1 vb -> 
-                   transBeePL_type (typeof_expr e1) (initial_generator tt) = Res ct1 g i ->
-                   bool_val (transBeePL_value_cvalue vb) ct1 hm = Some true ->
-                   bsem_expr vm hm e2 hm' v ->
-                   bsem_expr vm hm (Cond e1 e2 e3 t) hm' v
-| bsem_cond_false : forall vm hm e1 hm' e2 e3 t vb v ct1 g i, 
-                    bsem_expr_srv hm e1 vb -> 
-                    transBeePL_type (typeof_expr e1) (initial_generator tt) = Res ct1 g i ->
-                    bool_val (transBeePL_value_cvalue vb) ct1 hm = Some false ->
-                    bsem_expr vm hm e3 hm' v ->
-                    bsem_expr vm hm (Cond e1 e2 e3 t) hm' v
-| bsem_app : forall vm1 hm1 e es t l fd hm2 hm3 hm4 hm5 vm2 vs rv,
-              bsem_expr_srv hm1 e (Vloc l Ptrofs.zero) ->
-              Genv.find_funct ge (transBeePL_value_cvalue (Vloc l Ptrofs.zero)) = Some (Internal fd) ->
-              list_norepet (fd.(fn_args) ++ fd.(fn_vars)) ->
-              alloc_variables vm1 hm2 (fd.(fn_args) ++ fd.(fn_vars)) vm2 hm3 -> 
-              bsem_expr_srvs hm3 es vs ->
-              typeof_values vs (wtypes_of_types (extract_types_vinfos fd.(fn_args))) ->
-              bind_variables vm1 hm3 fd.(fn_args) vs hm4  ->
-              bsem_expr vm1 hm4 fd.(fn_body) hm5 rv -> 
-              (*bind_variables vm1 hm5 (r::nil) (rv::nil) hm6 ->
-              typeof_value rv (fd.(fn_return)) ->*)
-              bsem_expr vm1 hm1 (App e es t) hm5 rv.             
-               
-End Big_step_semantics.
+End Simpl_big_step_semantics.
 
+(* Left reduction context *) 
+Inductive leftcontext : kind -> kind -> (expr -> expr) -> Prop :=
+| lctx_top : forall k,
+             leftcontext k k (fun x => x)
+| lctx_valof : forall k C t,
+               leftcontext k LV C -> leftcontext k RV (fun x => Valof (C x) t)
+| lctx_prim_ref : forall k C t,
+                  leftcontext k RV C ->
+                  leftcontext k RV (fun x => Prim Ref [:: (C x)] t)
+| lctx_prim_deref : forall k C t,
+                    leftcontext k RV C ->
+                    leftcontext k RV (fun x => Prim Deref [:: (C x)] t)
+| lctx_prim_massgn_left : forall k C e2 t, 
+                          leftcontext k LV C ->
+                          leftcontext k RV (fun x => Prim Massgn ((C x) :: e2) t) 
+| lctx_prim_massgn_right : forall k C e1 t, 
+                           is_simple_expr e1 = true ->
+                           leftcontext k RV (fun x => Prim Massgn (e1 :: (C x)) t)
+| lctx_prim_unop: forall k C op ty,
+                  leftcontext k RV C -> 
+                  leftcontext k RV (fun x => Prim (Uop op) [:: (C x)] ty)
+| lctx_binop_left: forall k C op e2 ty,
+                   leftcontext k RV C -> 
+                   leftcontext k RV (fun x => Prim (Bop op) ((C x) :: e2) ty)
+| lctx_binop_right: forall k C op e1 ty,
+                    is_simple_expr e1 = true -> 
+                    leftcontext k RV C ->
+                    leftcontext k RV (fun x => Prim (Bop op) (e1 :: (C x) :: nil) ty)
+| lctx_bind_left : forall k C x' e2 tx' ty,
+                   leftcontext k RV C ->
+                   leftcontext k RV (fun x => Bind x' tx' (C x) e2 ty)
+| lctx_bind_right : forall k C x' tx' e1 ty,
+                    is_simple_expr e1 = true ->
+                    leftcontext k RV C ->
+                    leftcontext k RV (fun x => Bind x' tx' e1 (C x) ty)
+| lctx_condition: forall k C e2 e3 ty,
+                  leftcontext k RV C -> 
+                  leftcontext k RV (fun x => Cond (C x) e2 e3 ty)
+(* fix me for run *)
+| lctx_call_left: forall k C el ty,
+                  leftcontext k RV C -> leftcontext k RV (fun x => App (C x) el ty)
+| lctx_call_right: forall k C e1 ty,
+                   is_simple_expr e1 = true -> leftcontextlist k C ->
+                   leftcontext k RV (fun x => App e1 (C x) ty)
+(* fix me for hexpr *)
+with leftcontextlist: kind -> (expr -> list expr) -> Prop :=
+  | lctx_list_head: forall k C el,
+      leftcontext k RV C -> leftcontextlist k (fun x => (C x) :: el)
+  | lctx_list_tail: forall k C e1,
+      is_simple_expr e1 = true -> leftcontextlist k C ->
+      leftcontextlist k (fun x => e1 :: (C x)).
+
+
+(* Continuation describe the computations that remain to be performed 
+   after the expression under consideration has evaluated completely *)
+Inductive cont: Type :=
+| Kstop : cont 
+| Kdo : cont -> cont            (* after [x] in [x;] *)
+| Kcall : function ->           (* calling function *)
+          vmap ->               (* local env of calling function *)
+          (expr -> expr) ->     (**r context of the call *)
+          type ->               (* type of call expression *)
+          cont -> cont.          
+
+(* Execution states of the program are grouped in 4 classes corresponding to the part of 
+   the program we are currently executing. It can be an expression [ExprState], a transition 
+   from a calling function to a called function [CallState], or the symmetrical transition
+   from a function back to its caller [ReturnState] *)
+Inductive state : Type :=
+| ExprState (f : function)            (* reduction of an expression *)
+            (e : expr)
+            (k : cont)
+            (vm : vmap)
+            (m : Memory.mem) : state
+| CallState (fd : fundef)             (* calling a function *)
+            (args : list value)
+            (k : cont)
+            (m : Memory.mem) : state
+| StuckState                          (* undefined behvaior occured *).
+
+Definition is_ExprState (s : state) : bool :=
+match s with 
+| ExprState f e k vm m => true
+| CallState fd args k m => false
+| StuckState => false
+end.
+
+(** Strategy for reducing expressions. We reduce the leftmost innermost
+    non-simple subexpression, evaluating its arguments (which are necessarily
+    simple expressions) with the big-step semantics.
+    If there are none, the whole expression is simple and is evaluated in one big step. *) 
+Inductive bestep : state -> state -> Prop :=
+| step_expr : forall ge vm f e t k m v, 
+              bsem_expr_srv ge vm m e v -> 
+              match e with (Val _ _ ) => False | _ => True end ->
+              typeof_expr e = t ->
+              bestep (ExprState f e k vm m) (ExprState f (Val v t) k vm m)
+| step_evalof_volatile : forall ge vm f C e t k m l ofs v, 
+                         leftcontext RV RV C ->
+                         bsem_expr_slv ge vm m e l ofs ->
+                         deref_addr (typeof_expr e) m l.(lname) ofs l.(lbitfield) v ->
+                         typeof_expr e = t ->
+                         BeeTypes.type_is_volatile t = true ->
+                         bestep (ExprState f (C (Valof e t)) k vm m) (ExprState f (Val v t) k vm m)
+| step_prim_ref : forall ge vm f k C e v fid t m m' l ofs ct g g' i', 
+                  leftcontext RV RV C ->
+                  bsem_expr_srv ge vm m e v ->
+                  transBeePL_type t g = Res ct g' i' ->
+                  (gensym ct) = ret fid ->
+                  bind_variables vm m ({| vname := fid; vtype := t|} :: nil) (v :: nil) m' ->
+                  bsem_expr_slv ge vm m' (Var {| vname := fid; vtype := t |}) l ofs -> 
+                  bestep (ExprState f (C (Prim Ref [:: e] t)) k vm m) 
+                         (ExprState f (C (Val (Vloc l.(lname) ofs) t)) k vm m') 
+| step_prim_massgn : forall ge vm f k C e1 e2 t ct1 ct2 l ofs m v g1 g2 g3 i i' v' m', 
+                     leftcontext RV RV C ->
+                     bsem_expr_slv ge vm m e1 l ofs ->
+                     bsem_expr_srv ge vm m e2 v ->
+                     transBeePL_type (typeof_expr e1) g1 = Res ct1 g2 i ->
+                     transBeePL_type (typeof_expr e2) g2 = Res ct2 g3 i' ->
+                     sem_cast (transBeePL_value_cvalue v) ct2 ct1 m = Some (transBeePL_value_cvalue v') ->
+                     assign_addr (typeof_expr e1) m l.(lname) ofs l.(lbitfield) v' m' v' -> 
+                     typeof_expr e1 = t ->
+                     bestep (ExprState f (C (Prim Massgn (e1 :: e2 :: nil) t)) k vm m)
+                            (ExprState f (C (Val v' t)) k vm m')
+| step_bind : forall ge vm f k C x tx e1 v e2 e2' t m m',
+              leftcontext RV RV C ->
+              bsem_expr_srv ge vm m e1 v -> 
+              subst vm m x v e2 m' e2' ->
+              bestep (ExprState f (C (Bind x tx e1 e2 t)) k vm m)
+                     (ExprState f (C e2') k vm m')
+| step_condition : forall ge vm f C e1 e2 e3 vb t k benv m b ct1 g g' i,
+                   leftcontext RV RV C ->
+                   bsem_expr_srv ge vm m e1 vb -> 
+                   transBeePL_type (typeof_expr e1) g = Res ct1 g' i ->
+                   bool_val (transBeePL_value_cvalue vb) ct1 m = Some true ->
+                   bestep (ExprState f (C (Cond e1 e2 e3 t)) k benv m)
+                          (ExprState f (C ((if b then e2 else e3))) k benv m)
+| step_call : forall ge vm m f k C e es t l vs fd ef,
+              leftcontext RV RV C ->
+              bsem_expr_srv ge vm m e (Vloc l Ptrofs.zero) ->
+              bsem_expr_srvs ge vm m es vs ->
+              Genv.find_funct ge (transBeePL_value_cvalue (Vloc l Ptrofs.zero)) = Some fd ->
+              type_of_fundef fd ef = Ftype (typeof_exprs es) ef (get_return_type fd) -> 
+              bestep (ExprState f (C (App e es t)) k vm m) 
+                     (CallState fd vs (Kcall f vm C t k) m)
+| step_internal_fun : forall vm f vargs k m m' m'',
+                      list_norepet (f.(fn_args) ++ f.(fn_vars)) ->
+                      alloc_variables empty_vmap m (f.(fn_args) ++ f.(fn_vars)) vm m' -> 
+                      bind_variables vm m' f.(fn_args) vargs m'' ->
+                      bestep (CallState (Internal f) vargs k m) (ExprState f f.(fn_body) k vm m'').
+
+Definition bstep (S: state) (S': state) : Prop := bestep S S'. 
+            
+               
 Section Bsem_expr_slv_srv_mut.
 
 Variable (ge : genv).
@@ -566,6 +697,8 @@ apply bsem_expr_slv_srv_mut=> //=.
 Admitted.
 
 End Bsem_expr_slv_srv_mut.
+
+
 
 Section Small_step_semantics.
 
@@ -687,39 +820,6 @@ Scheme lreduction_mut := Minimality for lreduction Sort Prop
   with rreduction_mut := Minimality for rreduction Sort Prop
   with rreductions_mut := Minimality for rreductions Sort Prop.
 Combined Scheme lreduction_rreduction_rreductions_mut from lreduction_mut, rreduction_mut, rreductions_mut.
-
-(* Continuation describe the computations that remain to be performed 
-   after the expression under consideration has evaluated completely *)
-Inductive cont: Type :=
-| Kstop : cont 
-| Kdo : cont -> cont  (* after [x] in [x;] *)
-| Kcall : function -> (* calling function *)
-          vmap ->     (* local env of calling function *)
-          type ->     (* type of call expression *)
-          cont -> cont.          
-
-(* Execution states of the program are grouped in 4 classes corresponding to the part of 
-   the program we are currently executing. It can be an expression [ExprState], a transition 
-   from a calling function to a called function [CallState], or the symmetrical transition
-   from a function back to its caller [ReturnState] *)
-Inductive state : Type :=
-| ExprState (f : function)            (* reduction of an expression *)
-            (e : expr)
-            (k : cont)
-            (vm : vmap)
-            (m : Memory.mem) : state
-| CallState (fd : fundef)             (* calling a function *)
-            (args : list value)
-            (k : cont)
-            (m : Memory.mem) : state
-| StuckState                          (* undefined behvaior occured *).
-
-Definition is_ExprState (s : state) : bool :=
-match s with 
-| ExprState f e k vm m => true
-| CallState fd args k m => false
-| StuckState => false
-end.
 
 (* Reduction contexts *) 
 Definition expr_kind (e: expr) : Csem.kind :=
@@ -856,9 +956,9 @@ Inductive ssem : state -> state -> Prop :=
 | s_rreduction : forall f e k m e' m',
                  rreduction e m e' m' ->
                  ssem (ExprState f e k vm m) (ExprState f e' k vm m')
-| s_call : forall f e k m fd args t,
+| s_call : forall f e k m fd args t C,
            callreduction e m fd args t ->
-           ssem (ExprState f e k vm m) (CallState fd args (Kcall f vm t k) m)
+           ssem (ExprState f e k vm m) (CallState fd args (Kcall f vm C t k) m)
 | s_stuck : forall f e k m,
             ~(expr_safe e m) ->
             ssem (ExprState f e k vm m) StuckState

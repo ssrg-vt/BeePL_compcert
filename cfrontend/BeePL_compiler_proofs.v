@@ -806,7 +806,7 @@ move=> e m e' m' ce g g' i hc hl. move: m m' e' ce hl hc. elim: e=> //=.
     split=> //=.
     + apply Csem.red_condition.
       by have heq := type_preserved_generator tv r4 ctv g g1 g0 g'0 i5 i0 i5 i0 ht2 H6; subst.
-    admit. (* cannot be solved as condition takes step to Eparen in Csyntax *)
+    admit. (* cannot be solved as condition takes step to Eparen in Csyntax (* need to use star step*) *)
   have [h1 h2] := val_cannot_be_reduced bge benv e m' e1' hm' hv. move: h1. by move=> [].
 (* unit *)
 + by move=> t m m' e' ce hr [] //=. 
@@ -822,12 +822,12 @@ Inductive match_bcont_ccont : composite_env -> BeePL.cont -> Csem.cont -> Prop :
 | match_Kdo : forall bc cc,
               match_bcont_ccont bprog.(prog_comp_env) bc cc ->
               match_bcont_ccont bprog.(prog_comp_env) (BeePL.Kdo bc) (Csem.Kdo cc)
-| match_Kcall : forall bf cf vm cenv CC bt ct bc cc,
+| match_Kcall : forall bf cf vm cenv CC BC bt ct bc cc,
                 (* add linking order ?? *)
                 transBeePL_function_function bf = OK cf ->
                 match_env benv cenv ->
                 match_bcont_ccont bprog.(prog_comp_env) bc cc ->
-                match_bcont_ccont bprog.(prog_comp_env) (BeePL.Kcall bf vm bt bc) 
+                match_bcont_ccont bprog.(prog_comp_env) (BeePL.Kcall bf vm bt BC bc) 
                                        (Csem.Kcall cf cenv CC ct cc).
 
 (*** Matching between states ***) 
