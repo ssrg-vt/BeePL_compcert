@@ -99,12 +99,18 @@ let compile_b_file sourcename ofile =
         let loc = file_loc sourcename in
         fatal_error loc "error during transf_beepl_program_csyntax: %a" print_error msg
   in
-  PrintCsyntax.print_if csyntax; 
+  (* The BeePL compiler does not add the helper functions so that must be done here *)
+  let gl = C2C.add_helper_functions csyntax.Ctypes.prog_defs in 
+  let updated_csyntax = {csyntax with 
+    Ctypes.prog_defs = gl; 
+    Ctypes.prog_public = C2C.public_globals gl} in
+  (* print_program_defs updated_csyntax; *)
+  PrintCsyntax.print_if updated_csyntax;
   
   (* Convert to Asm *)
   let asm =
     match Compiler.apply_partial
-               (Compiler.transf_c_program csyntax)
+               (Compiler.transf_c_program updated_csyntax)
                Asmexpand.expand_program with
     | Errors.OK asm ->
         asm
