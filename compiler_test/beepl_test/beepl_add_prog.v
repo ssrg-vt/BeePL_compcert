@@ -3,8 +3,11 @@ Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat Pe
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes.
 Require Import BeePL BeePL_mem BeeTypes BeePL_Csyntax Compiler Errors Extraction. 
 From Coq Require Import String List ZArith.
-
+From compcert Require Import Csyntaxdefs.
+Import Csyntaxdefs.CsyntaxNotations.
+Local Open Scope Z_scope.
 Local Open Scope string_scope.
+Local Open Scope csyntax_scope.
 Local Open Scope error_monad_scope.
 
 (****** Example 1 ******)
@@ -30,34 +33,34 @@ Module Info.
 End Info.
 
 Definition dattr := {| attr_volatile := false; attr_alignas := Some 4%N |}.
-Definition _x := {| vname := 1%positive; vtype := Ptype (Tint I32 Unsigned dattr) |}.
-Definition _y := {| vname := 2%positive; vtype := Ptype (Tint I32 Unsigned dattr) |}.
-Definition _r := {| vname := 3%positive; vtype := Ptype (Tint I32 Unsigned dattr) |}.
-Definition _main := 4%positive.
+Definition _x := {| vname := 1%positive; vtype := Ptype (BeeTypes.Tint I32 Unsigned dattr) |}.
+Definition _y := {| vname := 2%positive; vtype := Ptype (BeeTypes.Tint I32 Unsigned dattr) |}.
+Definition _r := {| vname := 3%positive; vtype := Ptype (BeeTypes.Tint I32 Unsigned dattr) |}.
+Definition _main : ident := $"main".
 
-Definition f_main : function := {| fn_return := (Ptype (Tint I32 Unsigned dattr));
+Definition f_main : function := {| fn_return := (Ptype (BeeTypes.Tint I32 Unsigned dattr));
                                    fn_callconv := cc_default;
                                    fn_args := nil;
                                    fn_vars := (_x :: _y :: _r :: nil);
                                    fn_body := Bind (_x.(vname)) 
-                                                (Ptype (Tint I32 Unsigned dattr))
-                                                (Const (ConsInt (Int.repr 1)) (Ptype (Tint I32 Unsigned dattr)))
+                                                (Ptype (BeeTypes.Tint I32 Unsigned dattr))
+                                                (Const (ConsInt (Int.repr 1)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
                                                 (Bind (_y.(vname)) 
-                                                   (Ptype (Tint I32 Unsigned dattr))
-                                                   (Const (ConsInt (Int.repr 2)) (Ptype (Tint I32 Unsigned dattr)))
+                                                   (Ptype (BeeTypes.Tint I32 Unsigned dattr))
+                                                   (Const (ConsInt (Int.repr 2)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
                                                    (Bind (_r.(vname)) 
-                                                      (Ptype (Tint I32 Unsigned dattr))
+                                                      (Ptype (BeeTypes.Tint I32 Unsigned dattr))
                                                       (Prim (Bop Cop.Oadd) 
                                                          (Var _x  :: Var _y :: nil)
-                                                         (Ptype (Tint I32 Unsigned dattr)))
+                                                         (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
                                                       (Var _r)
-                                                      (Ptype (Tint I32 Unsigned dattr)))
+                                                      (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
                                                    (Ptype Tunit))
                                                 (Ptype Tunit) |}.
 
 Definition composites : list composite_definition := nil.
 
-Definition global_definitions : list (ident * globdef fundef type) := (_main, Gfun(Internal f_main)) :: nil.
+Definition global_definitions : list (ident * globdef BeePL.fundef type) := (_main, Gfun(BeePL.Internal f_main)) :: nil.
 
 Definition public_idents : list ident := (_main :: nil).
 
@@ -80,62 +83,4 @@ Definition tasm1 := transf_beepl_program(example1).
 
 Compute tcp1.
 Extraction "tcp1.ml" tcp1.
-
-(* Generated output *)
-(*        OK
-         {|
-           Ctypes.prog_defs :=
-             (4%positive,
-             Gfun
-               (Ctypes.Internal
-                  {|
-                    Csyntax.fn_return := Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |};
-                    Csyntax.fn_callconv := {| cc_vararg := None; cc_unproto := false; cc_structret := false |};
-                    Csyntax.fn_params := nil;
-                    Csyntax.fn_vars :=
-                      (1%positive, Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |})
-                      :: (2%positive, Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |})
-                         :: (3%positive, Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}) :: nil;
-                    Csyntax.fn_body :=
-                      Csyntax.Ssequence
-                        (Csyntax.Sdo
-                           (Csyntax.Eassign
-                              (Csyntax.Evar 1%positive
-                                 (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
-                              (Csyntax.Eval (Values.Vint {| Int.intval := 1; Int.intrange := Int.Z_mod_modulus_range' 1 |})
-                                 (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |})) Tvoid))
-                        (Csyntax.Sdo
-                           (Csyntax.Ecomma
-                              (Csyntax.Eassign
-                                 (Csyntax.Evar 2%positive
-                                    (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
-                                 (Csyntax.Eval (Values.Vint {| Int.intval := 2; Int.intrange := Int.Z_mod_modulus_range' 2 |})
-                                    (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
-                                 (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
-                              (Csyntax.Ecomma
-                                 (Csyntax.Eassign
-                                    (Csyntax.Evar 3%positive
-                                       (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
-                                    (Csyntax.Ebinop Cop.Oadd
-                                       (Csyntax.Evar 1%positive
-                                          (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
-                                       (Csyntax.Evar 2%positive
-                                          (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
-                                       (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
-                                    (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
-                                 (Csyntax.Evar 3%positive
-                                    (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
-                                 (Ctypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := Some 4%N |}))
-                              (Ctypes.Tint I8 Unsigned {| attr_volatile := false; attr_alignas := Some 1%N |})))
-                  |})) :: nil;
-           Ctypes.prog_public := 4%positive :: nil;
-           Ctypes.prog_main := 4%positive;
-           Ctypes.prog_types := nil;
-           Ctypes.prog_comp_env := PTree.Empty;
-           Ctypes.prog_comp_env_eq := composite_default
-         |}
-     : res Csyntax.program *)
-
-
-
 

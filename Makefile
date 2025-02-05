@@ -164,7 +164,7 @@ DRIVER=Compopts.v Compiler.v Complements.v
 ifeq ($(CLIGHTGEN),true)
 EXPORTLIB=Ctypesdefs.v Clightdefs.v Csyntaxdefs.v
 else
-EXPORTLIB=
+EXPORTLIB=Ctypesdefs.v Clightdefs.v Csyntaxdefs.v
 endif
 
 # All source files
