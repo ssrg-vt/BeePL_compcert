@@ -91,7 +91,7 @@ let compile_b_file sourcename ofile =
   set_dest AsmToJSON.destination option_sdump !sdump_suffix;
   
   (* Parse BeePL AST *)
-  let beepl_csyntax = Compiler.transf_beepl_program_csyntax BeePL_progs.example1 in
+  let beepl_csyntax = Compiler.transf_beepl_program_csyntax BeePL_add_prog.example1 in
   let csyntax =
     match beepl_csyntax with
     | Errors.OK program -> program
