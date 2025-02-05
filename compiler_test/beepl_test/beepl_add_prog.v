@@ -1,7 +1,8 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx Coq.Strings.BinaryString.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes.
-Require Import BeePL BeePL_mem BeeTypes BeePL_Csyntax Compiler Errors Extraction.
+Require Import BeePL BeePL_mem BeeTypes BeePL_Csyntax Compiler Errors Extraction. 
+From Coq Require Import String List ZArith.
 
 Local Open Scope string_scope.
 Local Open Scope error_monad_scope.
@@ -15,39 +16,50 @@ Local Open Scope error_monad_scope.
         return r;
    }*)
 
-Definition dattr := {| attr_volatile := false; attr_alignas := Some 4%N |}.
-Definition x := {| vname := 1%positive; vtype := Ptype (Tint I32 Unsigned dattr) |}.
-Definition y := {| vname := 2%positive; vtype := Ptype (Tint I32 Unsigned dattr) |}.
-Definition r := {| vname := 3%positive; vtype := Ptype (Tint I32 Unsigned dattr) |}.
-Definition main := 4%positive.
+Module Info.
+  Definition version := "3.15".
+  Definition build_number := "".
+  Definition build_tag := "".
+  Definition build_branch := "".
+  Definition arch := "aarch64".
+  Definition model := "default".
+  Definition abi := "apple".
+  Definition bitsize := 64.
+  Definition big_endian := false.
+  Definition source_file := "compiler_test/BeePL_progs.v.".
+End Info.
 
-Definition main_body := Bind (x.(vname)) 
-                             (Ptype (Tint I32 Unsigned dattr))
-                             (Const (ConsInt (Int.repr 1)) (Ptype (Tint I32 Unsigned dattr)))
-                             (Bind (y.(vname)) 
-                                   (Ptype (Tint I32 Unsigned dattr))
-                                   (Const (ConsInt (Int.repr 2)) (Ptype (Tint I32 Unsigned dattr)))
-                                   (Bind (r.(vname)) 
-                                         (Ptype (Tint I32 Unsigned dattr))
-                                         (Prim (Bop Cop.Oadd) 
-                                               (Var x  :: Var y :: nil)
-                                               (Ptype (Tint I32 Unsigned dattr)))
-                                         (Var r)
-                                         (Ptype (Tint I32 Unsigned dattr)))
-                             (Ptype Tunit))
-                        (Ptype Tunit). 
-               
+Definition dattr := {| attr_volatile := false; attr_alignas := Some 4%N |}.
+Definition _x := {| vname := 1%positive; vtype := Ptype (Tint I32 Unsigned dattr) |}.
+Definition _y := {| vname := 2%positive; vtype := Ptype (Tint I32 Unsigned dattr) |}.
+Definition _r := {| vname := 3%positive; vtype := Ptype (Tint I32 Unsigned dattr) |}.
+Definition _main := 4%positive.
+
 Definition f_main : function := {| fn_return := (Ptype (Tint I32 Unsigned dattr));
                                    fn_callconv := cc_default;
                                    fn_args := nil;
-                                   fn_vars := (x :: y :: r :: nil);
-                                   fn_body := main_body |}.
+                                   fn_vars := (_x :: _y :: _r :: nil);
+                                   fn_body := Bind (_x.(vname)) 
+                                                (Ptype (Tint I32 Unsigned dattr))
+                                                (Const (ConsInt (Int.repr 1)) (Ptype (Tint I32 Unsigned dattr)))
+                                                (Bind (_y.(vname)) 
+                                                   (Ptype (Tint I32 Unsigned dattr))
+                                                   (Const (ConsInt (Int.repr 2)) (Ptype (Tint I32 Unsigned dattr)))
+                                                   (Bind (_r.(vname)) 
+                                                      (Ptype (Tint I32 Unsigned dattr))
+                                                      (Prim (Bop Cop.Oadd) 
+                                                         (Var _x  :: Var _y :: nil)
+                                                         (Ptype (Tint I32 Unsigned dattr)))
+                                                      (Var _r)
+                                                      (Ptype (Tint I32 Unsigned dattr)))
+                                                   (Ptype Tunit))
+                                                (Ptype Tunit) |}.
 
 Definition composites : list composite_definition := nil.
 
-Definition global_definitions : list (ident * globdef fundef type) := (main, Gfun(Internal f_main)) :: nil.
+Definition global_definitions : list (ident * globdef fundef type) := (_main, Gfun(Internal f_main)) :: nil.
 
-Definition public_idents : list ident := (main :: nil).
+Definition public_idents : list ident := (_main :: nil).
 
 Lemma composite_default :
 build_composite_env nil = OK (PTree.empty composite).
@@ -57,7 +69,7 @@ Qed.
 
 Definition example1 : BeePL.program := {| prog_defs := global_definitions;
                                           prog_public := public_idents;
-                                          prog_main := main;
+                                          prog_main := _main;
                                           prog_types := composites;
                                           prog_comp_env := PTree.empty composite;
                                           prog_comp_env_eq := composite_default |}.
