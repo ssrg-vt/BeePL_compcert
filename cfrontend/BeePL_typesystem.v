@@ -260,33 +260,10 @@ Proof.
 by move=> Gamma Sigma e ef t ht; inversion ht; subst; rewrite /typeof_expr /=; auto.
 Qed.
 
-Lemma type_reflex : forall v t t' v',
-typeof_value v t ->
-typeof_value v t' ->
-typeof_value v' t ->
-typeof_value v' t'.
-Proof.
-move=> v t t' v'. rewrite /typeof_value /=.
-case: v=> //=.
-+ case: t=> //= p. case: p=> //=.
-  case: t'=> //= p'. by case: p'=> //=.
-+ case: t=> //= p. case: p=> //=.
-  case: t'=> //= p. by case: p=> //=.
-+ case: t=> //= p. 
-  + case: p=> //=; case: t'=> //= p. by case: p=> //=.
-  + by case: Twptr=> //=; case: t'=> //= p'; case: p'=> //=.
-  by case: Twptr=> //=; case: t'=> //= p'; case: p'=> //=.
-case: t=> //= p.
-+ case: p=> //=; case: t'=> //= p.
-  by case: p=> //=.
-+ by case: Twptr=> //=; case: t'=> //= p'; case: p'=> //=.
-by case: Twptr=> //=; case: t'=> //= p'; case: p'=> //=.
-Qed.
-
 Lemma eq_type_rel : forall v t t',
 eq_type t t' ->
-typeof_value v t' ->
-typeof_value v t.
+typeof_value v (wtype_of_type t') ->
+typeof_value v (wtype_of_type t).
 Proof.
 move=> v t t'. case: t=> //=.
 + move=> p. case: t'=> //= p'.
@@ -298,7 +275,7 @@ move=> v t t'. case: t=> //=.
 by case: t'=> //=.
 Qed.
 
-(* Complete Me *) (* Difficult *)
+(* Complete Me *) (* Difficult level *)
 (**** Substitution preserves typing ****)
 (* Substitution preserve typing says that suppose we
    have an expression [e] with a free variable [x], and suppose we've been
@@ -310,13 +287,13 @@ Qed.
    and obtain a new expression that still has type [t]. *)
 Lemma subst_preservation : forall Gamma Sigma vm hm hm' x t v e ef t' e'', 
 type_expr (extend_context Gamma x.(vname) t) Sigma e ef t' ->
-typeof_value v t ->
+typeof_value v (wtype_of_type t) ->
 subst vm hm x.(vname) v e hm' e'' ->
 type_expr Gamma Sigma e'' ef t'.
 Proof.
 Admitted.
 
-(* Complete Me *)
+(* Complete Me *) (* Difficult level *)
 Lemma extend_ty_context_deterministic : forall Gamma Sigma x x' t1 t2 e ef t,
 (x =? x')%positive = false ->
 type_expr (extend_context (extend_context Gamma x t1) x' t2) Sigma e ef t ->
@@ -369,10 +346,79 @@ Proof.
     apply H.
 Admitted.
 
-(* Complete Me *)
-Lemma deref_addr_val_ty : forall ty m addr ofs v,
-deref_addr ty m addr ofs Full v ->
-typeof_value v ty.
+Lemma cty_chunk_rel : forall (ty: Ctypes.type) chunk v,
+Ctypes.access_mode ty = By_value chunk ->
+Values.Val.has_type v (type_of_chunk chunk) ->
+Values.Val.has_type v (typ_of_type ty).
+Proof.
+move=> ty chunk v ha hv. case: chunk ha hv=> //=.
+(* Mbool *)
++ case: ty=> //= f a. by case: f=> //=.
+(* Mint8signed *)
++ case: ty=> //= f a. by case: f=> //=.
+(* Mint8unsigned *)
++ case: ty=> //= f a. by case: f=> //=.
+(* Mint16signed *)
++ case: ty=> //= f a. by case: f=> //=.
+(* Mint16unsigned *)
++ case: ty=> //= f a. by case: f=> //=.
+(* Mint32 *)
++ case: ty=> //= f a. by case: f=> //=.
+(* Mint64 *)
++ case: ty=> //= i s a. 
+  + case: i=> //=.
+    + by case: s=> //=.
+    by case: s=> //=.
+  by case: i a=> //=.
+(* Mfloat32 *)
++ case: ty=> //= f s a. 
+  + case: f=> //=.
+    + by case: s=> //=.
+    by case: s=> //=.
+  by case: f a=> //=.
+(* Mfloat64 *)
++ case: ty=> //= f s a. 
+  + case: f=> //=.
+    + by case: s=> //=.
+    by case: s=> //=.
+  by case: f a=> //=.
+(* Many32 *)
++ case: ty=> //=.
+  + move=> i s a. case: i=> //=.
+    + by case: s=> //=.
+    by case: s=> //=.
+  move=> f a. by case: f=> //=.
+case: ty=> //=. 
++ move=> i s a. case: i=> //=.
+  + by case: s=> //=.
+  by case: s=> //=.
+move=> f. by case: f=> //=.
+Qed.
+
+Lemma bty_chunk_rel : forall (ty: type) chunk,
+access_mode ty = By_value (transl_memory_chunk chunk) ->
+(wtype_of_type ty) = (typeof_chunk chunk).
+Proof.  
+move=> ty chunk. case: chunk=> //=; case: ty=> //= p; case: p=> //=.
+move=> i s a. case: i=> //=.
++ by case: s=> //=.
+case: s=> //=.
+Qed.
+
+Lemma cval_bval_type_chunk : forall v chunk v',
+Values.Val.has_type v (type_of_chunk (transl_memory_chunk chunk)) ->
+transC_val_bplvalue v = Errors.OK v' ->
+typeof_value v' (typeof_chunk chunk). 
+Proof.
+move=> v chunk v'. by case: chunk=> //=; case: v=> //=; case: v'=> //=. 
+Qed.
+
+(* Complete me *) (* Medium level *)
+Lemma cval_bval_type_eq : forall v ct v' bt g g' i,
+Values.Val.has_type v (typ_of_type ct) ->
+transC_val_bplvalue v = Errors.OK v' ->
+transBeePL_type bt g = SimplExpr.Res ct g' i ->
+typeof_value v' (wtype_of_type bt). 
 Proof.
   intros.
   inversion H; subst; clear H.
@@ -387,7 +433,21 @@ Proof.
       destruct s; simpl in *; try discriminate; eauto.
     admit. 
 Admitted.
-      
+ 
+Lemma deref_addr_val_ty : forall ty m l ofs v,
+deref_addr ty m l.(lname) ofs l.(lbitfield) v ->
+typeof_value v (wtype_of_type ty).
+Proof.
+move=> ty m l ofs v hd. inversion hd; subst.
++ rewrite /Mem.loadv /= in H2.
+  have hvt := Mem.load_type m (transl_memory_chunk chunk) (lname l) 
+              (Ptrofs.unsigned ofs) v0 H2.
+  have hwt := bty_chunk_rel ty chunk H0.
+  rewrite /typeof_value /= hwt /typeof_chunk /=. 
+  by case: chunk H0 H2 hvt hwt=> //=; case: v hd H3=> //=; case: v0=> //=.
+case: ty hd H0=> //= p. case: p=> //= i s a.
+case: i=> //=;by case: s=> //=.
+Qed.
 
 (* Value typing *)
 (* A value does not produce any effect *)
@@ -405,13 +465,50 @@ move=> Gamma Sigma ef t v ht. elim: v ht=> //=.
 move=> l ofs ht. by inversion ht.
 Qed.
 
+(* Complete Me *)
+Lemma uop_type_preserve : forall uop v ct m v',
+Cop.sem_unary_operation uop v ct m = Some v' ->
+Values.Val.has_type v' (typ_of_type ct).
+Proof.
+Admitted.
+
+Lemma eq_uop_types : forall uop t g g' i v ct m v' v'',
+transBeePL_type t g = SimplExpr.Res ct g' i ->
+Cop.sem_unary_operation uop v ct m = Some v' ->
+Values.Val.has_type v' (typ_of_type ct) ->
+transC_val_bplvalue v' = Errors.OK v'' -> 
+typeof_value v'' (wtype_of_type t).
+Proof.
+Admitted.
+
+(* Complete Me *)
+Lemma bop_type_preserve : forall bge bop v1 ct1 v2 ct2 m v,
+Cop.sem_binary_operation bge bop v1 ct1 v2 ct2 m = Some v ->
+Values.Val.has_type v (typ_of_type ct1) /\
+Values.Val.has_type v (typ_of_type ct2).
+Proof.
+Admitted.
+
+(*Lemma type_transl_val : forall  t g ct g' i v v',
+transBeePL_type t g = SimplExpr.Res ct g' i ->
+Values.Val.has_type v (typ_of_type ct) ->
+transC_val_bplvalue v = Errors.OK v' ->
+typeof_value v' (wtype_of_type t).
+Proof.
+move=> t g ct g' i v v' /= hte hvt hv'. elim: t hte=> //=.
++ move=> p. case: p=> //=.
+  + rewrite /SimplExpr.ret /=. move=> [] hct hg; subst.
+    rewrite /typ_of_type /= in hvt. case: v hv' hvt=> //= i'.
+    move=> [] hv' _; subst. rewrite /typeof_value /wtype_of_type /=.*)
+
+
 Section Subject_Reduction.
 
 Variable (bge : genv).
 Variable (benv : vmap).
 
 (* Subject reduction : Big step semantics *) 
-Lemma bsreduction_lreduction :  
+Lemma bsreduction_lreduction : 
 (forall m e l ofs,
     bsem_expr_slv bge benv m e l ofs ->
     forall Gamma Sigma ef t, 
@@ -421,117 +518,66 @@ Lemma bsreduction_lreduction :
     bsem_expr_srv bge benv m e v ->
     forall Gamma Sigma ef t, 
      type_expr Gamma Sigma e ef t ->
-     typeof_value v t).
+     typeof_value v (wtype_of_type t)).
 Proof.
 apply bsem_expr_slv_rlv_ind=> //=.
 (* Var *)
 + move=> m x t l h attr hx hv Gamma Sigma ef t' ht.
   by inversion ht; subst.
 (* Gvar *)
-Admitted.
++ move=> m x t l h a hx hl hv Gamma Sigma ef t' ht.
+  by inversion ht; subst.
+(* Addr *)
++ move=> m l ofs Gamma Sigma ef t ht. by inversion ht; subst.
+(* Deref *)
++ move=> m e t l ofs hi Gamma Sigma ef t' ht. 
+  by inversion ht; subst.
+(* Val *)
++ move=> m v t Gamma Sigma ef t' ht. 
+  by inversion ht; subst; rewrite /typeof_value /wtype_of_type.
+(* Const int *)
++ move=> m i t Gamma Sigma ef t' ht. by inversion ht; subst; rewrite /wtype_of_type.
+(* Const long *)
++ move=> m i t Gamma Sigma ef t' ht. by inversion ht; subst; rewrite /wtype_of_type.
+(* Valof *)
++ move=> m e t l ofs v hi hd hte hvo Gamma Sigma ef t' ht.
+  inversion ht; subst.
+  move: (hi Gamma Sigma empty_effect (typeof_expr e) H5)=> hlt.
+  by have := deref_addr_val_ty (typeof_expr e) m l ofs v hd.
+(* Uop *)
++ move=> m e v uop v' ct ct' v'' g g' i hi he hct hop hv Gamma Sigma ef t ht.
+  inversion ht; subst.
+  move: (hi Gamma Sigma ef (typeof_expr e) H6)=> hvt.
+  have hvt' := uop_type_preserve uop (transBeePL_value_cvalue v) ct' m v' hop.
+  by have := eq_uop_types uop (typeof_expr e) g g' i (transBeePL_value_cvalue v) ct' m v'
+          v'' he hop hvt' hv.
+(* Bop *)
++ move=> m e1 e2 t v1 v2 bop v ct1 ct2 v' g g' g'' i i' hi hi' hte1 hte2 
+         [] ht1 ht2 hop hv Gamma Sigma ef t' ht; subst. inversion ht; subst.
+  move: (hi Gamma Sigma ef t H7)=> hvt1. move: (hi' Gamma Sigma ef t H8)=> hvt2.
+  have [hvt hvt'] := bop_type_preserve bge bop (transBeePL_value_cvalue v1) ct1 
+     (transBeePL_value_cvalue v2) ct2 m v hop.
+  by have := cval_bval_type_eq v ct1 v' (typeof_expr e1) g g' i hvt hv hte1.
+Qed.
 
 
 End Subject_Reduction.
 
 (* Subject reduction *)
 (* A well-typed expression remains well-typed under top-level lreduction *)
-Lemma sreduction_lreduction : forall Gamma Sigma genv ef t vm e m e' m', 
+Lemma slreduction : forall Gamma Sigma genv ef t vm e m e' m', 
 type_expr Gamma Sigma e ef t ->
-is_top_level e = true /\ is_lv e = true ->
 lreduction genv vm e m e' m' ->
 type_expr Gamma Sigma e' ef t.
 Proof.
-move=> Gamma Sigma genv ef t vm e m e' m'.
-elim: e=> //=.
-(* val *)
-+ by move=> v t' ht [] //=.
-(* valof *)
-+ by move=> e hi t' ht [] //=.
-(* var *)
-+ move=> v ht _ hl. inversion hl; subst.
-  (* local *)
-  + inversion ht; subst. rewrite H1. 
-    by apply Ty_addr with h t0 a. 
-  (* global *)
-  + inversion ht; subst. rewrite H1.
-    by apply Ty_addr with h t0 a. 
-(* const *)
-+ by move=> c t' ht [] //=.
-(* app *)
-+ by move=> e hi es t' ht [] //=.
-(* prim *)
-+ move=> [] //=.
-  (* ref *)
-  + by move=> es t' ht [] //=.
-  (* deref *)
-  + move=> es t' ht [] hes _ hl. inversion ht; subst.
-    inversion ht; subst. inversion hl; subst.
-    rewrite /is_vals in hes. move: hes.
-    move=> /andP [] hc _.
-    have [h1 h2] := val_cannot_be_reduced genv vm e m e'0 m' hc.
-    move: h1. by move=> [].
-  (* massgn *)
-  + by move=> es t' ht [] h1 //=. 
-  (* uop *)
-  + by move=> u es t' ht [] //=.
-  (* bop *)
-  + by move=> b es t' ht [] //=.
-  (* run *)
-  by move=> m'' es t' ht [] //=.
-(* bind *)
-+ by move=> x t' e hi e'' ht t'' ht' [] //=.
-(* cond *)
-+ by move=> e he1 e1 he2 e3 he3 t' ht [] //=.
-(* unit *)
-+ by move=> t' ht [] //=.
-(* addr *)
-+ by move=> l ofs ht [] //=.
-by move=> m'' e hi t' ht [] //=.
+move=> Gamma Sigma genv ef t vm e m e' m' ht he.
+induction he=> //=.
++ inversion ht; subst. rewrite H0. by apply Ty_addr with h t0 a. 
++ inversion ht; subst. rewrite H0. by apply Ty_addr with h t0 a.
+by inversion ht; subst.
 Qed.
     
-(**** Progress ****) 
 
-(* A well-typed top-level program always makes progress or is a value *)
-(* Take small-step semantics into consideration *) 
-Lemma progress_lreduction : forall Gamma Sigma genv ef t vm e m, 
-type_expr Gamma Sigma e ef t ->
-is_top_level e = true /\ is_lv e = true ->
-is_val e \/ exists e' m', lreduction genv vm e m e' m'.
-Proof.
-move=> Gamma Sigma genv ef t vm e m ht [] hc1 hc2.
-induction ht=> //=.
-(* var *)
-+ inversion H; subst. right. rewrite /= in hc1. 
-admit. (* how to get the location as it can be only obtained from vm *)
-(* deref *)
-rewrite /is_top_level /= in hc1. 
-elim: e ht hc2 IHht hc1=> //=.
-Admitted.
-
-(* A well-typed top-level program always makes progress or is a value *)
-(* Take small-step semantics into consideration *) 
-Lemma progress_rreduction : forall Gamma Sigma genv ef t vm e m, 
-type_expr Gamma Sigma e ef t ->
-is_val e \/ exists e' m', rreduction genv vm e m e' m'.
-Proof.
-Admitted.
-
-(**** Preservation ****)
-Lemma preservation_lreduction : forall Gamma Sigma genv ef t vm e m e' m', 
-type_expr Gamma Sigma e ef t ->
-is_top_level e = true /\ is_lv e = true ->
-lreduction genv vm e m e' m' ->
-type_expr Gamma Sigma e' ef t.
-Proof.
-Admitted.
-
-Lemma preservation_rreduction : forall Gamma Sigma genv ef t vm e m e' m', 
-type_expr Gamma Sigma e ef t ->
-is_top_level e = true /\ is_rv e = true ->
-rreduction genv vm e m e' m' ->
-type_expr Gamma Sigma e' ef t.
-Proof.
-Admitted.
 
     
     
