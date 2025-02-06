@@ -171,6 +171,7 @@ DRIVER=Compopts.v Compiler.v Complements.v
 ifeq ($(CLIGHTGEN),true)
 EXPORTLIB=Ctypesdefs.v Clightdefs.v Csyntaxdefs.v
 else
+# Include EXPORTLIB files in ccomp for BeePL compiler
 EXPORTLIB=Ctypesdefs.v Clightdefs.v Csyntaxdefs.v
 endif
 
