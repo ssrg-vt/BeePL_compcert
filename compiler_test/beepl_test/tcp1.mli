@@ -1,7 +1,4 @@
 
-type unit0 =
-| Tt
-
 type bool =
 | True
 | False
@@ -859,13 +856,11 @@ type rettype =
 | Tint16unsigned
 | Tvoid
 
-type calling_convention = { cc_vararg : z option; cc_unproto : bool;
-                            cc_structret : bool }
+type calling_convention = { cc_vararg : z option; cc_unproto : bool; cc_structret : bool }
 
 val cc_default : calling_convention
 
-type signature = { sig_args : typ list; sig_res : rettype;
-                   sig_cc : calling_convention }
+type signature = { sig_args : typ list; sig_res : rettype; sig_cc : calling_convention }
 
 type memory_chunk =
 | Mbool
@@ -890,8 +885,7 @@ type init_data =
 | Init_space of z
 | Init_addrof of ident * Ptrofs.int
 
-type 'v globvar = { gvar_info : 'v; gvar_init : init_data list;
-                    gvar_readonly : bool; gvar_volatile : bool }
+type 'v globvar = { gvar_info : 'v; gvar_init : init_data list; gvar_readonly : bool; gvar_volatile : bool }
 
 type ('f, 'v) globdef =
 | Gfun of 'f
@@ -954,9 +948,7 @@ type members = member list
 type composite_definition =
 | Composite of ident * struct_or_union * members * attr
 
-type composite = { co_su : struct_or_union; co_members : members;
-                   co_attr : attr; co_sizeof : z; co_alignof : z;
-                   co_rank : nat }
+type composite = { co_su : struct_or_union; co_members : members; co_attr : attr; co_sizeof : z; co_alignof : z; co_rank : nat }
 
 type composite_env = composite PTree.t
 
@@ -968,10 +960,8 @@ type 'f fundef =
 | Internal of 'f
 | External of external_function * typelist * type0 * calling_convention
 
-type 'f program = { prog_defs : (ident, ('f fundef, type0) globdef) prod list;
-                    prog_public : ident list; prog_main : ident;
-                    prog_types : composite_definition list;
-                    prog_comp_env : composite_env }
+type 'f program = { prog_defs : (ident, ('f fundef, type0) globdef) prod list; prog_public : ident list; prog_main : ident;
+                    prog_types : composite_definition list; prog_comp_env : composite_env }
 
 type block = positive
 
@@ -1004,12 +994,44 @@ type perm_kind =
 
 module Mem :
  sig
-  type mem' = { mem_contents : memval ZMap.t PMap.t;
-                mem_access : (z -> perm_kind -> permission option) PMap.t;
-                nextblock : block }
+  type mem' = { mem_contents : memval ZMap.t PMap.t; mem_access : (z -> perm_kind -> permission option) PMap.t; nextblock : block }
 
   type mem = mem'
  end
+
+type effect_label =
+| Panic
+| Divergence
+| Read of ident
+| Write of ident
+| Alloc of ident
+
+type effect = effect_label list
+
+type primitive_type =
+| Tunit
+| Tint1 of intsize * signedness * attr
+| Tlong1 of signedness * attr
+
+type basic_type = primitive_type
+  (* singleton inductive, whose constructor was Bprim *)
+
+type type1 =
+| Ptype of primitive_type
+| Reftype of ident * basic_type * attr
+| Ftype of type1 list * effect * type1
+
+val transBeePL_types : (type1 -> type0 res) -> type1 list -> typelist res
+
+val typelist_list_type : typelist -> type0 list
+
+val transBeePL_type : type1 -> type0 res
+
+val unzip1 : ('a1, 'a2) prod list -> 'a1 list
+
+val unzip2 : ('a1, 'a2) prod list -> 'a2 list
+
+val zip : 'a1 list -> 'a2 list -> ('a1, 'a2) prod list
 
 type unary_operation =
 | Onotbool
@@ -1039,114 +1061,6 @@ type incr_or_decr =
 | Incr
 | Decr
 
-type expr =
-| Eval of val0 * type0
-| Evar of ident * type0
-| Efield of expr * ident * type0
-| Evalof of expr * type0
-| Ederef of expr * type0
-| Eaddrof of expr * type0
-| Eunop of unary_operation * expr * type0
-| Ebinop of binary_operation * expr * expr * type0
-| Ecast of expr * type0
-| Eseqand of expr * expr * type0
-| Eseqor of expr * expr * type0
-| Econdition of expr * expr * expr * type0
-| Esizeof of type0 * type0
-| Ealignof of type0 * type0
-| Eassign of expr * expr * type0
-| Eassignop of binary_operation * expr * expr * type0 * type0
-| Epostincr of incr_or_decr * expr * type0
-| Ecomma of expr * expr * type0
-| Ecall of expr * exprlist * type0
-| Ebuiltin of external_function * typelist * exprlist * type0
-| Eloc of block * Ptrofs.int * bitfield * type0
-| Eparen of expr * type0 * type0
-and exprlist =
-| Enil
-| Econs of expr * exprlist
-
-type label = ident
-
-type statement =
-| Sskip
-| Sdo of expr
-| Ssequence of statement * statement
-| Sifthenelse of expr * statement * statement
-| Swhile of expr * statement
-| Sdowhile of expr * statement
-| Sfor of statement * expr * statement * statement
-| Sbreak
-| Scontinue
-| Sreturn of expr option
-| Sswitch of expr * labeled_statements
-| Slabel of label * statement
-| Sgoto of label
-and labeled_statements =
-| LSnil
-| LScons of z option * statement * labeled_statements
-
-type function0 = { fn_return : type0; fn_callconv : calling_convention;
-                   fn_params : (ident, type0) prod list;
-                   fn_vars : (ident, type0) prod list; fn_body : statement }
-
-type fundef0 = function0 fundef
-
-type program0 = function0 program
-
-type generator = { gen_next : ident; gen_trail : (ident, type0) prod list }
-
-type 'a result =
-| Err of errmsg
-| Res of 'a * generator
-
-type 'a mon = generator -> 'a result
-
-val ret : 'a1 -> 'a1 mon
-
-val bind0 : 'a1 mon -> ('a1 -> 'a2 mon) -> 'a2 mon
-
-val first_unused_ident : unit0 -> ident
-
-val initial_generator : unit0 -> generator
-
-val gensym : type0 -> ident mon
-
-type effect_label =
-| Panic
-| Divergence
-| Read of ident
-| Write of ident
-| Alloc of ident
-
-type effect = effect_label list
-
-type primitive_type =
-| Tunit
-| Tint1 of intsize * signedness * attr
-| Tlong1 of signedness * attr
-
-type basic_type =
-  primitive_type
-  (* singleton inductive, whose constructor was Bprim *)
-
-type type1 =
-| Ptype of primitive_type
-| Reftype of ident * basic_type * attr
-| Ftype of type1 list * effect * type1
-
-val from_typelist : typelist -> type0 list
-
-val transBeePL_types : (type1 -> type0 mon) -> type1 list -> typelist mon
-
-val transBeePL_type : type1 -> type0 mon
-
-val unzip1 : ('a1, 'a2) prod list -> 'a1 list
-
-val unzip2 : ('a1, 'a2) prod list -> 'a2 list
-
-val zip : 'a1 list -> 'a2 list -> ('a1, 'a2) prod list
-
 type constant =
 | ConsInt of Int.int
 | ConsLong of Int64.int
@@ -1172,90 +1086,139 @@ type builtin =
 | Bop of binary_operation
 | Run of Mem.mem
 
-type expr0 =
+type expr =
 | Val of value * type1
-| Valof of expr0 * type1
 | Var of vinfo
 | Const of constant * type1
-| App of expr0 * expr0 list * type1
-| Prim of builtin * expr0 list * type1
-| Bind of ident * type1 * expr0 * expr0 * type1
-| Cond of expr0 * expr0 * expr0 * type1
+| App of ident option * expr * expr list * type1
+| Prim of builtin * expr list * type1
+| Bind of ident * type1 * expr * expr * type1
+| Cond of expr * expr * expr * type1
 | Unit of type1
 | Addr of linfo * Ptrofs.int
-| Hexpr of Mem.mem * expr0 * type1
+| Hexpr of Mem.mem * expr * type1
 
-val typeof_expr : expr0 -> type1
+val typeof_expr : expr -> type1
 
-type function1 = { fn_return0 : type1; fn_callconv0 : calling_convention;
-                   fn_args : vinfo list; fn_vars0 : vinfo list;
-                   fn_body0 : expr0 }
+type function0 = { fn_return : type1; fn_callconv : calling_convention; fn_args : vinfo list; fn_vars : vinfo list; fn_body : expr }
 
-type fundef1 =
-| Internal0 of function1
+type fundef0 =
+| Internal0 of function0
 | External0
 
 type 'v globvar0 = 'v globvar
 
 type ('f, 'v) globdef0 = ('f, 'v) globdef
 
-type program1 = { prog_defs0 : (ident, (fundef1, type1) globdef0) prod list;
-                  prog_public0 : ident list; prog_main0 : ident;
-                  prog_types0 : composite_definition list;
-                  prog_comp_env0 : composite_env }
+type program0 = { prog_defs0 : (ident, (fundef0, type1) globdef0) prod list; prog_public0 : ident list; prog_main0 : ident;
+                  prog_types0 : composite_definition list; prog_comp_env0 : composite_env }
 
 val transBeePL_value_cvalue : value -> val0
 
-val transBeePL_expr_exprs : (expr0 -> expr mon) -> expr0 list -> exprlist mon
+type expr0 =
+| Eval of val0 * type0
+| Evar of ident * type0
+| Efield of expr0 * ident * type0
+| Evalof of expr0 * type0
+| Ederef of expr0 * type0
+| Eaddrof of expr0 * type0
+| Eunop of unary_operation * expr0 * type0
+| Ebinop of binary_operation * expr0 * expr0 * type0
+| Ecast of expr0 * type0
+| Eseqand of expr0 * expr0 * type0
+| Eseqor of expr0 * expr0 * type0
+| Econdition of expr0 * expr0 * expr0 * type0
+| Esizeof of type0 * type0
+| Ealignof of type0 * type0
+| Eassign of expr0 * expr0 * type0
+| Eassignop of binary_operation * expr0 * expr0 * type0 * type0
+| Epostincr of incr_or_decr * expr0 * type0
+| Ecomma of expr0 * expr0 * type0
+| Ecall of expr0 * exprlist * type0
+| Ebuiltin of external_function * typelist * exprlist * type0
+| Eloc of block * Ptrofs.int * bitfield * type0
+| Eparen of expr0 * type0 * type0
+and exprlist =
+| Enil
+| Econs of expr0 * exprlist
 
-val exprlist_list_expr : exprlist -> expr list
+type label = ident
 
-val default_expr : expr
+type statement =
+| Sskip
+| Sdo of expr0
+| Ssequence of statement * statement
+| Sifthenelse of expr0 * statement * statement
+| Swhile of expr0 * statement
+| Sdowhile of expr0 * statement
+| Sfor of statement * expr0 * statement * statement
+| Sbreak
+| Scontinue
+| Sreturn of expr0 option
+| Sswitch of expr0 * labeled_statements
+| Slabel of label * statement
+| Sgoto of label
+and labeled_statements =
+| LSnil
+| LScons of z option * statement * labeled_statements
 
-val transBeePL_expr_expr : expr0 -> expr mon
+type function1 = { fn_return0 : type0; fn_callconv0 : calling_convention; fn_params : (ident, type0) prod list;
+                   fn_vars0 : (ident, type0) prod list; fn_body0 : statement }
 
-val check_var_const : expr0 -> bool
+type fundef1 = function1 fundef
 
-val transBeePL_expr_st : expr0 -> statement mon
+type program1 = function1 program
 
-val transBeePL_function_function : function1 -> function0 res
+val transBeePL_expr_exprs : (expr -> expr0 res) -> expr list -> exprlist res
 
-val transBeePL_fundef_fundef : fundef1 -> fundef0 res
+val exprlist_list_expr : exprlist -> expr0 list
+
+val default_expr : expr0
+
+val transBeePL_expr_expr : expr -> expr0 res
+
+val check_var_const : expr -> bool
+
+val transBeePL_expr_st : expr -> statement res
+
+val transBeePL_function_function : function0 -> function1 res
+
+val transBeePL_fundef_fundef : fundef0 -> fundef1 res
 
 val transBeePLglobvar_globvar : type1 globvar0 -> type0 globvar res
 
-val transBeePL_globdef_globdef :
-  (fundef1, type1) globdef0 -> (fundef0, type0) globdef res
+val transBeePL_globdef_globdef : (fundef0, type1) globdef0 -> (fundef1, type0) globdef res
 
-val transBeePL_globdefs_globdefs :
-  (fundef1, type1) globdef0 list -> (fundef0, type0) globdef list res
+val transBeePL_globdefs_globdefs : (fundef0, type1) globdef0 list -> (fundef1, type0) globdef list res
 
-val beePL_compcert : program1 -> program0 res
+val beePL_compcert : program0 -> program1 res
 
 val apply_partial : 'a1 res -> ('a1 -> 'a2 res) -> 'a2 res
 
 val time : string -> ('a1 -> 'a2) -> 'a1 -> 'a2
 
-val transf_beepl_program_csyntax : program1 -> program0 res
+val transf_beepl_program_csyntax : program0 -> program1 res
 
 val dattr : attr
 
-val _x : vinfo
+val x : vinfo
 
-val _y : vinfo
+val y : vinfo
 
-val _r : vinfo
+val r : vinfo
 
-val _main : positive
+val main : positive
 
-val f_main : function1
+val main_body : expr
+
+val f_main : function0
 
 val composites : composite_definition list
 
-val global_definitions : (ident, (fundef1, type1) globdef0) prod list
+val global_definitions : (ident, (fundef0, type1) globdef0) prod list
 
 val public_idents : ident list
 
-val example1 : program1
+val example1 : program0
 
-val tcp1 : program0 res
+val tcp1 : program1 res
