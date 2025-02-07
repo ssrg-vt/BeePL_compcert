@@ -15,7 +15,7 @@ Module Info.
   Definition abi := "standard".
   Definition bitsize := 64.
   Definition big_endian := false.
-  Definition source_file := "/home/cpsughrue/test_c.c".
+  Definition source_file := "/home/cpsughrue/test.c".
 End Info.
 
 Definition ___builtin_ais_annot : ident := $"__builtin_ais_annot".

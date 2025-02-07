@@ -37,6 +37,7 @@ Require Compiler.
 Require Parser.
 Require Initializers.
 Require BeePL_add_prog.
+Require CsyntaxTest.
 
 (* Standard lib *)
 Require Import ExtrOcamlBasic.
@@ -156,7 +157,7 @@ Set Extraction AccessOpaque.
 Cd "extraction".
 
 Separate Extraction
-   BeePL_add_prog.example1 
+   CsyntaxTest.prog BeePL_add_prog.example1 
    Compiler.transf_beepl_program Compiler.transf_c_program Compiler.transf_cminor_program
    Cexec.do_initial_state Cexec.do_step Cexec.at_final_state
    Ctypes.merge_attributes Ctypes.remove_attributes 

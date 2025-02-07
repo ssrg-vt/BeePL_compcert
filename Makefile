@@ -33,7 +33,7 @@ DIRS := lib common $(ARCHDIRS) backend cfrontend driver export cparser
 COQINCLUDES := $(foreach d, $(DIRS), -R $(d) compcert.$(d))
 
 DIRS += compiler_test/beepl_test
-COQINCLUDES += -R compiler_test/beepl_test BeePL_add_prog
+COQINCLUDES += -R compiler_test/beepl_test BeePL_Progs
 
 ifeq ($(LIBRARY_FLOCQ),local)
 DIRS += flocq/Core flocq/Prop flocq/Calc flocq/IEEE754
@@ -147,7 +147,7 @@ CFRONTEND=BeePL_mem.v BeePL_aux.v BeeTypes.v BeePL.v BeePL_auxlemmas.v BeePL_typ
 
 # BeePL AST 
 
-BEEPL_PROGS=BeePL_add_prog.v
+BEEPL_PROGS=BeePL_add_prog.v CsyntaxTest.v
 
 # Parser
 
