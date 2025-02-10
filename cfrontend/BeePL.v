@@ -128,6 +128,18 @@ Inductive expr : Type :=
 | Addr : linfo -> ptrofs -> expr                                   (* address *)
 | Hexpr : Memory.mem -> expr -> type -> expr                       (* heap effect *).
 
+(*
+      e0 --> None (expr)
+      e1 --> v1  
+------------------------------- None 
+match(e0, e1, x2, e2) --> v1
+
+      e0 --> Some v0 (val v0)
+      (subst x2 v0 e2) --> v2
+-------------------------------- Some 
+match(e0, e1, x2, e2) --> v2 *)
+(* Use case for checking null derefencing *)
+
 Definition is_value (e : expr) : bool :=
 match e with 
 | Val v t => true 
