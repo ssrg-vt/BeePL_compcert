@@ -293,57 +293,60 @@ type_expr Gamma Sigma e'' ef t'.
 Proof.
 Admitted.
 
-(* Complete Me *) (* Difficult level *)
-Lemma extend_ty_context_deterministic : forall Gamma Sigma x x' t1 t2 e ef t,
-(x =? x')%positive = false ->
-type_expr (extend_context (extend_context Gamma x t1) x' t2) Sigma e ef t ->
-type_expr (extend_context Gamma x t1) Sigma e ef t. 
+Lemma extend_ty_context_deterministic :
+  (forall t s l e l0,
+   type_exprs t s l e l0 ->
+   forall Gamma x x' t1 t2,
+   (x =? x')%positive = false ->
+   t = extend_context (extend_context Gamma x t1) x' t2 ->
+   type_exprs (extend_context Gamma x t1) s l e l0) /\
+  (forall t s e e0 t0,
+   type_expr t s e e0 t0 ->
+   forall Gamma x x' t1 t2,
+   (x =? x')%positive = false ->
+   t = extend_context (extend_context Gamma x t1) x' t2 ->
+   type_expr (extend_context Gamma x t1) s e e0 t0).
 Proof.
-  intros Gamma Sigma x x' t1 t2 e ef t Hneq Htype.
-  induction Htype.
+  apply type_exprs_type_expr_ind_mut; intros.
   - constructor.
   - constructor.
   - constructor.
   - constructor.
   - constructor.
-    assumption.
+    eauto.
   - constructor.
     + unfold extend_context in *.
-      destruct (PTree.get (vname x0) (PTree.set x' t2 (PTree.set x t1 Gamma))) eqn:Hget;
+      destruct (PTree.get (vname x) (PTree.set x' t2 (PTree.set x0 t1 Gamma))) eqn:Hget;
       apply PTree.gss.
     + assumption.
-  - eapply Ty_constint with (Gamma := extend_context Gamma x t1).
-    apply H.
-  - eapply Ty_constlong with (Gamma := extend_context Gamma x t1).
-    apply H.
-  - eapply Ty_constunit with (Gamma := extend_context Gamma x t1).
-    apply H.
-  - eapply Ty_app with (Gamma := extend_context Gamma x t1).
-    apply IHHtype.
-  - admit.
-  - eapply Ty_prim_ref with (Gamma := extend_context Gamma x t1).
-    apply IHHtype.
-  - eapply Ty_prim_deref with (Gamma := extend_context Gamma x t1).
-    apply IHHtype.
-  - eapply Ty_prim_massgn with (Gamma := extend_context Gamma x t1).
-    + apply IHHtype1.
-    + apply IHHtype2.
-  - eapply Ty_prim_uop with (Gamma := extend_context Gamma x t1).
-    apply IHHtype.
-  - eapply Ty_prim_bop with (Gamma := extend_context Gamma x t1).
-    + apply IHHtype1.
-    + apply IHHtype2.
-  - eapply Ty_bind with (Gamma := extend_context Gamma x t1).
-    + apply IHHtype1.
+  - eapply Ty_constint with (Gamma := extend_context Gamma0 x t1).
+    eauto.
+  - eapply Ty_constlong with (Gamma := extend_context Gamma0 x t1).
+    eauto.
+  - eapply Ty_constunit with (Gamma := extend_context Gamma0 x t1).
+    eauto.
+  - eapply Ty_app with (Gamma := extend_context Gamma0 x t1).
+    eauto.
+  - eauto.
+  - eapply Ty_prim_ref with (Gamma := extend_context Gamma0 x t1).
+    eauto.
+  - eapply Ty_prim_deref with (Gamma := extend_context Gamma0 x t1).
+    eauto.
+  - eapply Ty_prim_massgn with (Gamma := extend_context Gamma0 x t1);
+    eauto.
+  - eapply Ty_prim_uop with (Gamma := extend_context Gamma0 x t1).
+    eauto.
+  - eapply Ty_prim_bop with (Gamma := extend_context Gamma0 x t2);
+    eauto.
+  - eapply Ty_bind with (Gamma := extend_context Gamma0 x0 t2).
+    + eauto.
     + admit.
-  - eapply Ty_cond with (Gamma := extend_context Gamma x t1).
-    + apply IHHtype1.
-    + apply H.
-    + apply IHHtype2.
-    + apply IHHtype3.
+  - eapply Ty_cond with (Gamma := extend_context Gamma0 x t4); eauto.
   - constructor.
-  - eapply Ty_addr with (Gamma := extend_context Gamma x t1).
-    apply H.
+  - eapply Ty_addr with (Gamma := extend_context Gamma0 x t1).
+    eauto.
+  - constructor.
+  - constructor; eauto.
 Admitted.
 
 Lemma cty_chunk_rel : forall (ty: Ctypes.type) chunk v,
