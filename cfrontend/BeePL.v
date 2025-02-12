@@ -433,10 +433,10 @@ Inductive bsem_expr_slv : Memory.mem -> expr -> linfo -> ptrofs -> Prop :=
               vm!(x.(vname)) = Some (l, Reftype h (Bprim t) a) ->
               x.(vtype) = Reftype h (Bprim t) a ->
               bsem_expr_slv hm (Var x) {| lname := l; ltype := Reftype h (Bprim t) a; lbitfield := Full |} Ptrofs.zero
-| bsem_gvar : forall hm x t l, 
+| bsem_gvar : forall hm x t l h a,
               vm!(x.(vname)) = None ->
               Genv.find_symbol ge x.(vname) = Some l ->
-              t = x.(vtype) ->
+              x.(vtype) = Reftype h (Bprim t) a ->
               bsem_expr_slv hm (Var x) {| lname := l; ltype := x.(vtype); lbitfield := Full |} Ptrofs.zero
 | bsem_addr : forall hm l ofs,
               bsem_expr_slv hm (Addr l ofs) l ofs
@@ -665,6 +665,7 @@ Context (Pgvar : forall hm x t l h a,
 Context (Paddr : forall hm l ofs,
                  Plv hm (Addr l ofs) l ofs).
 Context (Pderef : forall hm e t l ofs,
+                  bsem_expr_srv ge vm hm e (Vloc l ofs) ->
                   Prv hm e (Vloc l ofs) ->
                   Plv hm (Prim Deref (e :: nil) t)  {| lname := l; ltype := t; lbitfield := Full |} ofs).
 Context (Pval : forall hm v t,
@@ -676,12 +677,14 @@ Context (Pcl : forall hm i t,
 Context (Pcu : forall hm, 
                Prv hm (Const (ConsUnit) (Ptype Tunit)) Vunit).
 Context (Pvalof : forall hm e t l ofs v,
+                  bsem_expr_slv ge vm hm e l ofs ->
                   Plv hm e l ofs ->
                   deref_addr (typeof_expr e) hm l.(lname) ofs l.(lbitfield) v ->
                   typeof_expr e = t ->
                   BeeTypes.type_is_volatile t = false ->
                   Prv hm (Valof e t) v).
 Context (Puop : forall hm e v uop  v' t ct v'' g g' i,
+                bsem_expr_srv ge vm hm e v ->
                 Prv hm e v ->
                 transBeePL_type (typeof_expr e) g = Res ct g' i ->
                 t = (typeof_expr e) ->
@@ -689,7 +692,9 @@ Context (Puop : forall hm e v uop  v' t ct v'' g g' i,
                 transC_val_bplvalue v' = OK v'' ->
                 Prv hm (Prim (Uop uop) (e :: nil) t) v'').
 Context (Pbop : forall hm e1 e2 t v1 v2 bop v ct1 ct2 v' g g' g'' i i',
+                bsem_expr_srv ge vm hm e1 v1 ->
                 Prv hm e1 v1 ->
+                bsem_expr_srv ge vm hm e2 v2 ->
                 Prv hm e2 v2 ->
                 transBeePL_type (typeof_expr e1) g = Res ct1 g' i ->
                 transBeePL_type (typeof_expr e2) g' = Res ct2 g'' i'->
@@ -705,9 +710,39 @@ Lemma bsem_expr_slv_rlv_ind :
 (forall hm e l ofs, bsem_expr_slv ge vm hm e l ofs -> Plv hm e l ofs) /\
 (forall hm e v, bsem_expr_srv ge vm hm e v -> Prv hm e v).
 Proof.
-apply bsem_expr_slv_srv_mut=> //=.
-+ move=> hm e t l ofs hr hp.
-Admitted.
+apply bsem_expr_slv_srv_mut; eassumption; eauto.
+(* More verbose proof
+- (* LVar case *)
+  eapply Plvar; eauto.
+- (* GVar case *)
+  intros.
+  destruct (vtype x) eqn:Hvtype; try discriminate.
+  subst.
+  destruct b eqn:Hb.
+  rewrite <- Hvtype.
+  eapply Pgvar; eauto.
+- (* Addr case *)
+  eapply Paddr.
+- (* Deref case *)
+  eapply Pderef; eauto.
+- (* Val case *)
+  eapply Pval.
+- (* ConstInt case *)
+  eapply Pci.
+- (* ConstLong case *)
+  eapply Pcl.
+- (* ConstUnit case *)
+  eapply Pcu.
+- (* Valof case *)
+  eapply Pvalof; eauto.
+- (* Unop case *)
+  eapply Puop; eauto.
+- (* Binop case *)
+  eapply Pbop; eauto.
+- (* Unit case *)
+  eapply Punit.
+*)
+Qed.
 
 End Bsem_expr_slv_srv_mut.
 
