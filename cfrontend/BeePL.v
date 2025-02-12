@@ -114,7 +114,7 @@ Inductive builtin : Type :=
    but during evaluation the reductions on heap operations create heaps and use them. *)
 Inductive expr : Type :=
 | Val : value -> type -> expr                                      (* value *) (* rvalue *)
-| Valof : expr -> type -> expr                                     (* not written by programmer, 
+(*| Valof : expr -> type -> expr *)                                    (* not written by programmer, 
                                                                       but denotes read from a location at rvalue *)
 | Var : vinfo -> expr                                              (* variable *) (* lvalue *)
 | Const : constant -> type -> expr                                 (* constant *) (* rvalue *)
@@ -149,7 +149,7 @@ end.
 Definition typeof_expr (e : expr) : BeeTypes.type :=
 match e with 
 | Val v t => t
-| Valof e t => t
+(*| Valof e t => t*)
 | Var x => x.(vtype)
 | Const x t => t
 | App e ts t => t
@@ -347,9 +347,9 @@ Inductive subst : vmap -> Memory.mem -> ident -> value -> expr -> Memory.mem -> 
                subst vm hm x v (Var y) hm (Var y)
 | const_subst : forall vm hm x v c t,
                 subst vm hm x v (Const c t) hm (Const c t)
-| valof_subst : forall x v e t e' vm hm hm',
+(*| valof_subst : forall x v e t e' vm hm hm',
                 subst vm hm x v e hm' e' ->
-                subst vm hm x v (Valof e t) hm' (Valof e' t)
+                subst vm hm x v (Valof e t) hm' (Valof e' t)*)
 | app_subst : forall vm hm x v e es t e' hm' hm'' es',
               subst vm hm x v e hm' e' ->
               substs vm hm' x v es hm'' es' ->
@@ -387,7 +387,7 @@ with substs : vmap -> Memory.mem -> ident -> value -> list expr -> Memory.mem ->
 Fixpoint is_simple_expr (e : expr) : bool :=
 match e with 
 | Val v t => true 
-| Valof e t => is_simple_expr e && negb(type_is_volatile (typeof_expr e))
+(*| Valof e t => is_simple_expr e && negb(type_is_volatile (typeof_expr e))*)
 | Var v => true 
 | Const c t => true
 | App e es t => false 
@@ -433,17 +433,17 @@ Inductive bsem_expr_slv : Memory.mem -> expr -> linfo -> ptrofs -> Prop :=
               vm!(x.(vname)) = Some (l, Reftype h (Bprim t) a) ->
               x.(vtype) = Reftype h (Bprim t) a ->
               bsem_expr_slv hm (Var x) {| lname := l; ltype := Reftype h (Bprim t) a; lbitfield := Full |} Ptrofs.zero
-| bsem_gvar : forall hm x t l, 
+| bsem_gvar : forall hm x t l h a, 
               vm!(x.(vname)) = None ->
               Genv.find_symbol ge x.(vname) = Some l ->
-              t = x.(vtype) ->
-              bsem_expr_slv hm (Var x) {| lname := l; ltype := x.(vtype); lbitfield := Full |} Ptrofs.zero
+              x.(vtype) = Reftype h (Bprim t) a ->
+              bsem_expr_slv hm (Var x) {| lname := l; ltype := Reftype h (Bprim t) a; lbitfield := Full |} Ptrofs.zero
 | bsem_addr : forall hm l ofs,
-              bsem_expr_slv hm (Addr l ofs) l ofs
-| bsem_prim_deref : forall hm e t l ofs, 
+              bsem_expr_slv hm (Addr l ofs) l ofs.
+(*| bsem_prim_deref : forall hm e t l ofs, 
                     bsem_expr_srv hm e (Vloc l ofs) ->
-                    bsem_expr_slv hm (Prim Deref (e :: nil) t) {| lname := l; ltype := t; lbitfield := Full |} ofs
-with bsem_expr_srv : Memory.mem -> expr -> value -> Prop :=
+                    bsem_expr_slv hm (Prim Deref (e :: nil) t) {| lname := l; ltype := t; lbitfield := Full |} ofs*)
+Inductive bsem_expr_srv : Memory.mem -> expr -> value -> Prop :=
 | bsem_val : forall hm v t,
              bsem_expr_srv hm (Val v t) v
 | bsem_const_int : forall hm i t, 
@@ -452,12 +452,12 @@ with bsem_expr_srv : Memory.mem -> expr -> value -> Prop :=
                      bsem_expr_srv hm (Const (ConsLong i) t) (Vint64 i)
 | bsem_const_uint : forall hm, 
                     bsem_expr_srv hm (Const (ConsUnit) (Ptype Tunit)) (Vunit)
-| bsem_val_rv : forall hm e t l ofs v,
+| bsem_deref : forall hm e t l ofs v,
                 bsem_expr_slv hm e l ofs ->
                 deref_addr (typeof_expr e) hm l.(lname) ofs l.(lbitfield) v ->
                 typeof_expr e = t ->
                 BeeTypes.type_is_volatile t = false ->
-                bsem_expr_srv hm (Valof e t) v
+                bsem_expr_srv hm (Prim Deref (e :: nil) t) v
 | bsem_prim_uop : forall hm e v uop  v' t ct v'' g g' i,
                   bsem_expr_srv hm e v ->
                   transBeePL_type (typeof_expr e) g = Res ct g' i ->
@@ -477,9 +477,9 @@ with bsem_expr_srv : Memory.mem -> expr -> value -> Prop :=
 | bsem_unit : forall hm, 
               bsem_expr_srv hm (Unit (Ptype Tunit)) Vunit.
 
-Scheme bsem_expr_slv_mut := Minimality for bsem_expr_slv Sort Prop
+(*Scheme bsem_expr_slv_mut := Minimality for bsem_expr_slv Sort Prop
   with bsem_expr_srv_mut := Minimality for bsem_expr_srv Sort Prop.
-Combined Scheme bsem_expr_slv_srv_mut from bsem_expr_slv_mut,bsem_expr_srv_mut.
+Combined Scheme bsem_expr_slv_srv_mut from bsem_expr_slv_mut,bsem_expr_srv_mut.*)
 
 Inductive bsem_expr_srvs : Memory.mem -> list expr -> list value -> Prop :=
 | bsem_expr_srv_nil : forall hm, 
@@ -495,8 +495,8 @@ End Simpl_big_step_semantics.
 Inductive leftcontext : kind -> kind -> (expr -> expr) -> Prop :=
 | lctx_top : forall k,
              leftcontext k k (fun x => x)
-| lctx_valof : forall k C t,
-               leftcontext k LV C -> leftcontext k RV (fun x => Valof (C x) t)
+(*| lctx_valof : forall k C t,
+               leftcontext k LV C -> leftcontext k RV (fun x => Valof (C x) t)*)
 | lctx_prim_ref : forall k C t,
                   leftcontext k RV C ->
                   leftcontext k RV (fun x => Prim Ref [:: (C x)] t)
@@ -589,13 +589,13 @@ Inductive bestep : state -> state -> Prop :=
               match e with (Val _ _ ) => False | _ => True end ->
               typeof_expr e = t ->
               bestep (ExprState f e k vm m) (ExprState f (Val v t) k vm m)
-| step_evalof_volatile : forall ge vm f C e t k m l ofs v, 
+(*| step_evalof_volatile : forall ge vm f C e t k m l ofs v, 
                          leftcontext RV RV C ->
                          bsem_expr_slv ge vm m e l ofs ->
                          deref_addr (typeof_expr e) m l.(lname) ofs l.(lbitfield) v ->
                          typeof_expr e = t ->
                          BeeTypes.type_is_volatile t = true ->
-                         bestep (ExprState f (C (Valof e t)) k vm m) (ExprState f (Val v t) k vm m)
+                         bestep (ExprState f (C (Valof e t)) k vm m) (ExprState f (Val v t) k vm m)*)
 | step_prim_ref : forall ge vm f k C e v fid t m m' l ofs ct g g' i', 
                   leftcontext RV RV C ->
                   bsem_expr_srv ge vm m e v ->
@@ -646,11 +646,10 @@ Inductive bestep : state -> state -> Prop :=
 Definition bstep (S: state) (S': state) : Prop := bestep S S'. 
             
                
-Section Bsem_expr_slv_srv_mut.
+Section Bsem_expr_srv_mut.
 
 Variable (ge : genv).
 Variable (vm : vmap).
-
 Context (Plv : Memory.mem -> expr -> linfo -> ptrofs -> Prop).
 Context (Prv : Memory.mem -> expr -> value -> Prop).
 Context (Plvar : forall hm x t l h a, 
@@ -661,12 +660,9 @@ Context (Pgvar : forall hm x t l h a,
                  vm!(x.(vname)) = None ->
                  Genv.find_symbol ge x.(vname) = Some l ->
                  x.(vtype) = Reftype h (Bprim t) a ->
-                 Plv hm (Var x) {| lname := l; ltype := x.(vtype); lbitfield := Full |} Ptrofs.zero).
+                 Plv hm (Var x) {| lname := l; ltype := Reftype h (Bprim t) a; lbitfield := Full |} Ptrofs.zero).
 Context (Paddr : forall hm l ofs,
                  Plv hm (Addr l ofs) l ofs).
-Context (Pderef : forall hm e t l ofs,
-                  Prv hm e (Vloc l ofs) ->
-                  Plv hm (Prim Deref (e :: nil) t)  {| lname := l; ltype := t; lbitfield := Full |} ofs).
 Context (Pval : forall hm v t,
                  Prv hm (Val v t) v).
 Context (Pci : forall hm i t, 
@@ -675,12 +671,12 @@ Context (Pcl : forall hm i t,
                Prv hm (Const (ConsLong i) t) (Vint64 i)).
 Context (Pcu : forall hm, 
                Prv hm (Const (ConsUnit) (Ptype Tunit)) Vunit).
-Context (Pvalof : forall hm e t l ofs v,
+Context (Pderef : forall hm e t l ofs v,
                   Plv hm e l ofs ->
                   deref_addr (typeof_expr e) hm l.(lname) ofs l.(lbitfield) v ->
                   typeof_expr e = t ->
                   BeeTypes.type_is_volatile t = false ->
-                  Prv hm (Valof e t) v).
+                  Prv hm (Prim Deref (e :: nil) t) v).
 Context (Puop : forall hm e v uop  v' t ct v'' g g' i,
                 Prv hm e v ->
                 transBeePL_type (typeof_expr e) g = Res ct g' i ->
@@ -700,16 +696,20 @@ Context (Pbop : forall hm e1 e2 t v1 v2 bop v ct1 ct2 v' g g' g'' i i',
 Context (Punit : forall hm, 
                  Prv hm (Unit (Ptype Tunit)) Vunit).
 
-(* Complete Me *)
-Lemma bsem_expr_slv_rlv_ind : 
-(forall hm e l ofs, bsem_expr_slv ge vm hm e l ofs -> Plv hm e l ofs) /\
-(forall hm e v, bsem_expr_srv ge vm hm e v -> Prv hm e v).
-Proof.
-apply bsem_expr_slv_srv_mut=> //=.
-+ move=> hm e t l ofs hr hp.
-Admitted.
 
-End Bsem_expr_slv_srv_mut.
+Lemma bsem_expr_rlv_ind : forall hm e v, 
+bsem_expr_srv ge vm hm e v -> Prv hm e v.
+Proof.
+move=> m e v hr. induction hr=> //=. 
++ apply Pderef with l ofs; auto. inversion H; subst.
+  + by apply Plvar.
+  + by apply Pgvar.
+  by apply Paddr.
++ by apply Puop with v v' ct g g' i; auto.
++ by apply Pbop with v1 v2 v ct1 ct2 g g' g'' i i'.
+Qed.
+
+End Bsem_expr_srv_mut.
 
 Section Small_step_semantics.
 
@@ -725,17 +725,17 @@ Inductive lreduction : expr -> Memory.mem -> expr -> Memory.mem -> Prop :=
                     vm!(x.(vname)) = None ->
                     x.(vtype) = Reftype h (Bprim t) a ->
                     Genv.find_symbol ge x.(vname) = Some l ->
-                    lreduction (Var x) hm (Addr {| lname := l; ltype := Reftype h (Bprim t) a; lbitfield := Full |} Ptrofs.zero) hm
-| lred_deref : forall hm l ofs tv h a,
+                    lreduction (Var x) hm (Addr {| lname := l; ltype := Reftype h (Bprim t) a; lbitfield := Full |} Ptrofs.zero) hm.
+(*| lred_deref : forall hm l ofs tv h a,
                lreduction (Prim Deref (Val (Vloc l ofs) (Ptype tv):: nil) (Reftype h (Bprim tv) a)) hm 
-               (Addr {| lname := l; ltype := Reftype h (Bprim tv) a; lbitfield := Full |} ofs) hm.
+               (Addr {| lname := l; ltype := Reftype h (Bprim tv) a; lbitfield := Full |} ofs) hm.*)
 
 Inductive rreduction : expr -> Memory.mem -> expr -> Memory.mem -> Prop :=
 | rred_valof : forall hm e t l ofs bf v,
                deref_addr (typeof_expr e) hm l ofs bf v ->
                typeof_expr e = t ->
                BeeTypes.type_is_volatile t = false ->
-               rreduction (Valof (Addr {| lname := l; ltype := t; lbitfield := bf |} ofs) t) hm (Val v t) hm
+               rreduction (Prim Deref ((Addr {| lname := l; ltype := t; lbitfield := bf |} ofs) :: nil) t) hm (Val v t) hm
 | rred_ref : forall hm t g ct g' i' fid hm' v l ofs, 
              transBeePL_type t g = Res ct g' i' ->
              (gensym ct) = ret fid ->
@@ -789,10 +789,10 @@ Inductive callreduction : expr -> Memory.mem -> fundef -> list value -> type -> 
 Inductive context : kind -> kind -> (expr -> expr) -> Prop :=
 | ctx_top : forall k,
             context k k (fun x => x)
-(* Valof e t, where e is evaluated at LV position *)
+(* Valof e t, where e is evaluated at LV position 
 | ctx_valof : forall k C t,
               context k LV C ->
-              context k RV (fun x => Valof (C x) t)
+              context k RV (fun x => Valof (C x) t)*)
 (* Ref e t, where e is evaluated at RV position *)
 | ctx_ref : forall k C t,
             context k RV C ->

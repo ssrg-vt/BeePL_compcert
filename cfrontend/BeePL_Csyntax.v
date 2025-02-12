@@ -39,9 +39,9 @@ Fixpoint transBeePL_expr_expr (e : BeePL.expr) : mon Csyntax.expr :=
 match e with 
 | Val v t => do vt <- (transBeePL_type t);
              ret (Eval (transBeePL_value_cvalue v) vt) 
-| Valof e t => do ct <- (transBeePL_type t);
+(*| Valof e t => do ct <- (transBeePL_type t);
                do ce <- (transBeePL_expr_expr e);
-               ret (Evalof ce ct)
+               ret (Evalof ce ct)*)
 | Var x => do xt <- (transBeePL_type (vtype x));
            ret (Evar (vname x) xt)
 | Const c t => match c with 
@@ -61,7 +61,7 @@ match e with
                               ct) (* Fix me *) 
                  | Deref => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                             do ct <- (transBeePL_type t);
-                            ret (Ederef (hd default_expr (exprlist_list_expr ces)) 
+                            ret (Evalof (hd default_expr (exprlist_list_expr ces)) 
                                 ct)   
                  | Massgn => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                              do ct <- (transBeePL_type t);
@@ -110,9 +110,9 @@ Definition transBeePL_expr_st (e : BeePL.expr) : mon Csyntax.statement :=
 match e with 
 | Val v t => do vt <- (transBeePL_type t);
              ret (Sreturn (Some (Eval (transBeePL_value_cvalue v) vt))) 
-| Valof e t => do ct <- (transBeePL_type t);
+(*| Valof e t => do ct <- (transBeePL_type t);
                do ce <- (transBeePL_expr_expr e);
-               ret (Sreturn (Some (Evalof ce ct)))
+               ret (Sreturn (Some (Evalof ce ct)))*)
 | Var x => do ct <- (transBeePL_type x.(vtype));
            ret (Sreturn (Some (Evalof (Evar x.(vname) ct) ct)))
 | Const c t => do ct <- (transBeePL_type t);
@@ -134,7 +134,7 @@ match e with
                               ct)) (* Fix me *)
                  | Deref => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                             do ct <- (transBeePL_type t);
-                            ret (Sdo (Ederef (hd default_expr (exprlist_list_expr ces)) 
+                            ret (Sdo (Evalof (hd default_expr (exprlist_list_expr ces)) 
                                      ct))   
                  | Massgn => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                              do ct <- (transBeePL_type t);
