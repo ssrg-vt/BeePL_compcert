@@ -34,6 +34,18 @@ Inductive wtype : Type :=
 | Twint : wtype
 | Twlong : wtype.
 
+(** To describe the values returned by functions, we use the more precise
+    types below. *)
+
+Inductive rettype : Type :=
+| Tret (t: type)      (**r like type [t] *)
+| Tbool               (**r Boolean value (0 or 1) *)
+| Tint8signed         (**r 8-bit signed integer *)
+| Tint8unsigned       (**r 8-bit unsigned integer *)
+| Tint16signed        (**r 16-bit signed integer *)
+| Tint16unsigned      (**r 16-bit unsigned integer *)
+| Teunit              (**r no value returned *).
+
 (** The following describes types that can be interpreted as a boolean:
   integers, pointers.  It is used for the semantics of
   the [!] and [?] operators, as well as the [cond] expression *)
@@ -117,7 +129,7 @@ Inductive bmemory_chunk : Type :=
 | BMint32 : bmemory_chunk
 | BMint64 : bmemory_chunk.
 
-Definition transl_memory_chunk (b : bmemory_chunk) : memory_chunk :=
+Definition transl_bchunk_cchunk (b : bmemory_chunk) : memory_chunk :=
 match b with 
 | BMbool => Mbool
 | BMint8signed => Mint8signed
@@ -130,14 +142,98 @@ end.
 
 Definition typeof_chunk (c : bmemory_chunk) : wtype :=
 match c with 
-| BMbool => Twint
-| BMint8signed => Twint
-| BMint8unsigned => Twint
-| BMint16signed => Twint
-| BMint16unsigned => Twint
-| BMint32 => Twint
-| BMint64 => Twlong
+| BMbool => Twint 
+| BMint8signed => Twint 
+| BMint8unsigned => Twint 
+| BMint16signed => Twint 
+| BMint16unsigned => Twint 
+| BMint32 => Twint 
+| BMint64 => Twlong 
 end.
+
+(** ** Access modes *)
+
+(** The [access_mode] function describes how a l-value of the given
+type must be accessed:
+- [By_value ch]: access by value, i.e. by loading from the address
+  of the l-value using the memory chunk [ch];
+- [By_reference]: access by reference, i.e. by just returning
+  the address of the l-value (used for arrays and functions);
+- [By_copy]: access is by reference, assignment is by copy
+  (used for [struct] and [union] types)
+- [By_nothing]: no access is possible, e.g. for the [void] type.
+*)
+Definition access_mode_prim (t : primitive_type) : mode :=
+match t with 
+| Tunit =>  By_nothing (* Fix me *)
+| Tint I8 Signed _ => By_value Mint8signed
+| Tint I8 Unsigned _ => By_value Mint8unsigned
+| Tint I16 Signed _ => By_value Mint16signed
+| Tint I16 Unsigned _ => By_value Mint16unsigned
+| Tint I32 _ _ => By_value Mint32
+| Tint IBool _ _ => By_value Mbool
+| Tlong _ _ => By_value Mint64
+end.
+
+Definition access_mode_basic (t : basic_type) : mode :=
+match t with 
+| Bprim t => access_mode_prim t
+end.
+
+Definition access_mode (t : type) : mode :=
+match t with 
+| Ptype t => access_mode_prim t
+| Reftype h t _ => By_value Mptr
+| Ftype ts ef t => By_reference
+end.
+
+Definition attr_of_primitive_type (t : primitive_type) : attr :=
+match t with 
+| Tunit => noattr 
+| Tint sz s a => a
+| Tlong s a => a
+end.
+
+Definition attr_of_type (t : type) : attr :=
+match t with 
+| Ptype t => attr_of_primitive_type t
+| Reftype h t a => a
+| Ftype ts ef t => noattr
+end.
+
+
+Definition type_is_volatile (t : type) : bool :=
+match access_mode t with 
+| By_value _ => attr_volatile (attr_of_type t)
+| _ => false
+end.
+
+(*Definition bchunk_for_volatile_type (t : type) (bf : bitfield) : option bmemory_chunk :=
+if type_is_volatile t 
+then match access_mode t with 
+     | By_value chunk => match bf with 
+                         | Full => Some chunk
+                         | Bits _ _ _ _ => None 
+                         end
+     | _ => None 
+     end
+else None.
+
+chunk_for_volatile_type = 
+fun (ty : Ctypes.type) (bf : bitfield) =>
+if Ctypes.type_is_volatile ty
+then
+ match Ctypes.access_mode ty with
+ | By_value chunk => match bf with
+                     | Full => Some chunk
+                     | Bits _ _ _ _ => None
+                     end
+ | _ => None
+ end
+else None
+
+Print chunk_for_volatile_type.
+chunk_for_volatile_type cty bf*)
 
 
 Section Eq_basic_types.
@@ -210,63 +306,6 @@ match t with
 | Ptype t => sizeof_ptype t 
 | Reftype h t _ => sizeof_btype t
 | Ftype ts e t => 1
-end.
-
-(** ** Access modes *)
-
-(** The [access_mode] function describes how a l-value of the given
-type must be accessed:
-- [By_value ch]: access by value, i.e. by loading from the address
-  of the l-value using the memory chunk [ch];
-- [By_reference]: access by reference, i.e. by just returning
-  the address of the l-value (used for arrays and functions);
-- [By_copy]: access is by reference, assignment is by copy
-  (used for [struct] and [union] types)
-- [By_nothing]: no access is possible, e.g. for the [void] type.
-*)
-Definition access_mode_prim (t : primitive_type) : mode :=
-match t with 
-| Tunit =>  By_nothing (* Fix me *)
-| Tint I8 Signed _ => By_value Mint8signed
-| Tint I8 Unsigned _ => By_value Mint8unsigned
-| Tint I16 Signed _ => By_value Mint16signed
-| Tint I16 Unsigned _ => By_value Mint16unsigned
-| Tint I32 _ _ => By_value Mint32
-| Tint IBool _ _ => By_value Mbool
-| Tlong _ _ => By_value Mint64
-end.
-
-Definition access_mode_basic (t : basic_type) : mode :=
-match t with 
-| Bprim t => access_mode_prim t
-end.
-
-Definition access_mode (t : type) : mode :=
-match t with 
-| Ptype t => access_mode_prim t
-| Reftype h t _ => By_value Mptr
-| Ftype ts ef t => By_reference
-end.
-
-Definition attr_of_primitive_type (t : primitive_type) : attr :=
-match t with 
-| Tunit => noattr 
-| Tint sz s a => a
-| Tlong s a => a
-end.
-
-Definition attr_of_type (t : type) : attr :=
-match t with 
-| Ptype t => attr_of_primitive_type t
-| Reftype h t a => a
-| Ftype ts ef t => noattr
-end.
-
-
-Definition type_is_volatile (t : type) : bool :=
-match access_mode t with 
-| By_value _ => attr_volatile (attr_of_type t)
-| _ => false
 end.
 
 (****** Translation from BeePL types to Csyntax types ******)
