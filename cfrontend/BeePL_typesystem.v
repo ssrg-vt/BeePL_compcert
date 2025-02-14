@@ -69,6 +69,7 @@ Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> P
             l.(ltype) = Reftype h (Bprim t) a ->
             type_expr Gamma Sigma (Addr l ofs) empty_effect l.(ltype) 
 (* fix me : Run, Hexpr *)
+(* fix me : Add typing rule for external function *)
 with type_exprs : ty_context -> store_context -> list expr -> effect -> list type -> Prop :=
 | Ty_nil : forall Gamma Sigma,
            type_exprs Gamma Sigma nil nil nil
@@ -450,40 +451,6 @@ move=> m e l ofs Gamma Sigma ef t hl.
 by induction hl=> //= ht; subst; inversion ht; subst; symmetry.
 Qed.
 
-
-(*Lemma subject_rreduction : forall m e v Gamma Sigma ef t, 
-bsem_expr_srv bge benv m e v ->
-type_expr Gamma Sigma e ef t ->
-typeof_value' v t.
-Proof.
-move=> m e v Gamma Sigma ef t hr. move: Gamma Sigma ef t.
-induction hr=> //=. 
-(* Val *)
-+ move=> Gamma Sigma ef t' ht. 
-  inversion ht; subst;rewrite /typeof_value'; auto.
-(* Const int *)
-+ move=> Gamma Sigma ef t' ht. by inversion ht; subst.
-(* Const long *)
-+ move=> Gamma Sigma ef t' ht. by inversion ht; subst.
-(* Deref *)
-+ move=> Gamma Sigma ef t' ht.
-  inversion ht; subst. rewrite H7.
-  have := subject_lredcution hm e l ofs Gamma Sigma ef0 (Reftype h (Bprim bt) a) H H9=> hlt.
-  by have := deref_addr_val_ty (typeof_expr e) hm l ofs v H0.
-(* Uop *)
-+ move=> Gamma Sigma ef t' ht. inversion ht; subst.
-  move: (IHhr Gamma Sigma ef (typeof_expr e) H10)=> hvt.
-  have hvt' := uop_type_preserve uop (transBeePL_value_cvalue v) ct hm v' H1.
-  by have := eq_uop_types uop (typeof_expr e) g g' i (transBeePL_value_cvalue v) ct hm v'
-          v'' H H1 hvt' H2.
-(* Bop *)
-+ move=> Gamma Sigma ef t' ht; subst. inversion ht; subst.
-  move: (IHhr1 Gamma Sigma ef t0 H12)=> hvt1. move: (IHhr2 Gamma Sigma ef t0 H13)=> hvt2.
-  have [hvt hvt'] := bop_type_preserve bge bop (transBeePL_value_cvalue v1) ct1 
-     (transBeePL_value_cvalue v2) ct2 hm v H2.
-  by have := cval_bval_type_eq v ct1 v' (typeof_expr e1) g g' i hvt H3 H; case: H1=> [] h1 h2; subst.
-Qed.*)
-
 Lemma subject_rreduction : forall m e v Gamma Sigma ef t, 
 bsem_expr_srv bge benv m e v ->
 type_expr Gamma Sigma e ef t ->
@@ -517,6 +484,27 @@ induction hr=> //=.
   by have := cval_bval_type_eq v ct1 v' (typeof_expr e1) g g' i hvt H3 H; case: H1=> [] h1 h2; subst.
 Qed.
 
+(*Lemma subject_bstep_exprst : forall Gamma Sigma e ef t f k vm m e' k' vm' m',
+type_expr Gamma Sigma e ef t ->
+((Smallstep.plus bstep bge benv (ExprState f e k vm m) (ExprState f e' k' vm' m')) \/
+(Smallstep.star bstep bge benv (ExprState f e k vm m) (ExprState f e' k' vm' m'))) ->
+type_expr Gamma Sigma e' ef t.
+Proof.
+apply leftcontext_leftcontextlist_ind.
+move=> Gamma Sigma e ef t f k vm m e' k' vm' m' hte he.
+move: Gamma Sigma ef t f k vm m e' k' vm' m' he hte.
+elim: e=> //=.
+(* val *)
++ move=> v t Gamma Sigma ef t' f k vm m e' k' vm' m' he hte.
+  inversion he; subst.
+  (* val *)
+  + by inversion H9.
+  (* deref *)
+  + 
+  inversion hte; subst. inversion he; subst.
+  (* .. *)
+  + by inversion H9.
+  + inversion H5*)
 
 End Subject_Reduction.
 

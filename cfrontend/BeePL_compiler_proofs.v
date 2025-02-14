@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx FunInd.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Linking.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Linking Ctypes Smallstep SimplExpr.
-Require Import BeePL_aux BeePL_mem BeeTypes BeePL Csyntax Clight Globalenvs BeePL_Csyntax SimplExpr.
+Require Import BeePL_aux BeePL_mem BeeTypes BeePL Csyntax Csem Clight Globalenvs BeePL_Csyntax SimplExpr.
 Require Import Initializersproof Cstrategy BeePL_auxlemmas Coqlib Errors BeePL_typesystem_proofs.
 
 From mathcomp Require Import all_ssreflect. 
@@ -576,6 +576,40 @@ move=> ce g g' i /=. rewrite /SimplExpr.bind /=.
 move=> [] h1 h2 henv /=; subst. by apply esr_val.
 Qed.
 
+(*Lemma safe_steps: forall s s',
+BeePL.safe bge benv s -> bstep bge benv s s' -> BeePL.safe bge benv s'.
+Proof.
+move=> s s' hs he. elim: s hs he=> //=.  
+(* expr state *)
++ move=> f e. elim: e=> //=.
+  (* Val *)
+  + move=> 
+
+Lemma bsem_expr_srv_safe: forall C e v m k f,
+bsem_expr_srv bge benv m e v ->
+BeePL.leftcontext RV RV C -> 
+BeePL.safe bge benv (BeePL.ExprState f (C e) k benv m) ->
+BeePL.safe bge benv (BeePL.ExprState f (C (Val v (typeof_expr e))) k benv m).
+Proof.
+move=> C e v m k f.
+
+Lemma simple_can_eval:
+  forall e from C,
+  simple e = true -> leftcontext from RV C -> safe (BeePL.ExprState f (C e) k benv m) ->
+  match from with
+  | LV => exists b ofs bf, eval_simple_lvalue e m a b ofs bf
+  | RV => exists v, eval_simple_rvalue e m a v
+  end.
+Proof.*)
+
+(* Progress *)
+Lemma can_step: forall f e k m,
+BeePL.safe bge benv (BeePL.ExprState f e k benv m) ->
+exists S, bstep bge benv (BeePL.ExprState f e k benv m) S.
+Proof.
+move=> f e k m hs. rewrite /BeePL.safe in hs.
+Admitted.
+
 (* Complete Me : Medium *)
 Lemma bsem_cexpr_list :
 forall m es tes vs cts ces g g' i, 
@@ -786,13 +820,30 @@ Inductive match_bstate_cstate : BeePL.state -> Csem.state -> Prop :=
 
 (* Equivalence between resultant state of BeePL big step semantics 
    and Csyntax (Cstrategy) big step semantics *) 
-Lemma bstep_estep_simulation: forall BS1 BS2, 
-bstep bge benv BS1 BS2 ->
-forall CS1 (MS: match_bstate_cstate BS1 CS1),
-exists CS2 t, (star Cstrategy.estep cge CS1 t CS2 (*/\(measure S2 < measure S1)%nat*) 
-               \/ Cstrategy.estep cge CS1 t CS2) /\
-              match_bstate_cstate BS2 CS2.
+Lemma bstep_estep_simulation: forall bs1 bs2, 
+bstep bge benv bs1 bs2 ->
+forall cs1 (MS: match_bstate_cstate bs1 cs1),
+exists cs2 t, (star Cstrategy.estep cge cs1 t cs2 (*/\(measure S2 < measure S1)%nat*) 
+               \/ Cstrategy.estep cge cs1 t cs2) /\
+              match_bstate_cstate bs2 cs2.
 Proof.
+move=> bs1 bs2 hs cs1 hm. elim: bs1 hs hm=> //=.
++ move=> f e k vm m he hm. elim: e he hm=> //=.
+  (* val *)
+  + move=> v t he hm. inversion hm; subst.
+    inversion H6; subst. rewrite /SimplExpr.bind in H0.
+    case ht: (transBeePL_type t g) H0=> [er | ct g'' i''] //=. 
+    move=> [] h1 h2; subst. 
+    exists (Csem.ExprState cf (Eval (transBeePL_value_cvalue v) ct) cc cenv m).
+    exists Events.E0. split=> //=. 
+    + admit.
+    admit.
+  + admit.
+  (* Var *)
+  + move=> v he hm. inversion hm; subst. 
+    inversion H6; subst. rewrite /SimplExpr.bind in H0.
+    case ht: (transBeePL_type (vtype v) g) H0=> [er | ct g1 i1] //=.
+    move=> [] h1 h2; subst. 
 Admitted.
 
 (* Equivalence between resultant state of BeePL small step semantics 
