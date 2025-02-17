@@ -576,24 +576,54 @@ move=> ce g g' i /=. rewrite /SimplExpr.bind /=.
 move=> [] h1 h2 henv /=; subst. by apply esr_val.
 Qed.
 
-(*Lemma safe_steps: forall s s',
-BeePL.safe bge benv s -> bstep bge benv s s' -> BeePL.safe bge benv s'.
+(* A final state does not step forward *)
+Lemma final_state_no_step : forall s s',
+BeePL.final_state s ->
+~ (bstep bge s s').
 Proof.
-move=> s s' hs he. elim: s hs he=> //=.  
-(* expr state *)
-+ move=> f e. elim: e=> //=.
-  (* Val *)
-  + move=> 
+move=> s s'. elim: s=> //=.
++ move=> f e k vm m hf. by inversion hf.
++ move=> fd args k m hf. by inversion hf.
++ move=> res m hf. move=> h. by inversion h.
+move=> hf. by inversion hf.
+Qed.
+
+Lemma safe_steps: forall s s',
+BeePL.safe bge s -> 
+bstep bge s s' -> 
+BeePL.safe bge s'.
+Proof.
+move=> s. elim: s=> //=.
++ admit.
+(* call state *)
++ move=> fd args k m s' hs he. elim: s' he=> //=.
+  + move=> f e k' vm m' he. inversion he; subst.
+    rewrite /BeePL.safe. rewrite /BeePL.safe in hs.
+    move=> s' he'. move: (hs (BeePL.ExprState f (BeePL.fn_body f) k' vm m') he).
+    move=> [].
+    (* final state (not possible) *)
+    + move=> hf. 
+      have hf':= final_state_no_step (BeePL.ExprState f (BeePL.fn_body f) k' vm m') s' hf.
+      move: hf'. by move=> [].
+    admit.
+  + move=> fd' args' k' m' he. by inversion he; subst.
+  + move=> res m' he. by inversion he; subst.
+  move=> he. by inversion he; subst.
+(* final state *)
++ move=> res m s' hs he. by inversion he.
+(* stuck state *)
+move=> s' hs he. by inversion he.
+Admitted.
 
 Lemma bsem_expr_srv_safe: forall C e v m k f,
 bsem_expr_srv bge benv m e v ->
 BeePL.leftcontext RV RV C -> 
-BeePL.safe bge benv (BeePL.ExprState f (C e) k benv m) ->
-BeePL.safe bge benv (BeePL.ExprState f (C (Val v (typeof_expr e))) k benv m).
+BeePL.safe bge (BeePL.ExprState f (C e) k benv m) ->
+BeePL.safe bge (BeePL.ExprState f (C (Val v (typeof_expr e))) k benv m).
 Proof.
-move=> C e v m k f.
+Admitted.
 
-Lemma simple_can_eval:
+(*Lemma simple_can_eval:
   forall e from C,
   simple e = true -> leftcontext from RV C -> safe (BeePL.ExprState f (C e) k benv m) ->
   match from with
@@ -604,8 +634,8 @@ Proof.*)
 
 (* Progress *)
 Lemma can_step: forall f e k m,
-BeePL.safe bge benv (BeePL.ExprState f e k benv m) ->
-exists S, bstep bge benv (BeePL.ExprState f e k benv m) S.
+BeePL.safe bge (BeePL.ExprState f e k benv m) ->
+exists S, bstep bge (BeePL.ExprState f e k benv m) S.
 Proof.
 move=> f e k m hs. rewrite /BeePL.safe in hs.
 Admitted.
@@ -821,7 +851,7 @@ Inductive match_bstate_cstate : BeePL.state -> Csem.state -> Prop :=
 (* Equivalence between resultant state of BeePL big step semantics 
    and Csyntax (Cstrategy) big step semantics *) 
 Lemma bstep_estep_simulation: forall bs1 bs2, 
-bstep bge benv bs1 bs2 ->
+bstep bge bs1 bs2 ->
 forall cs1 (MS: match_bstate_cstate bs1 cs1),
 exists cs2 t, (star Cstrategy.estep cge cs1 t cs2 (*/\(measure S2 < measure S1)%nat*) 
                \/ Cstrategy.estep cge cs1 t cs2) /\
