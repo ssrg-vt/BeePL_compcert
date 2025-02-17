@@ -1,8 +1,8 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx FunInd.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Linking.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Linking Ctypes Smallstep SimplExpr.
-Require Import BeePL_aux BeePL_mem BeeTypes BeePL Csyntax Clight Globalenvs BeePL_Csyntax SimplExpr.
-Require Import Initializersproof Cstrategy (*BeePL_auxlemmas *) Coqlib Errors (*BeePL_typesystem_proofs*).
+Require Import BeePL_aux BeePL_mem BeeTypes BeePL Csyntax Csem Clight Globalenvs BeePL_Csyntax SimplExpr.
+Require Import Initializersproof Cstrategy BeePL_auxlemmas Coqlib Errors BeePL_typesystem_proofs.
 
 From mathcomp Require Import all_ssreflect. 
 
@@ -15,10 +15,10 @@ Inductive sim_bexpr_cexpr : vmap -> BeePL.expr -> Csyntax.expr -> Prop :=
 | sim_val : forall le v t ct g g' i, 
             transBeePL_type t g = Res ct g' i->
             sim_bexpr_cexpr le (BeePL.Val v t) (Csyntax.Eval (transBeePL_value_cvalue v) ct)
-| sim_valof : forall le e t ct ce g g' i,
+(*| sim_valof : forall le e t ct ce g g' i,
               transBeePL_type t g = Res ct g' i ->
               sim_bexpr_cexpr le e ce ->
-              sim_bexpr_cexpr le (BeePL.Valof e t) (Csyntax.Evalof ce ct)
+              sim_bexpr_cexpr le (BeePL.Valof e t) (Csyntax.Evalof ce ct)*)
 | sim_var : forall (le:BeePL.vmap) (le':Csem.env) x ct g g' i,
             transBeePL_type x.(vtype) g = Res ct g' i ->
                   (forall le' id, if isSome (le ! id) 
@@ -89,11 +89,11 @@ Inductive sim_bexpr_cstmt : vmap -> BeePL.expr -> Csyntax.statement -> Prop :=
                transBeePL_value_cvalue v = cv ->
                sim_bexpr_cstmt le (BeePL.Val v t) 
                                   (Csyntax.Sreturn (Some (Eval (transBeePL_value_cvalue v) ct)))
-| sim_valof_st : forall le e t ct ce g g' i',
+(*| sim_valof_st : forall le e t ct ce g g' i',
                  transBeePL_type t g = Res ct g' i' ->
                  sim_bexpr_cexpr le e ce ->
                  sim_bexpr_cstmt le (BeePL.Valof e t)
-                                    (Csyntax.Sreturn (Some (Evalof ce ct)))
+                                    (Csyntax.Sreturn (Some (Evalof ce ct)))*)
 | sim_var_st : forall (le:BeePL.vmap) (le':Csem.env) x ct g g' i',
                    transBeePL_type x.(vtype) g = Res ct g' i' ->
                   (forall le' id, if isSome (le ! id) 
@@ -324,7 +324,12 @@ Admitted.
 Inductive match_fundef : BeePL.fundef -> Csyntax.fundef -> Prop :=
 | match_fundef_internal : forall f cf,
   match_function f cf -> 
-  match_fundef (Internal f) (Ctypes.Internal cf).
+  match_fundef (Internal f) (Ctypes.Internal cf)
+| match_fundef_external : forall ef cef ts cts t ct cc gs gs' i'' g g' i' gf gf' if',
+  transBeePL_types transBeePL_type ts gs = Res cts gs' i'' ->
+  transBeePL_type t g = Res ct g' i' ->
+  befuntion_to_cefunction ef gf = Res cef gf' if' ->
+  match_fundef (External ef ts t cc) (Ctypes.External cef cts ct cc).
 
 Lemma transBeePL_fundef_spec : forall f cf, 
 transBeePL_fundef_fundef (Internal f) = OK (Ctypes.Internal cf) ->
@@ -381,6 +386,11 @@ rewrite /transBeePL_globdef_globdef in EQ. case: gd EQ=> //=.
 + move=> fd h. monadInv h. apply match_gfun. rewrite /transBeePL_fundef_fundef in EQ.
   case: fd EQ=> //= f h. monadInv h. apply match_fundef_internal.
   by apply tranBeePL_function_spec.
++ move=> t cc. case hef: (befuntion_to_cefunction f (initial_generator tt))=> [er | cef g1 i1] //=.
+  case hts: (transBeePL_types transBeePL_type h (initial_generator tt))=> [er1 | cts g3 i3] //=.
+  case ht: (transBeePL_type t (initial_generator tt))=> [er2 | ct g4 i4] //=.
+  move=> [] heq; subst. by apply match_fundef_external with (initial_generator tt) g3 i3 
+  (initial_generator tt) g4 i4 (initial_generator tt) g1 i1; auto. 
 move=> gv h. monadInv h. apply match_gvar. case: gv EQ=> //= gi i r v.
 case: x1=> //= gi' i' r' v'. rewrite /transBeePLglobvar_globvar /=. move=> h.
 move: h. case ht: (transBeePL_type gi (initial_generator tt))=> [er | r1 g1 i1] //=.
@@ -427,14 +437,16 @@ generalize (prog_comp_env_eq bprog) (compcert.cfrontend.Ctypes.prog_comp_env_eq 
 congruence.
 Qed.
 
+(* Complete Me *)
 (* Preservation of symbols *) 
 Lemma symbols_preserved : forall (id : ident), 
 Genv.find_symbol (Csem.genv_genv cge) id = Genv.find_symbol bge id.
 Proof.
 Admitted.
 
+(* Complete Me *)
 (* Preservation of symbol env *)
-Lemma senv_preserved : Senv.equiv (Csem.genv_genv cge) bge.
+Lemma senv_preserved : Senv.equiv bge (Csem.genv_genv cge).
 Proof.
 Admitted.
 
@@ -458,6 +470,7 @@ move=> vi l t ct g g' i h ht hm.
 case h=> //= h' h''. by move: (h' (vname vi) l t ct g g' i hm ht). 
 Qed.
 
+(* Complete Me *)
 (* Preservation of function ptr *) 
 Lemma function_ptr_translated : forall v f,
 Genv.find_funct_ptr bge v = Some f ->
@@ -465,6 +478,7 @@ exists tf, Genv.find_funct_ptr (Csem.genv_genv cge) v = Some tf /\ match_fundef 
 Proof.
 Admitted.
 
+(* Complete Me *)
 (* Preservation of function *)
 Lemma functions_translated: forall v f,
 Genv.find_funct bge v = Some f ->
@@ -472,9 +486,7 @@ exists tf, Genv.find_funct (Csem.genv_genv cge) v = Some tf /\ match_fundef f tf
 Proof.
 Admitted.
 
-(* Preservation of function types *)
 (* Complete me *)
-
 (* Preservation of function returns *)
 Lemma function_return_preserved : forall f tf g g' i,
 match_function f tf ->
@@ -482,36 +494,58 @@ transBeePL_type (BeePL.fn_return f) g = Res (Csyntax.fn_return tf) g' i.
 Proof.
 Admitted.
 
+(* Preservation of volatile load between BeePL and Csyntax *)
+(*Lemma volatile_load_preserved : forall chunk m addr ofs tr v,
+Events.volatile_load bge chunk m addr ofs tr v ->
+Events.volatile_load (Csem.globalenv cprog) chunk m addr ofs tr v.
+Proof.
+move=> benv c*)
+
 (* Preservation of deref_addr between BeePL and Csyntax *) 
-Lemma deref_addr_translated : forall ty m addr ofs bf v cty cv g g' i,
-deref_addr ty m addr ofs bf v ->
+Lemma deref_addr_translated:  forall ty m addr ofs bf v cty cv g g' i,
+deref_addr bge ty m addr ofs bf v ->
 transBeePL_type ty g = Res cty g' i ->
 transBeePL_value_cvalue v = cv ->
-Csem.deref_loc cge cty m addr ofs bf Events.E0 cv.
+match chunk_for_volatile_type cty bf with 
+| None => Csem.deref_loc cge cty m addr ofs bf Events.E0 cv
+| Some chunk => exists tr, bf = Full /\ 
+                Events.volatile_load (Csem.genv_genv cge) chunk m addr ofs tr cv
+end.
 Proof.
-move=> ty m addr ofs bf v cty cv g g' i hd ht hv. inversion hd; subst.
-+ apply Csem.deref_loc_value with (transl_memory_chunk chunk).
-  + by have := BeePL_auxlemmas.access_mode_preserved ty cty (By_value (transl_memory_chunk chunk)) g g' i H ht.
-  + by have := non_volatile_type_preserved ty cty g g' i H0 ht.
-  rewrite /transBeePL_value_cvalue in H1. rewrite H1 /=.
-  case: v hd H2=> //=.
-  + by case: v0 H1=> //=.
-  + by case: v0 H1=> //= i1 H1 i' Hd [] hi; subst.
-  + by case: v0 H1=> //= i1 H1 i' Hd [] hi; subst.
-  by case: v0 H1=> //= l i1 H1 l' i' Hd [] h1 h2; subst.
-apply Csem.deref_loc_reference.
-by have := BeePL_auxlemmas.access_mode_preserved ty cty By_reference g g' i H ht.
+move=> ty m addr ofs bf v cty cv g g' i hd ht hv. 
+rewrite /chunk_for_volatile_type /=. inversion hd; subst.
+(* by value *)
++ have hcty := non_volatile_type_preserved ty cty g g' i false H0 ht. rewrite hcty /=.
+  apply Csem.deref_loc_value with (transl_bchunk_cchunk chunk); auto.
+  + by have := BeePL_auxlemmas.access_mode_preserved ty cty (By_value (transl_bchunk_cchunk chunk)) 
+               g g' i H ht.
+  rewrite /transBeePL_value_cvalue in H1. by have -> := bv_cv_reflex v0 v H2. 
+(* by value, volatile *)
++ have -> /= := non_volatile_type_preserved ty cty g g' i true H0 ht. 
+  have -> /= := access_mode_preserved ty cty (By_value (transl_bchunk_cchunk chunk)) g g' i H ht.
+  exists tr. split=> //=. have -> := bv_cv_reflex v0 v H2. have hequiv := senv_preserved. 
+  rewrite /Csem.genv_genv /= in hequiv.
+  by have := @Events.volatile_load_preserved bge (Genv.globalenv cprog) (transl_bchunk_cchunk chunk)
+           m addr ofs tr v0 hequiv H1.
+(* by reference *)
+have h /= := BeePL_auxlemmas.access_mode_preserved ty cty By_reference g g' i H ht. 
+case: ifP=> //= hc. 
++ rewrite h /=. by apply Csem.deref_loc_reference.
+by apply Csem.deref_loc_reference.
 Qed.
 
 (* Complete Me *)
-(* Preservation of assign_addr between BeePL and Csyntax *) 
-Lemma assgn_addr_translated : forall ty m addr ofs bf v m' cty tr cv v' cv' g g' i,
-assign_addr ty m addr ofs bf v m' v' ->
+(* Preservation of assign_addr between BeePL and Csyntax *)
+Lemma assign_addr_translated: forall ty m addr ofs bf v m' cty cv v' cv' g g' i,
+assign_addr bge ty m addr ofs bf v m' v' ->
 transBeePL_type ty g = Res cty g' i ->
 transBeePL_value_cvalue v = cv ->
 transBeePL_value_cvalue v' = cv' ->
-Csem.assign_loc cge cty m addr ofs bf cv tr m' cv'.
-Proof.
+match chunk_for_volatile_type cty bf with 
+| None => Csem.assign_loc cge cty m addr ofs bf cv Events.E0 m' cv
+| Some chunk => exists tr, bf = Full /\ 
+                Events.volatile_store (Csem.genv_genv cge) chunk m addr ofs cv tr m'
+end.
 Admitted.
 
 (* Big step semantics with rvalue *) 
@@ -519,139 +553,173 @@ Admitted.
    evaluated in RV position then it should also produce the same value 
    If an expression evaluates to a value then in the c semantics if the expression is 
    evaluated in LV position then it should produce a location (deref, var)*)
-Lemma bsem_cexpr_simple : 
-(forall m e l ofs, 
-    bsem_expr_slv bge benv m e l ofs ->
-    forall ce g g' i, 
-     transBeePL_expr_expr e g = Res ce g' i ->
-     match_env benv cenv ->
-    eval_simple_lvalue cge cenv m ce l.(lname) ofs l.(lbitfield)) /\
-(forall m e v, 
-    bsem_expr_srv bge benv m e v ->
-    forall ce g g' i, 
-     transBeePL_expr_expr e g = Res ce g' i ->
-     match_env benv cenv ->
-    eval_simple_rvalue cge cenv m ce (transBeePL_value_cvalue v)).
-
+Lemma bsem_cexpr_lsimple : forall m e l ofs ce g g' i, 
+bsem_expr_slv bge benv m e l ofs ->
+transBeePL_expr_expr e g = Res ce g' i ->
+match_env benv cenv ->
+eval_simple_lvalue cge cenv m ce l.(lname) ofs l.(lbitfield). 
 Proof.
-apply bsem_expr_slv_rlv_ind=> //=.
-(* LVar *)
-+ move=> m x t l h a hm ht g g' i ce hte henv; subst. rewrite /SimplExpr.bind in hte. 
-  case htt: (transBeePL_type (vtype x) g') hte=> [er | r g'' i'] //=.
-  move=> [] h1 h2; subst. rewrite -ht in hm.
-  apply esl_var_local. by have := equiv_local_benv_cenv x l (vtype x) r g' i i' henv htt hm.
-(* GVar *)
-+ move=> m x t l h a hm /= he ht g g' i ce hte henv. 
-  rewrite /SimplExpr.bind in hte. 
-  case hte': (transBeePL_type (vtype x) g') hte=> [er | r g'' i'] //=.
+move=> m e l ofs ce g g' i hl /= hte henv. induction hl => //=.
+(* lvar *)
++ rewrite /transBeePL_expr_expr /SimplExpr.bind in hte. 
+  case htt: (transBeePL_type (vtype x) g) hte=> [er | r g'' i'] //=.
+  move=> [] h1 h2; subst. rewrite -H0 in H.
+  apply esl_var_local. by have := equiv_local_benv_cenv x l (vtype x) r g g' i' henv htt H.
+(* gvar *)
++ rewrite /transBeePL_expr_expr /SimplExpr.bind in hte. 
+  case hte': (transBeePL_type (vtype x) g) hte=> [er | r g'' i'] //=.
   move=> [] h1 h2; subst.
   apply esl_var_global.
-  + by have := equiv_global_benv_cenv x henv hm. 
+  + by have := equiv_global_benv_cenv x henv H. 
   by have := symbols_preserved (vname x)=> ->. 
-(* Loc *)
-+ move=> m l ofs ce g g' i hte henv. 
-  rewrite /SimplExpr.bind in hte. 
-  case ht: (transBeePL_type (ltype l) g) hte=> [er | r g'' i'] //=.
-  move=> [] h1 h2; subst. by apply esl_loc.
-(* Deref *)
-+ move=> m e t l ofs hi ce g g' i hte henv. 
-  rewrite /SimplExpr.bind in hte.
-  case hte': (transBeePL_expr_expr e g) hte=> [er | r g'' i'] //=.
-  case ht': (transBeePL_type t g'')=> [er' | r' g''' i''] //=.
-  move=> [] h1 h2; subst. rewrite /=. apply esl_deref.
-  by move: (hi r g g'' i' hte' henv).
-(* Val *)
-+ move=> m v t ce g g' i ht henv /=. 
+(* Loc *) 
+rewrite /transBeePL_expr_expr /SimplExpr.bind in hte. 
+case ht: (transBeePL_type (ltype l) g) hte=> [er | r g'' i'] //=.
+move=> [] h1 h2; subst. by apply esl_loc.
+Qed.
+
+Lemma bsem_cexpr_rsimple : forall m e v ce g g' i, 
+bsem_expr_srv bge benv m e v ->
+transBeePL_expr_expr e g = Res ce g' i ->
+match_env benv cenv ->
+eval_simple_rvalue cge cenv m ce (transBeePL_value_cvalue v).
+Proof.
+move=> m e v ce g g' i hr. move: ce g g' i. induction hr=> //=.
+(* val *)
++ move=> ce g g' i ht henv /=. 
   rewrite /SimplExpr.bind in ht. 
   case ht: (transBeePL_type t g) ht=> [er | r g'' i'] //=.
   move=> [] h1 h2; subst. by apply esr_val. 
 (* Const int *)
-+ move=> i t t' ce g g' i' ht henv /=. 
-  rewrite /SimplExpr.bind in ht.
-  case ht': (transBeePL_type t' g) ht=> [er | r g'' i''] //=.
-  move=> [] h1 h2; subst. by apply esr_val.
-(* Const long *)
-+ move=> m i t ce g g' i' ht henv /=. 
++ move=> ce g g' i' ht henv /=.
   rewrite /SimplExpr.bind in ht.
   case ht': (transBeePL_type t g) ht=> [er | r g'' i''] //=.
-  move=> [] h1 h2; subst.
-  by apply esr_val.
-(* Const unit *)
-+ move=> m ce g g' i' hce henv /=; subst. 
-  rewrite /SimplExpr.bind /= in hce. move: hce.
   move=> [] h1 h2; subst. by apply esr_val.
-(* Valof *)
-+ move=> m e t l ofs v hi ht heq hvt ce g g' i' hte henv /=; subst.
-  rewrite /SimplExpr.bind in hte.
-  case he1:(transBeePL_type (typeof_expr e) g) hte=> [er | r g'' i''] //=.
-  case he2: (transBeePL_expr_expr e g'')=> [er1 | r1 g1 i1] //=.
+(* Const long *)
++ move=> ce g g' i' ht henv /=.
+  rewrite /SimplExpr.bind in ht.
+  case ht': (transBeePL_type t g) ht=> [er | r g'' i''] //=.
+  move=> [] h1 h2; subst. by apply esr_val.
+(* Const unit *)
++ move=> ce g g' i' /= ht henv /=.
+  rewrite /SimplExpr.bind in ht.
+  case ht': (ret Tvoid g) ht=> [er | r g'' i''] //=.
+  move=> [] h1 h2; subst. by apply esr_val.
+(* deref *)
++ move=> ce g g' i' hte henv /=.
+  rewrite /transBeePL_expr_exprs /SimplExpr.bind in hte.
+  case he1:(transBeePL_expr_expr e g) hte=> [er | r g'' i''] //=.
+  case he2: (transBeePL_type t g'')=> [er1 | r1 g1 i1] //=.
   move=> [] h1 h2; subst. apply esr_rvalof with l.(lname) ofs l.(lbitfield).
-  + by move: (hi r1 g'' g' i1 he2 henv).
-  + have h := transBeePL_expr_expr_type_equiv e r1 g'' g' i1 he2. 
-    by have := type_preserved_generator (typeof_expr e) r (Csyntax.typeof r1) 
-            g g'' g'' g' i'' i1 i'' i1 he1 h.
-  + by have := non_volatile_type_preserved (typeof_expr e) r g g'' i'' hvt he1. 
-  by have := deref_addr_translated (typeof_expr e) m l.(lname) ofs l.(lbitfield) v r (transBeePL_value_cvalue v) g g'' i'' ht he1 refl_equal.
-(* Uop *)
-+ move=> m e v uop v' t ct v'' g g' i hi ht /= heq ho hv' ce g1 g2 i1 hte henv.
-  rewrite /SimplExpr.bind in hte. 
+    + by have := bsem_cexpr_lsimple hm e l ofs r g g'' i'' H he1 henv.
+    + have h := transBeePL_expr_expr_type_equiv e r g g'' i'' he1. 
+      by have := type_preserved_generator (typeof_expr e) r1 (Csyntax.typeof r) g'' g' g g'' i1 i''
+              i1 i'' he2 h. 
+    + by have := non_volatile_type_preserved (typeof_expr e) r1 g'' g' i1 false H2 he2. 
+   have := deref_addr_translated (typeof_expr e) hm l.(lname) ofs l.(lbitfield) v r1
+           (transBeePL_value_cvalue v) g'' g' i1 H0 he2 refl_equal. 
+   have hc := non_volatile_type_preserved (typeof_expr e) r1 g'' g' i1 false H2 he2.
+   by rewrite /chunk_for_volatile_type /= hc /=. 
+(* uop *)
++ move=> ce g1 g2 i1 /= hte /= henv.
+  rewrite /transBeePL_expr_exprs /SimplExpr.bind in hte. 
   case he1: (transBeePL_expr_expr e g1) hte=> [er | r1 g1' i1'] //=.
   case ht1: (transBeePL_type t g1')=> [er' | r2 g2' i2'] //=.
   move=> [] h1 h2; subst; rewrite /=. rewrite /exprlist_list_expr /=. 
   apply esr_unop with (transBeePL_value_cvalue v).
-  + by move: (hi r1 g1 g1' i1' he1 henv).
-  have heq := bv_cv_reflex v' v'' hv'; subst.
+  + by move: (IHhr r1 g1 g1' i1' he1 henv).
+  have heq := bv_cv_reflex v' v'' H2; subst.
   have ht' := transBeePL_expr_expr_type_equiv e r1 g1 g1' i1' he1.
   have heq1 := type_preserved_generator (typeof_expr e) (Csyntax.typeof r1) r2 
                g1 g1' g1' g2 i1' i2' i1' i2' ht' ht1.
   rewrite -heq1 in ht1.
   by have heq' := type_preserved_generator (typeof_expr e) (Csyntax.typeof r1) ct g1' g2 g g' i2' i
-          i2' i ht1 ht; subst.
+          i2' i ht1 H; subst.
 (* Bop *)
-+ move=> m e1 e2 t v1 v2 bop v ct1 ct2 v' g g' g'' i i' hi1 hi2 ht1 ht2 [] 
-         heq1 heq2 ho hv ce g1 g2 i1 hte henv; subst.
-  rewrite /SimplExpr.bind in hte. 
++ move=> ce g1 g2 i1 /= hte henv. rewrite /SimplExpr.bind in hte. 
   case hte1 : (transBeePL_expr_expr e1 g1) hte=> [er1 | re1 ge1 ie1] //=.
   case hte2 : (transBeePL_expr_expr e2 ge1)=> [er2 | re2 ge2 ie2] //=.
-  case ht : (transBeePL_type (typeof_expr e1) ge2)=> [ert | rt gt it] //=.
+  case ht : (transBeePL_type t ge2)=> [ert | rt gt it] //=.
   move=> [] h1 h2; subst. rewrite /exprlist_list_expr /=. 
   apply esr_binop with (transBeePL_value_cvalue v1) (transBeePL_value_cvalue v2).
-  + by move: (hi1 re1 g1 ge1 ie1 hte1 henv).
-  + by move: (hi2 re2 ge1 ge2 ie2 hte2 henv).
-  have hv1 := bv_cv_reflex v v' hv.
-  have ht1' := transBeePL_expr_expr_type_equiv e1 re1 g1 ge1 ie1 hte1. 
-  have heq := type_preserved_generator (typeof_expr e1) ct1 rt g g' ge2 g2 i it i it ht1 ht; subst.
+  + by move: (IHhr1 re1 g1 ge1 ie1 hte1 henv).
+  + by move: (IHhr2 re2 ge1 ge2 ie2 hte2 henv).
+  have hv1 := bv_cv_reflex v v' H3.
+  have ht1' := transBeePL_expr_expr_type_equiv e1 re1 g1 ge1 ie1 hte1. case: H1=> [] h1 h2; subst.
+  have heq := type_preserved_generator (typeof_expr e1) ct1 rt g g' ge2 g2 i it i it H ht; subst.
   have heq' := type_preserved_generator (typeof_expr e1) (Csyntax.typeof re1) rt g1 ge1 ge2 g2 ie1
                it ie1 it ht1' ht; subst.
   have ht2' := transBeePL_expr_expr_type_equiv e2 re2 ge1 ge2 ie2 hte2. 
   have heq'' := type_preserved_generator (typeof_expr e2) ct2 (Csyntax.typeof re2) g' g'' ge1 ge2 
-                i' ie2 i' ie2 ht2 ht2'; subst. by have -> := comp_env_preserved.
+                i' ie2 i' ie2 H0 ht2'; subst. by have -> := comp_env_preserved.
 (* Unit *)
-move=> m ce g g' i /=. rewrite /SimplExpr.bind /=.
+move=> ce g g' i /=. rewrite /SimplExpr.bind /=.
 move=> [] h1 h2 henv /=; subst. by apply esr_val.
 Qed.
 
-Lemma bsem_cexpr_lsimple : 
-forall m e l ofs, 
-    bsem_expr_slv bge benv m e l ofs ->
-    forall ce g g' i, 
-     transBeePL_expr_expr e g = Res ce g' i ->
-     match_env benv cenv ->
-    eval_simple_lvalue cge cenv m ce l.(lname) ofs l.(lbitfield).
+(* A final state does not step forward *)
+Lemma final_state_no_step : forall s s',
+BeePL.final_state s ->
+~ (bstep bge s s').
 Proof.
-exact (proj1 (bsem_cexpr_simple)).
+move=> s s'. elim: s=> //=.
++ move=> f e k vm m hf. by inversion hf.
++ move=> fd args k m hf. by inversion hf.
++ move=> res m hf. move=> h. by inversion h.
+move=> hf. by inversion hf.
 Qed.
 
-Lemma bsem_cexpr_rsimple :
-forall m e v, 
-    bsem_expr_srv bge benv m e v ->
-    forall ce g g' i, 
-     transBeePL_expr_expr e g = Res ce g' i ->
-     match_env benv cenv ->
-    eval_simple_rvalue cge cenv m ce (transBeePL_value_cvalue v).
+Lemma safe_steps: forall s s',
+BeePL.safe bge s -> 
+bstep bge s s' -> 
+BeePL.safe bge s'.
 Proof.
-exact (proj2 (bsem_cexpr_simple)).
-Qed.
+move=> s. elim: s=> //=.
++ admit.
+(* call state *)
++ move=> fd args k m s' hs he. elim: s' he=> //=.
+  + move=> f e k' vm m' he. inversion he; subst.
+    rewrite /BeePL.safe. rewrite /BeePL.safe in hs.
+    move=> s' he'. move: (hs (BeePL.ExprState f (BeePL.fn_body f) k' vm m') he).
+    move=> [].
+    (* final state (not possible) *)
+    + move=> hf. 
+      have hf':= final_state_no_step (BeePL.ExprState f (BeePL.fn_body f) k' vm m') s' hf.
+      move: hf'. by move=> [].
+    admit.
+  + move=> fd' args' k' m' he. by inversion he; subst.
+  + move=> res m' he. by inversion he; subst.
+  move=> he. by inversion he; subst.
+(* final state *)
++ move=> res m s' hs he. by inversion he.
+(* stuck state *)
+move=> s' hs he. by inversion he.
+Admitted.
+
+Lemma bsem_expr_srv_safe: forall C e v m k f,
+bsem_expr_srv bge benv m e v ->
+BeePL.leftcontext RV RV C -> 
+BeePL.safe bge (BeePL.ExprState f (C e) k benv m) ->
+BeePL.safe bge (BeePL.ExprState f (C (Val v (typeof_expr e))) k benv m).
+Proof.
+Admitted.
+
+(*Lemma simple_can_eval:
+  forall e from C,
+  simple e = true -> leftcontext from RV C -> safe (BeePL.ExprState f (C e) k benv m) ->
+  match from with
+  | LV => exists b ofs bf, eval_simple_lvalue e m a b ofs bf
+  | RV => exists v, eval_simple_rvalue e m a v
+  end.
+Proof.*)
+
+(* Progress *)
+Lemma can_step: forall f e k m,
+BeePL.safe bge (BeePL.ExprState f e k benv m) ->
+exists S, bstep bge (BeePL.ExprState f e k benv m) S.
+Proof.
+move=> f e k m hs. rewrite /BeePL.safe in hs.
+Admitted.
 
 (* Complete Me : Medium *)
 Lemma bsem_cexpr_list :
@@ -680,7 +748,7 @@ Admitted.
 (* Complete Me *)
 (* Preservation of bind parameters between BeePL and Csyntax *)
 Lemma bind_variables_preserved: forall m m' benv' vrs cvrs cvrs' cvrs'' cts g g' i,
-BeePL.bind_variables benv m vrs benv' m' ->
+BeePL.bind_variables bge benv m vrs benv' m' ->
 extract_vars_vinfos vrs = cvrs ->
 extract_types_vinfos vrs = cvrs' ->
 transBeePL_types transBeePL_type cvrs' g = Res cvrs'' g' i ->
@@ -709,32 +777,17 @@ move=> e m e' m' ce g g' i' hl. induction hl.
   + by apply Csem.red_var_local.
   apply sim_addr with g g' i''; rewrite /=. by case: t H H0 ht=> //=.
 (* global var *)
-+ move=> /= he henv. 
-  rewrite /SimplExpr.bind in he.
-  case ht: (transBeePL_type (vtype x) g) he=> [er | r g'' i''] //=.
-  move=> [] h1 h2; subst. case: henv=> [hm1 hm2]; subst. rewrite H0 in ht.
-  move: (hm2 (vname x) H)=> H'.
-  exists (Eloc l Ptrofs.zero Full r). split=> //=.
-  + apply Csem.red_var_global.
-    + by apply H'.
-    by have := symbols_preserved (vname x)=> ->. 
-  by apply sim_addr with g g' i''; rewrite /=. 
-(* deref *)
-move=> /= he henv. rewrite /SimplExpr.bind in he.
-case htv: tv he=> [ | i sz s | s ar]//=.
-+ move=> [] h1 h2; subst.
-  exists (Eloc l ofs Full  (Tpointer Tvoid a)). split=> //=.
-  + by apply Csem.red_deref.
-  apply sim_addr with g' g' i'. rewrite /= /ret /=. admit.
-+ move=> [] h1 h2; subst.
-  exists (Eloc l ofs Full (Tpointer (Ctypes.Tint i sz s) a)). split=> //=.
-  + by apply Csem.red_deref.
-  apply sim_addr with g' g' i'. rewrite /= /ret /=. admit.
-move=> [] h1 h2; subst.
-exists (Eloc l ofs Full (Tpointer (Ctypes.Tlong s ar) a)). split=> //=.
-+ by apply Csem.red_deref.
-apply sim_addr with g' g' i'. rewrite /= /ret /=. admit.
-Admitted.
+move=> /= he henv. 
+rewrite /SimplExpr.bind in he.
+case ht: (transBeePL_type (vtype x) g) he=> [er | r g'' i''] //=.
+move=> [] h1 h2; subst. case: henv=> [hm1 hm2]; subst. rewrite H0 in ht.
+move: (hm2 (vname x) H)=> H'.
+exists (Eloc l Ptrofs.zero Full r). split=> //=.
++ apply Csem.red_var_global.
+  + by apply H'.
+  by have := symbols_preserved (vname x)=> ->. 
+by apply sim_addr with g g' i''; rewrite /=.
+Qed. 
 
 (* Equivalence between right reduction top level *)
 Lemma equiv_rreduction : forall e m e' m' ce g g' i',
@@ -743,7 +796,7 @@ transBeePL_expr_expr e g = Res ce g' i' ->
 exists ce' t, Csem.rred cge ce m t ce' m' /\ sim_bexpr_cexpr benv e' ce'.
 Proof.
 move=> e m e' m' ce g g' i' hr. induction hr; subst; rewrite /=.
-(* valof *)
+(* deref *)
 + move=> hr. rewrite /SimplExpr.bind in hr.
   case hte: (transBeePL_type (typeof_expr e) g) hr=> [ere | cte ge ie] //=.
   case hte': (transBeePL_type (typeof_expr e) ge )=> [ere' | cte' ge' ie'] //=.
@@ -752,8 +805,10 @@ move=> e m e' m' ce g g' i' hr. induction hr; subst; rewrite /=.
   split=> //=.
   + have heq:= type_preserved_generator (typeof_expr e) cte cte' g ge ge g' ie ie' ie ie'
             hte hte'; subst. apply Csem.red_rvalof.
-    by have := deref_addr_translated (typeof_expr e) hm l ofs bf v cte' 
+    have := deref_addr_translated (typeof_expr e) hm l ofs bf v cte' 
             (transBeePL_value_cvalue v) ge g' ie' H hte' refl_equal.
+    have hc := non_volatile_type_preserved (typeof_expr e) cte' ge g' ie' false H1 hte'.
+    by rewrite /chunk_for_volatile_type /= hc /=.
   by apply sim_val with ge g' ie'.
 (* ref *) (* Fix me *)
 + admit.
@@ -779,21 +834,43 @@ move=> e m e' m' ce g g' i' hr. induction hr; subst; rewrite /=.
   have <- /= := bv_cv_reflex v v' H2. by apply sim_val with g2 g' i3.
 (* cond *) (* cond steps to Eparen which we don't have in our language *)
 + admit.
-(* massgn *)
+(* massgn *) 
 + move=> hr. rewrite /SimplExpr.bind in hr.
   case ht: (transBeePL_type t g) hr=> [er | ct1' g1 i1] //=.
   case ht2: (transBeePL_type tv2 g1)=> [er2 | ct2' g2 i1'] //=.
   case ht3: (transBeePL_type t g2)=> [er3 | ct3' g3 i2'] //=.
-  move=> [] h1 h2; subst.
-  exists (Eval (transBeePL_value_cvalue v') ct3'). exists Events.E0. split=> //=.
-  + have heq1 := type_preserved_generator t ct1 ct1' g0 g'0 g g1 i'0 i1 i'0 i1 H ht; subst.
-    have heq1 := type_preserved_generator tv2 ct2 ct2' g'0 g'' g1 g2 i'' i1' i'' i1' H0 ht2; subst.
-    have heq1 := type_preserved_generator t ct1' ct3' g g1 g2 g' i1 i2' i1 i2' ht ht3; subst.
-    apply Csem.red_assign with (transBeePL_value_cvalue v').
-    by apply H1.
-    by have := assgn_addr_translated t hm l ofs bf v' hm' ct3' Events.E0
+  move=> [] h1 h2; subst. inversion H2; subst.
+  + exists (Eval (transBeePL_value_cvalue v') ct3'). exists Events.E0. split=> //=.
+    + have heq1 := type_preserved_generator t ct1 ct1' g0 g'0 g g1 i'0 i1 i'0 i1 H ht; subst.
+      have heq1 := type_preserved_generator tv2 ct2 ct2' g'0 g'' g1 g2 i'' i1' i'' i1' H0 ht2; subst.
+      have heq1 := type_preserved_generator t ct1' ct3' g g1 g2 g' i1 i2' i1 i2' ht ht3; subst.
+      apply Csem.red_assign with (transBeePL_value_cvalue v').
+      + by apply H1. 
+        have := assign_addr_translated t hm l ofs Full v' hm' ct3'
             (transBeePL_value_cvalue v') v' (transBeePL_value_cvalue v') g2 g' i2' H2 ht3
             refl_equal refl_equal. 
+      have hc := non_volatile_type_preserved t ct3' g2 g' i2' false H4 ht3.
+      by rewrite /chunk_for_volatile_type /= hc /=. 
+    by apply sim_val with g2 g' i2'.
+   exists (Eval (transBeePL_value_cvalue v') ct3'). exists tr. split=> //=.
+   have heq1 := type_preserved_generator t ct1 ct1' g0 g'0 g g1 i'0 i1 i'0 i1 H ht; subst.
+   have heq1 := type_preserved_generator tv2 ct2 ct2' g'0 g'' g1 g2 i'' i1' i'' i1' H0 ht2; subst.
+   have heq1 := type_preserved_generator t ct1' ct3' g g1 g2 g' i1 i2' i1 i2' ht ht3; subst.
+   apply Csem.red_assign with (transBeePL_value_cvalue v').
+   + by apply H1. 
+     have := assign_addr_translated t hm l ofs Full v' hm' ct3'
+            (transBeePL_value_cvalue v') v' (transBeePL_value_cvalue v') g2 g' i2' H2 ht3
+            refl_equal refl_equal. 
+     have hc := non_volatile_type_preserved t ct3' g2 g' i2' true H4 ht3.
+     rewrite /chunk_for_volatile_type /= hc /=. 
+     have -> /= := access_mode_preserved t ct3' (By_value (transl_bchunk_cchunk chunk)) g2 g' i2'
+             H3 ht3. move=> [] x [] _ hs. 
+     apply Csem.assign_loc_volatile with (transl_bchunk_cchunk chunk).
+     by have := access_mode_preserved t ct3' (By_value (transl_bchunk_cchunk chunk)) g2 g' i2'
+             H3 ht3. by apply hc. have -> := bv_cv_reflex v0 v' H6.
+     have hequiv := senv_preserved. rewrite /cge /Csem.genv_genv /= in hequiv.
+     by have := @Events.volatile_store_preserved bge (Genv.globalenv cprog) 
+                (transl_bchunk_cchunk chunk) hm l ofs v0 tr hm' hequiv H5. rewrite /Csem.genv_genv /=. 
   by apply sim_val with g2 g' i2'.
 (* bind *) (* need to think about how bind translates *)
 + admit.
@@ -853,14 +930,31 @@ Inductive match_bstate_cstate : BeePL.state -> Csem.state -> Prop :=
 *)
 
 (* Equivalence between resultant state of BeePL big step semantics 
-   and Csyntax (Cstrategy) big step semantics *)
-Lemma bstep_estep_simulation: forall BS1 BS2, 
-bstep BS1 BS2 ->
-forall CS1 (MS: match_bstate_cstate BS1 CS1),
-exists CS2 t, (star Cstrategy.estep cge CS1 t CS2 (*/\(measure S2 < measure S1)%nat*) 
-               \/ Cstrategy.estep cge CS1 t CS2) /\
-              match_bstate_cstate BS2 CS2.
+   and Csyntax (Cstrategy) big step semantics *) 
+Lemma bstep_estep_simulation: forall bs1 bs2, 
+bstep bge bs1 bs2 ->
+forall cs1 (MS: match_bstate_cstate bs1 cs1),
+exists cs2 t, (star Cstrategy.estep cge cs1 t cs2 (*/\(measure S2 < measure S1)%nat*) 
+               \/ Cstrategy.estep cge cs1 t cs2) /\
+              match_bstate_cstate bs2 cs2.
 Proof.
+move=> bs1 bs2 hs cs1 hm. elim: bs1 hs hm=> //=.
++ move=> f e k vm m he hm. elim: e he hm=> //=.
+  (* val *)
+  + move=> v t he hm. inversion hm; subst.
+    inversion H6; subst. rewrite /SimplExpr.bind in H0.
+    case ht: (transBeePL_type t g) H0=> [er | ct g'' i''] //=. 
+    move=> [] h1 h2; subst. 
+    exists (Csem.ExprState cf (Eval (transBeePL_value_cvalue v) ct) cc cenv m).
+    exists Events.E0. split=> //=. 
+    + admit.
+    admit.
+  + admit.
+  (* Var *)
+  + move=> v he hm. inversion hm; subst. 
+    inversion H6; subst. rewrite /SimplExpr.bind in H0.
+    case ht: (transBeePL_type (vtype v) g) H0=> [er | ct g1 i1] //=.
+    move=> [] h1 h2; subst. 
 Admitted.
 
 (* Equivalence between resultant state of BeePL small step semantics 

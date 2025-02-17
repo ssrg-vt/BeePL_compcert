@@ -34,10 +34,10 @@ Proof.
   - admit.
 Admitted.
 
-Lemma non_volatile_type_preserved : forall ty cty g g' i',
-type_is_volatile ty = false ->
+Lemma non_volatile_type_preserved : forall ty cty g g' i' b,
+type_is_volatile ty = b ->
 transBeePL_type ty g = Res cty g' i' ->
-Ctypes.type_is_volatile cty = false.
+Ctypes.type_is_volatile cty = b.
 Proof.
   intros ty cty HNVOL HTRANS.
   destruct ty eqn:Ety; simpl in *.

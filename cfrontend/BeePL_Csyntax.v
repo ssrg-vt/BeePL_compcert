@@ -39,9 +39,9 @@ Fixpoint transBeePL_expr_expr (e : BeePL.expr) : mon Csyntax.expr :=
 match e with 
 | Val v t => do vt <- (transBeePL_type t);
              ret (Eval (transBeePL_value_cvalue v) vt) 
-| Valof e t => do ct <- (transBeePL_type t);
+(*| Valof e t => do ct <- (transBeePL_type t);
                do ce <- (transBeePL_expr_expr e);
-               ret (Evalof ce ct)
+               ret (Evalof ce ct)*)
 | Var x => do xt <- (transBeePL_type (vtype x));
            ret (Evar (vname x) xt)
 | Const c t => match c with 
@@ -61,7 +61,7 @@ match e with
                               ct) (* Fix me *) 
                  | Deref => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                             do ct <- (transBeePL_type t);
-                            ret (Ederef (hd default_expr (exprlist_list_expr ces)) 
+                            ret (Evalof (hd default_expr (exprlist_list_expr ces)) 
                                 ct)   
                  | Massgn => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                              do ct <- (transBeePL_type t);
@@ -96,6 +96,11 @@ match e with
 | Addr l ofs => do ct <- (transBeePL_type (ltype l));
             ret (Eloc l.(lname) ofs l.(lbitfield) ct)
 | Hexpr h e t => ret (Eval (Values.Vundef) Tvoid) (* FIX ME *)
+| Eapp ef ts es t => do cef <- befuntion_to_cefunction ef;
+                     do cts <- (transBeePL_types transBeePL_type ts);
+                     do ct <- (transBeePL_type t);
+                     do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
+                     ret (Ebuiltin cef cts ces ct)
 end.
 
 Definition check_var_const (e : BeePL.expr) : bool :=
@@ -110,9 +115,9 @@ Definition transBeePL_expr_st (e : BeePL.expr) : mon Csyntax.statement :=
 match e with 
 | Val v t => do vt <- (transBeePL_type t);
              ret (Sreturn (Some (Eval (transBeePL_value_cvalue v) vt))) 
-| Valof e t => do ct <- (transBeePL_type t);
+(*| Valof e t => do ct <- (transBeePL_type t);
                do ce <- (transBeePL_expr_expr e);
-               ret (Sreturn (Some (Evalof ce ct)))
+               ret (Sreturn (Some (Evalof ce ct)))*)
 | Var x => do ct <- (transBeePL_type x.(vtype));
            ret (Sreturn (Some (Evalof (Evar x.(vname) ct) ct)))
 | Const c t => do ct <- (transBeePL_type t);
@@ -134,7 +139,7 @@ match e with
                               ct)) (* Fix me *)
                  | Deref => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                             do ct <- (transBeePL_type t);
-                            ret (Sdo (Ederef (hd default_expr (exprlist_list_expr ces)) 
+                            ret (Sdo (Evalof (hd default_expr (exprlist_list_expr ces)) 
                                      ct))   
                  | Massgn => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
                              do ct <- (transBeePL_type t);
@@ -162,7 +167,7 @@ match e with
                                   do ct' <- (transBeePL_type t');
                                   do rt <- (transBeePL_type (BeePL.typeof_expr (e')));
                                   ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid))
-                                                (Sreturn (Some (Evalof ce' rt))))
+                                                 (Sreturn (Some (Evalof ce' rt))))
                       | Const c t => do ct <- (transBeePL_type t); 
                                      do ce <- (transBeePL_expr_expr e);
                                      do ce' <- (transBeePL_expr_expr e');
@@ -173,7 +178,7 @@ match e with
                              do ce <- (transBeePL_expr_expr e);
                              do ce' <- (transBeePL_expr_expr e');
                              ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
-                                           (Sdo ce'))
+                                            (Sdo ce'))
                     end
 | Cond e e' e'' t' => do ce <- (transBeePL_expr_expr e);
                       do ce' <- (transBeePL_expr_expr e');
@@ -190,6 +195,11 @@ match e with
 | Addr l ofs => do ct <- (transBeePL_type (ltype l));
                 ret (Sdo (Eloc l.(lname) ofs l.(lbitfield) ct))                    
 | Hexpr h e t => ret (Sdo (Eval (Values.Vundef) Tvoid)) (* FIX ME *)
+| Eapp ef ts es t => do cef <- befuntion_to_cefunction ef;
+                     do cts <- (transBeePL_types transBeePL_type ts);
+                     do ct <- (transBeePL_type t);
+                     do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
+                     ret (Sdo (Ebuiltin cef cts ces ct))
 end.
 
 (* Translates the BeePL function declaration to C function *) 
@@ -220,7 +230,16 @@ Definition transBeePL_fundef_fundef (fd : BeePL.fundef) : res Csyntax.fundef :=
 match fd with 
 | Internal f => do tf <- transBeePL_function_function f;
                 OK (Ctypes.Internal tf)
-| _ => Error (MSG "External function not supported" :: nil)
+| External ef ts t cc => match (befuntion_to_cefunction ef (initial_generator tt)) with
+                         | Err msg => Error msg
+                         | Res cef g' i => match (transBeePL_types transBeePL_type ts (initial_generator tt)) with 
+                                           | Err msg => Error msg
+                                           | Res cts g' i => match (transBeePL_type t (initial_generator tt)) with 
+                                                             | Err msg => Error msg
+                                                             | Res ct g' i => OK (Ctypes.External cef cts ct cc)
+                                                             end
+                                           end
+                         end
 end.
 
 (* Translates the value that is assigned to global variable to C global variable data *)
