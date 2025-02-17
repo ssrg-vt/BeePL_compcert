@@ -341,7 +341,8 @@ Proof.
   - eapply Ty_bind with (Gamma := extend_context Gamma0 x0 t2).
     + eauto.
     + admit.
-  - eapply Ty_cond with (Gamma := extend_context Gamma0 x t4); eauto.
+  - eapply Ty_cond with (Gamma := extend_context Gamma0 x t4); 
+    eauto.
   - constructor.
   - eapply Ty_addr with (Gamma := extend_context Gamma0 x t1).
     eauto.
