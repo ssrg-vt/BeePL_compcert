@@ -127,3 +127,7 @@ end.
     Either it reaches a value or it takes step **)
 Definition safe_expr (bge : genv) (e : BeePL.expr) : Prop :=
 forall v vm m vm' m', bsem_expr bge vm m e vm' m' v.
+
+(* Complete me *)
+(* Generate custom inductive principles for bsem_expr and bsem_exprs and prove the invariants:
+   for reference see, how it is done in BeePL_typesystem.v *)

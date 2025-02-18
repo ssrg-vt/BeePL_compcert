@@ -380,20 +380,20 @@ Proof.
 Admitted.
  
 (* Complete me *) (* Medium level *)
-Lemma deref_addr_val_ty : forall bge ty m l ofs v,
-deref_addr bge ty m l.(lname) ofs l.(lbitfield) v ->
+Lemma deref_addr_val_ty : forall bge ty m l ofs bf v,
+deref_addr bge ty m l ofs bf v ->
 typeof_value v (wtype_of_type ty).
 Proof.
-move=> bge ty m l ofs v hd. inversion hd; subst.
+move=> bge ty m l ofs bf v hd. inversion hd; subst.
 + rewrite /Mem.loadv /= in H2.
-  have hvt := Mem.load_type m (transl_bchunk_cchunk chunk) (lname l) 
-              (Ptrofs.unsigned ofs) v0 H2.
-  have hwt := bty_chunk_rel ty chunk H0.
+  have hvt := Mem.load_type m (transl_bchunk_cchunk chunk) l 
+              (Ptrofs.unsigned ofs) v0 H1.
+  have hwt := bty_chunk_rel ty chunk H.
   rewrite /typeof_value /= hwt /typeof_chunk /=. 
-  by case: chunk H0 H2 hvt hwt=> //=; case: v hd H3=> //=; case: v0=> //=.
-+ admit.
-case: ty hd H0=> //= p. case: p=> //= i s a.
-case: i=> //=;case: s=> //=.
+  by case: chunk H H1 hvt hwt=> //=; case: v hd H2=> //=; case: v0=> //=.
++ admit. (* complete me for the case of volatile load *)
+case: ty hd H=> //= p. case: p=> //= i s a.
+by case: i=> //=;case: s=> //=.
 Admitted.
 
 (* Value typing *)
@@ -436,18 +436,47 @@ Values.Val.has_type v (typ_of_type ct2).
 Proof.
 Admitted.
 
-(* Progress with respect to type system and bsem_expr *)
-Lemma progress_bsem_expr : forall Gamma Sigma bge vm m vm' m' e ef t, 
-type_expr Gamma Sigma e ef t ->
-exists v, bsem_expr bge vm m e vm' m' v.
+Lemma subject_reduction_bsem_expr_exprs: 
+(forall Gamma Sigma es efs ts bge vm m vm' m' vs, type_exprs Gamma Sigma es efs ts ->
+                                                  bsem_exprs bge vm m es m' vm' vs ->
+                                                  typeof_values vs (wtypes_of_types ts)) /\
+(forall Gamma Sigma e ef t bge vm m vm' m' v, type_expr Gamma Sigma e ef t ->
+                                              bsem_expr bge vm m e m' vm' v ->
+                                              typeof_value v (wtype_of_type t)).
 Proof.
-move=> Gamma Sigma bge vm m vm' m' e ef t ht. 
-move: Gamma Sigma bge vm m vm' m' ef t ht. elim: e=> //=.
-(* Val *)
-+ move=> v t Gamma Sigma bge vm m vm' m' ef t' ht.
-  inversion ht; subst.
-  (* unit *)
-Admitted.
+suff : (forall Gamma Sigma es efs ts, type_exprs Gamma Sigma es efs ts ->
+                                      forall bge vm m vm' m' vs, bsem_exprs bge vm m es m' vm' vs ->
+                                                                 typeof_values vs (wtypes_of_types ts)) /\
+       (forall Gamma Sigma e ef t, type_expr Gamma Sigma e ef t ->
+                                   forall bge vm m vm' m' v, bsem_expr bge vm m e m' vm' v ->
+                                                             typeof_value v (wtype_of_type t)).
++ move=> [] ih ih'. split=> //=.
+  + move=> Gamma Sigma es efs ts bge vm m m' vm' vs hts hes. 
+    by move: (ih Gamma Sigma es efs ts hts bge vm m m' vm' vs hes).
+  move=> Gamma Sigma e ef t bge vm m m' vm' v ht he.
+  by move: (ih' Gamma Sigma e ef t ht bge vm m m' vm' v he).
+apply type_expr_indP => //=.
+(* val unit *)
++ move=> Gamma Sigma bge vm m vm' m' v hv. by inversion hv; subst.
+(* val int *)
++ move=> Gamma Sigma i sz s a bge vm m vm' m' v hv. by inversion hv; subst.
+(* val long *)
++ move=> Gamma Sigma i s a bge vm m vm' m' v hv. by inversion hv; subst.
+(* val loc *)
++ move=> Gamma Sigma h t l ofs a bge vm m vm' m' v hv. by inversion hv; subst.
+(* var *)
++ move=> Gamma Sigma x t ht hteq bge vm m vm' m' v hv. inversion hv; subst.
+  (* local *)
+  + by have := deref_addr_val_ty bge (vtype x) m' l ofs Full v H3.
+  (* global *)
+  + by have := deref_addr_val_ty bge (vtype x) m' l ofs Full v H4.
+(* const int *)
++ move=> Gamma Sigma t sz s i a hteq bge vm m vm' m' v hv. by inversion hv; subst.
+(* const long *)
++ move=> Gamma Sigma t s i a hteq bge vm m vm' m' v hv. by inversion hv; subst.
+(* const unit *)
++ move=> Gamma Sigma t.
+Admitted.  
 
 
 Section Subject_Reduction.
@@ -479,7 +508,7 @@ induction hr=> //=.
 + move=> Gamma Sigma ef t' ht.
   inversion ht; subst. rewrite H7.
   have := subject_lredcution hm e l ofs Gamma Sigma ef0 (Reftype h (Bprim bt) a) H H9=> hlt.
-  by have := deref_addr_val_ty bge (typeof_expr e) hm l ofs v H0.
+  by have := deref_addr_val_ty bge (typeof_expr e) hm l.(lname) ofs l.(lbitfield) v H0.
 (* Uop *)
 + move=> Gamma Sigma ef t' ht. inversion ht; subst.
   move: (IHhr Gamma Sigma ef (typeof_expr e) H10)=> hvt.
