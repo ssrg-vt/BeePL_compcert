@@ -380,11 +380,11 @@ Inductive assign_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : 
    [e2] and [m2] are the final local environment and memory state *) 
 Inductive alloc_variables : vmap -> Memory.mem -> list vinfo -> vmap -> Memory.mem -> Prop :=
 | alloc_variables_nil : forall vm hm, 
-                        alloc_variables vm hm nil vm hm
+  alloc_variables vm hm nil vm hm
 | alloc_variables_con : forall e m id ty vars m1 l1 m2 e2,
-      Mem.alloc m 0 (sizeof_type ty) = (m1, l1) ->
-      alloc_variables (PTree.set id (l1, ty) e) m1 vars e2 m2 ->
-      alloc_variables e m ({| vname := id; vtype := ty |} :: vars) e2 m2.
+  Mem.alloc m 0 (sizeof_type ty) = (m1, l1) ->
+  alloc_variables (PTree.set id (l1, ty) e) m1 vars e2 m2 ->
+  alloc_variables e m ({| vname := id; vtype := ty |} :: vars) e2 m2.
 
 (** Initialization of local variables that are parameters to a function.
   [bind_parameters e m1 params args m2] stores the values [args]
@@ -392,12 +392,12 @@ Inductive alloc_variables : vmap -> Memory.mem -> list vinfo -> vmap -> Memory.m
   [m1] is the initial memory state and [m2] the final memory state. **)
 Inductive bind_variables  (e: vmap): Memory.mem -> list vinfo -> list value -> Memory.mem -> Prop :=
 | bind_variables_nil: forall m,
-                      bind_variables e m nil nil m
+  bind_variables e m nil nil m
 | bind_variables_cons: forall m id ty params v1 vl v1' b m1 m2,
-                       PTree.get id e = Some(b, ty) ->
-                       assign_addr ty m b Ptrofs.zero Full v1 m1 v1' ->
-                       bind_variables e m1 params vl m2 ->
-                       bind_variables e m ({| vname := id; vtype := ty|} :: params) (v1 :: vl) m2.
+  PTree.get id e = Some(b, ty) ->
+  assign_addr ty m b Ptrofs.zero Full v1 m1 v1' ->
+  bind_variables e m1 params vl m2 ->
+  bind_variables e m ({| vname := id; vtype := ty|} :: params) (v1 :: vl) m2.
 
 (** Return the list of blocks in the codomain of [benv], with low and high bounds. **)
 
@@ -522,18 +522,12 @@ Inductive bsem_expr_slv : Memory.mem -> expr -> linfo -> ptrofs -> Prop :=
 Inductive bsem_expr_srv : Memory.mem -> expr -> value -> Prop :=
 | bsem_val : forall hm v t,
              bsem_expr_srv hm (Val v t) v
-| bsem_const_int : forall hm i t, 
-                   bsem_expr_srv hm (Const (ConsInt i) t) (Vint i)
-| bsem_const_int64 : forall hm i t, 
-                     bsem_expr_srv hm (Const (ConsLong i) t) (Vint64 i)
-| bsem_const_uint : forall hm, 
-                    bsem_expr_srv hm (Const (ConsUnit) (Ptype Tunit)) (Vunit)
-| bsem_deref : forall hm e t l ofs v,
-                bsem_expr_slv hm e l ofs ->
-                deref_addr (typeof_expr e) hm l.(lname) ofs l.(lbitfield) v ->
-                typeof_expr e = t ->
-                BeeTypes.type_is_volatile t = false ->
-                bsem_expr_srv hm (Prim Deref (e :: nil) t) v
+| bsem_prim_deref : forall hm e t l ofs v,
+                    bsem_expr_slv hm e l ofs ->
+                    deref_addr (typeof_expr e) hm l.(lname) ofs l.(lbitfield) v ->
+                    typeof_expr e = t ->
+                    BeeTypes.type_is_volatile t = false ->
+                    bsem_expr_srv hm (Prim Deref (e :: nil) t) v
 | bsem_prim_uop : forall hm e v uop  v' t ct v'' g g' i,
                   bsem_expr_srv hm e v ->
                   transBeePL_type (typeof_expr e) g = Res ct g' i ->
@@ -552,6 +546,7 @@ Inductive bsem_expr_srv : Memory.mem -> expr -> value -> Prop :=
                   bsem_expr_srv hm (Prim (Bop bop) (e1 :: e2 :: nil) t) v'
 | bsem_unit : forall hm, 
               bsem_expr_srv hm (Unit (Ptype Tunit)) Vunit.
+
 
 Inductive bsem_expr_srvs : Memory.mem -> list expr -> list value -> Prop :=
 | bsem_expr_srv_nil : forall hm, 
@@ -631,7 +626,7 @@ Inductive cont: Type :=
 | Kcond : expr -> expr -> cont -> cont (* after [x] in if {x} {e1} {e2} *)
 | Kcall : function ->           (* calling function *)
           vmap ->               (* local env of calling function *)
-          (expr -> expr) ->     (**r context of the call *)
+          (*(expr -> expr) -> *)    (**r context of the call *)
           type ->               (* type of call expression *)
           cont -> cont.          
 
@@ -677,24 +672,30 @@ Inductive bestep : state -> state -> Prop :=
               match e with Val _ _ => False | _ => True end ->
               typeof_expr e = t ->
               bestep (ExprState f e k vm m) (ExprState f (Val v t) k vm m)
-| step_deref_volatile : forall vm f C e t k m l ofs v, 
-                        leftcontext RV RV C ->
+| step_consti : forall f i t k vm m,
+                bestep (ExprState f (Const (ConsInt i) t) k vm m) (FinalState (Vint i) m)
+| step_constl : forall f i t k vm m,
+                bestep (ExprState f (Const (ConsLong i) t) k vm m) (FinalState (Vint64 i) m)
+| step_constu : forall f k vm m,
+                bestep (ExprState f (Const ConsUnit (Ptype Tunit)) k vm m) (FinalState Vunit m)
+| step_deref_volatile : forall vm f e t k m l ofs v, 
+                        (*leftcontext RV RV C ->*)
                         bsem_expr_slv vm m e l ofs ->
                         deref_addr (typeof_expr e) m l.(lname) ofs l.(lbitfield) v ->
                         typeof_expr e = t ->
                         BeeTypes.type_is_volatile t = true ->
-                        bestep (ExprState f (C (Prim Deref (e :: nil) t)) k vm m) (ExprState f (Val v t) k vm m)
-| step_prim_ref : forall vm f k C e v fid t m m' l ofs ct g g' i', 
-                  leftcontext RV RV C ->
+                        bestep (ExprState f (Prim Deref (e :: nil) t) k vm m) (ExprState f (Val v t) k vm m)
+| step_prim_ref : forall vm f k e v fid t m m' l ofs ct g g' i', 
+                  (*leftcontext RV RV C ->*)
                   bsem_expr_srv vm m e v ->
                   transBeePL_type t g = Res ct g' i' ->
                   (gensym ct) = ret fid ->
                   bind_variables vm m ({| vname := fid; vtype := t|} :: nil) (v :: nil) m' ->
                   bsem_expr_slv vm m' (Var {| vname := fid; vtype := t |}) l ofs -> 
-                  bestep (ExprState f (C (Prim Ref [:: e] t)) k vm m) 
-                         (ExprState f (C (Val (Vloc l.(lname) ofs) t)) k vm m') 
-| step_prim_massgn : forall vm f k C e1 e2 t ct1 ct2 l ofs m v g1 g2 g3 i i' v' m', 
-                     leftcontext RV RV C ->
+                  bestep (ExprState f (Prim Ref [:: e] t) k vm m) 
+                         (ExprState f (Val (Vloc l.(lname) ofs) t) k vm m') 
+| step_prim_massgn : forall vm f k e1 e2 t ct1 ct2 l ofs m v g1 g2 g3 i i' v' m', 
+                     (*leftcontext RV RV C ->*)
                      bsem_expr_slv vm m e1 l ofs ->
                      bsem_expr_srv vm m e2 v ->
                      transBeePL_type (typeof_expr e1) g1 = Res ct1 g2 i ->
@@ -702,47 +703,48 @@ Inductive bestep : state -> state -> Prop :=
                      sem_cast (transBeePL_value_cvalue v) ct2 ct1 m = Some (transBeePL_value_cvalue v') ->
                      assign_addr (typeof_expr e1) m l.(lname) ofs l.(lbitfield) v' m' v' -> 
                      typeof_expr e1 = t ->
-                     bestep (ExprState f (C (Prim Massgn (e1 :: e2 :: nil) t)) k vm m)
-                            (ExprState f (C (Val v' t)) k vm m')
-| step_bind : forall vm f k C x tx e1 v e2 e2' t m m',
-              leftcontext RV RV C ->
+                     bestep (ExprState f (Prim Massgn (e1 :: e2 :: nil) t) k vm m)
+                            (ExprState f (Val v' t) k vm m')
+| step_bind : forall vm f k x tx e1 v e2 e2' t m m' v' m'',
+              (*leftcontext RV RV C ->*)
               bsem_expr_srv vm m e1 v -> 
               subst vm m x v e2 m' e2' ->
-              bestep (ExprState f (C (Bind x tx e1 e2 t)) k vm m)
-                     (ExprState f (C e2') k vm m')
-| step_condition : forall vm f C e1 e2 e3 vb t k m b ct1 g g' i,
-                   leftcontext RV RV C ->
+              bestep (ExprState f e2' k vm m') (ExprState f (Val v' t) k vm m'') ->
+              bestep (ExprState f (Bind x tx e1 e2 t) k vm m)
+                     (ExprState f (Val v' t) k vm m'')
+| step_condition : forall vm f e1 e2 e3 vb t k m b ct1 g g' i,
+                   (*leftcontext RV RV C ->*)
                    bsem_expr_srv vm m e1 vb -> 
                    transBeePL_type (typeof_expr e1) g = Res ct1 g' i ->
                    bool_val (transBeePL_value_cvalue vb) ct1 m = Some true ->
-                   bestep (ExprState f (C (Cond e1 e2 e3 t)) k vm m)
-                          (ExprState f (C ((if b then e2 else e3))) k vm m)
-| step_call : forall vm m f k C e es t l vs fd,
-              leftcontext RV RV C ->
+                   bestep (ExprState f (Cond e1 e2 e3 t) k vm m)
+                          (ExprState f (if b then e2 else e3) k vm m)
+| step_call : forall vm m f k e es t l vs fd,
+              (*leftcontext RV RV C ->*)
               bsem_expr_srv vm m e (Vloc l Ptrofs.zero) ->
               bsem_expr_srvs vm m es vs ->
               Genv.find_funct ge (transBeePL_value_cvalue (Vloc l Ptrofs.zero)) = Some fd ->
               type_of_fundef fd = Ftype (typeof_exprs es) (get_effect_fundef fd) (get_rt_fundef fd) -> 
-              bestep (ExprState f (C (App e es t)) k vm m) 
-                     (CallState fd vs (Kcall f vm C t k) m)
+              bestep (ExprState f (App e es t) k vm m) 
+                     (CallState fd vs (Kcall f vm t k) m)
 | step_internal_fun : forall vm f vargs k m m' m'',
                       list_norepet (f.(fn_args) ++ f.(fn_vars)) ->
                       alloc_variables empty_vmap m (f.(fn_args) ++ f.(fn_vars)) vm m' -> 
                       bind_variables vm m' f.(fn_args) vargs m'' ->
                       bestep (CallState (Internal f) vargs k m) (ExprState f f.(fn_body) k vm m'')
-| step_final : forall vm f v t m m' k C,
-               leftcontext RV RV C ->
+| step_final : forall vm f v t m m' k,
+               (*leftcontext RV RV C ->*)
                (* free all the memory assigned to variables in a function *)
                Mem.free_list m (blocks_of_env vm) = Some m' ->
-               bestep (ExprState f (C (Val v t)) k vm m) (FinalState v m')
-| step_external_fun : forall vm f C ef ts es ty k e m vs t vres m' cef g g' i' bv,
-                      leftcontext RV RV C ->
+               bestep (ExprState f (Val v t) k vm m) (FinalState v m')
+| step_external_fun : forall vm f ef ts es ty k e m vs t vres m' cef g g' i' bv,
+                      (*leftcontext RV RV C ->*)
                       bsem_expr_srvs vm m es vs ->
                       befuntion_to_cefunction ef g = Res cef g' i' ->
                       external_call cef ge (transBeePL_values_cvalues vs) m t vres m' ->
                       transC_val_bplvalue vres = OK bv ->
-                      bestep (ExprState f (C (Eapp ef ts es ty)) k e m)
-                             (ExprState f (C (Val bv ty)) k e m').
+                      bestep (ExprState f (Eapp ef ts es ty) k e m)
+                             (ExprState f (Val bv ty) k e m').
 
 Definition bstep (S: state) (S': state) : Prop := bestep S S'. 
 
@@ -772,8 +774,7 @@ Inductive final_state : state -> Prop :=
 (** A state is safe if it cannot get stuck by doing any transition - 
     Either it reaches a final state or it takes step **)
 Definition safe (bge : genv) (s : state) : Prop :=
-forall s', bstep bge s s' ->
-final_state s' \/ exists s'', bstep bge s' s''.
+final_state s \/ exists s', bstep bge s s'.
 
 (** Transition semantics **)
 
@@ -1016,7 +1017,7 @@ Inductive ssem : state -> state -> Prop :=
 | s_call : forall C f e k m fd args t,
            callreduction e m fd args t ->
            context RV RV C ->
-           ssem (ExprState f (C e) k vm m) (CallState fd args (Kcall f vm C t k) m)
+           ssem (ExprState f (C e) k vm m) (CallState fd args (Kcall f vm t k) m)
 | s_stuck : forall C f e k m K,
             context K RV C ->
             ~(expr_safe K e m) ->

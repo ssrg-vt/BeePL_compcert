@@ -413,13 +413,6 @@ transBeePL_type (BeePL.fn_return f) g = Res (Csyntax.fn_return tf) g' i.
 Proof.
 Admitted.
 
-(* Preservation of volatile load between BeePL and Csyntax *)
-(*Lemma volatile_load_preserved : forall chunk m addr ofs tr v,
-Events.volatile_load bge chunk m addr ofs tr v ->
-Events.volatile_load (Csem.globalenv cprog) chunk m addr ofs tr v.
-Proof.
-move=> benv c*)
-
 (* Preservation of deref_addr between BeePL and Csyntax *) 
 Lemma deref_addr_translated:  forall ty m addr ofs bf v cty cv g g' i,
 deref_addr bge ty m addr ofs bf v ->
@@ -509,21 +502,6 @@ move=> m e v ce g g' i hr. move: ce g g' i. induction hr=> //=.
   rewrite /SimplExpr.bind in ht. 
   case ht: (transBeePL_type t g) ht=> [er | r g'' i'] //=.
   move=> [] h1 h2; subst. by apply esr_val. 
-(* Const int *)
-+ move=> ce g g' i' ht henv /=.
-  rewrite /SimplExpr.bind in ht.
-  case ht': (transBeePL_type t g) ht=> [er | r g'' i''] //=.
-  move=> [] h1 h2; subst. by apply esr_val.
-(* Const long *)
-+ move=> ce g g' i' ht henv /=.
-  rewrite /SimplExpr.bind in ht.
-  case ht': (transBeePL_type t g) ht=> [er | r g'' i''] //=.
-  move=> [] h1 h2; subst. by apply esr_val.
-(* Const unit *)
-+ move=> ce g g' i' /= ht henv /=.
-  rewrite /SimplExpr.bind in ht.
-  case ht': (ret Tvoid g) ht=> [er | r g'' i''] //=.
-  move=> [] h1 h2; subst. by apply esr_val.
 (* deref *)
 + move=> ce g g' i' hte henv /=.
   rewrite /transBeePL_expr_exprs /SimplExpr.bind in hte.
@@ -588,25 +566,186 @@ move=> s s'. elim: s=> //=.
 move=> hf. by inversion hf.
 Qed.
 
+Lemma decompose_expr: forall f e k m,
+BeePL.safe bge (BeePL.ExprState f e k benv m) -> 
+is_simple_expr e \/ exists S, bstep bge (BeePL.ExprState f e k benv m) S.
+Proof.
+move=> f e. move: f. elim: e=> //=.
+(* val *)
++ move=> v t f k m hs. by left.
+(* var *)
++ move=> v f k m hs. by left.
+(* const *)
++ move=> c t f k m hs. by left.
+(* app *)
++ move=> e hi es t f k m hs. right.
+  inversion hs; subst.
+  + by inversion H.
+  move: H. move=> [] s' he. by exists s'.
+(* builtin *)
++ move=> [] /=.
+  (* ref *)
+  + move=> [] //=.
+    + move=> t f k m he. inversion he; subst. + by inversion H.
+      move: H. move=> [] s' href. inversion href; subst. by inversion H5.
+    move=> e es t f k m hs. elim: es hs=> //=.
+    + move=> hs. rewrite /BeePL.safe in hs. inversion hs.
+      + by inversion H.
+      move: H. move=> [] s' href. right. by exists s'.
+    move=> e' es hi hs. rewrite /BeePL.safe in hs.
+    inversion hs; subst.
+    + by inversion H.
+    move: H. move=> [] s' he. inversion he; subst. by inversion H5.
+  (* deref *)
+  + move=> [] //=.
+    + move=> t f k m hs. rewrite /BeePL.safe in hs.
+      inversion hs; subst.
+      + by inversion H.
+      move: H. move=> [] s' he. inversion he; subst. by inversion H5.
+    move=> e es t f k m hs. elim: es hs=> //=.
+    + move=> hs. rewrite /BeePL.safe in hs. inversion hs; subst.
+      + by inversion H.
+      move: H. move=> [] s' he. right. by exists s'.
+    move=> e' es hi hs. rewrite /BeePL.safe in hs.
+    inversion hs; subst.
+    + by inversion H.
+    move: H. move=> [] s' he. inversion he; subst. by inversion H5.
+  (* massgn *)
+  + move=> [] //=.
+    + move=> t f k m hs. inversion hs; subst.
+      + by inversion H.
+      move: H. move=> [] s' he. inversion he; subst. by inversion H5.
+    move=> e es t f k m hs. elim: es hs=> //=.
+    + move=> hs. rewrite /BeePL.safe in hs. inversion hs; subst.
+      + by inversion H.
+      move: H. move=> [] s' he. right. by exists s'.
+    move=> e' es hi hs. rewrite /BeePL.safe in hs.
+    inversion hs; subst.
+    + by inversion H.
+    move: H. move=> [] s' he. inversion he; subst. by inversion H5.
+    right. exists (BeePL.ExprState f (Val v' (typeof_expr e)) k benv m').
+    by apply step_prim_massgn with ct1 ct2 l ofs v g1 g2 g3 i i'.
+  (* unary *)
+  + move=> u [] //=.
+    + move=> t f k m hs. inversion hs; subst.
+      + by inversion H. move: H. move=> [] s' he. inversion he; subst. by inversion H5.
+    move=> e es t f k m hs. elim: es hs=> //=.
+    + move=> hs. inversion hs; subst.
+      + by inversion H.
+      move: H. move=> [] s' he. right. by exists s'.
+    move=> e' es hi hs. rewrite /BeePL.safe in hs.
+    inversion hs; subst.
+    + by inversion H.
+    move: H. move=> [] s' he. inversion he; subst. by inversion H5.
+  (* binary *)
+  + move=> b [] //=.
+    + move=> t f k m hs. inversion hs; subst.
+      + by inversion H. move: H. move=> [] s' he. inversion he; subst. by inversion H5.
+    move=> e es t f k m hs. elim: es hs=> //=.
+    + move=> hs. inversion hs; subst.
+      + by inversion H.
+      move: H. move=> [] s' he. right. by exists s'.
+    move=> e' es hi hs. rewrite /BeePL.safe in hs.
+    inversion hs; subst.
+    + by inversion H.
+    move: H. move=> [] s' he. inversion he; subst. inversion H5; subst.
+    right. exists (BeePL.ExprState f (Val v (typeof_expr (Prim (Bop b) [:: e; e'] t))) k benv m).
+    apply BeePL.step_expr; auto. 
+  (* run *) (* fix me *)
+  move=> m es t f k m' hs. inversion hs; subst.
+  + by inversion H.
+  move: H. move=> [] s' H. inversion H; subst. by inversion H6.
+(* bind *)
++ move=> i t e hi e' hi' t' f k m hs. inversion hs; subst.
+  + by inversion H.
+  move: H. move=> [] s' he. right. by exists s'.
+(* cond *)
++ move=> e hi e1 hi1 e2 hi2 t f k m hs. inversion hs; subst.
+  + by inversion H.
+  move: H. move=> [] s' H. right. by exists s'.
+(* unit *)
++ move=> t f k m hs. by left.
+(* addr *)
++ move=> l i f k m hs. by left.
+(* hexpr *) (* fix me *)
++ move=> m e hi t f k m' hs. inversion hs; subst.
+  + by inversion H.
+  move: H. move=> [] s' he. right. by exists s'.
+(* eapp *)
+move=> e ts es t f k m hs. inversion hs; subst.
++ by inversion H.
+move: H. move=> [] s' he. right. by exists s'.
+Qed.
+  
+(* Progress for expression state: A safe expression state always make progress except the val *)
+Lemma expr_state_can_step: forall f e k m,
+BeePL.safe bge (BeePL.ExprState f e k benv m) ->
+exists S, bstep bge (BeePL.ExprState f e k benv m) S.
+Proof.
+move=> f e k m hs. move: f k benv m hs. elim: e=> //=.
+(* Val *)
++ move=> v t f k benv' m hs. inversion hs; subst.
+  + by inversion H.
+  move: H. move=> [] s' he. by exists s'. 
+(* Var *)
++ move=> v t f k m hs. inversion hs; subst; auto.
+  inversion H.
+(* Const *)
+Admitted.  
+
 Lemma safe_steps: forall s s',
 BeePL.safe bge s -> 
 bstep bge s s' -> 
 BeePL.safe bge s'.
 Proof.
 move=> s. elim: s=> //=.
-+ admit.
++ move=> f e k vm s' s'' hs he. move: f k vm s' s'' hs he. elim: e=> //=.
+  (* val *)
+  + move=> v t f k vm s' s'' hs he. inversion he; subst.
+    + by inversion H6.
+    inversion hs; subst. + by inversion H.
+    move: H. move=> [] s'' H. rewrite /BeePL.safe. by left.
+  (* var *)
+  + move=> v f k vm s' s'' hs he. inversion he; subst.
+    by inversion H5.
+  (* const *)
+  + move=> c t f k vm s' s'' hs he. inversion he; subst.
+    + by inversion H5; subst.
+    + by left.
+    + by left.
+    by left.
+  (* app *)
+  + move=> e hi es t f k vm s' s'' hs he. inversion he; subst.
+    (* not possible in call *)
+    + inversion he; subst. by inversion H2.
+    (* step to callstate *)
+    inversion he; subst. rewrite /BeePL.safe /=.
+    right. admit.
+  (* builtin *)
+  + admit.
+  (* bind *)
+  + admit.
+  (* cond *)
+  + admit.
+  (* unit *)
+  + admit.
+  (* addr *)
+  + admit.
+  + (* hexpr *)
+     admit.
+  (* eapp *)
+  admit.  
 (* call state *)
 + move=> fd args k m s' hs he. elim: s' he=> //=.
   + move=> f e k' vm m' he. inversion he; subst.
-    rewrite /BeePL.safe. rewrite /BeePL.safe in hs.
-    move=> s' he'. move: (hs (BeePL.ExprState f (BeePL.fn_body f) k' vm m') he).
-    move=> [].
-    (* final state (not possible) *)
-    + move=> hf. 
-      have hf':= final_state_no_step (BeePL.ExprState f (BeePL.fn_body f) k' vm m') s' hf.
-      move: hf'. by move=> [].
-    admit.
-  + move=> fd' args' k' m' he. by inversion he; subst.
+    inversion hs; subst.
+    (* is not final state *)
+    + by inversion H.
+    move: H. move=> [] s'' H. inversion H; subst.
+    right. admit.
+    (* is not final state *)
+    move=> [] s'' hs'. admit.
+  + move=> fd' args' k' m' he. admit. 
   + move=> res m' he. by inversion he; subst.
   move=> he. by inversion he; subst.
 (* final state *)
@@ -631,14 +770,6 @@ Admitted.
   | RV => exists v, eval_simple_rvalue e m a v
   end.
 Proof.*)
-
-(* Progress *)
-Lemma can_step: forall f e k m,
-BeePL.safe bge (BeePL.ExprState f e k benv m) ->
-exists S, bstep bge (BeePL.ExprState f e k benv m) S.
-Proof.
-move=> f e k m hs. rewrite /BeePL.safe in hs.
-Admitted.
 
 (* Complete Me : Medium *)
 Lemma bsem_cexpr_list :
@@ -803,12 +934,12 @@ Inductive match_bcont_ccont : composite_env -> BeePL.cont -> Csem.cont -> Prop :
 | match_Kdo : forall bc cc,
               match_bcont_ccont bprog.(prog_comp_env) bc cc ->
               match_bcont_ccont bprog.(prog_comp_env) (BeePL.Kdo bc) (Csem.Kdo cc)
-| match_Kcall : forall bf cf vm cenv CC BC bt ct bc cc,
+| match_Kcall : forall bf cf vm cenv CC bt ct bc cc,
                 (* add linking order ?? *)
                 transBeePL_function_function bf = OK cf ->
                 match_env benv cenv ->
                 match_bcont_ccont bprog.(prog_comp_env) bc cc ->
-                match_bcont_ccont bprog.(prog_comp_env) (BeePL.Kcall bf vm bt BC bc) 
+                match_bcont_ccont bprog.(prog_comp_env) (BeePL.Kcall bf vm bt bc) 
                                        (Csem.Kcall cf cenv CC ct cc).
 
 (*** Matching between states ***) 

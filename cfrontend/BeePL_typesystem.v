@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Coqlib Memory Ctypes Memtype.
-Require Import BeePL_aux BeePL_mem BeeTypes BeePL BeePL_auxlemmas BeePL_compiler_proofs.
+Require Import BeePL_aux BeePL_mem BeeTypes BeePL BeePL_auxlemmas BeePL_sem_proofs BeePL_compiler_proofs.
 From mathcomp Require Import all_ssreflect. 
 
 Definition empty_effect : effect := nil. 
@@ -436,6 +436,20 @@ Values.Val.has_type v (typ_of_type ct2).
 Proof.
 Admitted.
 
+(* Progress with respect to type system and bsem_expr *)
+Lemma progress_bsem_expr : forall Gamma Sigma bge vm m vm' m' e ef t, 
+type_expr Gamma Sigma e ef t ->
+exists v, bsem_expr bge vm m e vm' m' v.
+Proof.
+move=> Gamma Sigma bge vm m vm' m' e ef t ht. 
+move: Gamma Sigma bge vm m vm' m' ef t ht. elim: e=> //=.
+(* Val *)
++ move=> v t Gamma Sigma bge vm m vm' m' ef t' ht.
+  inversion ht; subst.
+  (* unit *)
+Admitted.
+
+
 Section Subject_Reduction.
 
 Variable (bge : genv).
@@ -461,10 +475,6 @@ induction hr=> //=.
 (* Val *)
 + move=> Gamma Sigma ef t' ht. 
   by inversion ht; subst; rewrite /typeof_value /wtype_of_type.
-(* Const int *)
-+ move=> Gamma Sigma ef t' ht. by inversion ht; subst; rewrite /wtype_of_type.
-(* Const long *)
-+ move=> Gamma Sigma ef t' ht. by inversion ht; subst; rewrite /wtype_of_type.
 (* Deref *)
 + move=> Gamma Sigma ef t' ht.
   inversion ht; subst. rewrite H7.
