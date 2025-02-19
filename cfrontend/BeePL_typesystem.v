@@ -48,11 +48,11 @@ Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> P
                    type_expr Gamma Sigma (Prim Massgn (e::e'::nil) (Ptype Tunit)) (ef ++ ef' ++ (Write h :: nil)) (Ptype Tunit)
 | Ty_prim_uop : forall Gamma Sigma op e ef t,
                 type_expr Gamma Sigma e ef t ->
-                type_expr Gamma Sigma (Prim (Uop op) (e::nil) t) ef t 
-| Ty_prim_bop : forall Gamma Sigma op e ef t tr e',
+                type_expr Gamma Sigma (Prim (Uop op) (e::nil) t) ef t
+| Ty_prim_bop : forall Gamma Sigma op e ef t e',
                 type_expr Gamma Sigma e ef t ->
                 type_expr Gamma Sigma e' ef t ->
-                type_expr Gamma Sigma (Prim (Bop op) (e::e'::nil) tr) ef tr 
+                type_expr Gamma Sigma (Prim (Bop op) (e::e'::nil) t) ef t 
 | Ty_bind : forall Gamma Sigma x t e e' t' ef ef',
             type_expr Gamma Sigma e ef t ->
             type_expr (extend_context Gamma x t) Sigma e' ef' t' ->
@@ -123,10 +123,10 @@ Context (Htmassgn : forall Gamma Sigma e1 e2 ef1 ef2 h bt a,
 Context (Htop : forall Gamma Sigma op e ef t, 
                 Pt Gamma Sigma e ef t ->
                 Pt Gamma Sigma (Prim (Uop op) (e :: nil) t) ef t).
-Context (Htbop : forall Gamma Sigma op e1 e2 ef t tr, 
+Context (Htbop : forall Gamma Sigma op e1 e2 ef t, 
                  Pt Gamma Sigma e1 ef t ->
                  Pt Gamma Sigma e2 ef t ->
-                 Pt Gamma Sigma (Prim (Bop op) (e1 :: e2 :: nil) tr) ef tr).
+                 Pt Gamma Sigma (Prim (Bop op) (e1 :: e2 :: nil) t) ef t).
 Context (Htbind : forall Gamma Sigma x t e e' t' ef ef', 
                   Pt Gamma Sigma e ef t ->
                   Pt (extend_context Gamma x t) Sigma e' ef' t' ->
@@ -174,8 +174,8 @@ apply type_exprs_type_expr_ind_mut=> //=.
 + move=> Gamma Sigma op e ef t hte ht.
   by apply Htop.
 (* Mbop *)
-+ move=> Gamma Sigma bop e ef tr e' hte ht hte' ht' heq.
-  by apply Htbop with tr.
++ move=> Gamma Sigma bop e ef e' hte ht hte' ht' heq.
+  by apply Htbop.
 (* Bind *)
 + move=> Gamma Sigma h t e e' t' ef hte ht hte' ht'.
   by apply Htbind.
@@ -227,11 +227,11 @@ apply type_expr_indP => //=.
   by move: (ih ef0 (Reftype h0 (Bprim bt) a0) H5)=> [] [] h1 h2 h3; subst.
 + move=> Gamma Sigma e1 e2 ef1 ef2 h bt a ih ih' ef' t' ht; inversion ht; subst.
   move: (ih' ef'0 (Ptype bt0) H6)=> [] h1 h2; subst.
-  by move: (ih ef (Reftype h0 (Bprim bt0) a0) H3)=> [] [] h1' h2' h3' h4'; subst.
+  by move: (ih ef (Reftype h0 (Bprim bt0) a0) H3)=> [] [] h1' h2' h3' h4'; subst. 
 + move=> Gamma Sigma op e ef t ih ef' t' ht; inversion ht; subst.
   by move: (ih ef' t' H6)=> [] h1 h2; subst.
-+ move=> Gamma Sigma op e1 e2 ef t tr ih ih' ef' t' ht; inversion ht; subst.
-  by move: (ih ef' t0 H7)=> [] h1 h2; subst.
++ move=> Gamma Sigma op e1 e2 ef t ih ih' ef' t' ht; inversion ht; subst.
+  by move: (ih ef' t' H7)=> [] h1 h2; subst.
 + move=> Gamma Sigma x t e e' t' ef ef' ih ih' ef'' t'' ht; inversion ht; subst.
   move: (ih ef0 t H8)=> [] h1 h2; subst.
   by move: (ih' ef'0 t'' H9)=> [] h1' h2'; subst.
@@ -436,6 +436,17 @@ Values.Val.has_type v (typ_of_type ct2).
 Proof.
 Admitted.
 
+Lemma eq_bop_types : forall cenv v1 t1 g g' i v2 t2 g'' i' ct1 ct2 op m v v',
+transBeePL_type t1 g = SimplExpr.Res ct1 g' i ->
+transBeePL_type t2 g' = SimplExpr.Res ct2 g'' i' ->
+Cop.sem_binary_operation cenv op v1 ct1 v2 ct2 m = Some v ->
+transC_val_bplvalue v = Errors.OK v' ->
+Values.Val.has_type v (typ_of_type ct1) ->
+Values.Val.has_type v (typ_of_type ct2) ->
+typeof_value v' (wtype_of_type t1) /\ typeof_value v' (wtype_of_type t2).
+Proof.
+Admitted.
+
 Lemma subject_reduction_bsem_expr_exprs: 
 (forall Gamma Sigma es efs ts bge vm m vm' m' vs, type_exprs Gamma Sigma es efs ts ->
                                                   bsem_exprs bge vm m es m' vm' vs ->
@@ -475,7 +486,53 @@ apply type_expr_indP => //=.
 (* const long *)
 + move=> Gamma Sigma t s i a hteq bge vm m vm' m' v hv. by inversion hv; subst.
 (* const unit *)
-+ move=> Gamma Sigma t.
++ move=> Gamma Sigma t hteq bge vm m vm' m' v hv. by inversion hv; subst.
+(* app *)
++ move=> Gamma Sigma e es rt ef ef' ts ef'' hie hies bge vm m vm' m' v hv.
+  inversion hv; subst. move: (hie bge vm m vm2 m2 (Vloc l Ptrofs.zero) H2)=> het.
+  move: (hies bge vm3 m3 vm4 m4 vs H7)=> hest. by inversion H4; subst.
+(* ref *)
++ move=> Gamma Sigma e ef h bt a hi bge vm m vm' m' v hv. by inversion hv; subst.
+(* deref *)
++ move=> Gamma Sigma e ef h bt a hi bge vm m vm' m' v hv. inversion hv; subst.
+  move: (hi bge vm m vm' m' (Vloc l ofs) H3)=> hlt. 
+  have hvt := deref_addr_val_ty bge (typeof_expr e) m l ofs bf v H7.
+  by rewrite H0 /= in hvt.
+(* massgn *)
++ move=> Gamma Sigma e1 e2 ef1 ef2 h bt a hi1 hi2 bge vm m vm' m' v hv.
+  by inversion hv; subst. 
+(* uop *)
++ move=> Gamma Sigma op e ef t he bge vm m vm' m' v hv. inversion hv; subst.
+  have hvt' := uop_type_preserve op (transBeePL_value_cvalue v0) ct m' v' H9.
+  by have := eq_uop_types op (typeof_expr e) g g' i (transBeePL_value_cvalue v0) ct m' v' v
+             H5 H9 hvt' H10.
+(* bop *)
++ move=> Gamma Sigma op e1 e2 ef t he1 he2 bge vm m vm' m' v hv. inversion hv; subst.
+  have [hvt0 hvt0'] := bop_type_preserve cenv op (transBeePL_value_cvalue v1) ct1 
+                       (transBeePL_value_cvalue v2) ct2 m' v0 H12.
+  by have [hvt hvt'] := eq_bop_types cenv (transBeePL_value_cvalue v1) (typeof_expr e1) g g' i
+          (transBeePL_value_cvalue v2) (typeof_expr e2) g'' i' ct1 ct2 op m' v0 v H7 H11 H12 H13 hvt0 hvt0'.
+(* bind *)
++ move=> Gamma Sigma x t e e' t' ef ef' hie hie' bge vm m vm' m' v hv. inversion hv; subst.
+  move: (hie bge vm m vm'0 m'0 v0 H9)=> hvt0. admit.
+(* cond *)
++ move=> Gamma Sigma e1 e2 e3 ef1 ef2 ef3 tb t het1 hb het2 het3 bge vm m vm' m' v hv.
+  inversion hv; subst.
+  (* true *)
+  + by move: (het2 bge vm'0 m'0 vm' m' v H11).
+  (* false *)
+  by move: (het3 bge vm'0 m'0 vm' m' v H11).
+(* unit *)
++ move=> Gamma Sigma bge vm m vm' m' v he. by inversion he; subst.
+(* addr *)
++ move=> Gamma Sigma l h bt a ofs ht bge vm m vm' m' v he. 
+  rewrite ht /=. by inversion he; subst.
+(* nil *)
++ move=> Gamma Sigma bge vm m vm' m' vs hv. by inversion hv; subst.
+(* cons *)
+move=> Gamma Sigma e es t ef ts efs hi his bge vm m vm' m' vs hv.
+inversion hv; subst. move: (hi bge vm m vm'0 m'0 v H3) => hvt.
+move: (his bge vm'0 m'0 vm' m' vs0 H7)=> hvts. by rewrite /typeof_values.
 Admitted.  
 
 
@@ -517,7 +574,7 @@ induction hr=> //=.
           v'' H H1 hvt' H2.
 (* Bop *)
 + move=> Gamma Sigma ef t' ht; subst. inversion ht; subst.
-  move: (IHhr1 Gamma Sigma ef t0 H12)=> hvt1. move: (IHhr2 Gamma Sigma ef t0 H13)=> hvt2.
+  move: (IHhr1 Gamma Sigma ef t' H12)=> hvt1. move: (IHhr2 Gamma Sigma ef t' H13)=> hvt2.
   have [hvt hvt'] := bop_type_preserve bge bop (transBeePL_value_cvalue v1) ct1 
      (transBeePL_value_cvalue v2) ct2 hm v H2.
   by have := cval_bval_type_eq v ct1 v' (typeof_expr e1) g g' i hvt H3 H; case: H1=> [] h1 h2; subst.
