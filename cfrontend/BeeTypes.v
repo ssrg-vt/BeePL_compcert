@@ -12,7 +12,8 @@ Inductive effect_label : Type :=
 | Divergence : effect_label          (* divergence effect *)
 | Read : ident -> effect_label       (* read heap effect *)
 | Write : ident -> effect_label      (* write heap effect *)
-| Alloc : ident -> effect_label      (* allocation heap effect *).
+| Alloc : ident -> effect_label      (* allocation heap effect *)
+| Hstate : ident -> effect_label      (* state heap effect *).
 
 Definition effect := list effect_label.  (* row of effects *)
 
@@ -92,6 +93,7 @@ match e1, e2 with
 | Read id1, Read id2 => (id1 =? id2)%positive
 | Write id1, Read id2 => (id1 =? id2)%positive
 | Alloc id1, Alloc id2 => (id1 =? id2)%positive
+| Hstate id1, Hstate id2 => (id1 =? id2)%positive
 | _, _ => false
 end.
 
@@ -140,7 +142,7 @@ match b with
 | BMint64 => Mint64
 end.
 
-Definition typeof_chunk (c : bmemory_chunk) : wtype :=
+Definition wtypeof_chunk (c : bmemory_chunk) : wtype :=
 match c with 
 | BMbool => Twint 
 | BMint8signed => Twint 
@@ -385,6 +387,5 @@ Definition store_context := PTree.t type.
 Definition empty_context := (PTree.empty type).
 
 Definition extend_context (Gamma : ty_context) (k : ident) (t : type) := PTree.set k t Gamma. 
-
 
 

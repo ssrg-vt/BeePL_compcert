@@ -29,50 +29,37 @@ Inductive value : Type :=
 Definition default_attr (t : type) := {| attr_volatile := false;  
                                          attr_alignas := (attr_alignas (attr_of_type t)) |}.
 
-Definition typeof_value (v : value) (t : wtype) : Prop :=
-match v with 
-| Vunit => match t with 
-           | Twuint => True 
-           end
-| Vint i => match t with 
-           | Twint => True 
-           | _ => False 
-           end
-| Vint64 i => match t with 
-           | Twlong => True 
-           | _ => False 
-           end
-| Vloc p ptrofs => match t with 
-                   | Twlong => Archi.ptr64 = true
-                   | Twint => Archi.ptr64 = false 
-                   | _ => False
-                   end    
+Definition wtypeof_value (v : value) (t : wtype) : Prop :=
+match v, t with 
+| Vunit, Twuint => True 
+| Vint i, Twint => True 
+| Vint64 i, Twlong => True 
+| Vloc p ofs, Twint => Archi.ptr64 = false 
+| Vloc p ofs, Twlong => Archi.ptr64 = true
+| _, _ => False
 end.
 
-Definition typeof_value' (v : value) (t : type) : Prop :=
-match v with 
-| Vunit =>  match t with 
-           | Tuint => True 
-           end
-| Vint i => match t with 
-           | Ptype (Tint sz s a) => True 
-           | _ => False 
-           end
-| Vint64 i => match t with 
-           | Ptype (Tlong s a) => True 
-           | _ => False 
-           end
-| Vloc p ptrofs => match t with 
-                   | Reftype h b a => True (* targeting only 64 bit arch *)
-                   | _ => False
-                   end    
+Definition typeof_value (v : value) (t : type) : Prop :=
+match v, t with 
+| Vunit, (Ptype Tunit) => True 
+| Vint i, Ptype (Tint sz s a) => True 
+| Vint64 i, Ptype (Tlong s a) => True 
+| Vloc p ofs, Reftype h b a => True (* targeting only 64 bit arch *)
+| _, _ => False
 end.
 
 Definition vals := list value.
 
 Definition of_int (i : int) : value := Vint i.
 
-Fixpoint typeof_values (vs : list value) (ts : list BeeTypes.wtype) : Prop :=
+Fixpoint wtypeof_values (vs : list value) (ts : list BeeTypes.wtype) : Prop :=
+match vs, ts with 
+| nil, nil => True
+| v :: vs, t :: ts => wtypeof_value v t /\ wtypeof_values vs ts
+| _, _ => False
+end.
+
+Fixpoint typeof_values (vs : list value) (ts : list BeeTypes.type) : Prop :=
 match vs, ts with 
 | nil, nil => True
 | v :: vs, t :: ts => typeof_value v t /\ typeof_values vs ts
@@ -206,7 +193,8 @@ match e with
 | e :: es => typeof_expr e :: typeof_exprs es
 end.
 
-Record function : Type := mkfunction { fn_return: type;
+Record function : Type := mkfunction { (*fn_sec: option string; XDP ==> SEC("xdp") *)
+                                       fn_return: type;
                                        fn_effect: effect;
                                        fn_callconv: calling_convention;
                                        fn_args: list vinfo;
@@ -497,6 +485,15 @@ match e with
 | Eapp ef ts es t => false
 end.
 
+Inductive well_formed_value : value -> type -> Prop :=
+| wf_vunit : well_formed_value Vunit (Ptype Tunit)
+| wf_vint : forall sz s a i, 
+            well_formed_value (Vint i) (Ptype (Tint sz s a))
+| wf_vlong : forall s a i,
+             well_formed_value (Vint64 i) (Ptype (Tlong s a))
+| wf_vloc : forall l ofs h t a,
+            well_formed_value (Vloc l ofs) (Reftype h t a).
+
 Section Simpl_big_step_semantics.
 
 Variable (vm : vmap).
@@ -521,6 +518,7 @@ Inductive bsem_expr_slv : Memory.mem -> expr -> linfo -> ptrofs -> Prop :=
               bsem_expr_slv hm (Addr l ofs) l ofs.
 Inductive bsem_expr_srv : Memory.mem -> expr -> value -> Prop :=
 | bsem_val : forall hm v t,
+             well_formed_value v t ->
              bsem_expr_srv hm (Val v t) v
 | bsem_prim_deref : forall hm e t l ofs v,
                     bsem_expr_slv hm e l ofs ->

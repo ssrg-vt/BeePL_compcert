@@ -13,6 +13,7 @@ Variable (ge : genv).
 (* Big step semantics without lv, rv, or context *)
 Inductive bsem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> value -> Prop := 
 | bsem_value : forall vm m v t,
+               well_formed_value v t ->
                bsem_expr vm m (Val v t) m vm v
 | bsem_lvar : forall vm m x t l ofs h a v,
              vm!(x.(vname)) = Some (l, Reftype h (Bprim t) a) -> 
@@ -37,10 +38,10 @@ Inductive bsem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
                list_norepet (fd.(fn_args) ++ fd.(BeePL.fn_vars)) ->
                alloc_variables vm2 m2 (fd.(fn_args) ++ fd.(BeePL.fn_vars)) vm3 m3 -> 
                bsem_exprs vm3 m3 es m4 vm4 vs ->
-               typeof_values vs (wtypes_of_types (extract_types_vinfos fd.(fn_args))) ->
+               typeof_values vs (extract_types_vinfos fd.(fn_args)) ->
                bind_variables ge vm4 m4 fd.(fn_args) vs m5  ->
                bsem_expr vm4 m5 fd.(BeePL.fn_body) m6 vm5 rv -> 
-               typeof_value rv (wtype_of_type (get_rt_fundef (Internal fd))) ->
+               typeof_value rv (get_rt_fundef (Internal fd)) ->
                t = (get_rt_fundef (Internal fd)) ->
                bsem_expr vm1 m1 (App e es t) m6 vm5 rv
 | bsem_ref : forall vm m e vm' m' vm'' m'' v fid l ofs g ct g' i' h a t,
@@ -134,6 +135,7 @@ Variable (ge : genv).
 
 Inductive ssem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> BeePL.expr -> Prop :=
 | ssem_value : forall vm m v t,
+               well_formed_value v t ->
                ssem_expr vm m (Val v t) m vm (Val v t)
 | ssem_lvar : forall vm m x t l ofs h a v,
               vm!(x.(vname)) = Some (l, Reftype h (Bprim t) a) -> 
@@ -177,6 +179,7 @@ Inductive ssem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
               bind_variables ge vm m ({| vname := fid; vtype := Ptype t|} :: nil) (v :: nil) m' ->
               ssem_expr vm' m' (Var {| vname := fid; vtype := Ptype t |}) m'' vm'' (Val (Vloc l ofs) (Reftype h (Bprim t) a)) -> 
               ssem_expr vm m (Prim Ref [:: (Val v (Ptype t))] (Reftype h (Bprim t) a)) m'' vm'' 
+              (*(Hexpr m'' (Val (Vloc l ofs) (Reftype h (Bprim t) a)) (Reftype h (Bprim t) a))*)
                              (Val (Vloc l ofs) (Reftype h (Bprim t) a))
 | ssem_deref1 : forall vm m e t m' vm' e',
                 ssem_expr vm m e m' vm' e' ->
@@ -184,7 +187,8 @@ Inductive ssem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
                                (Prim Deref (e' :: nil) (Ptype t))
 | ssem_deref2 : forall vm m m' vm' l ofs bf v h a t,
                 deref_addr ge (Ptype t) m l ofs bf v ->
-                ssem_expr vm m (Prim Deref [:: (Val (Vloc l ofs) (Reftype h (Bprim t) a))] (Ptype t)) m' vm' (Val v (Ptype t))
+                ssem_expr vm m (Prim Deref [:: (Val (Vloc l ofs) (Reftype h (Bprim t) a))] (Ptype t)) m' vm' 
+                               (Val v (Ptype t))
 | sem_massgn1 : forall vm m e1 e2 m' vm' e1',  
                 ssem_expr vm m e1 m' vm' e1' ->
                 ssem_expr vm m (Prim Massgn (e1 :: e2 :: nil) (Ptype Tunit)) m' vm' 
@@ -247,6 +251,12 @@ Inductive ssem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
             ssem_expr vm m (Unit (Ptype Tunit)) m vm (Val Vunit (Ptype Tunit))
 | ssem_adr : forall vm m l ofs,
              ssem_expr vm m (Addr l ofs) m vm (Val (Vloc l.(lname) ofs) l.(ltype))
+| ssem_hexpr1 : forall vm m e m' vm' e' t,
+                ssem_expr vm m e m' vm' e' ->
+                ssem_expr vm m (Hexpr m e t) m' vm' (Hexpr m e' t)
+(* fix me : hexpr m, l should take step to ?? *)
+| ssem_hexpr2 : forall vm m h bt a l ofs t,
+                ssem_expr vm m (Hexpr m (Val (Vloc l ofs) (Reftype h (Bprim bt) a)) t) m vm (Val (Vloc l ofs) (Reftype h (Bprim bt) a))
 | ssem_eapp : forall vm m es vm' m' m'' vs ef g cef g' i' vres bv ts ty t,
               ssem_exprs vm m es m' vm' vs ->
               befuntion_to_cefunction ef g = Res cef g' i' ->
@@ -267,6 +277,12 @@ Definition is_value (e : BeePL.expr) : bool :=
 match e with 
 | Val _ _ => true 
 | _ => false
+end.
+
+Fixpoint is_values (es : list BeePL.expr) : bool :=
+match es with 
+| nil => true
+| e :: es => is_value e && is_values es
 end.
 
 (** An expr is safe if it cannot get stuck by doing any transition - 
