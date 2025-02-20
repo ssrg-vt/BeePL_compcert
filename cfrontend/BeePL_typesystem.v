@@ -475,7 +475,37 @@ Admitted.
 (* Stateful effects cannot be discarded :
    Expressions like ref, deref, massgn cannot discard the stateful effect even in the case 
    where it reduces to value *)
-
+Lemma stateful_effects_preserved : 
+(forall Gamma Sigma es efs ts bge vm m vm' m' es' efs' ts', 
+        type_exprs Gamma Sigma es efs ts ->
+        is_stateful_exprs es = true /\ is_stateful_effect efs = true ->
+        ssem_exprs bge vm m es m' vm' es' ->
+        type_exprs Gamma Sigma es' efs' ts' ->
+        is_stateful_effect efs') /\
+(forall Gamma Sigma e ef t bge vm m vm' m' e' ef' t', 
+        type_expr Gamma Sigma e ef t ->
+        is_stateful_expr e = true /\ is_stateful_effect ef = true ->
+        ssem_expr bge vm m e m' vm' e' ->
+        type_expr Gamma Sigma e' ef' t' ->
+        is_stateful_effect ef').
+Proof.
+suff : (forall Gamma Sigma es efs ts, 
+        type_exprs Gamma Sigma es efs ts ->
+        forall bge vm m vm' m' es' efs' ts', 
+        is_stateful_exprs es = true /\ is_stateful_effect efs = true ->
+        ssem_exprs bge vm m es m' vm' es' ->
+        type_exprs Gamma Sigma es' efs' ts' ->
+        is_stateful_effect efs') /\
+        (forall Gamma Sigma e ef t, 
+        type_expr Gamma Sigma e ef t ->
+        forall bge vm m vm' m' e' ef' t', 
+        is_stateful_expr e = true /\ is_stateful_effect ef = true ->
+        ssem_expr bge vm m e m' vm' e' ->
+        type_expr Gamma Sigma e' ef' t' ->
+        is_stateful_effect ef').
++ move=> [] ih ih'. admit.
+apply type_expr_indP=> //=.
+Admitted.
 
 Lemma subject_reduction_ssem_expr_exprs: 
 (forall Gamma Sigma es efs ts bge vm m vm' m' es', type_exprs Gamma Sigma es efs ts ->
@@ -491,7 +521,6 @@ suff : (forall Gamma Sigma es efs ts, type_exprs Gamma Sigma es efs ts ->
        (forall Gamma Sigma e ef t, type_expr Gamma Sigma e ef t ->
                                    forall bge vm m vm' m' e', ssem_expr bge vm m e m' vm' e' ->
                                                              type_expr Gamma Sigma e' ef t).
-Proof.
 + move=> [] ih ih'. split=> //=.
   + move=> Gamma Sigma es efs ts bge vm m vm' m' es' hts hes.
     by move: (ih Gamma Sigma es efs ts hts bge vm m vm' m' es' hes).

@@ -6,6 +6,34 @@ Require Import Initializersproof Cstrategy BeePL_auxlemmas Coqlib Errors SimplEx
 
 From mathcomp Require Import all_ssreflect. 
 
+Definition is_stateful_expr (e : BeePL.expr) : bool :=
+match e with 
+| Val e t => true 
+| Var x => false
+| Const c t => false
+| App e es t => true
+| Prim b es t => match b with 
+                 | Ref => true 
+                 | Deref => true 
+                 | Massgn => true 
+                 | Uop o => true 
+                 | Bop o => true
+                 | Run _ => false (* fix me *)
+                 end
+| Bind x tx e e' t => true 
+| Cond e1 e2 e3 t => true 
+| Unit t => false
+| Addr l t => false
+| Hexpr m e t => false (* fix me *)
+| BeePL.Eapp ef ts es t => true 
+end.
+
+Fixpoint is_stateful_exprs (es : list BeePL.expr) : bool :=
+match es with 
+| nil => true
+| e :: es => is_stateful_expr e && is_stateful_exprs es
+end.
+
 Section Big_Step_Semantics.
 
 Variable (ge : genv).

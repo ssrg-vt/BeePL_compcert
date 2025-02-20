@@ -17,6 +17,22 @@ Inductive effect_label : Type :=
 
 Definition effect := list effect_label.  (* row of effects *)
 
+Definition is_stateful_effectlabel (ef : effect_label) : bool :=
+match ef with 
+| Panic => false
+| Divergence => false
+| Read h => true 
+| Write h => true 
+| Alloc h => true 
+| Hstate h => true
+end.
+
+Fixpoint is_stateful_effect (e : effect) : bool :=
+match e with 
+| nil => true
+| e :: es => is_stateful_effectlabel e && is_stateful_effect es
+end.
+
 Inductive primitive_type : Type :=
 | Tunit : primitive_type
 | Tint : intsize -> signedness -> attr -> primitive_type
