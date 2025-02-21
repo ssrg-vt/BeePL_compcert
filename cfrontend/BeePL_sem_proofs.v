@@ -143,6 +143,125 @@ with bsem_exprs : vmap -> Memory.mem -> list BeePL.expr -> Memory.mem -> vmap ->
               bsem_exprs vm' m' es m'' vm'' vs ->
               bsem_exprs vm m (e :: es) m'' vm'' (v :: vs). 
 
+Scheme bsem_expr_ind_mut := Induction for bsem_expr Sort Prop
+  with bsem_exprs_ind_mut := Induction for bsem_exprs Sort Prop.
+Combined Scheme bsem_exprs_bsem_expr_ind_mut from bsem_exprs_ind_mut, bsem_expr_ind_mut.
+
+(* Complete me *)
+(* Generate custom inductive principles for bsem_expr and bsem_exprs and prove the invariants:
+   for reference see, how it is done in BeePL_typesystem.v *)
+Section bsem_expr_ind.
+Context (Pbs : vmap -> Memory.mem -> list BeePL.expr -> Memory.mem -> vmap -> list value -> Prop).
+Context (Pb : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> value -> Prop).
+Context (Hbvalue : forall vm m v t, 
+                 well_formed_value v t -> 
+                 Pb vm m (Val v t) m vm v).
+Context (Hblvar : forall vm m x t l ofs h a v,
+                 vm!(x.(vname)) = Some (l, Reftype h (Bprim t) a) -> 
+                 deref_addr ge x.(vtype) m l ofs Full v ->
+                 Pb vm m (Var x) m vm v).
+Context (Hbgbvar : forall vm m x l ofs v,
+                 vm!(x.(vname)) = None ->
+                 Genv.find_symbol ge x.(vname) = Some l -> 
+                 deref_addr ge x.(vtype) m l ofs Full v ->
+                 Pb vm m (Var x) m vm v).
+Context (Hbconsti : forall vm m i t,
+                  Pb vm m (Const (ConsInt i) t) m vm (Vint i)).
+Context (Hbconstl : forall vm m i t, 
+                  Pb vm m (Const (ConsLong i) t) m vm (Vint64 i)).
+Context (Hbconstu : forall vm m,
+                  Pb vm m (Const (ConsUnit) (Ptype Tunit)) m vm (Vunit)).
+Context (Hbappr : forall vm1 vm2 m1 e es t l fd m2 m3 m4 m5 m6 vs rv vm3 vm4 vm5,
+                  Pb vm1 m1 e m2 vm2 (Vloc l Ptrofs.zero) ->
+                  Genv.find_funct ge (transBeePL_value_cvalue (Vloc l Ptrofs.zero)) = Some (Internal fd) ->
+                  BeePL.type_of_fundef (Internal fd) = 
+                  Ftype (typeof_exprs es) (get_effect_fundef (Internal fd)) (get_rt_fundef (Internal fd)) ->
+                  list_norepet (fd.(fn_args) ++ fd.(BeePL.fn_vars)) ->
+                  alloc_variables vm2 m2 (fd.(fn_args) ++ fd.(BeePL.fn_vars)) vm3 m3 -> 
+                  Pbs vm3 m3 es m4 vm4 vs ->
+                  typeof_values vs (extract_types_vinfos fd.(fn_args)) ->
+                  bind_variables ge vm4 m4 fd.(fn_args) vs m5  ->
+                  Pb vm4 m5 fd.(BeePL.fn_body) m6 vm5 rv -> 
+                  typeof_value rv (get_rt_fundef (Internal fd)) ->
+                  t = (get_rt_fundef (Internal fd)) ->
+                  Pb vm1 m1 (App e es t) m6 vm5 rv).
+Context (Hbref : forall vm m e vm' m' vm'' m'' v fid l ofs g ct g' i' h a t,
+                 Pb vm m e m' vm' v ->
+                 transBeePL_type (Ptype t) g = Res ct g' i' ->
+                 (gensym ct) = ret fid ->
+                 bind_variables ge vm m ({| vname := fid; vtype := Ptype t|} :: nil) (v :: nil) m' ->
+                 vm!fid = Some (l, Reftype h (Bprim t) a) ->
+                 Pb vm m (Prim Ref [:: e] (Reftype h (Bprim t) a)) m'' vm'' (Vloc l ofs)).
+Context (Hbderef : forall vm m e m' vm' l ofs bf v,
+                   Pb vm m e m' vm' (Vloc l ofs) ->
+                   deref_addr ge (typeof_expr e) m l ofs bf v ->
+                   Pb vm m (Prim Deref (e :: nil) (typeof_expr e)) m' vm' v).
+Context (Hbmassgn : forall vm m e1 m' vm' l ofs bf e2 vm'' m'' v v' g1 ct1 ct2 g2 i g3 i',  
+                   Pb vm m e1 m' vm' (Vloc l ofs) ->
+                   Pb vm' m' e2 vm'' m'' v ->
+                   transBeePL_type (typeof_expr e1) g1 = Res ct1 g2 i ->
+                   transBeePL_type (typeof_expr e2) g2 = Res ct2 g3 i' ->
+                   sem_cast (transBeePL_value_cvalue v) ct2 ct1 m = Some (transBeePL_value_cvalue v') ->
+                   assign_addr ge (typeof_expr e1) m l ofs bf v' m' v' ->
+                   Pb vm m (Prim Massgn (e1 :: e2 :: nil) (Ptype Tunit)) vm'' m'' Vunit).
+Context (Hbuop : forall vm m e v uop m' vm' v' ct v'' g g' i,
+                Pb vm m e m' vm' v ->
+                transBeePL_type (typeof_expr e) g = Res ct g' i ->
+                sem_unary_operation uop (transBeePL_value_cvalue v) ct m' = Some v' ->
+                transC_val_bplvalue v' = OK v'' ->
+                Pb vm m (Prim (Uop uop) (e :: nil) (typeof_expr e)) m' vm' v'').
+Context (Hbbop : forall cenv vm m e1 e2 v1 v2 bop vm' m' m'' vm'' v ct1 ct2 v' g g' i g'' i',
+                Pb vm m e1 m' vm' v1 ->
+                Pb vm' m' e2 m'' vm'' v2 ->
+                transBeePL_type (typeof_expr e1) g = Res ct1 g' i ->
+                transBeePL_type (typeof_expr e2) g' = Res ct2 g'' i'->
+                sem_binary_operation cenv bop (transBeePL_value_cvalue v1) ct1 
+                                              (transBeePL_value_cvalue v2) ct2 m'' = Some v ->
+                transC_val_bplvalue v = OK v' ->
+                Pb vm m (Prim (Bop bop) (e1 :: e2 :: nil) (typeof_expr e1)) m'' vm'' v').
+Context (Hbbind : forall vm m x e1 vm' m' v m'' vm'' e2 e2' m''' v' tx,
+                 Pb vm m e1 m' vm' v -> 
+                 subst ge vm' m' x v e2 m'' e2' ->
+                 Pb vm' m'' e2' m''' vm'' v' ->
+                 Pb vm m (Bind x tx e1 e2 (typeof_expr e2)) m''' vm'' v').
+Context (Hbctrue : forall vm m e1 e2 e3 t vm' m' vb g ct1 g' i v vm'' m'', 
+                  Pb vm m e1 m' vm' vb -> 
+                  transBeePL_type (typeof_expr e1) g = Res ct1 g' i ->
+                  bool_val (transBeePL_value_cvalue vb) ct1 m' = Some true ->
+                  Pb vm' m' e2 m'' vm'' v ->
+                  Pb vm m (Cond e1 e2 e3 t) m'' vm'' v).
+Context (Hbcfalse : forall vm m e1 e2 e3 t vm' m' vb g ct1 g' i v vm'' m'', 
+                   Pb vm m e1 m' vm' vb -> 
+                   transBeePL_type (typeof_expr e1) g = Res ct1 g' i ->
+                   bool_val (transBeePL_value_cvalue vb) ct1 m' = Some false ->
+                   Pb vm' m' e3 m'' vm'' v ->
+                   Pb vm m (Cond e1 e2 e3 t) m'' vm'' v).
+Context (Hbut : forall vm m, 
+                Pb vm m (Unit (Ptype Tunit)) m vm Vunit).
+Context (Hbadr : forall vm m l ofs,
+                 Pb vm m (Addr l ofs) m vm (Vloc l.(lname) ofs)).
+Context (Hbeapp : forall vm m es vm' m' m'' vs ef g cef g' i' vres bv ts ty t,
+                   Pbs vm m es m' vm' vs ->
+                   befuntion_to_cefunction ef g = Res cef g' i' ->
+                   external_call cef ge (transBeePL_values_cvalues vs) m' t vres m'' ->
+                   transC_val_bplvalue vres = OK bv ->
+                   Pb vm m (BeePL.Eapp ef ts es ty) m'' vm' bv).
+Context (Hbnil : forall vm m,
+                 Pbs vm m nil m vm nil).
+Context (Hbcons : forall vm m m' m'' v vs e es vm' vm'',
+                  Pb vm m e m' vm' v ->
+                  Pbs vm' m' es m'' vm'' vs ->
+                  Pbs vm m (e :: es) m'' vm'' (v :: vs)).
+
+Lemma bsem_expr_indP :
+  (forall vm m es m' vm' vs, bsem_exprs vm m es m' vm' vs -> Pbs vm m es m' vm' vs) /\
+  (forall vm m e m' vm' v, bsem_expr vm m e m' vm' v -> Pb vm m e m' vm' v).
+Proof.
+  apply bsem_exprs_bsem_expr_ind_mut; eauto.
+Qed.
+
+End bsem_expr_ind.
+
 End Big_Step_Semantics.
 
 Definition extract_value_expr (e : BeePL.expr) : list value :=
@@ -322,12 +441,158 @@ Definition ssafe_expr (bge : genv) (vm : vmap) (m : Memory.mem) (e : BeePL.expr)
 is_value e \/ exists m' vm' e', ssem_expr vm m e m' vm' e'.
 
 (* Complete me *)
-(* Generate custom inductive principles for bsem_expr and bsem_exprs and prove the invariants:
-   for reference see, how it is done in BeePL_typesystem.v *)
-
-
-(* Complete me *)
 (* Generate custom inductive principles for ssem_expr and ssem_exprs and prove the invariants:
    for reference see, how it is done in BeePL_typesystem.v *)
+Section ssem_expr_ind.
+Context (Pss : vmap -> Memory.mem -> list BeePL.expr -> Memory.mem -> vmap -> list BeePL.expr -> Prop).
+Context (Ps : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> BeePL.expr -> Prop).
+Context (Hsvalue : forall vm m v t, 
+                 well_formed_value v t -> 
+                 Ps vm m (Val v t) m vm (Val v t)).
+Context (Hslvar : forall vm m x t l ofs h a v,
+                 vm!(x.(vname)) = Some (l, Reftype h (Bprim t) a) -> 
+                 deref_addr ge x.(vtype) m l ofs Full v ->
+                 Ps vm m (Var x) m vm (Val v (x.(vtype)))).
+Context (Hsgbvar : forall vm m x l ofs v,
+                 vm!(x.(vname)) = None ->
+                 Genv.find_symbol ge x.(vname) = Some l -> 
+                 deref_addr ge x.(vtype) m l ofs Full v ->
+                 Ps vm m (Var x) m vm (Val v (x.(vtype)))).
+Context (Hsconsti : forall vm m i t,
+                  Ps vm m (Const (ConsInt i) t) m vm (Val (Vint i) t)).
+Context (Hsconstl : forall vm m i t, 
+                  Ps vm m (Const (ConsLong i) t) m vm (Val (Vint64 i) t)).
+Context (Hsconstu : forall vm m,
+                  Ps vm m (Const (ConsUnit) (Ptype Tunit)) m vm (Val Vunit (Ptype Tunit))).
+Context (Hsapp1 : forall vm1 m1 e es t e' m2 vm2,
+                  Ps vm1 m1 e m2 vm2 e' ->
+                  Ps vm1 m1 (App e es t) m2 vm2 (App e' es t)).
+Context (Hsapp2 : forall vm1 vm2 m1 es t l fd m2 m3 m4 vs vm3,
+                  Genv.find_funct ge (transBeePL_value_cvalue (Vloc l Ptrofs.zero)) = Some (Internal fd) ->
+                  BeePL.type_of_fundef (Internal fd) = 
+                  Ftype (typeof_exprs es) (get_effect_fundef (Internal fd)) (get_rt_fundef (Internal fd)) ->
+                  t = get_rt_fundef (Internal fd) ->
+                  list_norepet (fd.(fn_args) ++ fd.(BeePL.fn_vars)) ->
+                  alloc_variables vm1 m1 (fd.(fn_args) ++ fd.(BeePL.fn_vars)) vm2 m2 -> 
+                  Pss vm2 m2 es m3 vm3 vs ->
+                  typeof_exprs vs = (extract_types_vinfos fd.(fn_args)) ->
+                  bind_variables ge vm3 m3 fd.(fn_args) (extract_values_exprs vs) m4  ->
+                  Ps vm1 m1 (App (Val (Vloc l Ptrofs.zero) (Ftype (typeof_exprs es) 
+                                                                     (get_effect_fundef (Internal fd)) 
+                                                                     (get_rt_fundef (Internal fd)))) es t) m2 vm2
+                               fd.(BeePL.fn_body)).
+Context (Hsref1 : forall vm m e m' vm' e' h t a,
+                 Ps vm m e m' vm' e' ->
+                 Ps vm m (Prim Ref [:: e] (Reftype h (Bprim t) a)) m' vm' 
+                                (Prim Ref [:: e'] (Reftype h (Bprim t) a))).
+Context (Hsref2 : forall vm m vm' m' vm'' m'' v fid l ofs t g ct g' i' h a,
+                 transBeePL_type (Ptype t) g = Res ct g' i' ->
+                 (gensym ct) = ret fid ->
+                 bind_variables ge vm m ({| vname := fid; vtype := Ptype t|} :: nil) (v :: nil) m' ->
+                 Ps vm' m' (Var {| vname := fid; vtype := Ptype t |}) m'' vm'' (Val (Vloc l ofs) (Reftype h (Bprim t) a)) ->
+                 Ps vm m (Prim Ref [:: (Val v (Ptype t))] (Reftype h (Bprim t) a)) m'' vm'' 
+                               (Val (Vloc l ofs) (Reftype h (Bprim t) a))).
+Context (Hsderef1 : forall vm m e t m' vm' e',
+                   Ps vm m e m' vm' e' ->
+                   Ps vm m (Prim Deref (e :: nil) (Ptype t)) m' vm' 
+                                  (Prim Deref (e' :: nil) (Ptype t))).
+Context (Hsderef2 : forall vm m m' vm' l ofs bf v h a t,
+                   deref_addr ge (Ptype t) m l ofs bf v ->
+                   Ps vm m (Prim Deref [:: (Val (Vloc l ofs) (Reftype h (Bprim t) a))] (Ptype t)) m' vm' 
+                                  (Val v (Ptype t))).
+Context (Hsmassgn1 : forall vm m e1 e2 m' vm' e1',  
+                    Ps vm m e1 m' vm' e1' ->
+                    Ps vm m (Prim Massgn (e1 :: e2 :: nil) (Ptype Tunit)) m' vm' 
+                                   (Prim Massgn (e1' :: e2 :: nil) (Ptype Tunit))).
+Context (Hsmassgn2 : forall vm m e2 e2' m' vm' l ofs h a t,  
+                    Ps vm m e2  m' vm' e2' ->
+                    Ps vm m (Prim Massgn ((Val (Vloc l ofs) (Reftype h (Bprim t) a)) :: e2 :: nil) (Ptype Tunit)) m' vm' 
+                                   (Prim Massgn ((Val (Vloc l ofs) (Reftype h (Bprim t) a)) :: e2' :: nil) (Ptype Tunit))).
+Context (Hsmassgn3 : forall vm m t m' l ofs bf e2 v v' g1 ct1 ct2 g2 i g3 i' h a,  
+                    transBeePL_type (Ptype t) g1 = Res ct1 g2 i ->
+                    transBeePL_type (typeof_expr e2) g2 = Res ct2 g3 i' ->
+                    sem_cast (transBeePL_value_cvalue v) ct2 ct1 m = Some (transBeePL_value_cvalue v') ->
+                    assign_addr ge (Ptype t) m l ofs bf v' m' v' ->
+                    Ps vm m (Prim Massgn ((Val (Vloc l ofs) (Reftype h (Bprim t) a)) ::  Val v (Ptype t):: nil) (Ptype Tunit)) 
+                                   m' vm (Val Vunit (Ptype Tunit))).
+Context (Hsuop1 : forall vm m e e' uop m' vm',
+                 Ps vm m e m' vm' e' ->
+                 Ps vm m (Prim (Uop uop) (e :: nil) (typeof_expr e)) m' vm' 
+                                (Prim (Uop uop) (e' :: nil) (typeof_expr e))).
+Context (Hsuop2 : forall vm m t v uop m' vm' v' ct v'' g g' i,
+                 transBeePL_type t g = Res ct g' i ->
+                 sem_unary_operation uop (transBeePL_value_cvalue v) ct m' = Some v' ->
+                 transC_val_bplvalue v' = OK v'' ->
+                 Ps vm m (Prim (Uop uop) [:: (Val v t)] t) m' vm' (Val v'' t)).
+Context (Hsbop1 : forall vm m vm' m' bop e1 e2 e1',
+                 Ps vm m e1 m' vm' e1' ->
+                 Ps vm m (Prim (Bop bop) (e1 :: e2 :: nil) (typeof_expr e1)) m' vm' 
+                                (Prim (Bop bop) (e1' :: e2 :: nil) (typeof_expr e1))).
+Context (Hsbop2 : forall vm m vm' m' bop v1 t1 e2 e2',
+                 Ps vm m e2 m' vm' e2' ->
+                 Ps vm m (Prim (Bop bop) (Val v1 t1 :: e2 :: nil) t1) m' vm' 
+                                (Prim (Bop bop) (Val v1 t1 :: e2' :: nil) t1)).
+Context (Hsbop3 : forall cenv vm m v1 v2 bop t1 t2 v ct1 ct2 v' g g' i g'' i',
+                 transBeePL_type t1 g = Res ct1 g' i ->
+                 transBeePL_type t2 g' = Res ct2 g'' i'->
+                 sem_binary_operation cenv bop (transBeePL_value_cvalue v1) ct1 
+                                               (transBeePL_value_cvalue v2) ct2 m = Some v ->
+                 transC_val_bplvalue v = OK v' ->
+                 Ps vm m (Prim (Bop bop) (Val v1 t1 :: Val v2 t2 :: nil) t1) m vm (Val v' t1)).
+Context (Hsbind1 : forall vm m x e1 e1' e2 vm' m' tx,
+                 Ps vm m e1 m' vm' e1' -> 
+                 Ps vm m (Bind x tx e1 e2 (typeof_expr e2)) m' vm' 
+                         (Bind x tx e1' e2 (typeof_expr e2))).
+Context (Hsbind2 : forall vm m x v1 e2 vm' m' tx e2',
+                   subst ge vm m x v1 e2 m' e2' ->
+                   Ps vm m (Bind x tx (Val v1 tx) e2 (typeof_expr e2)) m' vm' e2').
+Context (Hscond : forall vm m e1 e2 e3 vm' m' e1',
+                  Ps vm m e1 m' vm' e1' -> 
+                  Ps vm m (Cond e1 e2 e3 (typeof_expr e2)) m' vm' (Cond e1' e2 e3 (typeof_expr e2))).
+Context (Hsctrue : forall vm m v1 e2 e3 t1 g ct1 g' i, 
+                  transBeePL_type t1 g = Res ct1 g' i ->
+                  bool_val (transBeePL_value_cvalue v1) ct1 m = Some true ->
+                  Ps vm m (Cond (Val v1 t1) e2 e3 (typeof_expr e2)) m vm e2).
+Context (Hscfalse : forall vm m v1 e2 e3 t1 g ct1 g' i, 
+                   transBeePL_type t1 g = Res ct1 g' i ->
+                   bool_val (transBeePL_value_cvalue v1) ct1 m = Some false ->
+                   Ps vm m (Cond (Val v1 t1) e2 e3 (typeof_expr e2)) m vm e3).
+Context (Hsut : forall vm m, 
+               Ps vm m (Unit (Ptype Tunit)) m vm (Val Vunit (Ptype Tunit))).
+Context (Hsadr : forall vm m l ofs,
+                Ps vm m (Addr l ofs) m vm (Val (Vloc l.(lname) ofs) l.(ltype))).
+Context (Hshexpr1 : forall vm m e m' vm' e' t,
+                 Ps vm m e m' vm' e' ->
+                 Ps vm m (Hexpr m e t) m' vm' (Hexpr m e' t)).
+Context (Hshexpr2 : forall vm m h bt a l ofs t,
+                 Ps vm m (Hexpr m (Val (Vloc l ofs) (Reftype h (Bprim bt) a)) t) m vm (Val (Vloc l ofs) (Reftype h (Bprim bt) a))).
+Context (Hseapp : forall vm m es vm' m' m'' vs ef g cef g' i' vres bv ts ty t,
+                  Pss vm m es m' vm' vs ->
+                  befuntion_to_cefunction ef g = Res cef g' i' ->
+                  external_call cef ge (transBeePL_values_cvalues (extract_values_exprs vs)) m' t vres m'' ->
+                  transC_val_bplvalue vres = OK bv ->
+                  Ps vm m (BeePL.Eapp ef ts es ty) m'' vm' (Val bv ty)).
+Context (Hsnil : forall vm m,
+                 Pss vm m nil m vm nil).
+Context (Hscons1 : forall vm m m' e v es vm',
+                   Ps vm m e m' vm' (Val v (typeof_expr e)) ->
+                   Pss vm m (e :: es) m' vm' (Val v (typeof_expr e) :: es)).
+Context (Hscons2 : forall vm m es m' vm' v t vs,
+                   Pss vm m es m' vm' vs ->
+                   Pss vm m (Val v t :: es) m' vm' (Val v t :: vs)).
+
+Scheme ssem_expr_ind_mut := Induction for ssem_expr Sort Prop
+  with ssem_exprs_ind_mut := Induction for ssem_exprs Sort Prop.
+Combined Scheme ssem_exprs_ssem_expr_ind from ssem_exprs_ind_mut, ssem_expr_ind_mut.
+
+Lemma ssem_expr_indP :
+  (forall vm m es m' vm' vs, ssem_exprs vm m es m' vm' vs -> Pss vm m es m' vm' vs) /\
+  (forall vm m e m' vm' v, ssem_expr vm m e m' vm' v -> Ps vm m e m' vm' v).
+Proof.
+  apply ssem_exprs_ssem_expr_ind; eauto.
+Qed.
+
+
+End ssem_expr_ind.
 
 End Small_Step_Semantics.
