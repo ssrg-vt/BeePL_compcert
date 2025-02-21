@@ -147,9 +147,6 @@ Scheme bsem_expr_ind_mut := Induction for bsem_expr Sort Prop
   with bsem_exprs_ind_mut := Induction for bsem_exprs Sort Prop.
 Combined Scheme bsem_exprs_bsem_expr_ind_mut from bsem_exprs_ind_mut, bsem_expr_ind_mut.
 
-(* Complete me *)
-(* Generate custom inductive principles for bsem_expr and bsem_exprs and prove the invariants:
-   for reference see, how it is done in BeePL_typesystem.v *)
 Section bsem_expr_ind.
 Context (Pbs : vmap -> Memory.mem -> list BeePL.expr -> Memory.mem -> vmap -> list value -> Prop).
 Context (Pb : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> value -> Prop).
@@ -440,9 +437,6 @@ forall v vm m vm' m', bsem_expr bge vm m e vm' m' v.
 Definition ssafe_expr (bge : genv) (vm : vmap) (m : Memory.mem) (e : BeePL.expr) : Prop :=
 is_value e \/ exists m' vm' e', ssem_expr vm m e m' vm' e'.
 
-(* Complete me *)
-(* Generate custom inductive principles for ssem_expr and ssem_exprs and prove the invariants:
-   for reference see, how it is done in BeePL_typesystem.v *)
 Section ssem_expr_ind.
 Context (Pss : vmap -> Memory.mem -> list BeePL.expr -> Memory.mem -> vmap -> list BeePL.expr -> Prop).
 Context (Ps : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> BeePL.expr -> Prop).
