@@ -218,15 +218,6 @@ Proof.
     inversion Hret. subst cs.
     injection H as H; subst.
     eapply sim_val_st with (le:=vm) (v:=v) (t:=t) (ct:=ct) (cv:=transBeePL_value_cvalue v); eauto.
-  (* Valof *)
-  - unfold SimplExpr.bind in H.
-    destruct (transBeePL_type t g) as [| ct g1 i1] eqn:Htype; try discriminate.
-    destruct (transBeePL_expr_expr e g1) as [| cexpr g2 i2] eqn:Hexpr; try discriminate.
-    destruct (ret (Csyntax.Sreturn (Some (Evalof cexpr ct))) g2) as [| cs g3 i3] eqn:Hret; try discriminate.
-    inversion Hret. subst cs.
-    injection H as H; subst.
-    eapply sim_valof_st with (le:=vm) (ce:=cexpr) (ct:=ct); eauto.
-    eapply transBeePL_expr_expr_spec. apply Hexpr.
   (* Var *)
   - unfold SimplExpr.bind in H.
     destruct (transBeePL_type (vtype v) g) as [|ct g1 i1] eqn:Htype; try discriminate.

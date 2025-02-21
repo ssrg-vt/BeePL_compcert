@@ -320,8 +320,9 @@ Lemma extend_ty_context_deterministic :
 Proof.
   apply type_exprs_type_expr_ind_mut; intros.
   - constructor.
-  - constructor.
-  - constructor.
+  - constructor. (* There's an extra extend_context in this case *)
+    admit. eauto.
+  (*
   - constructor.
   - constructor.
     eauto.
@@ -329,33 +330,33 @@ Proof.
     + unfold extend_context in *.
       destruct (PTree.get (vname x) (PTree.set x' t2 (PTree.set x0 t1 Gamma))) eqn:Hget;
       apply PTree.gss.
-    + assumption.
-  - eapply Ty_constint with (Gamma := extend_context Gamma0 x t1).
+     + assumption. *)
+  - eapply ty_constint with (Gamma := extend_context Gamma0 x t1).
     eauto.
-  - eapply Ty_constlong with (Gamma := extend_context Gamma0 x t1).
+  - eapply ty_constlong with (Gamma := extend_context Gamma0 x t1).
     eauto.
-  - eapply Ty_constunit with (Gamma := extend_context Gamma0 x t1).
+  - eapply ty_constunit with (Gamma := extend_context Gamma0 x t1).
     eauto.
-  - eapply Ty_app with (Gamma := extend_context Gamma0 x t1).
+  - eapply ty_app with (Gamma := extend_context Gamma0 x t1).
     eauto.
   - eauto.
-  - eapply Ty_prim_ref with (Gamma := extend_context Gamma0 x t1).
+  - eapply ty_prim_ref with (Gamma := extend_context Gamma0 x t1).
     eauto.
-  - eapply Ty_prim_deref with (Gamma := extend_context Gamma0 x t1).
+  - eapply ty_prim_deref with (Gamma := extend_context Gamma0 x t1).
     eauto.
-  - eapply Ty_prim_massgn with (Gamma := extend_context Gamma0 x t1);
+  - eapply ty_prim_massgn with (Gamma := extend_context Gamma0 x t1);
     eauto.
-  - eapply Ty_prim_uop with (Gamma := extend_context Gamma0 x t1).
+  - eapply ty_prim_uop with (Gamma := extend_context Gamma0 x t1).
     eauto.
-  - eapply Ty_prim_bop with (Gamma := extend_context Gamma0 x t2);
+  - eapply ty_prim_bop with (Gamma := extend_context Gamma0 x t2);
     eauto.
-  - eapply Ty_bind with (Gamma := extend_context Gamma0 x0 t2).
+  - eapply ty_bind with (Gamma := extend_context Gamma0 x0 t2).
     + eauto.
     + admit.
-  - eapply Ty_cond with (Gamma := extend_context Gamma0 x t4); 
+  - eapply ty_cond with (Gamma := extend_context Gamma0 x t4); 
     eauto.
   - constructor.
-  - eapply Ty_addr with (Gamma := extend_context Gamma0 x t1).
+  - eapply ty_addr with (Gamma := extend_context Gamma0 x t1).
     eauto.
   - constructor.
   - constructor; eauto.
@@ -435,18 +436,6 @@ transC_val_bplvalue v = Errors.OK v' ->
 transBeePL_type bt g = SimplExpr.Res ct g' i ->
 wtypeof_value v' (wtype_of_type bt). 
 Proof.
-  intros.
-  inversion H; subst; clear H.
-  - destruct (transC_val_bplvalue v0) eqn:?.
-    inversion H2; subst.
-    destruct v0; try discriminate; admit.
-    discriminate.
-  - destruct ty; try discriminate.
-    + destruct p; simpl in *; try discriminate; eauto.
-      destruct i; simpl in *; try discriminate; eauto.
-      destruct s; simpl in *; try discriminate; eauto.
-      destruct s; simpl in *; try discriminate; eauto.
-    admit. 
 Admitted.
  
 (* Complete me *) (* Medium level *)
@@ -828,5 +817,3 @@ induction he=> //=.
 Qed.
 
 
-    
-    
