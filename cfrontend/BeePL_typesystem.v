@@ -460,7 +460,24 @@ Lemma uop_type_preserve : forall uop v ct m v',
 Cop.sem_unary_operation uop v ct m = Some v' ->
 Values.Val.has_type v' (typ_of_type ct).
 Proof.
+  intros.
+  unfold Cop.sem_unary_operation in H.
+  destruct uop eqn:Huop; try discriminate.
+  - unfold Cop.sem_notbool in H.
+    unfold Cop.bool_val in H.
+    destruct (Cop.classify_bool ct) eqn:Hctb; try discriminate.
+    + destruct v; try discriminate.
+      simpl in H.
+      injection H as H.
+      subst.
+      destruct (Int.eq i Int.zero) eqn:Hieq;
+      simpl;
+      unfold typ_of_type;
+      destruct ct eqn:Hct; try discriminate; eauto;
+      destruct f eqn:Hf; discriminate.
+    + admit. (* Same strategy didn't work *)
 Admitted.
+
 
 Lemma eq_uop_types : forall uop t g g' i v ct m v' v'',
 transBeePL_type t g = SimplExpr.Res ct g' i ->
@@ -477,7 +494,20 @@ Cop.sem_binary_operation bge bop v1 ct1 v2 ct2 m = Some v ->
 Values.Val.has_type v (typ_of_type ct1) /\
 Values.Val.has_type v (typ_of_type ct2).
 Proof.
+  intros.
+  unfold Cop.sem_binary_operation in H.
+  induction bop eqn:Hbop; try discriminate.
+  - unfold Cop.sem_add in H.
+    destruct (Cop.classify_add ct1 ct2) eqn:Hcadd; try discriminate.
+    + unfold Cop.sem_add_ptr_int in H.
+      destruct v1, v2; try discriminate.
+      destruct (Archi.ptr64); try discriminate.
+      injection H as H.
+      subst.
+      unfold Values.Val.has_type.
+      destruct ct1, ct2; try discriminate; simpl in *; eauto.
 Admitted.
+
 
 Lemma eq_bop_types : forall cenv v1 t1 g g' i v2 t2 g'' i' ct1 ct2 op m v v',
 transBeePL_type t1 g = SimplExpr.Res ct1 g' i ->
