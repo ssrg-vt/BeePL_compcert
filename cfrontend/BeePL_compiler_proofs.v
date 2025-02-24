@@ -274,6 +274,109 @@ Proof.
     inversion Hret. subst cs.
     injection H as H; subst.
     eapply sim_app; eauto.
+  (* Prim *)
+  - destruct b eqn:Hprim; unfold SimplExpr.bind in H. 
+    (* Ref *)
+    + destruct (transBeePL_expr_exprs transBeePL_expr_expr l g) as [|cexprs g1 i1] eqn:Hexprs; try discriminate.
+      destruct (transBeePL_type t g1) as [|ct g2 i2] eqn:Htype; try discriminate.
+      destruct (gensym ct g2) as [|i0 g3 p] eqn:Hgen; try discriminate.
+      destruct (ret (Csyntax.Ecomma (Csyntax.Eassign (Csyntax.Evar i0 ct) (hd default_expr (exprlist_list_expr cexprs)) ct)
+                                    (Csyntax.Eaddrof (Csyntax.Evar i0 ct) ct)
+                                    ct) g3) as [|cs g4 i4] eqn:Hret; 
+                                    try discriminate.
+      inversion Hret. subst cs.
+      injection H as H; subst.
+      (* eapply sim_prim_ref; eauto. *)
+      admit.
+    (* Deref *)
+    + destruct (transBeePL_expr_exprs transBeePL_expr_expr l g) as [|cexprs g1 i1] eqn:Hexprs; try discriminate.
+      destruct (transBeePL_type t g1) as [| ct g2 i2] eqn:Htype; try discriminate.
+      destruct (ret (Csyntax.Evalof (hd default_expr (exprlist_list_expr cexprs)) ct) g2) as [|cs g3 i3] eqn:Hret; 
+      try discriminate.
+      inversion Hret. subst cs.
+      injection H as H; subst.
+      (* eapply sim_prim_deref; eauto. *)
+      admit.
+    (* Massgn *)
+    + destruct (transBeePL_expr_exprs transBeePL_expr_expr l g) as [|cexprs g1 i1] eqn:Hexprs; try discriminate.
+      destruct (transBeePL_type t g1) as [| ct g2 i2] eqn:Htype; try discriminate.
+      destruct (ret (Csyntax.Eassign (hd default_expr (exprlist_list_expr cexprs)) 
+                (hd default_expr (tl (exprlist_list_expr cexprs))) ct) g2) as [| cs g3 i3] eqn:Hret; 
+                try discriminate.
+      inversion Hret. subst cs.
+      injection H as H; subst.
+      (* eapply sim_prim_massgn; eauto. *)
+      admit.
+    (* Uop *)
+    + destruct (transBeePL_expr_exprs transBeePL_expr_expr l g) as [|cexprs g1 i1] eqn:Hexprs; try discriminate.
+      destruct (transBeePL_type t g1) as [| ct g2 i2] eqn:Htype; try discriminate.
+      destruct (ret (Csyntax.Eunop u (hd default_expr (exprlist_list_expr cexprs)) ct) g2) as [| cs g3 i3] eqn:Hret;
+      try discriminate.
+      inversion Hret. subst cs.
+      injection H as H; subst.
+      (* eapply sim_prim_uop; eauto. *)
+      admit.
+    (* Bop *)
+    + destruct (transBeePL_expr_exprs transBeePL_expr_expr l g) as [|cexprs g1 i1] eqn:Hexprs; try discriminate.
+      destruct (transBeePL_type t g1) as [| ct g2 i2] eqn:Htype; try discriminate.
+      destruct (ret (Csyntax.Ebinop b0 (hd default_expr (exprlist_list_expr cexprs))
+                (hd default_expr (tl (exprlist_list_expr cexprs))) ct) g2) as [| cs g3 i3] eqn:Hret;
+                try discriminate.
+      inversion Hret. subst cs.
+      injection H as H; subst.
+      (* eapply sim_prim_bop; eauto. *)
+      admit.
+    (* Run *)
+    + admit.
+  (* Bind *)
+  - unfold SimplExpr.bind in H.
+    destruct (transBeePL_type t g) as [| ct g1 i1] eqn:Htype; try discriminate.
+    destruct (transBeePL_expr_expr e1 g1) as [| ce' g2 i2] eqn:Hexpr; try discriminate.
+    destruct (transBeePL_expr_expr e2 g2) as [| ce'' g3 i3] eqn:Hexpr'; try discriminate.
+    destruct (transBeePL_type t0 g3) as [| ct' g4 i4] eqn:Htype'; try discriminate.
+    destruct (ret (Csyntax.Ecomma (Csyntax.Eassign (Csyntax.Evar i ct) ce' ct) ce'' ct') g4) as [| cs g5 i5] eqn:Hret;
+    try discriminate.
+    inversion Hret. subst cs.
+    injection H as H; subst.
+    eapply sim_bind; eauto.
+    admit.
+  (* Cond *)
+  - unfold SimplExpr.bind in H.
+    destruct (transBeePL_expr_expr e1 g) as [| ce1 g1 i1] eqn:Hexpr1; try discriminate.
+    destruct (transBeePL_expr_expr e2 g1) as [| ce2 g2 i2] eqn:Hexpr2; try discriminate.
+    destruct (transBeePL_expr_expr e3 g2) as [| ce3 g3 i3] eqn:Hexpr3; try discriminate.
+    destruct (transBeePL_type t g3) as [| ct g4 i4] eqn:Htype; try discriminate.
+    destruct (ret (Csyntax.Econdition ce1 ce2 ce3 ct) g4) as [| cs g5 i5] eqn:Hret; try discriminate.
+    inversion Hret. subst cs.
+    injection H as H; subst.
+    eapply sim_cond; eauto.
+  (* Unit *)
+  - unfold SimplExpr.bind in H.
+    destruct (transBeePL_type t g) as [| ct g1 i1] eqn:Htype; try discriminate.
+    destruct (ret (Eval (Values.Vint (Int.repr 0)) ct) g1) as [| cs g2 i2] eqn:Hret; try discriminate.
+    inversion Hret. subst cs.
+    injection H as H; subst.
+    eapply sim_unit; eauto.
+  (* Addr *)
+  - unfold SimplExpr.bind in H.
+    destruct (transBeePL_type (ltype l) g) as [| ct g1 i1] eqn:Htype; try discriminate.
+    destruct (ret (Eloc (lname l) i (lbitfield l) ct) g1) as [| cs g2 i2] eqn:Hret; try discriminate.
+    inversion Hret. subst cs.
+    injection H as H; subst.
+    eapply sim_addr; eauto.
+  (* Hexpr *)
+  - admit.
+  (* Eapp *)
+  - unfold SimplExpr.bind in H.
+    destruct (befuntion_to_cefunction e g) as [| ce' g1 i1] eqn:Hfun; try discriminate.
+    destruct (transBeePL_types transBeePL_type l g1) as [| cts g2 i2] eqn:Htypes; try discriminate.
+    destruct (transBeePL_type t g2) as [| ct g3 i3] eqn:Htype; try discriminate.
+    destruct (transBeePL_expr_exprs transBeePL_expr_expr l0 g3) as [| ces g4 i4] eqn:Hexprs; try discriminate.
+    destruct (ret (Ebuiltin ce' cts ces ct) g4) as [| cs g5 i5] eqn:Hret; try discriminate.
+    inversion Hret. subst cs.
+    injection H as H; subst.
+    (* eapply sim_eapp; eauto. *)
+    admit.
 Admitted.
 
 Lemma transBeePL_expr_stmt_spec: forall vm e ce g g' i,
