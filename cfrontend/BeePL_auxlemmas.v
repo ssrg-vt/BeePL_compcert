@@ -11,20 +11,83 @@ access_mode ty = md ->
 transBeePL_type ty g =  Res cty g' i ->
 Ctypes.access_mode cty = md.
 Proof.
-Admitted.
+  intros ty cty md g g' i HACCESS HTRANS.
+  destruct ty eqn:Htype.
+  (* Prim *)
+  - destruct p eqn:Hp;
+    simpl in *;
+    injection HTRANS as H1 H2;
+    subst;
+    reflexivity.
+  (* Ref *)
+  - destruct b; simpl in *;
+    destruct p; simpl in *;
+    injection HTRANS as H1 H2;
+    subst;
+    reflexivity.
+  (* Ftype *)
+  - destruct e; simpl in *;
+    unfold SimplExpr.bind in HTRANS;
+    destruct (transBeePL_types transBeePL_type l g) eqn:Htypes; try discriminate;
+    destruct (transBeePL_type t g'0) eqn:Htype'; try discriminate;
+    injection HTRANS as H1 H2; subst;
+    reflexivity.
+Qed.
 
 Lemma non_volatile_type_preserved : forall ty cty g g' i' b,
 type_is_volatile ty = b ->
 transBeePL_type ty g = Res cty g' i' ->
 Ctypes.type_is_volatile cty = b.
 Proof.
-Admitted.
+  intros ty cty g g' i' b HVOL HTRANS.
+  destruct ty eqn:Htype.
+  (* Prim *)
+  - destruct p eqn:Hp; 
+    simpl in *;
+    injection HTRANS as H1 H2;
+    subst;
+    reflexivity.
+  (* Ref *)
+  - destruct b0; simpl in *;
+    destruct p; simpl in *;
+    injection HTRANS as H1 H2;
+    subst;
+    reflexivity.
+  (* Ftype *)
+  - destruct e; simpl in *;
+    unfold SimplExpr.bind in HTRANS;
+    destruct (transBeePL_types transBeePL_type l g) eqn:Htypes; try discriminate;
+    destruct (transBeePL_type t g'0) eqn:Htype'; try discriminate;
+    injection HTRANS as H1 H2; subst;
+    reflexivity.
+Qed.
 
 Lemma typec_expr : forall e ct ce g g' g'' i i',
 transBeePL_type (typeof_expr e) g = Res ct g' i ->
 transBeePL_expr_expr e  g' = Res ce g'' i' ->
 ct = Csyntax.typeof ce.
 Proof.
+  induction e; intros; simpl in *; unfold SimplExpr.bind in H0.
+  (* Val *)
+  - destruct t eqn:?.
+    + destruct p; simpl in *;
+      injection H0 as H1 H2; subst;
+      injection H as H1 H2; subst;
+      reflexivity.
+    + destruct b; simpl in *;
+      destruct p; simpl in *;
+      injection H as H1 H2; subst;
+      injection H0 as H1 H2; subst;
+      reflexivity.
+      destruct e; simpl in *.
+    + unfold SimplExpr.bind in *.
+      destruct (transBeePL_types transBeePL_type l g') eqn:?; try discriminate;
+      destruct (transBeePL_type t0 g'0) eqn:?; try discriminate.
+      injection H0 as H1 H2; subst.
+      destruct (transBeePL_types transBeePL_type l g) eqn:?; try discriminate;
+      destruct (transBeePL_type t0 g'1) eqn:?; try discriminate.
+      injection H as H1 H2; subst.
+      cbn.
 Admitted.
 
 Lemma bv_cv_reflex : forall v' v,
