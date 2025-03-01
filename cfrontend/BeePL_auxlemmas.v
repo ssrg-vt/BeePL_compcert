@@ -53,7 +53,7 @@ Proof.
     injection HTRANS as H1 H2;
     subst;
     reflexivity.
-  (* Ftype *)
+(* Ftype *)
   - destruct e; simpl in *;
     unfold SimplExpr.bind in HTRANS;
     destruct (transBeePL_types transBeePL_type l g) eqn:Htypes; try discriminate;
@@ -79,15 +79,19 @@ Proof.
       injection H as H1 H2; subst;
       injection H0 as H1 H2; subst;
       reflexivity.
-      destruct e; simpl in *.
-    + unfold SimplExpr.bind in *.
-      destruct (transBeePL_types transBeePL_type l g') eqn:?; try discriminate;
-      destruct (transBeePL_type t0 g'0) eqn:?; try discriminate.
-      injection H0 as H1 H2; subst.
-      destruct (transBeePL_types transBeePL_type l g) eqn:?; try discriminate;
-      destruct (transBeePL_type t0 g'1) eqn:?; try discriminate.
-      injection H as H1 H2; subst.
-      cbn.
+    + admit.
+  - destruct (vtype v) eqn:?.
+    + destruct p; simpl in *;
+      injection H0 as H1 H2; subst;
+      injection H as H1 H2; subst;
+      reflexivity.
+    + destruct b; simpl in *;
+      destruct p; simpl in *;
+      injection H as H1 H2; subst;
+      injection H0 as H1 H2; subst;
+      reflexivity.
+    + admit.
+  - (* Rest of proofs should be similar *)
 Admitted.
 
 Lemma bv_cv_reflex : forall v' v,
@@ -109,17 +113,44 @@ transBeePL_type t g1 = Res r g2 i1 ->
 transBeePL_type t g3 = Res r' g4 i2 ->
 r = r'.
 Proof. (* use inductive principle proved in BeeTypes.v *)
+  intro t.
+  apply transBeePL_type_ind with (t := t); intros.
+  (* Prim *)
+  - unfold transBeePL_type in *.
+    destruct t0;
+    injection H1 as H1 H1'; subst;
+    injection H2 as H2 H2'; subst;
+    reflexivity.
+  (* Ref *)
+  - unfold transBeePL_type in *.
+    destruct bt; destruct p;
+    injection H1 as H1 H1'; subst;
+    injection H2 as H2 H2'; subst;
+    reflexivity.
+  (* Ftype *)
+  - admit.
+
 Admitted.
 
 Lemma transBeePL_expr_expr_type_equiv : forall e ce g g' i,
 transBeePL_expr_expr e g = Res ce g' i ->
 transBeePL_type (typeof_expr e) g = Res (Csyntax.typeof ce) g' i.
 Proof.
-Admitted. 
+  induction e; intros; simpl in *; unfold SimplExpr.bind in H.
+  - destruct (transBeePL_type t g) eqn:Htype; try discriminate.
+    destruct (ret (Eval (transBeePL_value_cvalue v) t0) g'0) eqn:Hret; try discriminate.
+    inversion Hret. subst.
+    injection H as H1 H2; subst.
+    simpl.
+    unfold transBeePL_type in Htype. 
+    f_equal.
+    (* Need i = p *)
+    (* reflexivity. *)
+Admitted.
 
-(*
-Lemma val_cannot_be_reduced : forall bge benv e m e' m',
-is_val e -> 
+
+Lemma value_cannot_be_reduced : forall bge benv e m e' m',
+is_value e -> 
 ~ (rreduction bge benv e m e' m') /\
 ~ (lreduction bge benv e m e' m').
 Proof.
@@ -128,6 +159,7 @@ move=> bge benv e. elim: e=> //= v t m e' m' _ /=. split=> //=.
 move=> h. by inversion h.
 Qed.
 
+(* 
 Lemma addr_cannot_be_reduced : forall bge benv e m e' m',
 is_addr e -> 
 ~ (rreduction bge benv e m e' m') /\
