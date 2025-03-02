@@ -93,8 +93,8 @@ match e with
                      ret (Econdition ce ce' ce'' ct)  
 | Unit t=> do ct <- (transBeePL_type t);
            ret (Eval (transBeePL_value_cvalue Vunit) ct) (* Fix me *)
-| Addr l ofs => do ct <- (transBeePL_type (ltype l));
-            ret (Eloc l.(lname) ofs l.(lbitfield) ct)
+| Addr l ofs t => do ct <- transBeePL_type t;
+                  ret (Eloc l.(lname) ofs l.(lbitfield) ct)
 | Hexpr h e t => ret (Eval (Values.Vundef) Tvoid) (* FIX ME *)
 | Eapp ef ts es t => do cef <- befuntion_to_cefunction ef;
                      do cts <- (transBeePL_types transBeePL_type ts);
@@ -192,8 +192,8 @@ match e with
                                                         else ret (Sifthenelse ce (Sdo ce') (Sdo ce''))
 | Unit t=> do ct <- (transBeePL_type t);
            ret (Sreturn (Some (Evalof (Eval (transBeePL_value_cvalue Vunit) ct) ct))) (* Fix me *)
-| Addr l ofs => do ct <- (transBeePL_type (ltype l));
-                ret (Sdo (Eloc l.(lname) ofs l.(lbitfield) ct))                    
+| Addr l ofs t => do ct <- (transBeePL_type t);
+                  ret (Sdo (Eloc l.(lname) ofs l.(lbitfield) ct))                    
 | Hexpr h e t => ret (Sdo (Eval (Values.Vundef) Tvoid)) (* FIX ME *)
 | Eapp ef ts es t => do cef <- befuntion_to_cefunction ef;
                      do cts <- (transBeePL_types transBeePL_type ts);

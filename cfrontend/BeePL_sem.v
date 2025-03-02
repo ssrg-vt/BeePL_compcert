@@ -6,6 +6,13 @@ Require Import Initializersproof Cstrategy BeePL_auxlemmas Coqlib Errors SimplEx
 
 From mathcomp Require Import all_ssreflect. 
 
+(* How to transform the heap into heap regions *)
+(* heap_compcert : (l1 -> v1; l2 -> v2; .... ln -> vn)
+heap_koka : ((h1, (l1 -> v1; l2 -> v2; .... ln -> vn);
+        (h2, (l1 -> v1; l2 -> v2; .... ln -> vn);
+        ..
+!(h, e)*) 
+
 Definition is_stateful_expr (e : BeePL.expr) : bool :=
 match e with 
 | Val e t => true 
@@ -23,7 +30,7 @@ match e with
 | Bind x tx e e' t => true 
 | Cond e1 e2 e3 t => true 
 | Unit t => false
-| Addr l t => false
+| Addr l ofs t => false
 | Hexpr m e t => false (* fix me *)
 | BeePL.Eapp ef ts es t => true 
 end.
@@ -126,8 +133,8 @@ Inductive bsem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
                 bsem_expr vm m (Cond e1 e2 e3 t) m'' vm'' v
 | bsem_ut : forall vm m, 
             bsem_expr vm m (Unit (Ptype Tunit)) m vm Vunit
-| bsem_adr : forall vm m l ofs,
-              bsem_expr vm m (Addr l ofs) m vm (Vloc l.(lname) ofs)
+| bsem_adr : forall vm m l ofs t,
+              bsem_expr vm m (Addr l ofs t) m vm (Vloc l.(lname) ofs)
 | bsem_eapp : forall vm m es vm' m' m'' vs ef g cef g' i' vres bv ts ty t,
               bsem_exprs vm m es m' vm' vs ->
               befuntion_to_cefunction ef g = Res cef g' i' ->
@@ -144,6 +151,10 @@ with bsem_exprs : vmap -> Memory.mem -> list BeePL.expr -> Memory.mem -> vmap ->
               bsem_exprs vm m (e :: es) m'' vm'' (v :: vs). 
 
 End Big_Step_Semantics.
+
+Scheme bsem_expr_ind_mut := Induction for bsem_expr Sort Prop
+  with bsem_exprs_ind_mut := Induction for bsem_exprs Sort Prop.
+Combined Scheme bsem_exprs_bsem_expr_ind_mut from bsem_exprs_ind_mut, bsem_expr_ind_mut.
 
 Definition extract_value_expr (e : BeePL.expr) : list value :=
 match e with 
@@ -277,8 +288,8 @@ Inductive ssem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
                 ssem_expr vm m (Cond (Val v1 t1) e2 e3 (typeof_expr e2)) m vm e3
 | ssem_ut : forall vm m, 
             ssem_expr vm m (Unit (Ptype Tunit)) m vm (Val Vunit (Ptype Tunit))
-| ssem_adr : forall vm m l ofs,
-             ssem_expr vm m (Addr l ofs) m vm (Val (Vloc l.(lname) ofs) l.(ltype))
+| ssem_adr : forall vm m l ofs t,
+             ssem_expr vm m (Addr l ofs t) m vm (Val (Vloc l.(lname) ofs) t)
 | ssem_hexpr1 : forall vm m e m' vm' e' t,
                 ssem_expr vm m e m' vm' e' ->
                 ssem_expr vm m (Hexpr m e t) m' vm' (Hexpr m e' t)
@@ -301,6 +312,12 @@ with ssem_exprs : vmap -> Memory.mem -> list BeePL.expr -> Memory.mem -> vmap ->
                ssem_exprs vm m es m' vm' vs ->
                ssem_exprs vm m (Val v t :: es) m' vm' (Val v t :: vs). 
 
+Scheme ssem_expr_ind_mut := Induction for ssem_expr Sort Prop
+  with ssem_exprs_ind_mut := Induction for ssem_exprs Sort Prop.
+Combined Scheme ssem_exprs_ssem_expr_ind_mut from ssem_exprs_ind_mut, ssem_expr_ind_mut.
+
+End Small_Step_Semantics.
+
 Definition is_value (e : BeePL.expr) : bool :=
 match e with 
 | Val _ _ => true 
@@ -319,15 +336,10 @@ Definition bsafe_expr (bge : genv) (e : BeePL.expr) : Prop :=
 forall v vm m vm' m', bsem_expr bge vm m e vm' m' v.
 
 Definition ssafe_expr (bge : genv) (vm : vmap) (m : Memory.mem) (e : BeePL.expr) : Prop :=
-is_value e \/ exists m' vm' e', ssem_expr vm m e m' vm' e'.
-
-(* Complete me *)
-(* Generate custom inductive principles for bsem_expr and bsem_exprs and prove the invariants:
-   for reference see, how it is done in BeePL_typesystem.v *)
+is_value e \/ exists m' vm' e', ssem_expr bge vm m e m' vm' e'.
 
 
-(* Complete me *)
-(* Generate custom inductive principles for ssem_expr and ssem_exprs and prove the invariants:
-   for reference see, how it is done in BeePL_typesystem.v *)
+          
+          
 
-End Small_Step_Semantics.
+

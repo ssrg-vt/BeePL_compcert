@@ -59,7 +59,8 @@ endif
 
 COQCOPTS ?= \
   -w -unused-pattern-matching-variable \
-  -w -deprecated-ident-entry
+  -w -deprecated-ident-entry \
+  -w -notation-overwritten
 
 cparser/Parser.vo: COQCOPTS += -w -deprecated-instance-without-locality
 flocq/IEEE754/Bits.vo: COQCOPTS += -w -opaque-let
@@ -135,7 +136,7 @@ BACKEND=\
 
 # C front-end modules (in cfrontend/)
 
-CFRONTEND=BeePL_mem.v BeePL_aux.v BeeTypes.v BeePL.v BeePL_auxlemmas.v BeePL_sem_proofs.v BeePL_typesystem.v BeePL_Csyntax.v BeePL_typesystem_proofs.v BeePL_compiler_proofs.v Ctypes.v Cop.v Csyntax.v Csem.v Ctyping.v Cstrategy.v Cexec.v \
+CFRONTEND=BeePL_mem.v BeePL_aux.v BeeTypes.v BeePL.v BeePL_auxlemmas.v BeePL_sem.v BeePL_typesystem.v BeePL_Csyntax.v BeePL_typesystem_proofs.v BeePL_compiler_proofs.v Ctypes.v Cop.v Csyntax.v Csem.v Ctyping.v Cstrategy.v Cexec.v \
   Initializers.v Initializersproof.v \
   SimplExpr.v SimplExprspec.v SimplExprproof.v \
   Clight.v ClightBigstep.v SimplLocals.v SimplLocalsproof.v \

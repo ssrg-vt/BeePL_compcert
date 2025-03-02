@@ -74,9 +74,9 @@ Inductive sim_bexpr_cexpr : vmap -> BeePL.expr -> Csyntax.expr -> Prop :=
 | sim_unit : forall le t ct g g' i', (* Fix me *)
              transBeePL_type t g = Res ct g' i' ->
              sim_bexpr_cexpr le (BeePL.Unit t) (Csyntax.Eval (transBeePL_value_cvalue Vunit) ct)
-| sim_addr : forall le l ofs ct g g' i',
-             transBeePL_type l.(ltype) g = Res ct g' i' ->
-             sim_bexpr_cexpr le (BeePL.Addr l ofs) (Csyntax.Eloc l.(lname) ofs l.(lbitfield) ct)
+| sim_addr : forall le l ofs t ct g g' i',
+             transBeePL_type t g = Res ct g' i' ->
+             sim_bexpr_cexpr le (BeePL.Addr l ofs t) (Csyntax.Eloc l.(lname) ofs l.(lbitfield) ct)
 | sim_hexpr : forall le h e t, (* Fix me *)
               sim_bexpr_cexpr le (BeePL.Hexpr h e t) (Eval (Values.Vundef) Tvoid).
  
@@ -192,9 +192,9 @@ Inductive sim_bexpr_cstmt : vmap -> BeePL.expr -> Csyntax.statement -> Prop :=
 | sim_unit_st : forall le t ct g g' i', (* Fix me *)
                 transBeePL_type t g = Res ct g' i' ->
                 sim_bexpr_cstmt le (BeePL.Unit t) (Csyntax.Sreturn (Some (Csyntax.Evalof (Csyntax.Eval (transBeePL_value_cvalue Vunit) ct) ct)))
-| sim_addr_st : forall le l ofs ct g g' i',
-                transBeePL_type l.(ltype) g = Res ct g' i' ->
-                sim_bexpr_cstmt le (BeePL.Addr l ofs) (Csyntax.Sdo (Csyntax.Eloc l.(lname) ofs l.(lbitfield) ct))
+| sim_addr_st : forall le l ofs t ct g g' i',
+                transBeePL_type t g = Res ct g' i' ->
+                sim_bexpr_cstmt le (BeePL.Addr l ofs t) (Csyntax.Sdo (Csyntax.Eloc l.(lname) ofs l.(lbitfield) ct))
 | sim_hexpr_st : forall le h e t, (* Fix me *)
                  sim_bexpr_cstmt le (BeePL.Hexpr h e t) (Sdo (Eval (Values.Vundef) Tvoid)).
 
@@ -486,7 +486,7 @@ move=> m e l ofs ce g g' i hl /= hte henv. induction hl => //=.
   by have := symbols_preserved (vname x)=> ->. 
 (* Loc *) 
 rewrite /transBeePL_expr_expr /SimplExpr.bind in hte. 
-case ht: (transBeePL_type (ltype l) g) hte=> [er | r g'' i'] //=.
+case ht: (transBeePL_type t g) hte=> [er | r g'' i'] //=.
 move=> [] h1 h2; subst. by apply esl_loc.
 Qed.
 
@@ -678,6 +678,7 @@ move: H. move=> [] s' he. right. by exists s'.
 Qed.
   
 (* Progress for expression state: A safe expression state always make progress except the val *)
+(* Need to add well formedness about store *)
 Lemma expr_state_can_step: forall f e k m,
 BeePL.safe bge (BeePL.ExprState f e k benv m) ->
 exists S, bstep bge (BeePL.ExprState f e k benv m) S.
@@ -847,7 +848,7 @@ exists ce' t, Csem.rred cge ce m t ce' m' /\ sim_bexpr_cexpr benv e' ce'.
 Proof.
 move=> e m e' m' ce g g' i' hr. induction hr; subst; rewrite /=.
 (* deref *)
-+ move=> hr. rewrite /SimplExpr.bind in hr.
++ (*move=> hr. rewrite /SimplExpr.bind in hr.
   case hte: (transBeePL_type (typeof_expr e) g) hr=> [ere | cte ge ie] //=.
   case hte': (transBeePL_type (typeof_expr e) ge )=> [ere' | cte' ge' ie'] //=.
   move=> [] h1 h2; subst.
@@ -859,7 +860,7 @@ move=> e m e' m' ce g g' i' hr. induction hr; subst; rewrite /=.
             (transBeePL_value_cvalue v) ge g' ie' H hte' refl_equal.
     have hc := non_volatile_type_preserved (typeof_expr e) cte' ge g' ie' false H1 hte'.
     by rewrite /chunk_for_volatile_type /= hc /=.
-  by apply sim_val with ge g' ie'.
+  by apply sim_val with ge g' ie'.*) admit.
 (* ref *) (* Fix me *)
 + admit.
 (* uop *)
@@ -885,7 +886,7 @@ move=> e m e' m' ce g g' i' hr. induction hr; subst; rewrite /=.
 (* cond *) (* cond steps to Eparen which we don't have in our language *)
 + admit.
 (* massgn *) 
-+ move=> hr. rewrite /SimplExpr.bind in hr.
++ (*move=> hr. rewrite /SimplExpr.bind in hr.
   case ht: (transBeePL_type t g) hr=> [er | ct1' g1 i1] //=.
   case ht2: (transBeePL_type tv2 g1)=> [er2 | ct2' g2 i1'] //=.
   case ht3: (transBeePL_type t g2)=> [er3 | ct3' g3 i2'] //=.
@@ -921,7 +922,7 @@ move=> e m e' m' ce g g' i' hr. induction hr; subst; rewrite /=.
      have hequiv := senv_preserved. rewrite /cge /Csem.genv_genv /= in hequiv.
      by have := @Events.volatile_store_preserved bge (Genv.globalenv cprog) 
                 (transl_bchunk_cchunk chunk) hm l ofs v0 tr hm' hequiv H5. rewrite /Csem.genv_genv /=. 
-  by apply sim_val with g2 g' i2'.
+  by apply sim_val with g2 g' i2'.*) admit.
 (* bind *) (* need to think about how bind translates *)
 + admit.
 (* unit *)

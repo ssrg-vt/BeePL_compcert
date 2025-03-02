@@ -17,7 +17,7 @@ Inductive constant : Type :=
 | ConsUnit : constant.
 
 Record vinfo : Type := mkvar { vname : ident; vtype : BeeTypes.type }.
-Record linfo : Type := mkloc { lname : ident; ltype : BeeTypes.type; lbitfield : bitfield }.
+Record linfo : Type := mkloc { lname : ident; ltype : BeeTypes.basic_type; lbitfield : bitfield }.
 
 Inductive value : Type :=
 | Vunit : value
@@ -72,7 +72,7 @@ match vs with
 | v :: vs => v.(vtype) :: extract_types_vinfos vs
 end.
 
-Fixpoint extract_types_linfos (vs : list linfo) : list BeeTypes.type :=
+Fixpoint extract_types_linfos (vs : list linfo) : list BeeTypes.basic_type :=
 match vs with 
 | nil => nil
 | v :: vs => v.(ltype) :: extract_types_linfos vs
@@ -100,7 +100,7 @@ Definition eq_vinfo (v1 : vinfo) (v2 : vinfo) : bool :=
 if (v1.(vname) =? v2.(vname))%positive && (eq_type (vtype v1) (vtype v2)) then true else false.
 
 Definition eq_linfo (v1 : linfo) (v2 : linfo) : bool :=
-if (v1.(lname) =? v2.(lname))%positive && (eq_type v1.(ltype) v2.(ltype)) then true else false.
+if (v1.(lname) =? v2.(lname))%positive && (eq_basic_type v1.(ltype) v2.(ltype)) then true else false.
 
 Inductive builtin : Type :=
 | Ref : builtin                             (* allocation : ref t e allocates e of type t 
@@ -149,7 +149,7 @@ Inductive expr : Type :=
 | Unit : type -> expr                                                   (* unit *)
 (* not intended to be written by programmers:
    Only should play role in operational semantics *)
-| Addr : linfo -> ptrofs -> expr                                        (* address *)
+| Addr : linfo -> ptrofs -> type -> expr                                (* address *)
 | Hexpr : Memory.mem -> expr -> type -> expr                            (* heap effect *)
 | Eapp : external_function -> list type -> list expr -> type -> expr    (* external function *).
 
@@ -182,7 +182,7 @@ match e with
 | Bind x t e e' t' => t'
 | Cond e e' e'' t => t
 | Unit t => t
-| Addr l p => l.(ltype) 
+| Addr l p t => t
 | Hexpr h e t => t
 | Eapp ef ts es t => t
 end.
@@ -325,6 +325,22 @@ Section Semantics.
 
 Variable (ge : BeePL.genv).
 
+(* Executable definition of volatile_load (events.v) *)
+(*Definition volatile_load (chunk: memory_chunk) (m: mem) (b: Values.block) (ofs: ptrofs) : val :=
+if Senv.block_is_volatile ge b then
+match Senv.find_symbol ge b with
+| Some id =>
+        (* Assume some function eventval_match_eval that computes the eventval *)
+        let ev := eventval_match_eval ge (type_of_chunk chunk) in
+        (Event_vload chunk id ofs ev :: nil, Val.load_result chunk ev)
+    | None => (E0, Vundef)  (* If the symbol lookup fails, return empty trace and undefined value *)
+    end
+  else
+    match Mem.load chunk m b (Ptrofs.unsigned ofs) with
+    | Some v => (E0, v)
+    | None => (E0, Vundef)
+    end.*)
+
 (* [deref_addr ty m addr ofs] computes the value of type [ty] residing in 
     memory [m] at address [addr], offset [ofs] and bitfield designation [bf]:
     if the access mode is by value then the value is returned by performing memory load 
@@ -338,13 +354,29 @@ Inductive deref_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : p
   transC_val_bplvalue v = OK v' ->
   deref_addr ty m addr ofs Full v'
 | deref_loc_volatile: forall chunk tr v v',
-  access_mode ty = By_value (transl_bchunk_cchunk chunk) -> type_is_volatile ty = true ->
+  access_mode ty = By_value (transl_bchunk_cchunk chunk) -> 
+  type_is_volatile ty = true ->
   volatile_load ge (transl_bchunk_cchunk chunk) m addr ofs tr v ->
   transC_val_bplvalue v = OK v' ->
   deref_addr ty m addr ofs Full v'
 | deref_addr_reference:
   access_mode ty = By_reference ->
   deref_addr ty m addr ofs Full (Vloc addr ofs). 
+
+(* Executable definition for deref_addr 
+Fixpoint deref_addr (t : type) (m : Memory.mem) (addr : Values.block) (ofs : ptrofs) : mon (bitfield * value) :=
+match access_mode ty with 
+| By_value (transl_bchunk_cchunk chunk) => if (type_is_volatile ty) 
+                                           then  
+                             
+if (type_is_volatile ty) && (access_mode ty == By_value (transl_bchunk_cchunk chunk)) 
+then match Mem.loadv (transl_bchunk_cchunk chunk) m (transBeePL_value_cvalue (Vloc addr ofs)) with 
+     | Some v => match (transC_val_bplvalue v) with 
+                 | Res v' g i => OK (Full, v')
+                 | None => Error msg 
+     | None => Error msg 
+else if deref_addr t m addr ofs
+else *)
 
 (* [assign_addr ty m addr ofs v] returns the updated memory after storing the value v at address [addr] and offset 
    [ofs] *)
@@ -428,8 +460,8 @@ Inductive subst : vmap -> Memory.mem -> ident -> value -> expr -> Memory.mem -> 
                subst vm hm x v (Cond e1 e2 e3 t) hm''' (Cond e1' e2' e3' t)
 | unit_subst : forall vm hm x v,
                subst vm hm x v (Unit (Ptype Tunit)) hm (Unit (Ptype Tunit))
-| addr_subst : forall vm hm x v l p,
-               subst vm hm x v (Addr l p) hm (Addr l p)
+| addr_subst : forall vm hm x v l p t,
+               subst vm hm x v (Addr l p t) hm (Addr l p t)
 | hexpr_subst : forall vm hm x v h e t hm' e', 
                 subst vm hm x v e hm' e' ->
                 subst vm hm x v (Hexpr h e t) hm' (Hexpr h e' t)
@@ -480,7 +512,7 @@ match e with
 | Bind x t e e' t' => false
 | Cond e1 e2 e3 t => false 
 | Unit t => true 
-| Addr l ofs => true 
+| Addr l ofs t => true 
 | Hexpr m e t => false
 | Eapp ef ts es t => false
 end.
@@ -506,16 +538,16 @@ Variable (vm : vmap).
    expressions. *) 
 Inductive bsem_expr_slv : Memory.mem -> expr -> linfo -> ptrofs -> Prop :=
 | bsem_var : forall hm x t l h a, 
-              vm!(x.(vname)) = Some (l, Reftype h (Bprim t) a) ->
-              x.(vtype) = Reftype h (Bprim t) a ->
-              bsem_expr_slv hm (Var x) {| lname := l; ltype := Reftype h (Bprim t) a; lbitfield := Full |} Ptrofs.zero
+              vm!(x.(vname)) = Some (l, Reftype h t a) ->
+              x.(vtype) = Reftype h t a ->
+              bsem_expr_slv hm (Var x) {| lname := l; ltype := t; lbitfield := Full |} Ptrofs.zero
 | bsem_gvar : forall hm x t l h a, 
               vm!(x.(vname)) = None ->
               Genv.find_symbol ge x.(vname) = Some l ->
               x.(vtype) = Reftype h (Bprim t) a ->
-              bsem_expr_slv hm (Var x) {| lname := l; ltype := Reftype h (Bprim t) a; lbitfield := Full |} Ptrofs.zero
-| bsem_addr : forall hm l ofs,
-              bsem_expr_slv hm (Addr l ofs) l ofs.
+              bsem_expr_slv hm (Var x) {| lname := l; ltype := (Bprim t); lbitfield := Full |} Ptrofs.zero
+| bsem_addr : forall hm l ofs t,
+              bsem_expr_slv hm (Addr l ofs t) l ofs.
 Inductive bsem_expr_srv : Memory.mem -> expr -> value -> Prop :=
 | bsem_val : forall hm v t,
              well_formed_value v t ->
@@ -863,25 +895,28 @@ Inductive lreduction : expr -> Memory.mem -> expr -> Memory.mem -> Prop :=
 | lred_var_local : forall hm x t l h a,
                    vm!(x.(vname)) = Some (l, Reftype h (Bprim t) a) ->
                    x.(vtype) = Reftype h (Bprim t) a ->
-                   lreduction (Var x) hm (Addr {| lname := l; ltype := Reftype h (Bprim t) a; lbitfield := Full |} Ptrofs.zero) hm
+                   lreduction (Var x) hm (Addr {| lname := l; ltype := Bprim t; lbitfield := Full |} Ptrofs.zero (Reftype h (Bprim t) a)) hm
 | lred_var_global : forall hm x t l h a,
                     vm!(x.(vname)) = None ->
                     x.(vtype) = Reftype h (Bprim t) a ->
                     Genv.find_symbol ge x.(vname) = Some l ->
-                    lreduction (Var x) hm (Addr {| lname := l; ltype := Reftype h (Bprim t) a; lbitfield := Full |} Ptrofs.zero) hm.
+                    lreduction (Var x) hm (Addr {| lname := l; ltype := Bprim t; lbitfield := Full |} Ptrofs.zero 
+                                           (Reftype h (Bprim t) a)) hm.
 
 Inductive rreduction : expr -> Memory.mem -> expr -> Memory.mem -> Prop :=
-| rred_valof : forall hm e t l ofs bf v,
-               deref_addr ge (typeof_expr e) hm l ofs bf v ->
-               typeof_expr e = t ->
-               BeeTypes.type_is_volatile t = false ->
-               rreduction (Prim Deref ((Addr {| lname := l; ltype := t; lbitfield := bf |} ofs) :: nil) t) hm (Val v t) hm
-| rred_ref : forall hm t g ct g' i' fid hm' v l ofs, 
-             transBeePL_type t g = Res ct g' i' ->
+| rred_valof : forall hm t l ofs bf v h a,
+               deref_addr ge (Ptype t) hm l ofs bf v ->
+               BeeTypes.type_is_volatile (Ptype t) = false ->
+               rreduction (Prim Deref ((Addr {| lname := l; ltype := Bprim t; lbitfield := bf |} ofs (Reftype h (Bprim t) a)) :: nil) (Ptype t)) hm 
+               (Val v (Ptype t)) hm
+| rred_ref : forall hm t g ct g' i' fid hm' v l ofs h a, 
+             transBeePL_type (Ptype t) g = Res ct g' i' ->
              (gensym ct) = ret fid ->
-             bind_variables ge vm hm ({| vname := fid; vtype := t|} :: nil) (v :: nil) hm' ->
-             lreduction (Var {| vname := fid; vtype := t |}) hm' (Addr {| lname := l; ltype := t; lbitfield := Full |} Ptrofs.zero) ofs -> 
-             rreduction (Prim Ref [:: (Val v t)] t) hm (Addr {| lname := l; ltype := t; lbitfield :=  Full|} Ptrofs.zero) hm'
+             bind_variables ge vm hm ({| vname := fid; vtype := Ptype t|} :: nil) (v :: nil) hm' ->
+             lreduction (Var {| vname := fid; vtype := Ptype t |}) hm' 
+                        (Addr {| lname := l; ltype := Bprim t; lbitfield := Full |} Ptrofs.zero (Reftype h (Bprim t) a)) ofs -> 
+             rreduction (Prim Ref [:: (Val v (Ptype t))] (Ptype t)) hm 
+                        (Addr {| lname := l; ltype := Bprim t; lbitfield :=  Full|} Ptrofs.zero (Reftype h (Bprim t) a)) hm'
 | rred_uop : forall hm v t ct uop v' v'' g g' i',
              transBeePL_type t g = Res ct g' i' ->
              sem_unary_operation uop (transBeePL_value_cvalue v) ct hm = Some v' -> 
@@ -897,12 +932,13 @@ Inductive rreduction : expr -> Memory.mem -> expr -> Memory.mem -> Prop :=
               transBeePL_type tv g = Res ctv g' i' ->
               bool_val (transBeePL_value_cvalue v) ctv hm = Some b ->
               rreduction (Cond (Val v tv) e1 e2 t) hm (if b then e1 else e2) hm
-| rred_massgn : forall hm l ofs v tv2 ct1 ct2 t hm' v' bf g g' g'' i' i'',
-                transBeePL_type t g = Res ct1 g' i' ->
-                transBeePL_type tv2 g' = Res ct2 g'' i''->
+| rred_massgn : forall hm l ofs v tv2 ct1 ct2 t hm' v' bf g g' g'' i' i'' h a,
+                transBeePL_type (Ptype t) g = Res ct1 g' i' ->
+                transBeePL_type (Ptype tv2) g' = Res ct2 g'' i''->
                 sem_cast (transBeePL_value_cvalue v) ct2 ct1 hm = Some (transBeePL_value_cvalue v') ->
-                assign_addr ge t hm l ofs bf v' hm' v' ->
-                rreduction (Prim Massgn ((Addr {| lname := l; ltype := t; lbitfield := bf |} ofs) :: Val v tv2 :: nil) t) hm (Val v' t) hm'
+                assign_addr ge (Ptype t) hm l ofs bf v' hm' v' ->
+                rreduction (Prim Massgn ((Addr {| lname := l; ltype := Bprim t; lbitfield := bf |} ofs (Reftype h (Bprim t) a)) 
+                                         :: Val v (Ptype tv2) :: nil) (Ptype t)) hm (Val v' (Ptype t)) hm'
 | rred_bind : forall vm hm x v e2 e2' t t' hm',
               subst ge vm hm x v e2 hm' e2' ->
               rreduction (Bind x t (Val v t) e2 t') hm e2' hm'
@@ -983,8 +1019,8 @@ with contexts : kind -> (expr -> list expr) -> Prop :=
 Inductive expr_safe : kind -> expr -> Memory.mem -> Prop :=
 | expr_safe_val : forall v t m,
                   expr_safe RV (Val v t) m
-| expr_safe_loc : forall l t m,
-                  expr_safe LV (Addr l t) m
+| expr_safe_loc : forall l m ofs t,
+                  expr_safe LV (Addr l ofs t) m
 | expr_safe_lred : forall e m e' m' to C,
                    lreduction e m e' m' ->
                    context LV to C ->
