@@ -238,8 +238,8 @@ Proof.
     eapply sim_val; eauto.
   (* Var *)
   - unfold SimplExpr.bind in H.
-    destruct (transBeePL_type (vtype v) g) as [| ct g1 i1] eqn:Htype; try discriminate.
-    destruct (ret (Csyntax.Evar (vname v) ct) g1) as [| cs g2 i2] eqn:Hret; try discriminate.
+    destruct (transBeePL_type t g) as [| ct g1 i1] eqn:Htype; try discriminate.
+    destruct (ret (Csyntax.Evar i ct) g1) as [| cs g2 i2] eqn:Hret; try discriminate.
     inversion Hret. subst cs.
     injection H as H; subst.
     eapply sim_var; eauto.
@@ -359,7 +359,7 @@ Proof.
     eapply sim_unit; eauto.
   (* Addr *)
   - unfold SimplExpr.bind in H.
-    destruct (transBeePL_type (ltype l) g) as [| ct g1 i1] eqn:Htype; try discriminate.
+    destruct (transBeePL_type t g) as [| ct g1 i1] eqn:Htype; try discriminate.
     destruct (ret (Eloc (lname l) i (lbitfield l) ct) g1) as [| cs g2 i2] eqn:Hret; try discriminate.
     inversion Hret. subst cs.
     injection H as H; subst.
@@ -393,8 +393,8 @@ Proof.
     eapply sim_val_st with (le:=vm) (v:=v) (t:=t) (ct:=ct) (cv:=transBeePL_value_cvalue v); eauto.
   (* Var *)
   - unfold SimplExpr.bind in H.
-    destruct (transBeePL_type (vtype v) g) as [|ct g1 i1] eqn:Htype; try discriminate.
-    destruct (ret (Csyntax.Sreturn (Some (Evalof (Csyntax.Evar (vname v) ct) ct))) g1) as [|cs g2 i2] eqn:Hret; try discriminate.
+    destruct (transBeePL_type t g) as [|ct g1 i1] eqn:Htype; try discriminate.
+    destruct (ret (Csyntax.Sreturn (Some (Evalof (Csyntax.Evar i ct) ct))) g1) as [|cs g2 i2] eqn:Hret; try discriminate.
     inversion Hret. subst cs.
     injection H as H. subst.
     eapply sim_var_st with (le:=vm); eauto.

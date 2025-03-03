@@ -350,7 +350,7 @@ Proof.
   - eapply ty_cond with (Gamma := extend_context Gamma0 x t4); 
     eauto.
   - constructor.
-  - eapply ty_addr with (Gamma := extend_context Gamma0 x t1).
+  - eapply ty_addr with (Gamma := extend_context Gamma0 x t1);
     eauto.
   - constructor.
   - constructor; eauto.
