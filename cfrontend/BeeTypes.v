@@ -83,6 +83,11 @@ match t with
 | _ => bool_default
 end.
 
+Definition basic_to_type (b : basic_type) : type :=
+match b with 
+| Bprim p => Ptype p
+end.
+
 Definition Twptr := if Archi.ptr64 then Twlong else Twint. 
 
 Definition wtype_of_type (t : type) : wtype :=
@@ -398,10 +403,15 @@ Definition ty_context := PTree.t type.
 
 (* To ensure that a location does not contain another location (ref) 
    and only points to basic types like int, bool, unit or pair *)
-Definition store_context := PTree.t type.  
+(* Records the type of the values that we expect to be stored in cell i *)
+Definition store_context := PTree.t basic_type.  
 
 Definition empty_context := (PTree.empty type).
 
 Definition extend_context (Gamma : ty_context) (k : ident) (t : type) := PTree.set k t Gamma. 
+
+Definition empty_stcontext := (PTree.empty basic_type).
+
+Definition extend_stcontext (Sigma : store_context) (k : ident) (t : basic_type) := PTree.set k t Sigma. 
 
 

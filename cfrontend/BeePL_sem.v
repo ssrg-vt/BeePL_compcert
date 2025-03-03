@@ -6,10 +6,17 @@ Require Import Initializersproof Cstrategy BeePL_auxlemmas Coqlib Errors SimplEx
 
 From mathcomp Require Import all_ssreflect. 
 
+(* How to transform the heap into heap regions *)
+(* heap_compcert : (l1 -> v1; l2 -> v2; .... ln -> vn)
+heap_koka : ((h1, (l1 -> v1; l2 -> v2; .... ln -> vn);
+        (h2, (l1 -> v1; l2 -> v2; .... ln -> vn);
+        ..
+!(h, e)*) 
+
 Definition is_stateful_expr (e : BeePL.expr) : bool :=
 match e with 
 | Val e t => true 
-| Var x => false
+| Var x t => false
 | Const c t => false
 | App e es t => true
 | Prim b es t => match b with 
@@ -23,7 +30,7 @@ match e with
 | Bind x tx e e' t => true 
 | Cond e1 e2 e3 t => true 
 | Unit t => false
-| Addr l t => false
+| Addr l ofs t => false
 | Hexpr m e t => false (* fix me *)
 | BeePL.Eapp ef ts es t => true 
 end.
@@ -43,15 +50,15 @@ Inductive bsem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
 | bsem_value : forall vm m v t,
                well_formed_value v t ->
                bsem_expr vm m (Val v t) m vm v
-| bsem_lvar : forall vm m x t l ofs h a v,
-             vm!(x.(vname)) = Some (l, Reftype h (Bprim t) a) -> 
-             deref_addr ge x.(vtype) m l ofs Full v ->
-             bsem_expr vm m (Var x) m vm v
-| bsem_gbvar : forall vm m x l ofs v,
-               vm!(x.(vname)) = None ->
-               Genv.find_symbol ge x.(vname) = Some l -> 
-               deref_addr ge x.(vtype) m l ofs Full v ->
-               bsem_expr vm m (Var x) m vm v
+| bsem_lvar : forall vm m x t l ofs v,
+             vm!x = Some (l, t) -> 
+             deref_addr ge t m l ofs Full v ->
+             bsem_expr vm m (Var x t) m vm v
+| bsem_gbvar : forall vm m x t l ofs v,
+               vm!x = None ->
+               Genv.find_symbol ge x = Some l -> 
+               deref_addr ge t m l ofs Full v ->
+               bsem_expr vm m (Var x t) m vm v
 | bsem_consti : forall vm m i t,
                 bsem_expr vm m (Const (ConsInt i) t) m vm (Vint i)
 | bsem_constl : forall vm m i t, 
@@ -66,7 +73,7 @@ Inductive bsem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
                list_norepet (fd.(fn_args) ++ fd.(BeePL.fn_vars)) ->
                alloc_variables vm2 m2 (fd.(fn_args) ++ fd.(BeePL.fn_vars)) vm3 m3 -> 
                bsem_exprs vm3 m3 es m4 vm4 vs ->
-               typeof_values vs (extract_types_vinfos fd.(fn_args)) ->
+               typeof_values vs (unzip2 fd.(fn_args)) ->
                bind_variables ge vm4 m4 fd.(fn_args) vs m5  ->
                bsem_expr vm4 m5 fd.(BeePL.fn_body) m6 vm5 rv -> 
                typeof_value rv (get_rt_fundef (Internal fd)) ->
@@ -76,7 +83,7 @@ Inductive bsem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
              bsem_expr vm m e m' vm' v ->
              transBeePL_type (Ptype t) g = Res ct g' i' ->
              (gensym ct) = ret fid ->
-             bind_variables ge vm m ({| vname := fid; vtype := Ptype t|} :: nil) (v :: nil) m' ->
+             bind_variables ge vm m ((fid, Ptype t) :: nil) (v :: nil) m' ->
              vm!fid = Some (l, Reftype h (Bprim t) a) -> 
              bsem_expr vm m (Prim Ref [:: e] (Reftype h (Bprim t) a)) m'' vm'' (Vloc l ofs)
 | bsem_deref : forall vm m e m' vm' l ofs bf v,
@@ -126,8 +133,8 @@ Inductive bsem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
                 bsem_expr vm m (Cond e1 e2 e3 t) m'' vm'' v
 | bsem_ut : forall vm m, 
             bsem_expr vm m (Unit (Ptype Tunit)) m vm Vunit
-| bsem_adr : forall vm m l ofs,
-              bsem_expr vm m (Addr l ofs) m vm (Vloc l.(lname) ofs)
+| bsem_adr : forall vm m l ofs t,
+              bsem_expr vm m (Addr l ofs t) m vm (Vloc l.(lname) ofs)
 | bsem_eapp : forall vm m es vm' m' m'' vs ef g cef g' i' vres bv ts ty t,
               bsem_exprs vm m es m' vm' vs ->
               befuntion_to_cefunction ef g = Res cef g' i' ->
@@ -261,6 +268,10 @@ End bsem_expr_ind.
 
 End Big_Step_Semantics.
 
+Scheme bsem_expr_ind_mut := Induction for bsem_expr Sort Prop
+  with bsem_exprs_ind_mut := Induction for bsem_exprs Sort Prop.
+Combined Scheme bsem_exprs_bsem_expr_ind_mut from bsem_exprs_ind_mut, bsem_expr_ind_mut.
+
 Definition extract_value_expr (e : BeePL.expr) : list value :=
 match e with 
 | Val v t => [:: v]
@@ -281,15 +292,15 @@ Inductive ssem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
 | ssem_value : forall vm m v t,
                well_formed_value v t ->
                ssem_expr vm m (Val v t) m vm (Val v t)
-| ssem_lvar : forall vm m x t l ofs h a v,
-              vm!(x.(vname)) = Some (l, Reftype h (Bprim t) a) -> 
-              deref_addr ge x.(vtype) m l ofs Full v ->
-              ssem_expr vm m (Var x) m vm (Val v (x.(vtype)))
-| ssem_gbvar : forall vm m x l ofs v,
-               vm!(x.(vname)) = None ->
-               Genv.find_symbol ge x.(vname) = Some l -> 
-               deref_addr ge x.(vtype) m l ofs Full v ->
-               ssem_expr vm m (Var x) m vm (Val v (x.(vtype)))
+| ssem_lvar : forall vm m x t l ofs v,
+              vm!x = Some (l, t) -> 
+              deref_addr ge t m l ofs Full v ->
+              ssem_expr vm m (Var x t) m vm (Val v t)
+| ssem_gbvar : forall vm m x t l ofs v,
+               vm!x = None ->
+               Genv.find_symbol ge x = Some l -> 
+               deref_addr ge t m l ofs Full v ->
+               ssem_expr vm m (Var x t) m vm (Val v t)
 | ssem_consti : forall vm m i t,
                 ssem_expr vm m (Const (ConsInt i) t) m vm (Val (Vint i) t)
 | ssem_constl : forall vm m i t, 
@@ -307,7 +318,7 @@ Inductive ssem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
               list_norepet (fd.(fn_args) ++ fd.(BeePL.fn_vars)) ->
               alloc_variables vm1 m1 (fd.(fn_args) ++ fd.(BeePL.fn_vars)) vm2 m2 -> 
               ssem_exprs vm2 m2 es m3 vm3 vs ->
-              typeof_exprs vs = (extract_types_vinfos fd.(fn_args)) ->
+              typeof_exprs vs = (unzip2 fd.(fn_args)) ->
               bind_variables ge vm3 m3 fd.(fn_args) (extract_values_exprs vs) m4  ->
               ssem_expr vm1 m1 (App (Val (Vloc l Ptrofs.zero) (Ftype (typeof_exprs es) 
                                                                      (get_effect_fundef (Internal fd)) 
@@ -320,8 +331,8 @@ Inductive ssem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
 | ssem_ref2 : forall vm m vm' m' vm'' m'' v fid l ofs t g ct g' i' h a,
               transBeePL_type (Ptype t) g = Res ct g' i' ->
               (gensym ct) = ret fid ->
-              bind_variables ge vm m ({| vname := fid; vtype := Ptype t|} :: nil) (v :: nil) m' ->
-              ssem_expr vm' m' (Var {| vname := fid; vtype := Ptype t |}) m'' vm'' (Val (Vloc l ofs) (Reftype h (Bprim t) a)) -> 
+              bind_variables ge vm m ((fid, Ptype t) :: nil) (v :: nil) m' ->
+              ssem_expr vm' m' (Var fid (Ptype t)) m'' vm'' (Val (Vloc l ofs) (Reftype h (Bprim t) a)) -> 
               ssem_expr vm m (Prim Ref [:: (Val v (Ptype t))] (Reftype h (Bprim t) a)) m'' vm'' 
               (*(Hexpr m'' (Val (Vloc l ofs) (Reftype h (Bprim t) a)) (Reftype h (Bprim t) a))*)
                              (Val (Vloc l ofs) (Reftype h (Bprim t) a))
@@ -393,8 +404,8 @@ Inductive ssem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
                 ssem_expr vm m (Cond (Val v1 t1) e2 e3 (typeof_expr e2)) m vm e3
 | ssem_ut : forall vm m, 
             ssem_expr vm m (Unit (Ptype Tunit)) m vm (Val Vunit (Ptype Tunit))
-| ssem_adr : forall vm m l ofs,
-             ssem_expr vm m (Addr l ofs) m vm (Val (Vloc l.(lname) ofs) l.(ltype))
+| ssem_adr : forall vm m l ofs t,
+             ssem_expr vm m (Addr l ofs t) m vm (Val (Vloc l.(lname) ofs) t)
 | ssem_hexpr1 : forall vm m e m' vm' e' t,
                 ssem_expr vm m e m' vm' e' ->
                 ssem_expr vm m (Hexpr m e t) m' vm' (Hexpr m e' t)
@@ -417,6 +428,12 @@ with ssem_exprs : vmap -> Memory.mem -> list BeePL.expr -> Memory.mem -> vmap ->
                ssem_exprs vm m es m' vm' vs ->
                ssem_exprs vm m (Val v t :: es) m' vm' (Val v t :: vs). 
 
+Scheme ssem_expr_ind_mut := Induction for ssem_expr Sort Prop
+  with ssem_exprs_ind_mut := Induction for ssem_exprs Sort Prop.
+Combined Scheme ssem_exprs_ssem_expr_ind_mut from ssem_exprs_ind_mut, ssem_expr_ind_mut.
+
+End Small_Step_Semantics.
+
 Definition is_value (e : BeePL.expr) : bool :=
 match e with 
 | Val _ _ => true 
@@ -435,7 +452,7 @@ Definition bsafe_expr (bge : genv) (e : BeePL.expr) : Prop :=
 forall v vm m vm' m', bsem_expr bge vm m e vm' m' v.
 
 Definition ssafe_expr (bge : genv) (vm : vmap) (m : Memory.mem) (e : BeePL.expr) : Prop :=
-is_value e \/ exists m' vm' e', ssem_expr vm m e m' vm' e'.
+is_value e \/ exists m' vm' e', ssem_expr bge vm m e m' vm' e'.
 
 Section ssem_expr_ind.
 Context (Pss : vmap -> Memory.mem -> list BeePL.expr -> Memory.mem -> vmap -> list BeePL.expr -> Prop).
@@ -588,5 +605,3 @@ Qed.
 
 
 End ssem_expr_ind.
-
-End Small_Step_Semantics.

@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
-Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Coqlib Memory Ctypes Memtype.
-Require Import BeePL_aux BeePL_mem BeeTypes BeePL BeePL_auxlemmas BeePL_sem_proofs BeePL_compiler_proofs.
+Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Globalenvs Coqlib Memory Ctypes Memtype.
+Require Import BeePL_aux BeePL_mem BeeTypes BeePL BeePL_auxlemmas BeePL_sem BeePL_compiler_proofs.
 From mathcomp Require Import all_ssreflect. 
 
 Definition empty_effect : effect := nil. 
@@ -14,9 +14,8 @@ Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> P
 | ty_val : forall Gamma Sigma v ef t,
            type_expr Gamma Sigma (Val v t) ef t
 | ty_var : forall Gamma Sigma x t, 
-           PTree.get x.(vname) (extend_context Gamma x.(vname) t) = Some t ->
-           x.(vtype) = t ->
-           type_expr Gamma Sigma (Var x) empty_effect t
+           PTree.get x (extend_context Gamma x (Ptype t)) = Some (Ptype t) ->
+           type_expr Gamma Sigma (Var x (Ptype t)) empty_effect (Ptype t)
 | ty_constint : forall Gamma Sigma t sz s a i,
                 t = (Ptype (Tint sz s a)) ->
                 type_expr Gamma Sigma (Const (ConsInt i) t) empty_effect t
@@ -43,7 +42,9 @@ Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> P
                    type_expr Gamma Sigma (Prim Massgn (e::e'::nil) (Ptype Tunit)) (ef ++ ef' ++ (Write h :: nil)) (Ptype Tunit)
 | ty_prim_uop : forall Gamma Sigma op e ef t,
                 type_expr Gamma Sigma e ef t ->
+                (*type_expr Gamma Sigma e (ef ++ ef') t ->*)
                 type_expr Gamma Sigma (Prim (Uop op) (e::nil) t) ef t
+                (*type_expr Gamma Sigma (Prim (Uop op) (e::nil) t) (ef ++ ef') t*)
 | ty_prim_bop : forall Gamma Sigma op e ef t e',
                 type_expr Gamma Sigma e ef t ->
                 type_expr Gamma Sigma e' ef t ->
@@ -60,9 +61,10 @@ Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> P
             type_expr Gamma Sigma (Cond e1 e2 e3 t) (ef1 ++ ef2 ++ ef3) t
 | ty_unit : forall Gamma Sigma,
             type_expr Gamma Sigma (Unit (Ptype Tunit)) empty_effect (Ptype Tunit)
-| ty_addr : forall Gamma Sigma l ofs h t a,
-            l.(ltype) = Reftype h (Bprim t) a ->
-            type_expr Gamma Sigma (Addr l ofs) empty_effect l.(ltype) 
+| ty_addr : forall Gamma Sigma l ofs h t a t',
+            PTree.get l.(lname) Sigma = Some t ->
+            t' = (Reftype h t a) ->
+            type_expr Gamma Sigma (Addr l ofs t') empty_effect t' 
 (* fix me : Run *)
 (* fix me : Hexpr *)
 (*| ty_hexpr : forall Gamma Sigma m e h ef t a, 
@@ -94,18 +96,9 @@ Context (Pts : ty_context -> store_context -> list expr -> effect -> list type -
 Context (Pt : ty_context -> store_context -> expr -> effect -> type -> Prop).
 Context (Htval : forall Gamma Sigma v ef t,
                  Pt Gamma Sigma (Val v t) ef t).
-(*Context (Htvalu : forall Gamma Sigma,
-                  Pt Gamma Sigma (Val Vunit (Ptype Tunit)) empty_effect (Ptype Tunit)).
-Context (Htvali Ty_val_int : forall Gamma Sigma i sz s a,
-                             Pt Gamma Sigma (Val (Vint i) (Ptype (Tint sz s a))) empty_effect (Ptype (Tint sz s a))).
-Context (Htvall : forall Gamma Sigma i s a,
-                  Pt Gamma Sigma (Val (Vint64 i) (Ptype (Tlong s a))) empty_effect (Ptype (Tlong s a))).
-Context (Htvalloc : forall Gamma Sigma h t l ofs a,
-                    Pt Gamma Sigma (Val (Vloc l ofs) (Reftype h (Bprim t) a)) empty_effect (Reftype h (Bprim t) a)). *)
 Context (Htvar : forall Gamma Sigma x t,
-                 PTree.get x.(vname) (extend_context Gamma x.(vname) t) = Some t ->
-                 x.(vtype) = t ->
-                 Pt Gamma Sigma (Var x) empty_effect t).
+                 PTree.get x (extend_context Gamma x (Ptype t)) = Some (Ptype t) ->
+                 Pt Gamma Sigma (Var x (Ptype t)) empty_effect (Ptype t)).
 Context (Htconti : forall Gamma Sigma t sz s i a,
                    t = (Ptype (Tint sz s a)) ->
                    Pt Gamma Sigma (Const (ConsInt i) t) empty_effect t).
@@ -148,9 +141,10 @@ Context (Htcond : forall Gamma Sigma e1 e2 e3 ef1 ef2 ef3 tb t,
                   Pt Gamma Sigma (Cond e1 e2 e3 t) (ef1 ++ ef2 ++ ef3) t).
 Context (Htunit : forall Gamma Sigma, 
                   Pt Gamma Sigma (Unit (Ptype Tunit)) empty_effect (Ptype Tunit)).
-Context (Htloc : forall Gamma Sigma l h bt a ofs, 
-                 l.(ltype) = (Reftype h bt a) ->
-                 Pt Gamma Sigma (Addr l ofs) empty_effect l.(ltype)). 
+Context (Htloc : forall Gamma Sigma l h t a ofs t', 
+                 PTree.get l.(lname) Sigma = Some t  ->
+                 t' = (Reftype h t a) ->
+                 Pt Gamma Sigma (Addr l ofs t') empty_effect t'). 
 (*Context (Htheap : forall Gamma Sigma m e h ef t a, 
                   Pt Gamma Sigma e ef (Reftype h (Bprim t) a) ->
                   Pt Gamma Sigma (Hexpr m e (Reftype h (Bprim t) a)) ef (Reftype h (Bprim t) a)).*)
@@ -195,7 +189,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
 + move=> Gamma Sigma e1 e2 e3 tb t ef1 ef2 ef3 hte1 ht1 hte2 ht2 hte3 ht3.
   by apply Htcond with tb.
 (* Addr *)
-+ move=> Gamma Sigma l ofs h t a hteq; subst. by apply Htloc with h (Bprim t) a.
++ move=> Gamma Sigma l ofs h t a hteq; subst. by apply Htloc.
 (* Hexpr 
 + move=> Gamma Sigma m e h ef t a hte ht. by apply Htheap.*)
 move=> Gamma Sigma e es ef efs t ts hte ht htes hts.
@@ -225,7 +219,7 @@ suff : (forall Gamma Sigma es efs ts, type_exprs Gamma Sigma es efs ts ->
   by move: (ih' Gamma Sigma e ef t he ef' t' he').
 apply type_expr_indP => //=.
 + admit. (*by move=> Gamma Sigma v ef t ef' t' ht; inversion ht; subst.*)
-+ move=> Gamma Sigma x t htx ht ef' t' het; subst. by inversion het; subst.
++ move=> Gamma Sigma x t ht ef' t' het; subst. by inversion het; subst.
 + move=> Gamma Sigma t sz s i a ht ef' t' ht'; subst. by inversion ht'; subst.
 + move=> Gamma Sigma t s i a ht ef' t' ht'; subst. by inversion ht'; subst.
 + move=> Gamma Sigma t ht ef' t' ht'; subst. by inversion ht'; subst.
@@ -250,7 +244,7 @@ apply type_expr_indP => //=.
   move: (ih1 ef0 tb0 H5)=> [] h1 h2; subst. move: (ih2 ef4 t' H9)=> [] h1' h2'; subst.
   by move: (ih3 ef5 t' H10)=> [] h1'' h2''; subst.
 + by move=> Gamma Sigma efs' ts' ht; inversion ht; subst.
-+ by move=> Gamma Sigma l h bt a ofs hl ef' t' ht; inversion ht; subst.
++ by move=> Gamma Sigma l h t a ofs t' hs hl ef' t'' ht; inversion ht; subst.
 + by move=> Gamma Sigma efs' ts' ht; inversion ht; subst.
 move=> Gamma Sigma e es t ef ts efs ih ih' efs' ts' ht; inversion ht; subst.
 move: (ih ef0 t0 H3)=> [] h1 h2; subst. by move: (ih' efs0 ts0 H6)=> [] h1 h2; subst.
@@ -289,17 +283,17 @@ Qed.
    able to substitute [e'] for each of the occurrences of [x] in [e]
    and obtain a new expression that still has type [t]. *)
 Lemma wsubst_preservation : forall Gamma Sigma bge vm hm hm' x t v e ef t' e'', 
-type_expr (extend_context Gamma x.(vname) t) Sigma e ef t' ->
+type_expr (extend_context Gamma x t) Sigma e ef t' ->
 wtypeof_value v (wtype_of_type t) ->
-subst bge vm hm x.(vname) v e hm' e'' ->
+subst bge vm hm x v e hm' e'' ->
 type_expr Gamma Sigma e'' ef t'.
 Proof.
 Admitted.
 
 Lemma subst_preservation : forall Gamma Sigma bge vm hm hm' x t v e ef t' e'', 
-type_expr (extend_context Gamma x.(vname) t) Sigma e ef t' ->
+type_expr (extend_context Gamma x t) Sigma e ef t' ->
 typeof_value v t ->
-subst bge vm hm x.(vname) v e hm' e'' ->
+subst bge vm hm x v e hm' e'' ->
 type_expr Gamma Sigma e'' ef t'.
 Proof.
 Admitted.
@@ -541,15 +535,73 @@ Proof.
 move=> Gamma Sigma ef t v ht. by apply ty_val.  
 Qed.
 
-(*** Proving theorems related to type system for small step semantics of BeePL *)
+
+(**** Well formedness ****)
+(** Well-Typed Store **)
+(* A store st is well-typed with respect to a store typing context Sigma if the
+   term at each location l in vm has the type at location l in store typing context
+   and there exists a value in the memory at that location. *)
+Definition store_well_typed (Sigma : store_context) (bge : genv) (vm : vmap) (m : Memory.mem) :=
+(forall l t, 
+ exists l' ofs v, vm! l = Some(l', (Ptype t)) /\
+                  PTree.get l Sigma = Some (Bprim t) /\ 
+                  deref_addr bge (Ptype t) m l' ofs Full v) \/
+(forall l t, vm! l = None /\ 
+             exists l' ofs v, Genv.find_symbol bge l = Some l' /\ 
+                              deref_addr bge t m l' ofs Full v).
+
+(*** Proving theorems related to type system for small step semantics of BeePL ***)
+
+(* Progress for small step semantics *)
 Lemma progress_ssem_expr_exprs:
 (forall Gamma Sigma es efs ts bge vm m, type_exprs Gamma Sigma es efs ts ->
+                                        store_well_typed Sigma bge vm m ->
                                         is_values es \/ exists m' vm' es',
                                                         ssem_exprs bge vm m es m' vm' es') /\
 (forall Gamma Sigma e ef t bge vm m, type_expr Gamma Sigma e ef t ->
-                                               is_value e \/ exists m' vm' e', 
-                                                             ssem_expr bge vm m e m' vm' e').
+                                     store_well_typed Sigma bge vm m ->
+                                     is_value e \/ exists m' vm' e', 
+                                                   ssem_expr bge vm m e m' vm' e').
 Proof.
+suff : (forall Gamma Sigma es efs ts, type_exprs Gamma Sigma es efs ts ->
+                                      forall bge vm m, store_well_typed Sigma bge vm m ->
+                                                       is_values es \/ exists m' vm' es',
+                                                       ssem_exprs bge vm m es m' vm' es') /\
+(forall Gamma Sigma e ef t, type_expr Gamma Sigma e ef t ->
+                            forall bge vm m, store_well_typed Sigma bge vm m ->
+                                             is_value e \/ exists m' vm' e', 
+                                                           ssem_expr bge vm m e m' vm' e').
++ admit.
+apply type_exprs_type_expr_ind_mut=> //=.
+(* val *)
++ move=> Gamma Sigma v ef t bge vm m. by left.
+(* var *)
++ move=> Gamma Sigma v t hteq bge vm m hw; subst. right.
+  rewrite /store_well_typed in hw. case: hw=> hw.
+  (* lvar *)
+  + move:(hw v t)=> [] l [] ofs [] v' [] hvm [] hs hd.
+    exists m. exists vm. exists (Val v' (Ptype t)). eapply ssem_lvar.
+    + by apply hvm. 
+    by apply hd.  
+  (* gvar *)
+  move: (hw v (Ptype t))=> [] hvm [] l' [] ofs [] v' [] hbge hd.
+  exists m. exists vm. exists (Val v' (Ptype t)). apply ssem_gbvar with l' ofs.
+  + by apply hvm.
+  + by apply hbge.
+  by apply hd.
+(* const int *)
++ move=> Gamma Sigma t sz s a i ht bge vm m hw. right.
+  exists m. exists vm. exists (Val (Vint i) t). by apply ssem_consti.
+(* const long *)
++ move=> Gamma Sigma t s a i ht bge vm m hw. right.
+  exists m. exists vm. exists (Val (Vint64 i) t). by apply ssem_constl.
+(* const uint *)
++ move=> Gamma Sigma t hteq bge vm m. right; subst.
+  exists m. exists vm. exists (Val (Vunit) (Ptype Tunit)). by apply ssem_constu.
+(* app *)
++ admit.
+(* ref *)
++ admit.
 Admitted.
 
 (* Stateful effects cannot be discarded :
@@ -606,7 +658,8 @@ suff : (forall Gamma Sigma es efs ts, type_exprs Gamma Sigma es efs ts ->
     by move: (ih Gamma Sigma es efs ts hts bge vm m vm' m' es' hes).
   move=> Gamma Sigma e ef t bge vm m vm' m' e' ht he.
   by move: (ih' Gamma Sigma e ef t ht bge vm m vm' m' e' he).
-apply type_expr_indP=> //=.
+apply type_exprs_type_expr_ind_mut=> //=.
+(*
 (* val *)
 + move=> Gamma Sigma v ef t bge vm m vm' m' e' he.
   inversion he; subst. by apply ty_val.
@@ -673,6 +726,7 @@ apply type_expr_indP=> //=.
   + apply ty_prim_uop. by move: (hie bge vm m vm' m' e'0 H7).
     have hvt : type_expr Gamma Sigma (Val v'' t) empty_effect t. + by apply ty_val.
     have := ty_extend Gamma Sigma (Val v'' t) t ef.
+Admitted.*)
 Admitted.
   
   
@@ -713,11 +767,13 @@ apply type_expr_indP => //=.
     move=> i h a he hw. case: v' he hw=> //= i' he hw. by inversion hw.
   move=> es e t he hw. case: v' he hw=> //= i he hw. by inversion hw.
 (* var *)
-+ move=> Gamma Sigma x t ht hteq bge vm m vm' m' v hv. inversion hv; subst.
++ move=> Gamma Sigma x t ht bge vm m vm' m' v hv. inversion hv; subst.
   (* local *)
-  + by have := wderef_addr_val_ty bge (vtype x) m' l ofs Full v H3.
+  + have := wderef_addr_val_ty bge (Ptype t) m' l ofs Full v H7.
+    by case: t ht hv H3 H7=> //=.
   (* global *)
-  + by have := wderef_addr_val_ty bge (vtype x) m' l ofs Full v H4.
+  + have := wderef_addr_val_ty bge (Ptype t) m' l ofs Full v H8.
+    by case: t ht hv H8=> //=.
 (* const int *)
 + move=> Gamma Sigma t sz s i a hteq bge vm m vm' m' v hv. by inversion hv; subst.
 (* const long *)
@@ -763,8 +819,8 @@ apply type_expr_indP => //=.
 (* unit *)
 + move=> Gamma Sigma bge vm m vm' m' v he. by inversion he; subst.
 (* addr *)
-+ move=> Gamma Sigma l h bt a ofs ht bge vm m vm' m' v he. 
-  rewrite ht /=. by inversion he; subst.
++ move=> Gamma Sigma l h t a ofs t' ht hteq bge vm m vm' m' v he.
+  rewrite hteq /=. by inversion he; subst.
 (* nil *)
 + move=> Gamma Sigma bge vm m vm' m' vs hv. by inversion hv; subst.
 (* cons *)
@@ -780,13 +836,14 @@ Variable (bge : genv).
 Variable (benv : vmap).
 
 (* Subject reduction : Big step semantics *) 
-Lemma subject_lredcution : forall m e l ofs Gamma Sigma ef t,
+Lemma subject_lredcution : forall m e l ofs Gamma Sigma ef t h a,
 bsem_expr_slv bge benv m e l ofs ->
-type_expr Gamma Sigma e ef t ->
-l.(ltype) = t.
+type_expr Gamma Sigma e ef (Reftype h t a) ->
+PTree.get l.(lname) Sigma = Some t.
 Proof.
-move=> m e l ofs Gamma Sigma ef t hl. 
-by induction hl=> //= ht; subst; inversion ht; subst; symmetry.
+move=> m e l ofs Gamma Sigma ef t h a hl.
+induction hl=> //= ht; subst; inversion ht; subst; symmetry.
+by case: H7=> h1 h2 h3; subst.
 Qed.
 
 Lemma subject_rreduction : forall m e v Gamma Sigma ef t, 
@@ -815,7 +872,7 @@ induction hr=> //=.
 (* Deref *)
 + move=> Gamma Sigma ef t' ht.
   inversion ht; subst. rewrite H7.
-  have := subject_lredcution hm e l ofs Gamma Sigma ef0 (Reftype h (Bprim bt) a) H H9=> hlt.
+  have := subject_lredcution hm e l ofs Gamma Sigma ef0 (Bprim bt) h a H H9=> hlt. 
   by have := wderef_addr_val_ty bge (typeof_expr e) hm l.(lname) ofs l.(lbitfield) v H0.
 (* Uop *)
 + move=> Gamma Sigma ef t' ht. inversion ht; subst.
@@ -835,15 +892,17 @@ End Subject_Reduction.
 
 (* Subject reduction : Small step semantics *)
 (* A well-typed expression remains well-typed under top-level lreduction *)
+(* Add invariant for well formedness for the store *)
 Lemma slreduction : forall Gamma Sigma genv ef t vm e m e' m', 
 type_expr Gamma Sigma e ef t ->
 lreduction genv vm e m e' m' ->
 type_expr Gamma Sigma e' ef t.
 Proof.
-move=> Gamma Sigma genv ef t vm e m e' m' ht he.
+(*move=> Gamma Sigma genv ef t vm e m e' m' ht he.
 induction he=> //=.
-+ inversion ht; subst. rewrite H0. by apply ty_addr with h t0 a. 
++ inversion ht; subst. rewrite H0. apply ty_addr with h t0 a.
+  rewrite /=. Print lreduction.
 + inversion ht; subst. rewrite H0. by apply ty_addr with h t0 a.
-Qed.
+Qed.*) Admitted.
 
 
