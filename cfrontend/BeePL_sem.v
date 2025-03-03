@@ -160,15 +160,15 @@ Context (Pb : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> value ->
 Context (Hbvalue : forall vm m v t, 
                  well_formed_value v t -> 
                  Pb vm m (Val v t) m vm v).
-Context (Hblvar : forall vm m x t l ofs h a v,
-                 vm!(x.(vname)) = Some (l, Reftype h (Bprim t) a) -> 
-                 deref_addr ge x.(vtype) m l ofs Full v ->
-                 Pb vm m (Var x) m vm v).
-Context (Hbgbvar : forall vm m x l ofs v,
-                 vm!(x.(vname)) = None ->
-                 Genv.find_symbol ge x.(vname) = Some l -> 
-                 deref_addr ge x.(vtype) m l ofs Full v ->
-                 Pb vm m (Var x) m vm v).
+Context (Hblvar : forall vm m x t l ofs v,
+                 vm!x = Some (l, t) -> 
+                 deref_addr ge t m l ofs Full v ->
+                 Pb vm m (Var x t) m vm v).
+Context (Hbgbvar : forall vm m x t l ofs v,
+                 vm!x = None ->
+                 Genv.find_symbol ge x = Some l -> 
+                 deref_addr ge t m l ofs Full v ->
+                 Pb vm m (Var x t) m vm v).
 Context (Hbconsti : forall vm m i t,
                   Pb vm m (Const (ConsInt i) t) m vm (Vint i)).
 Context (Hbconstl : forall vm m i t, 
@@ -183,7 +183,7 @@ Context (Hbappr : forall vm1 vm2 m1 e es t l fd m2 m3 m4 m5 m6 vs rv vm3 vm4 vm5
                   list_norepet (fd.(fn_args) ++ fd.(BeePL.fn_vars)) ->
                   alloc_variables vm2 m2 (fd.(fn_args) ++ fd.(BeePL.fn_vars)) vm3 m3 -> 
                   Pbs vm3 m3 es m4 vm4 vs ->
-                  typeof_values vs (extract_types_vinfos fd.(fn_args)) ->
+                  typeof_values vs (unzip2 fd.(fn_args)) ->
                   bind_variables ge vm4 m4 fd.(fn_args) vs m5  ->
                   Pb vm4 m5 fd.(BeePL.fn_body) m6 vm5 rv -> 
                   typeof_value rv (get_rt_fundef (Internal fd)) ->
@@ -193,7 +193,7 @@ Context (Hbref : forall vm m e vm' m' vm'' m'' v fid l ofs g ct g' i' h a t,
                  Pb vm m e m' vm' v ->
                  transBeePL_type (Ptype t) g = Res ct g' i' ->
                  (gensym ct) = ret fid ->
-                 bind_variables ge vm m ({| vname := fid; vtype := Ptype t|} :: nil) (v :: nil) m' ->
+                 bind_variables ge vm m ((fid, Ptype t) :: nil) (v :: nil) m' ->
                  vm!fid = Some (l, Reftype h (Bprim t) a) ->
                  Pb vm m (Prim Ref [:: e] (Reftype h (Bprim t) a)) m'' vm'' (Vloc l ofs)).
 Context (Hbderef : forall vm m e m' vm' l ofs bf v,
@@ -242,8 +242,8 @@ Context (Hbcfalse : forall vm m e1 e2 e3 t vm' m' vb g ct1 g' i v vm'' m'',
                    Pb vm m (Cond e1 e2 e3 t) m'' vm'' v).
 Context (Hbut : forall vm m, 
                 Pb vm m (Unit (Ptype Tunit)) m vm Vunit).
-Context (Hbadr : forall vm m l ofs,
-                 Pb vm m (Addr l ofs) m vm (Vloc l.(lname) ofs)).
+Context (Hbadr : forall vm m l ofs t,
+                 Pb vm m (Addr l ofs t) m vm (Vloc l.(lname) ofs)).
 Context (Hbeapp : forall vm m es vm' m' m'' vs ef g cef g' i' vres bv ts ty t,
                    Pbs vm m es m' vm' vs ->
                    befuntion_to_cefunction ef g = Res cef g' i' ->
@@ -267,10 +267,6 @@ Qed.
 End bsem_expr_ind.
 
 End Big_Step_Semantics.
-
-Scheme bsem_expr_ind_mut := Induction for bsem_expr Sort Prop
-  with bsem_exprs_ind_mut := Induction for bsem_exprs Sort Prop.
-Combined Scheme bsem_exprs_bsem_expr_ind_mut from bsem_exprs_ind_mut, bsem_expr_ind_mut.
 
 Definition extract_value_expr (e : BeePL.expr) : list value :=
 match e with 
@@ -432,43 +428,21 @@ Scheme ssem_expr_ind_mut := Induction for ssem_expr Sort Prop
   with ssem_exprs_ind_mut := Induction for ssem_exprs Sort Prop.
 Combined Scheme ssem_exprs_ssem_expr_ind_mut from ssem_exprs_ind_mut, ssem_expr_ind_mut.
 
-End Small_Step_Semantics.
-
-Definition is_value (e : BeePL.expr) : bool :=
-match e with 
-| Val _ _ => true 
-| _ => false
-end.
-
-Fixpoint is_values (es : list BeePL.expr) : bool :=
-match es with 
-| nil => true
-| e :: es => is_value e && is_values es
-end.
-
-(** An expr is safe if it cannot get stuck by doing any transition - 
-    Either it reaches a value or it takes step **)
-Definition bsafe_expr (bge : genv) (e : BeePL.expr) : Prop :=
-forall v vm m vm' m', bsem_expr bge vm m e vm' m' v.
-
-Definition ssafe_expr (bge : genv) (vm : vmap) (m : Memory.mem) (e : BeePL.expr) : Prop :=
-is_value e \/ exists m' vm' e', ssem_expr bge vm m e m' vm' e'.
-
 Section ssem_expr_ind.
 Context (Pss : vmap -> Memory.mem -> list BeePL.expr -> Memory.mem -> vmap -> list BeePL.expr -> Prop).
 Context (Ps : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> BeePL.expr -> Prop).
 Context (Hsvalue : forall vm m v t, 
                  well_formed_value v t -> 
                  Ps vm m (Val v t) m vm (Val v t)).
-Context (Hslvar : forall vm m x t l ofs h a v,
-                 vm!(x.(vname)) = Some (l, Reftype h (Bprim t) a) -> 
-                 deref_addr ge x.(vtype) m l ofs Full v ->
-                 Ps vm m (Var x) m vm (Val v (x.(vtype)))).
-Context (Hsgbvar : forall vm m x l ofs v,
-                 vm!(x.(vname)) = None ->
-                 Genv.find_symbol ge x.(vname) = Some l -> 
-                 deref_addr ge x.(vtype) m l ofs Full v ->
-                 Ps vm m (Var x) m vm (Val v (x.(vtype)))).
+Context (Hslvar : forall vm m x t l ofs v,
+                 vm!x = Some (l, t) -> 
+                 deref_addr ge t m l ofs Full v ->
+                 Ps vm m (Var x t) m vm (Val v t)).
+Context (Hsgbvar : forall vm m x t l ofs v,
+                 vm!x = None ->
+                 Genv.find_symbol ge x = Some l -> 
+                 deref_addr ge t m l ofs Full v ->
+                 Ps vm m (Var x t) m vm (Val v t)).
 Context (Hsconsti : forall vm m i t,
                   Ps vm m (Const (ConsInt i) t) m vm (Val (Vint i) t)).
 Context (Hsconstl : forall vm m i t, 
@@ -486,7 +460,7 @@ Context (Hsapp2 : forall vm1 vm2 m1 es t l fd m2 m3 m4 vs vm3,
                   list_norepet (fd.(fn_args) ++ fd.(BeePL.fn_vars)) ->
                   alloc_variables vm1 m1 (fd.(fn_args) ++ fd.(BeePL.fn_vars)) vm2 m2 -> 
                   Pss vm2 m2 es m3 vm3 vs ->
-                  typeof_exprs vs = (extract_types_vinfos fd.(fn_args)) ->
+                  typeof_exprs vs = (unzip2 fd.(fn_args)) ->
                   bind_variables ge vm3 m3 fd.(fn_args) (extract_values_exprs vs) m4  ->
                   Ps vm1 m1 (App (Val (Vloc l Ptrofs.zero) (Ftype (typeof_exprs es) 
                                                                      (get_effect_fundef (Internal fd)) 
@@ -499,8 +473,8 @@ Context (Hsref1 : forall vm m e m' vm' e' h t a,
 Context (Hsref2 : forall vm m vm' m' vm'' m'' v fid l ofs t g ct g' i' h a,
                  transBeePL_type (Ptype t) g = Res ct g' i' ->
                  (gensym ct) = ret fid ->
-                 bind_variables ge vm m ({| vname := fid; vtype := Ptype t|} :: nil) (v :: nil) m' ->
-                 Ps vm' m' (Var {| vname := fid; vtype := Ptype t |}) m'' vm'' (Val (Vloc l ofs) (Reftype h (Bprim t) a)) ->
+                 bind_variables ge vm m ((fid, Ptype t) :: nil) (v :: nil) m' ->
+                 Ps vm' m' (Var fid (Ptype t)) m'' vm'' (Val (Vloc l ofs) (Reftype h (Bprim t) a)) ->
                  Ps vm m (Prim Ref [:: (Val v (Ptype t))] (Reftype h (Bprim t) a)) m'' vm'' 
                                (Val (Vloc l ofs) (Reftype h (Bprim t) a))).
 Context (Hsderef1 : forall vm m e t m' vm' e',
@@ -570,8 +544,8 @@ Context (Hscfalse : forall vm m v1 e2 e3 t1 g ct1 g' i,
                    Ps vm m (Cond (Val v1 t1) e2 e3 (typeof_expr e2)) m vm e3).
 Context (Hsut : forall vm m, 
                Ps vm m (Unit (Ptype Tunit)) m vm (Val Vunit (Ptype Tunit))).
-Context (Hsadr : forall vm m l ofs,
-                Ps vm m (Addr l ofs) m vm (Val (Vloc l.(lname) ofs) l.(ltype))).
+Context (Hsadr : forall vm m l ofs t,
+                Ps vm m (Addr l ofs t) m vm (Val (Vloc l.(lname) ofs) t)).
 Context (Hshexpr1 : forall vm m e m' vm' e' t,
                  Ps vm m e m' vm' e' ->
                  Ps vm m (Hexpr m e t) m' vm' (Hexpr m e' t)).
@@ -592,16 +566,34 @@ Context (Hscons2 : forall vm m es m' vm' v t vs,
                    Pss vm m es m' vm' vs ->
                    Pss vm m (Val v t :: es) m' vm' (Val v t :: vs)).
 
-Scheme ssem_expr_ind_mut := Induction for ssem_expr Sort Prop
-  with ssem_exprs_ind_mut := Induction for ssem_exprs Sort Prop.
-Combined Scheme ssem_exprs_ssem_expr_ind from ssem_exprs_ind_mut, ssem_expr_ind_mut.
-
 Lemma ssem_expr_indP :
   (forall vm m es m' vm' vs, ssem_exprs vm m es m' vm' vs -> Pss vm m es m' vm' vs) /\
   (forall vm m e m' vm' v, ssem_expr vm m e m' vm' v -> Ps vm m e m' vm' v).
 Proof.
-  apply ssem_exprs_ssem_expr_ind; eauto.
+  apply ssem_exprs_ssem_expr_ind_mut; eauto.
 Qed.
-
-
 End ssem_expr_ind.
+
+End Small_Step_Semantics.
+
+Definition is_value (e : BeePL.expr) : bool :=
+match e with 
+| Val _ _ => true 
+| _ => false
+end.
+
+Fixpoint is_values (es : list BeePL.expr) : bool :=
+match es with 
+| nil => true
+| e :: es => is_value e && is_values es
+end.
+
+(** An expr is safe if it cannot get stuck by doing any transition - 
+    Either it reaches a value or it takes step **)
+Definition bsafe_expr (bge : genv) (e : BeePL.expr) : Prop :=
+forall v vm m vm' m', bsem_expr bge vm m e vm' m' v.
+
+Definition ssafe_expr (bge : genv) (vm : vmap) (m : Memory.mem) (e : BeePL.expr) : Prop :=
+is_value e \/ exists m' vm' e', ssem_expr bge vm m e m' vm' e'.
+
+

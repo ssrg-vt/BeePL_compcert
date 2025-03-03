@@ -80,17 +80,6 @@ Proof.
       injection H0 as H1 H2; subst;
       reflexivity.
     + admit.
-  - destruct (vtype v) eqn:?.
-    + destruct p; simpl in *;
-      injection H0 as H1 H2; subst;
-      injection H as H1 H2; subst;
-      reflexivity.
-    + destruct b; simpl in *;
-      destruct p; simpl in *;
-      injection H as H1 H2; subst;
-      injection H0 as H1 H2; subst;
-      reflexivity.
-    + admit.
   - (* Rest of proofs should be similar *)
 Admitted.
 
