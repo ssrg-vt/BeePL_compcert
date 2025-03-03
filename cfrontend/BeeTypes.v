@@ -83,6 +83,11 @@ match t with
 | _ => bool_default
 end.
 
+Definition basic_to_type (b : basic_type) : type :=
+match b with 
+| Bprim p => Ptype p
+end.
+
 Definition Twptr := if Archi.ptr64 then Twlong else Twint. 
 
 Definition wtype_of_type (t : type) : wtype :=

@@ -42,8 +42,8 @@ match e with
 (*| Valof e t => do ct <- (transBeePL_type t);
                do ce <- (transBeePL_expr_expr e);
                ret (Evalof ce ct)*)
-| Var x => do xt <- (transBeePL_type (vtype x));
-           ret (Evar (vname x) xt)
+| Var x t => do xt <- (transBeePL_type t);
+           ret (Evar x xt)
 | Const c t => match c with 
                | ConsInt i => do it <- (transBeePL_type t); ret (Eval (Values.Vint i) it)
                | ConsLong i => do it <- (transBeePL_type t); ret (Eval (Values.Vlong i) it)
@@ -105,7 +105,7 @@ end.
 
 Definition check_var_const (e : BeePL.expr) : bool :=
 match e with 
-| Var x => true 
+| Var x t => true 
 | Const c t => true 
 | _ => false
 end.
@@ -118,8 +118,8 @@ match e with
 (*| Valof e t => do ct <- (transBeePL_type t);
                do ce <- (transBeePL_expr_expr e);
                ret (Sreturn (Some (Evalof ce ct)))*)
-| Var x => do ct <- (transBeePL_type x.(vtype));
-           ret (Sreturn (Some (Evalof (Evar x.(vname) ct) ct)))
+| Var x t => do ct <- (transBeePL_type t);
+             ret (Sreturn (Some (Evalof (Evar x ct) ct)))
 | Const c t => do ct <- (transBeePL_type t);
                ret (Sreturn (Some (Evalof (match c with 
                                       | ConsInt i => Eval (Values.Vint i) ct
@@ -161,12 +161,12 @@ match e with
                  end 
 | Bind x t e e' t' => match e' with 
                       (* no side-effect case *)
-                      | Var x' => do ce <- (transBeePL_expr_expr e);
-                                  do ce' <- (transBeePL_expr_expr e'); 
-                                  do ct <- (transBeePL_type t);
-                                  do ct' <- (transBeePL_type t');
-                                  do rt <- (transBeePL_type (BeePL.typeof_expr (e')));
-                                  ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid))
+                      | Var x' t' => do ce <- (transBeePL_expr_expr e);
+                                     do ce' <- (transBeePL_expr_expr e'); 
+                                     do ct <- (transBeePL_type t);
+                                     do ct' <- (transBeePL_type t');
+                                     do rt <- (transBeePL_type (BeePL.typeof_expr (e')));
+                                     ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid))
                                                  (Sreturn (Some (Evalof ce' rt))))
                       | Const c t => do ct <- (transBeePL_type t); 
                                      do ce <- (transBeePL_expr_expr e);
@@ -206,17 +206,17 @@ end.
 Definition transBeePL_function_function (fd : BeePL.function) : res (Csyntax.function) :=
 match (transBeePL_type (fd.(BeePL.fn_return)) (initial_generator tt)) with 
 | Err msg => Error msg
-| Res crt g i => match (transBeePL_types transBeePL_type (unzip2 (extract_list_rvtypes (fd.(fn_args)))) (initial_generator tt)) with 
+| Res crt g i => match (transBeePL_types transBeePL_type (unzip2 (fd.(fn_args))) (initial_generator tt)) with 
                 | Err msg => Error msg
-                | Res pt g i => match (transBeePL_types transBeePL_type (unzip2 (extract_list_rvtypes (fd.(BeePL.fn_vars)))) (initial_generator tt)) with 
+                | Res pt g i => match (transBeePL_types transBeePL_type (unzip2 (fd.(BeePL.fn_vars))) (initial_generator tt)) with 
                                 | Err msg => Error msg
                                 | Res vt g i => match (transBeePL_expr_st (fd.(BeePL.fn_body)) (initial_generator tt)) with 
                                                 | Err msg => Error msg
                                                 | Res fbody g i => OK {| fn_return := crt; 
                                                                          fn_callconv := cc_default; 
-                                                                         fn_params := zip (unzip1 (extract_list_rvtypes (fd.(fn_args))))
+                                                                         fn_params := zip (unzip1 (fd.(fn_args)))
                                                                                    (from_typelist pt);
-                                                                         fn_vars := zip (unzip1 (extract_list_rvtypes (fd.(BeePL.fn_vars))))
+                                                                         fn_vars := zip (unzip1 (fd.(BeePL.fn_vars)))
                                                                                  (from_typelist vt);
                                                                          fn_body :=  fbody|}
                                     end

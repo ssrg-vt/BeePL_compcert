@@ -16,7 +16,7 @@ heap_koka : ((h1, (l1 -> v1; l2 -> v2; .... ln -> vn);
 Definition is_stateful_expr (e : BeePL.expr) : bool :=
 match e with 
 | Val e t => true 
-| Var x => false
+| Var x t => false
 | Const c t => false
 | App e es t => true
 | Prim b es t => match b with 
@@ -50,15 +50,15 @@ Inductive bsem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
 | bsem_value : forall vm m v t,
                well_formed_value v t ->
                bsem_expr vm m (Val v t) m vm v
-| bsem_lvar : forall vm m x t l ofs h a v,
-             vm!(x.(vname)) = Some (l, Reftype h (Bprim t) a) -> 
-             deref_addr ge x.(vtype) m l ofs Full v ->
-             bsem_expr vm m (Var x) m vm v
-| bsem_gbvar : forall vm m x l ofs v,
-               vm!(x.(vname)) = None ->
-               Genv.find_symbol ge x.(vname) = Some l -> 
-               deref_addr ge x.(vtype) m l ofs Full v ->
-               bsem_expr vm m (Var x) m vm v
+| bsem_lvar : forall vm m x t l ofs v,
+             vm!x = Some (l, t) -> 
+             deref_addr ge t m l ofs Full v ->
+             bsem_expr vm m (Var x t) m vm v
+| bsem_gbvar : forall vm m x t l ofs v,
+               vm!x = None ->
+               Genv.find_symbol ge x = Some l -> 
+               deref_addr ge t m l ofs Full v ->
+               bsem_expr vm m (Var x t) m vm v
 | bsem_consti : forall vm m i t,
                 bsem_expr vm m (Const (ConsInt i) t) m vm (Vint i)
 | bsem_constl : forall vm m i t, 
@@ -73,7 +73,7 @@ Inductive bsem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
                list_norepet (fd.(fn_args) ++ fd.(BeePL.fn_vars)) ->
                alloc_variables vm2 m2 (fd.(fn_args) ++ fd.(BeePL.fn_vars)) vm3 m3 -> 
                bsem_exprs vm3 m3 es m4 vm4 vs ->
-               typeof_values vs (extract_types_vinfos fd.(fn_args)) ->
+               typeof_values vs (unzip2 fd.(fn_args)) ->
                bind_variables ge vm4 m4 fd.(fn_args) vs m5  ->
                bsem_expr vm4 m5 fd.(BeePL.fn_body) m6 vm5 rv -> 
                typeof_value rv (get_rt_fundef (Internal fd)) ->
@@ -83,7 +83,7 @@ Inductive bsem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
              bsem_expr vm m e m' vm' v ->
              transBeePL_type (Ptype t) g = Res ct g' i' ->
              (gensym ct) = ret fid ->
-             bind_variables ge vm m ({| vname := fid; vtype := Ptype t|} :: nil) (v :: nil) m' ->
+             bind_variables ge vm m ((fid, Ptype t) :: nil) (v :: nil) m' ->
              vm!fid = Some (l, Reftype h (Bprim t) a) -> 
              bsem_expr vm m (Prim Ref [:: e] (Reftype h (Bprim t) a)) m'' vm'' (Vloc l ofs)
 | bsem_deref : forall vm m e m' vm' l ofs bf v,
@@ -176,15 +176,15 @@ Inductive ssem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
 | ssem_value : forall vm m v t,
                well_formed_value v t ->
                ssem_expr vm m (Val v t) m vm (Val v t)
-| ssem_lvar : forall vm m x t l ofs h a v,
-              vm!(x.(vname)) = Some (l, Reftype h (Bprim t) a) -> 
-              deref_addr ge x.(vtype) m l ofs Full v ->
-              ssem_expr vm m (Var x) m vm (Val v (x.(vtype)))
-| ssem_gbvar : forall vm m x l ofs v,
-               vm!(x.(vname)) = None ->
-               Genv.find_symbol ge x.(vname) = Some l -> 
-               deref_addr ge x.(vtype) m l ofs Full v ->
-               ssem_expr vm m (Var x) m vm (Val v (x.(vtype)))
+| ssem_lvar : forall vm m x t l ofs v,
+              vm!x = Some (l, t) -> 
+              deref_addr ge t m l ofs Full v ->
+              ssem_expr vm m (Var x t) m vm (Val v t)
+| ssem_gbvar : forall vm m x t l ofs v,
+               vm!x = None ->
+               Genv.find_symbol ge x = Some l -> 
+               deref_addr ge t m l ofs Full v ->
+               ssem_expr vm m (Var x t) m vm (Val v t)
 | ssem_consti : forall vm m i t,
                 ssem_expr vm m (Const (ConsInt i) t) m vm (Val (Vint i) t)
 | ssem_constl : forall vm m i t, 
@@ -202,7 +202,7 @@ Inductive ssem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
               list_norepet (fd.(fn_args) ++ fd.(BeePL.fn_vars)) ->
               alloc_variables vm1 m1 (fd.(fn_args) ++ fd.(BeePL.fn_vars)) vm2 m2 -> 
               ssem_exprs vm2 m2 es m3 vm3 vs ->
-              typeof_exprs vs = (extract_types_vinfos fd.(fn_args)) ->
+              typeof_exprs vs = (unzip2 fd.(fn_args)) ->
               bind_variables ge vm3 m3 fd.(fn_args) (extract_values_exprs vs) m4  ->
               ssem_expr vm1 m1 (App (Val (Vloc l Ptrofs.zero) (Ftype (typeof_exprs es) 
                                                                      (get_effect_fundef (Internal fd)) 
@@ -215,8 +215,8 @@ Inductive ssem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
 | ssem_ref2 : forall vm m vm' m' vm'' m'' v fid l ofs t g ct g' i' h a,
               transBeePL_type (Ptype t) g = Res ct g' i' ->
               (gensym ct) = ret fid ->
-              bind_variables ge vm m ({| vname := fid; vtype := Ptype t|} :: nil) (v :: nil) m' ->
-              ssem_expr vm' m' (Var {| vname := fid; vtype := Ptype t |}) m'' vm'' (Val (Vloc l ofs) (Reftype h (Bprim t) a)) -> 
+              bind_variables ge vm m ((fid, Ptype t) :: nil) (v :: nil) m' ->
+              ssem_expr vm' m' (Var fid (Ptype t)) m'' vm'' (Val (Vloc l ofs) (Reftype h (Bprim t) a)) -> 
               ssem_expr vm m (Prim Ref [:: (Val v (Ptype t))] (Reftype h (Bprim t) a)) m'' vm'' 
               (*(Hexpr m'' (Val (Vloc l ofs) (Reftype h (Bprim t) a)) (Reftype h (Bprim t) a))*)
                              (Val (Vloc l ofs) (Reftype h (Bprim t) a))
