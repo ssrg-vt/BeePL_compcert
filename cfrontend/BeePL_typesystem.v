@@ -401,79 +401,6 @@ Proof.
 move=> v chunk v'. by case: chunk=> //=; case: v=> //=; case: v'=> //=. 
 Qed.
 
-(* Complete me *) (* Medium level *)
-Lemma cval_bval_type_eq : forall v ct v' bt g g' i,
-Values.Val.has_type v (typ_of_type ct) ->
-transC_val_bplvalue v = Errors.OK v' ->
-transBeePL_type bt g = SimplExpr.Res ct g' i ->
-wtypeof_value v' (wtype_of_type bt). 
-Proof.
-Admitted.
- 
-(* Complete me *) (* Medium level *)
-Lemma wderef_addr_val_ty : forall bge ty m l ofs bf v,
-deref_addr bge ty m l ofs bf v ->
-wtypeof_value v (wtype_of_type ty).
-Proof.
-move=> bge ty m l ofs bf v hd. inversion hd; subst.
-+ rewrite /Mem.loadv /= in H2.
-  have hvt := Mem.load_type m (transl_bchunk_cchunk chunk) l 
-              (Ptrofs.unsigned ofs) v0 H1.
-  have hwt := wbty_chunk_rel ty chunk H.
-  rewrite /wtypeof_value /= hwt /wtypeof_chunk /=. 
-  by case: chunk H H1 hvt hwt=> //=; case: v hd H2=> //=; case: v0=> //=.
-+ admit. (* complete me for the case of volatile load *)
-case: ty hd H=> //= p. case: p=> //= i s a.
-by case: i=> //=;case: s=> //=.
-Admitted.
-
-(* Complete Me *)
-Lemma uop_type_preserve : forall uop v ct m v',
-Cop.sem_unary_operation uop v ct m = Some v' ->
-Values.Val.has_type v' (typ_of_type ct).
-Proof.
-Admitted.
-
-Lemma eq_uop_types : forall uop t g g' i v ct m v' v'',
-transBeePL_type t g = SimplExpr.Res ct g' i ->
-Cop.sem_unary_operation uop v ct m = Some v' ->
-Values.Val.has_type v' (typ_of_type ct) ->
-transC_val_bplvalue v' = Errors.OK v'' -> 
-wtypeof_value v'' (wtype_of_type t).
-Proof.
-Admitted.
-
-(* Complete Me *)
-Lemma bop_type_preserve : forall bge bop v1 ct1 v2 ct2 m v,
-Cop.sem_binary_operation bge bop v1 ct1 v2 ct2 m = Some v ->
-Values.Val.has_type v (typ_of_type ct1) /\
-Values.Val.has_type v (typ_of_type ct2).
-Proof.
-Admitted.
-
-Lemma eq_bop_types : forall cenv v1 t1 g g' i v2 t2 g'' i' ct1 ct2 op m v v',
-transBeePL_type t1 g = SimplExpr.Res ct1 g' i ->
-transBeePL_type t2 g' = SimplExpr.Res ct2 g'' i' ->
-Cop.sem_binary_operation cenv op v1 ct1 v2 ct2 m = Some v ->
-transC_val_bplvalue v = Errors.OK v' ->
-Values.Val.has_type v (typ_of_type ct1) ->
-Values.Val.has_type v (typ_of_type ct2) ->
-wtypeof_value v' (wtype_of_type t1) /\ wtypeof_value v' (wtype_of_type t2).
-Proof.
-Admitted.
-
-Lemma type_to_wtype : forall v t,
-typeof_value v t ->
-wtypeof_value v (wtype_of_type t).
-Proof.
-move=> v t. case: t=> //=.
-+ move=> p. case: p=> //=.
-  + move=> i s a. by case: v=> //=.
-  move=> s a. by case: v=> //=.
-+ move=> h b a. by case: v=> //=.
-move=> es e t. by case: v=> //=.
-Qed.
-
 (* Value typing *)
 (* A value does not produce any effect *)
 Lemma value_typing : forall Gamma Sigma ef t v,
@@ -538,7 +465,7 @@ Definition store_well_typed (Sigma : store_context) (bge : genv) (vm : vmap) (m 
                        exists bf m', assign_addr bge (Ptype t) m l ofs bf v m' v /\
                                      Mem.valid_pointer m l (Ptrofs.unsigned ofs)).
   
-(* Uop value *)
+(* A well-typed uop always has a semantics that leads to a value. *)
 Lemma well_typed_uop : forall Gamma Sigma bge vm v ef t uop m ct g i,
 type_expr Gamma Sigma (Prim (Uop uop) ((Val v t) :: nil) t) ef t ->
 transBeePL_type t g = Res ct g i ->
@@ -601,6 +528,51 @@ move=> Gamma Sigma bge vm v ef t uop m ct g i htv. case: v htv=> //=.
     by exists (Values.Vfloat (Floats.Float.abs (Cop.cast_long_float s i'))).
 (* ptr *)
 move=> p ofs hvt. inversion hvt; subst. inversion H8; subst. case: uop hvt=> //=.
+Qed.
+
+(* Complete Me : Easy *)
+Lemma trans_value_uop_success : forall uop v ct m v', 
+Cop.sem_unary_operation uop (transBeePL_value_cvalue v) ct m = Some v' ->
+exists v'', transC_val_bplvalue v' = OK v''.
+Proof.
+Admitted.
+
+(* Complete Me : Medium *) (* Hint : Follow similar proof style like well_typed_uop *)
+(* A well-typed bop always has a semantics that leads to a value. *)
+Lemma well_typed_bop : forall Gamma Sigma bge vm bcmp v1 v2 ef t bop m ct g i,
+type_expr Gamma Sigma (Prim (Bop bop) ((Val v1 t) :: (Val v2 t) :: nil) t) ef t ->
+transBeePL_type t g = Res ct g i ->
+store_well_typed Sigma bge vm m ->
+exists v', Cop.sem_binary_operation bcmp bop (transBeePL_value_cvalue v1) ct 
+                                             (transBeePL_value_cvalue v2) ct m = Some v'.
+Proof.
+Admitted.
+
+(* Complete Me : Easy *)
+Lemma trans_value_bop_success : forall bcmp bop v1 v2 ct m v', 
+Cop.sem_binary_operation bcmp bop (transBeePL_value_cvalue v1) ct 
+                                  (transBeePL_value_cvalue v2) ct m = Some v' ->
+exists v'', transC_val_bplvalue v' = OK v''.
+Proof.
+Admitted.
+
+Lemma type_uop_inject : forall Gamma Sigma e t ef op,
+is_reftype t = false ->
+is_unittype t = false ->
+type_expr Gamma Sigma e ef t ->
+type_expr Gamma Sigma (Prim (Uop op) [::e] t) ef t. 
+Proof.
+move=> Gamma Sigma e t ef op hte. by apply ty_prim_uop.
+Qed.
+
+Lemma type_bop_inject : forall Gamma Sigma e1 e2 t ef op,
+is_reftype t = false ->
+is_unittype t = false ->
+type_expr Gamma Sigma e1 ef t ->
+type_expr Gamma Sigma e2 ef t ->
+type_expr Gamma Sigma (Prim (Bop op) [::e1; e2] t) ef t. 
+Proof.
+move=> Gamma Sigma e1 e2 t ef op hte. by apply ty_prim_bop.
 Qed.
 
 (*** Proving theorems related to type system for small step semantics of BeePL ***)
@@ -680,12 +652,14 @@ apply type_exprs_type_expr_ind_mut=> //=.
     (* long *)
     + move=> l hte hin. by inversion hte; subst.
     (* loc *)
-    move=> l ofs hte hin. rewrite /store_well_typed in hw. case: hw=> //= hw [] hw' hw''. inversion hte; subst.
+    move=> l ofs hte hin. rewrite /store_well_typed in hw. case: hw=> //= hw [] hw' hw''. 
+    inversion hte; subst.
     move: (hw' l ofs h bt a H5) => [] v hd. exists m. exists vm.
     exists (Val v (Ptype bt)). apply ssem_deref2 with Full. by apply hd.
   (* step *)
   + move: (hin bge vm m hw)=> hin'. move=> [] m' [] vm' [] e' he. right.
-    exists m'. exists vm'. exists (Prim Deref [:: e'] (Ptype bt)). apply ssem_deref1. by apply he.
+    exists m'. exists vm'. exists (Prim Deref [:: e'] (Ptype bt)). apply ssem_deref1. 
+    by apply he.
 (* massgn *)
 + move=> Gamma Sigma e e' h bt ef a ef' hte hin hte' hin' bge vm m hw. right.
   move: (hin bge vm m hw)=> [].
@@ -719,43 +693,20 @@ apply type_exprs_type_expr_ind_mut=> //=.
   move: (hin bge vm m hw)=> [] hv.
   (* value e *)
   + case: e hte hin hv=> //= v t' hte hin _. exists m. exists vm.
+    have [hwts hwt] := well_typed_success. 
+    have hteq := val_reflx Gamma Sigma v t' ef t hte; subst.
+    have htuop := type_uop_inject Gamma Sigma (Val v t) t ef op hf hf' hte.
+    move: (hwt Gamma Sigma (Val v t) ef t hte)=> [] ct [] g [] i hct.
+    have [v' hsop] := well_typed_uop Gamma Sigma bge vm v ef t op m ct g i htuop hct hw.
+    have [v'' hbv] := trans_value_uop_success op v ct m v' hsop. 
+    exists (Val v'' t). apply ssem_uop2 with v' ct g g i. + by apply hct.
+    + by apply hsop. by apply hbv.
+  (* step *)
+  move: hv. move=> [] m' [] vm' [] e' he'. exists m'. exists vm'.
+  exists (Prim (Uop op) [:: e'] t). 
+  have hteq := type_rel_typeof Gamma Sigma e ef t hte; subst. by apply ssem_uop1.
+   
     
-    
-Admitted.
-
-(* Stateful effects cannot be discarded :
-   Expressions like ref, deref, massgn cannot discard the stateful effect even in the case 
-   where it reduces to value *)
-Lemma stateful_effects_preserved : 
-(forall Gamma Sigma es efs ts bge vm m vm' m' es' efs' ts', 
-        type_exprs Gamma Sigma es efs ts ->
-        is_stateful_exprs es = true /\ is_stateful_effect efs = true ->
-        ssem_exprs bge vm m es m' vm' es' ->
-        type_exprs Gamma Sigma es' efs' ts' ->
-        is_stateful_effect efs') /\
-(forall Gamma Sigma e ef t bge vm m vm' m' e' ef' t', 
-        type_expr Gamma Sigma e ef t ->
-        is_stateful_expr e = true /\ is_stateful_effect ef = true ->
-        ssem_expr bge vm m e m' vm' e' ->
-        type_expr Gamma Sigma e' ef' t' ->
-        is_stateful_effect ef').
-Proof.
-suff : (forall Gamma Sigma es efs ts, 
-        type_exprs Gamma Sigma es efs ts ->
-        forall bge vm m vm' m' es' efs' ts', 
-        is_stateful_exprs es = true /\ is_stateful_effect efs = true ->
-        ssem_exprs bge vm m es m' vm' es' ->
-        type_exprs Gamma Sigma es' efs' ts' ->
-        is_stateful_effect efs') /\
-        (forall Gamma Sigma e ef t, 
-        type_expr Gamma Sigma e ef t ->
-        forall bge vm m vm' m' e' ef' t', 
-        is_stateful_expr e = true /\ is_stateful_effect ef = true ->
-        ssem_expr bge vm m e m' vm' e' ->
-        type_expr Gamma Sigma e' ef' t' ->
-        is_stateful_effect ef').
-+ move=> [] ih ih'. admit.
-apply type_expr_indP=> //=.
 Admitted.
 
 Lemma subject_reduction_ssem_expr_exprs: 
@@ -847,7 +798,118 @@ apply type_exprs_type_expr_ind_mut=> //=.
     have := ty_extend Gamma Sigma (Val v'' t) t ef.
 Admitted.*)
 Admitted.
-  
+
+
+(* Stateful effects cannot be discarded :
+   Expressions like ref, deref, massgn cannot discard the stateful effect even in the case 
+   where it reduces to value *)
+Lemma stateful_effects_preserved : 
+(forall Gamma Sigma es efs ts bge vm m vm' m' es' efs' ts', 
+        type_exprs Gamma Sigma es efs ts ->
+        is_stateful_exprs es = true /\ is_stateful_effect efs = true ->
+        ssem_exprs bge vm m es m' vm' es' ->
+        type_exprs Gamma Sigma es' efs' ts' ->
+        is_stateful_effect efs') /\
+(forall Gamma Sigma e ef t bge vm m vm' m' e' ef' t', 
+        type_expr Gamma Sigma e ef t ->
+        is_stateful_expr e = true /\ is_stateful_effect ef = true ->
+        ssem_expr bge vm m e m' vm' e' ->
+        type_expr Gamma Sigma e' ef' t' ->
+        is_stateful_effect ef').
+Proof.
+suff : (forall Gamma Sigma es efs ts, 
+        type_exprs Gamma Sigma es efs ts ->
+        forall bge vm m vm' m' es' efs' ts', 
+        is_stateful_exprs es = true /\ is_stateful_effect efs = true ->
+        ssem_exprs bge vm m es m' vm' es' ->
+        type_exprs Gamma Sigma es' efs' ts' ->
+        is_stateful_effect efs') /\
+        (forall Gamma Sigma e ef t, 
+        type_expr Gamma Sigma e ef t ->
+        forall bge vm m vm' m' e' ef' t', 
+        is_stateful_expr e = true /\ is_stateful_effect ef = true ->
+        ssem_expr bge vm m e m' vm' e' ->
+        type_expr Gamma Sigma e' ef' t' ->
+        is_stateful_effect ef').
++ move=> [] ih ih'. admit.
+apply type_expr_indP=> //=.
+Admitted.
+
+(***** With respect to big step semantics *****)
+
+(* Complete me *) (* Medium level *)
+Lemma cval_bval_type_eq : forall v ct v' bt g g' i,
+Values.Val.has_type v (typ_of_type ct) ->
+transC_val_bplvalue v = Errors.OK v' ->
+transBeePL_type bt g = SimplExpr.Res ct g' i ->
+wtypeof_value v' (wtype_of_type bt). 
+Proof.
+Admitted.
+ 
+(* Complete me *) (* Medium level *)
+Lemma wderef_addr_val_ty : forall bge ty m l ofs bf v,
+deref_addr bge ty m l ofs bf v ->
+wtypeof_value v (wtype_of_type ty).
+Proof.
+move=> bge ty m l ofs bf v hd. inversion hd; subst.
++ rewrite /Mem.loadv /= in H2.
+  have hvt := Mem.load_type m (transl_bchunk_cchunk chunk) l 
+              (Ptrofs.unsigned ofs) v0 H1.
+  have hwt := wbty_chunk_rel ty chunk H.
+  rewrite /wtypeof_value /= hwt /wtypeof_chunk /=. 
+  by case: chunk H H1 hvt hwt=> //=; case: v hd H2=> //=; case: v0=> //=.
++ admit. (* complete me for the case of volatile load *)
+case: ty hd H=> //= p. case: p=> //= i s a.
+by case: i=> //=;case: s=> //=.
+Admitted.
+
+(* Complete Me *)
+Lemma uop_type_preserve : forall uop v ct m v',
+Cop.sem_unary_operation uop v ct m = Some v' ->
+Values.Val.has_type v' (typ_of_type ct).
+Proof.
+Admitted.
+
+(* Complete Me *)
+Lemma eq_uop_types : forall uop t g g' i v ct m v' v'',
+transBeePL_type t g = SimplExpr.Res ct g' i ->
+Cop.sem_unary_operation uop v ct m = Some v' ->
+Values.Val.has_type v' (typ_of_type ct) ->
+transC_val_bplvalue v' = Errors.OK v'' -> 
+wtypeof_value v'' (wtype_of_type t).
+Proof.
+Admitted.
+
+(* Complete Me *)
+Lemma bop_type_preserve : forall bge bop v1 ct1 v2 ct2 m v,
+Cop.sem_binary_operation bge bop v1 ct1 v2 ct2 m = Some v ->
+Values.Val.has_type v (typ_of_type ct1) /\
+Values.Val.has_type v (typ_of_type ct2).
+Proof.
+Admitted.
+
+Lemma eq_bop_types : forall cenv v1 t1 g g' i v2 t2 g'' i' ct1 ct2 op m v v',
+transBeePL_type t1 g = SimplExpr.Res ct1 g' i ->
+transBeePL_type t2 g' = SimplExpr.Res ct2 g'' i' ->
+Cop.sem_binary_operation cenv op v1 ct1 v2 ct2 m = Some v ->
+transC_val_bplvalue v = Errors.OK v' ->
+Values.Val.has_type v (typ_of_type ct1) ->
+Values.Val.has_type v (typ_of_type ct2) ->
+wtypeof_value v' (wtype_of_type t1) /\ wtypeof_value v' (wtype_of_type t2).
+Proof.
+Admitted.
+
+Lemma type_to_wtype : forall v t,
+typeof_value v t ->
+wtypeof_value v (wtype_of_type t).
+Proof.
+move=> v t. case: t=> //=.
++ move=> p. case: p=> //=.
+  + move=> i s a. by case: v=> //=.
+  move=> s a. by case: v=> //=.
++ move=> h b a. by case: v=> //=.
+move=> es e t. by case: v=> //=.
+Qed.
   
 (*** Proving theorems related to type system for big step semantics of BeePL *)
 Lemma subject_reduction_bsem_expr_exprs: 
