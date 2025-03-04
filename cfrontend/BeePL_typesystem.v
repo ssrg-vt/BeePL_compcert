@@ -415,7 +415,7 @@ by apply ty_valloc.
 Qed.
 
 (* Value type same *)
-Lemma val_reflx : forall Gamma Sigma v t ef t',
+Lemma type_val_reflx : forall Gamma Sigma v t ef t',
 type_expr Gamma Sigma (Val v t) ef t' -> 
 t = t'.
 Proof.
@@ -575,9 +575,19 @@ Proof.
 move=> Gamma Sigma e1 e2 t ef op hte. by apply ty_prim_bop.
 Qed.
 
+Lemma type_bool_val : forall Gamma Sigma v t ef ct m b,
+type_expr Gamma Sigma (Val v t) ef t ->
+type_bool t ->
+Cop.bool_val (transBeePL_value_cvalue v) ct m = Some b.
+Proof.
+move=> Gamma Sigma v t ef ct m b hte.
+Admitted.
+
 (*** Proving theorems related to type system for small step semantics of BeePL ***)
 
 (* Progress for small step semantics *)
+(* A well typed expression is never stuck,
+   it either evaluates to a value or can continue executing. *)
 Lemma progress_ssem_expr_exprs:
 (forall Gamma Sigma es efs ts bge vm m, type_exprs Gamma Sigma es efs ts ->
                                         store_well_typed Sigma bge vm m ->
@@ -678,13 +688,13 @@ apply type_exprs_type_expr_ind_mut=> //=.
       case: hw=> hw1 [] hw2 hw3. inversion hte; subst. 
       move: (hw3 l ofs h bt a v' H5)=> [] bf [] m' ha.
       exists m'. exists vm. exists (Val Vunit (Ptype Tunit)). 
-      have hteq := val_reflx Gamma Sigma v' t' ef' (Ptype bt) hte'; subst. 
+      have hteq := type_val_reflx Gamma Sigma v' t' ef' (Ptype bt) hte'; subst. 
       apply ssem_massgn3 with bf. by apply ha.
     (* e' steps *)
     move: hv'. move=> [] m' [] vm' [] e'' he''. exists m'. exists vm'.
     exists (Prim Massgn [:: Val (Vloc l ofs) t; e''] (Ptype Tunit)).
-    have hteq := val_reflx Gamma Sigma (Vloc l ofs) t ef (Reftype h (Bprim bt) a) hte; subst.
-    apply ssem_massgn2. by apply he''.
+    have hteq := type_val_reflx Gamma Sigma (Vloc l ofs) t ef 
+                 (Reftype h (Bprim bt) a) hte; subst. apply ssem_massgn2. by apply he''.
   (* e steps *)
   move=> [] m' [] vm' [] e'' he''. exists m'. exists vm'.
   exists (Prim Massgn [:: e''; e'] (Ptype Tunit)). apply ssem_massgn1. by apply he''.
@@ -694,7 +704,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
   (* value e *)
   + case: e hte hin hv=> //= v t' hte hin _. exists m. exists vm.
     have [hwts hwt] := well_typed_success. 
-    have hteq := val_reflx Gamma Sigma v t' ef t hte; subst.
+    have hteq := type_val_reflx Gamma Sigma v t' ef t hte; subst.
     have htuop := type_uop_inject Gamma Sigma (Val v t) t ef op hf hf' hte.
     move: (hwt Gamma Sigma (Val v t) ef t hte)=> [] ct [] g [] i hct.
     have [v' hsop] := well_typed_uop Gamma Sigma bge vm v ef t op m ct g i htuop hct hw.
@@ -705,11 +715,54 @@ apply type_exprs_type_expr_ind_mut=> //=.
   move: hv. move=> [] m' [] vm' [] e' he'. exists m'. exists vm'.
   exists (Prim (Uop op) [:: e'] t). 
   have hteq := type_rel_typeof Gamma Sigma e ef t hte; subst. by apply ssem_uop1.
-   
+(* bop *)
++ move=> Gamma Sigma op e ef t e' hf hf' hte hin hte' hin' bge vm m hw. right.
+  move: (hin bge vm m hw)=> [] hv.
+  (* value e *)
+  + case: e hte hin hv=> //= v t' hte hin _. move:(hin' bge vm m hw)=> [] hv'.
+    (* value e' *)
+    + case: e' hte' hin' hv'=> //= v' t'' hte' hin' _.
+      have hteq := type_val_reflx Gamma Sigma v t' ef t hte; subst.
+      have hteq' := type_val_reflx Gamma Sigma v' t'' ef t hte'; subst.
+      have [hwt1 hwt2] := well_typed_success. 
+      move: (hwt2 Gamma Sigma (Val v t) ef t hte)=> [] ct1 [] g [] i hct1.
+      move: (hwt2 Gamma Sigma (Val v' t) ef t hte')=> [] ct2 [] g' [] i' hct2.
+      have htop := type_bop_inject Gamma Sigma (Val v t) (Val v' t) t ef op hf hf' hte hte'.
+      have [v'' hsop] := well_typed_bop Gamma Sigma bge vm (genv_cenv bge) v v' ef t op 
+                         m ct1 g i htop hct1 hw.
+      have [v''' htv] := trans_value_bop_success (genv_cenv bge) op v v' ct1 m v'' hsop.
+      exists m. exists vm. exists (Val v''' t). 
+      apply ssem_bop3 with (genv_cenv bge) v'' ct1 ct1 g g i g i. + by apply hct1.
+      + by apply hct1. + by apply hsop. by apply htv.
+    (* e' steps *)
+    move: hv'. move=> [] m' [] vm' [] e'' he''. exists m'. exists vm'. 
+    have hteq := type_val_reflx Gamma Sigma v t' ef t hte; subst.
+    exists (Prim (Bop op) [:: Val v t; e''] t). apply ssem_bop2. by apply he''.
+  (* e steps *)
+  move: hv. move=> [] m' [] vm' [] e'' he''. exists m'. exists vm'. 
+  have hteq := type_rel_typeof Gamma Sigma e ef t hte; subst.
+  exists (Prim (Bop op) [:: e''; e'] (typeof_expr e)). apply ssem_bop1. by apply he''.
+(* bind *)
++ admit.
+(* cond *)
++ move=> Gamma Sigma e1 e2 e3 tb t ef1 ef2 ef3 hte1 hin htb hte2 hin' hte3 hin'' bge vm m hw.
+  right. move: (hin bge vm m hw)=> [] hv.
+  (* value e *)
+  + case: e1 hte1 hin hv=> //= v t' hte1 hin _. exists m. exists vm. exists e2.
+    have hteq := type_rel_typeof Gamma Sigma e2 ef2 t hte2; subst. 
+    have [hwt1 hwt2] := well_typed_success. move: (hwt2 Gamma Sigma (Val v t') ef1 tb hte1).
+    move=> [] ct [] g [] i hct.
+    apply ssem_ctrue with g ct g i. 
+    + by have hteq := type_val_reflx Gamma Sigma v t' ef1 tb hte1; subst.
     
+
 Admitted.
 
-Lemma subject_reduction_ssem_expr_exprs: 
+
+(*** Preservation for small-step semantics ***)
+(* If a program starts well-typed, it remains well-typed throughout execution,
+   an evaluation does not produce type errors.*)
+Lemma preservation_ssem_expr_exprs: 
 (forall Gamma Sigma es efs ts bge vm m vm' m' es', type_exprs Gamma Sigma es efs ts ->
                                                    ssem_exprs bge vm m es m' vm' es' ->
                                                    type_exprs Gamma Sigma es' efs ts) /\
