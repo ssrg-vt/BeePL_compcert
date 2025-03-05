@@ -336,34 +336,31 @@ Inductive ssem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
                 ssem_expr vm m e m' vm' e' ->
                 ssem_expr vm m (Prim Deref (e :: nil) (Ptype t)) m' vm' 
                                (Prim Deref (e' :: nil) (Ptype t))
-| ssem_deref2 : forall vm m m' vm' l ofs bf v h a t,
+| ssem_deref2 : forall vm m l ofs bf v h a t,
                 deref_addr ge (Ptype t) m l ofs bf v ->
-                ssem_expr vm m (Prim Deref [:: (Val (Vloc l ofs) (Reftype h (Bprim t) a))] (Ptype t)) m' vm' 
+                ssem_expr vm m (Prim Deref [:: (Val (Vloc l ofs) (Reftype h (Bprim t) a))] (Ptype t)) m vm 
                                (Val v (Ptype t))
-| sem_massgn1 : forall vm m e1 e2 m' vm' e1',  
-                ssem_expr vm m e1 m' vm' e1' ->
-                ssem_expr vm m (Prim Massgn (e1 :: e2 :: nil) (Ptype Tunit)) m' vm' 
-                               (Prim Massgn (e1' :: e2 :: nil) (Ptype Tunit))
-| sem_massgn2 : forall vm m e2 e2' m' vm' l ofs h a t,  
-                ssem_expr vm m e2  m' vm' e2' ->
-                ssem_expr vm m (Prim Massgn ((Val (Vloc l ofs) (Reftype h (Bprim t) a)) :: e2 :: nil) (Ptype Tunit)) m' vm' 
-                               (Prim Massgn ((Val (Vloc l ofs) (Reftype h (Bprim t) a)) :: e2' :: nil) (Ptype Tunit))
-| ssem_massgn3 : forall vm m t m' l ofs bf e2 v v' g1 ct1 ct2 g2 i g3 i' h a,  
-                 transBeePL_type (Ptype t) g1 = Res ct1 g2 i ->
-                 transBeePL_type (typeof_expr e2) g2 = Res ct2 g3 i' ->
-                 sem_cast (transBeePL_value_cvalue v) ct2 ct1 m = Some (transBeePL_value_cvalue v') ->
-                 assign_addr ge (Ptype t) m l ofs bf v' m' v' -> 
+| ssem_massgn1 : forall vm m e1 e2 m' vm' e1',  
+                 ssem_expr vm m e1 m' vm' e1' ->
+                 ssem_expr vm m (Prim Massgn (e1 :: e2 :: nil) (Ptype Tunit)) m' vm' 
+                                (Prim Massgn (e1' :: e2 :: nil) (Ptype Tunit))
+| ssem_massgn2 : forall vm m e2 e2' m' vm' l ofs h a t,  
+                 ssem_expr vm m e2  m' vm' e2' ->
+                 ssem_expr vm m (Prim Massgn ((Val (Vloc l ofs) (Reftype h (Bprim t) a)) :: e2 :: nil) (Ptype Tunit)) m' vm' 
+                                (Prim Massgn ((Val (Vloc l ofs) (Reftype h (Bprim t) a)) :: e2' :: nil) (Ptype Tunit))
+| ssem_massgn3 : forall vm m t m' l ofs bf v h a,  
+                 assign_addr ge (Ptype t) m l ofs bf v m' v -> 
                  ssem_expr vm m (Prim Massgn ((Val (Vloc l ofs) (Reftype h (Bprim t) a)) ::  Val v (Ptype t):: nil) (Ptype Tunit)) 
                                 m' vm (Val Vunit (Ptype Tunit))
 | ssem_uop1 : forall vm m e e' uop m' vm',
               ssem_expr vm m e m' vm' e' ->
               ssem_expr vm m (Prim (Uop uop) (e :: nil) (typeof_expr e)) m' vm' 
                              (Prim (Uop uop) (e' :: nil) (typeof_expr e))
-| ssem_uop2 : forall vm m t v uop m' vm' v' ct v'' g g' i,
+| ssem_uop2 : forall vm m t v uop v' ct v'' g g' i,
              transBeePL_type t g = Res ct g' i ->
-             sem_unary_operation uop (transBeePL_value_cvalue v) ct m' = Some v' ->
+             sem_unary_operation uop (transBeePL_value_cvalue v) ct m = Some v' ->
              transC_val_bplvalue v' = OK v'' ->
-             ssem_expr vm m (Prim (Uop uop) [:: (Val v t)] t) m' vm' (Val v'' t)
+             ssem_expr vm m (Prim (Uop uop) [:: (Val v t)] t) m vm (Val v'' t)
 | ssem_bop1 : forall vm m vm' m' bop e1 e2 e1',
               ssem_expr vm m e1 m' vm' e1' ->
               ssem_expr vm m (Prim (Bop bop) (e1 :: e2 :: nil) (typeof_expr e1)) m' vm' 
@@ -417,9 +414,9 @@ Inductive ssem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
 with ssem_exprs : vmap -> Memory.mem -> list BeePL.expr -> Memory.mem -> vmap -> list BeePL.expr -> Prop :=
 | ssem_nil : forall vm m,
              ssem_exprs vm m nil m vm nil
-| ssem_cons1 : forall vm m m' e v es vm',
-              ssem_expr vm m e m' vm' (Val v (typeof_expr e)) ->
-              ssem_exprs vm m (e :: es) m' vm' (Val v (typeof_expr e) :: es)
+| ssem_cons1 : forall vm m m' e e' es vm',
+              ssem_expr vm m e m' vm' e' ->
+              ssem_exprs vm m (e :: es) m' vm' (e' :: es)
 | ssem_cons2 : forall vm m es m' vm' v t vs,
                ssem_exprs vm m es m' vm' vs ->
                ssem_exprs vm m (Val v t :: es) m' vm' (Val v t :: vs). 

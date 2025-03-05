@@ -63,6 +63,22 @@ Inductive rettype : Type :=
 | Tint16unsigned      (**r 16-bit unsigned integer *)
 | Teunit              (**r no value returned *).
 
+Definition is_reftype (t : type) : bool :=
+match t with 
+| Ptype p => false
+| Reftype h bt a => true 
+| Ftype es ef t => false
+end. 
+
+Definition is_unittype (t : type) : bool :=
+match t with 
+| Ptype p => match p with 
+             | Tunit => true
+             | _ => false
+             end
+| _ => false
+end. 
+     
 (** The following describes types that can be interpreted as a boolean:
   integers, pointers.  It is used for the semantics of
   the [!] and [?] operators, as well as the [cond] expression *)
@@ -404,14 +420,14 @@ Definition ty_context := PTree.t type.
 (* To ensure that a location does not contain another location (ref) 
    and only points to basic types like int, bool, unit or pair *)
 (* Records the type of the values that we expect to be stored in cell i *)
-Definition store_context := PTree.t basic_type.  
+Definition store_context := PTree.t type.  
 
 Definition empty_context := (PTree.empty type).
 
 Definition extend_context (Gamma : ty_context) (k : ident) (t : type) := PTree.set k t Gamma. 
 
-Definition empty_stcontext := (PTree.empty basic_type).
+Definition empty_stcontext := (PTree.empty type).
 
-Definition extend_stcontext (Sigma : store_context) (k : ident) (t : basic_type) := PTree.set k t Sigma. 
+Definition extend_stcontext (Sigma : store_context) (k : ident) (t : type) := PTree.set k t Sigma. 
 
 
