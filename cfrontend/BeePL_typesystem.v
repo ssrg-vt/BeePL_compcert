@@ -342,8 +342,11 @@ Lemma extend_ty_context_deterministic :
 Proof.
   apply type_exprs_type_expr_ind_mut; intros.
   - constructor.
+  - constructor.
+  - constructor.
+  - constructor; assumption.
   - constructor. (* There's an extra extend_context in this case *)
-    admit. eauto.
+    admit.
   (*
   - constructor.
   - constructor.
@@ -368,7 +371,7 @@ Proof.
     eauto.
   - eapply ty_prim_massgn with (Gamma := extend_context Gamma0 x t1);
     eauto.
-  - eapply ty_prim_uop with (Gamma := extend_context Gamma0 x t1).
+  - eapply ty_prim_uop with (Gamma := extend_context Gamma0 x t1);
     eauto.
   - eapply ty_prim_bop with (Gamma := extend_context Gamma0 x t2);
     eauto.
@@ -585,6 +588,137 @@ Lemma trans_value_uop_success : forall uop v ct m v',
 Cop.sem_unary_operation uop (transBeePL_value_cvalue v) ct m = Some v' ->
 exists v'', transC_val_bplvalue v' = OK v''.
 Proof.
+  intros.
+  destruct v' eqn:Hv'; simpl in *; eauto.
+  (* Vundef not possible *)
+  - destruct (transBeePL_value_cvalue v) eqn:Hvcv;
+    destruct uop;
+    destruct ct;
+    try discriminate;
+    try (destruct i; destruct s; discriminate);
+    try (destruct f; discriminate);
+    try (destruct i0; destruct s;
+    injection H as H;
+    destruct (Int.eq i Int.zero); simpl in H; discriminate);
+    try (simpl in H;
+      unfold Cop.sem_notbool in H;
+      unfold Cop.bool_val in H;
+      unfold Cop.classify_bool in H;
+      unfold typeconv in H;
+      unfold remove_attributes in H;
+      unfold change_attributes in H;
+      destruct Archi.ptr64;
+      destruct (Int64.eq i Int64.zero); discriminate);
+    try (destruct i0; destruct s; discriminate);
+    try (destruct f0; discriminate);
+    try (simpl in H;
+      destruct f0;
+      unfold Cop.sem_notbool in H;
+      unfold Cop.bool_val in H;
+      unfold Cop.classify_bool in H;
+      unfold typeconv in H;
+      unfold remove_attributes in H;
+      unfold change_attributes in H;
+      destruct (Floats.Float.cmp Ceq f Floats.Float.zero); 
+      discriminate);
+    try (simpl in H;
+      destruct f0;
+      unfold Cop.sem_notbool in H;
+      unfold Cop.bool_val in H;
+      unfold Cop.classify_bool in H;
+      unfold typeconv in H;
+      unfold remove_attributes in H;
+      unfold change_attributes in H;
+      destruct (Floats.Float32.cmp Ceq f Floats.Float32.zero); 
+      discriminate);
+    try (simpl in H;
+      unfold Cop.sem_notbool in H;
+      unfold Cop.bool_val in H;
+      unfold Cop.classify_bool in H;
+      unfold typeconv in H;
+      unfold remove_attributes in H;
+      unfold change_attributes in H;
+      destruct Archi.ptr64;
+      destruct (Mem.weak_valid_pointer m b (Ptrofs.unsigned i));
+      simpl in H;
+      discriminate).
+  (* Vfloat not possible *)
+  - admit.
+    (* not sure if provable *)
+  (* Vsingle not possible *)
+  - destruct (transBeePL_value_cvalue v) eqn:Hvcv;
+    destruct uop;
+    destruct ct;
+    try discriminate;
+    try (destruct i; destruct s; discriminate);
+    try (destruct f; discriminate);
+    try (destruct i0; destruct s;
+    injection H as H;
+    destruct (Int.eq i Int.zero); simpl in H; discriminate);
+    try (simpl in H;
+      unfold Cop.sem_notbool in H;
+      unfold Cop.bool_val in H;
+      unfold Cop.classify_bool in H;
+      unfold typeconv in H;
+      unfold remove_attributes in H;
+      unfold change_attributes in H;
+      destruct Archi.ptr64;
+      destruct (Int64.eq i Int64.zero); discriminate);
+    try (destruct i0; destruct s; discriminate);
+    try (destruct f0; discriminate);
+    try (simpl in H;
+      destruct f0;
+      unfold Cop.sem_notbool in H;
+      unfold Cop.bool_val in H;
+      unfold Cop.classify_bool in H;
+      unfold typeconv in H;
+      unfold remove_attributes in H;
+      unfold change_attributes in H;
+      destruct (Floats.Float.cmp Ceq f Floats.Float.zero); 
+      discriminate);
+    try (simpl in H;
+      destruct f0;
+      unfold Cop.sem_notbool in H;
+      unfold Cop.bool_val in H;
+      unfold Cop.classify_bool in H;
+      unfold typeconv in H;
+      unfold remove_attributes in H;
+      unfold change_attributes in H;
+      destruct (Floats.Float32.cmp Ceq f Floats.Float32.zero); 
+      discriminate);
+    try (simpl in H;
+      unfold Cop.sem_notbool in H;
+      unfold Cop.bool_val in H;
+      unfold Cop.classify_bool in H;
+      unfold typeconv in H;
+      unfold remove_attributes in H;
+      unfold change_attributes in H;
+      destruct Archi.ptr64;
+      destruct (Mem.weak_valid_pointer m b (Ptrofs.unsigned i));
+      simpl in H;
+      discriminate);
+    try (simpl in H;
+      unfold Cop.sem_notbool in H;
+      unfold Cop.bool_val in H;
+      unfold Cop.classify_bool in H;
+      unfold typeconv in H;
+      unfold remove_attributes in H;
+      unfold change_attributes in H;
+      destruct f1;
+      destruct (Floats.Float.cmp Ceq f0 Floats.Float.zero); 
+      discriminate).
+    try (simpl in H;
+      unfold Cop.sem_notbool in H;
+      unfold Cop.bool_val in H;
+      unfold Cop.classify_bool in H;
+      unfold typeconv in H;
+      unfold remove_attributes in H;
+      unfold change_attributes in H;
+      destruct f1;
+      destruct (Floats.Float32.cmp Ceq f0 Floats.Float32.zero); 
+      discriminate).
+    admit.
+    admit.
 Admitted.
 
 (* Complete Me : Medium *) (* Hint : Follow similar proof style like well_typed_uop *)

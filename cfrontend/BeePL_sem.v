@@ -490,13 +490,10 @@ Context (Hsmassgn2 : forall vm m e2 e2' m' vm' l ofs h a t,
                     Ps vm m e2  m' vm' e2' ->
                     Ps vm m (Prim Massgn ((Val (Vloc l ofs) (Reftype h (Bprim t) a)) :: e2 :: nil) (Ptype Tunit)) m' vm' 
                                    (Prim Massgn ((Val (Vloc l ofs) (Reftype h (Bprim t) a)) :: e2' :: nil) (Ptype Tunit))).
-Context (Hsmassgn3 : forall vm m t m' l ofs bf e2 v v' g1 ct1 ct2 g2 i g3 i' h a,  
-                    transBeePL_type (Ptype t) g1 = Res ct1 g2 i ->
-                    transBeePL_type (typeof_expr e2) g2 = Res ct2 g3 i' ->
-                    sem_cast (transBeePL_value_cvalue v) ct2 ct1 m = Some (transBeePL_value_cvalue v') ->
-                    assign_addr ge (Ptype t) m l ofs bf v' m' v' ->
+Context (Hsmassgn3 : forall vm m t m' l ofs bf v h a,  
+                    assign_addr ge (Ptype t) m l ofs bf v m' v -> 
                     Ps vm m (Prim Massgn ((Val (Vloc l ofs) (Reftype h (Bprim t) a)) ::  Val v (Ptype t):: nil) (Ptype Tunit)) 
-                                   m' vm (Val Vunit (Ptype Tunit))).
+                                    m' vm (Val Vunit (Ptype Tunit))).
 Context (Hsuop1 : forall vm m e e' uop m' vm',
                  Ps vm m e m' vm' e' ->
                  Ps vm m (Prim (Uop uop) (e :: nil) (typeof_expr e)) m' vm' 
@@ -556,9 +553,9 @@ Context (Hseapp : forall vm m es vm' m' m'' vs ef g cef g' i' vres bv ts ty t,
                   Ps vm m (BeePL.Eapp ef ts es ty) m'' vm' (Val bv ty)).
 Context (Hsnil : forall vm m,
                  Pss vm m nil m vm nil).
-Context (Hscons1 : forall vm m m' e v es vm',
-                   Ps vm m e m' vm' (Val v (typeof_expr e)) ->
-                   Pss vm m (e :: es) m' vm' (Val v (typeof_expr e) :: es)).
+Context (Hscons1 : forall vm m m' e e' es vm',
+                   Ps vm m e m' vm' e' ->
+                   Pss vm m (e :: es) m' vm' (e' :: es)).
 Context (Hscons2 : forall vm m es m' vm' v t vs,
                    Pss vm m es m' vm' vs ->
                    Pss vm m (Val v t :: es) m' vm' (Val v t :: vs)).
