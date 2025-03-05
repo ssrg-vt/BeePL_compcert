@@ -302,9 +302,9 @@ Inductive ssem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
 with ssem_exprs : vmap -> Memory.mem -> list BeePL.expr -> Memory.mem -> vmap -> list BeePL.expr -> Prop :=
 | ssem_nil : forall vm m,
              ssem_exprs vm m nil m vm nil
-| ssem_cons1 : forall vm m m' e v es vm',
-              ssem_expr vm m e m' vm' (Val v (typeof_expr e)) ->
-              ssem_exprs vm m (e :: es) m' vm' (Val v (typeof_expr e) :: es)
+| ssem_cons1 : forall vm m m' e e' es vm',
+              ssem_expr vm m e m' vm' e' ->
+              ssem_exprs vm m (e :: es) m' vm' (e' :: es)
 | ssem_cons2 : forall vm m es m' vm' v t vs,
                ssem_exprs vm m es m' vm' vs ->
                ssem_exprs vm m (Val v t :: es) m' vm' (Val v t :: vs). 

@@ -606,7 +606,11 @@ suff : (forall Gamma Sigma es efs ts, type_exprs Gamma Sigma es efs ts ->
                             forall bge vm m, store_well_typed Sigma bge vm m ->
                                              is_value e \/ exists m' vm' e', 
                                                            ssem_expr bge vm m e m' vm' e').
-+ admit.
++ move=> [] hwt1 hwt2. split=> //=.
+  + move=> Gamma Sigma es efs ts bge vm m htes hw.
+    by move: (hwt1 Gamma Sigma es efs ts htes bge vm m hw).
+  move=> Gamma Sigma e ef t bge vm m hte hw. 
+  by move: (hwt2 Gamma Sigma e ef t hte bge vm m hw).
 apply type_exprs_type_expr_ind_mut=> //=.
 (* val unit *)
 + move=> Gamma Sigma ef bge vm m hw. by left.
@@ -747,15 +751,40 @@ apply type_exprs_type_expr_ind_mut=> //=.
 (* cond *)
 + move=> Gamma Sigma e1 e2 e3 tb t ef1 ef2 ef3 hte1 hin htb hte2 hin' hte3 hin'' bge vm m hw.
   right. move: (hin bge vm m hw)=> [] hv.
-  (* value e *)
+  (* value e1 *)
   + case: e1 hte1 hin hv=> //= v t' hte1 hin _. exists m. exists vm. exists e2.
     have hteq := type_rel_typeof Gamma Sigma e2 ef2 t hte2; subst. 
     have [hwt1 hwt2] := well_typed_success. move: (hwt2 Gamma Sigma (Val v t') ef1 tb hte1).
     move=> [] ct [] g [] i hct.
     apply ssem_ctrue with g ct g i. 
     + by have hteq := type_val_reflx Gamma Sigma v t' ef1 tb hte1; subst.
-    
-
+    have hteq := type_val_reflx Gamma Sigma v t' ef1 tb hte1; subst.
+    by have := type_bool_val Gamma Sigma v tb ef1 ct m true hte1 htb.
+  (* e1 steps *) 
+  move: hv. move=> [] m' [] vm' [] e1' he1'. exists m'. exists vm'.
+  exists (Cond e1' e2 e3 t). have hteq := type_rel_typeof Gamma Sigma e2 ef2 t hte2; subst.
+  by apply ssem_cond.
+(* unit *)
++ move=> Gamma Sigma bge vm m hw. right. exists m. exists vm. exists (Val Vunit (Ptype Tunit)).
+  by apply ssem_ut.
+(* addr *)
++ move=> Gamma Sigma l ofs t' hs bge vm m hw. right.
+  exists m. exists vm. exists (Val (Vloc l.(lname) ofs) t'). by apply ssem_adr.
+(* nil *)
++ move=> Gamma Sigma bge vm m hw. by left.
+(* cons *)
+move=> Gamma Sigma e es ef efs t ts hte hin htes hins bge vm m hw.
+move: (hin bge vm m hw)=> [] hv.
+(* value e *)
++ move: (hins bge vm m hw)=> [] hvs.
+  (* value es *)
+  + left. by rewrite /andb hv. 
+  (* es steps *)
+  move: hvs. move=> [] m' [] vm' [] es' hes. right.
+  case: e hte hin hv=> //= v t' hte hin _. exists m'. exists vm'.
+  exists (Val v t' :: es'). by apply ssem_cons2.
+move: hv. move=> [] m' [] vm' [] e' he'. right.
+exists m'. exists vm'. exists (e' :: es). by apply ssem_cons1.
 Admitted.
 
 
