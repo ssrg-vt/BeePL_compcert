@@ -99,9 +99,9 @@ Combined Scheme type_exprs_type_expr_ind_mut from type_exprs_ind_mut, type_expr_
    this rule is not part of the inference rules but
    we need it to show subject reduction of stateful computations. : Leijen's koka paper *)
 (* This hypothesis makes the type system non-deterministic *)
-Hypothesis ty_extend : forall Gamma Sigma e t ef, 
+(*Hypothesis ty_extend : forall Gamma Sigma e t ef, 
                         type_expr Gamma Sigma e empty_effect t ->
-                        type_expr Gamma Sigma e (ef ++ empty_effect) t.
+                        type_expr Gamma Sigma e (ef ++ empty_effect) t.*)
 
 Section type_expr_ind.
 Context (Pts : ty_context -> store_context -> list expr -> effect -> list type -> Prop).
@@ -310,19 +310,19 @@ Qed.
    the assumption we made about [x] when typing [e], we should be
    able to substitute [e'] for each of the occurrences of [x] in [e]
    and obtain a new expression that still has type [t]. *)
-Lemma wsubst_preservation : forall Gamma Sigma bge vm hm hm' x t v e ef t' e'', 
+Lemma wsubst_preservation : forall Gamma Sigma x t v e ef t' e'', 
 type_expr (extend_context Gamma x t) Sigma e ef t' ->
 wtypeof_value v (wtype_of_type t) ->
-subst bge vm hm x v e hm' e'' ->
+subst x (Val v t) e = e'' ->
 type_expr Gamma Sigma e'' ef t'.
 Proof.
 Admitted.
 
-Lemma subst_preservation : forall Gamma Sigma bge vm hm hm' x t v e ef t' e'', 
-type_expr (extend_context Gamma x t) Sigma e ef t' ->
-typeof_value v t ->
-subst bge vm hm x v e hm' e'' ->
-type_expr Gamma Sigma e'' ef t'.
+Lemma subst_preservation : forall Gamma Sigma x t se e ef' ef t' e', 
+type_expr (extend_context Gamma x t) Sigma e ef' t' ->
+type_expr Gamma Sigma se ef t ->
+subst x se e = e' ->
+type_expr Gamma Sigma e' ef' t'.
 Proof.
 Admitted.
 
@@ -584,7 +584,9 @@ move=> p ofs hvt. inversion hvt; subst. inversion H8; subst. case: uop hvt=> //=
 Qed.
 
 (* Complete Me : Easy *)
-Lemma trans_value_uop_success : forall uop v ct m v', 
+Lemma trans_value_uop_success : forall Gamma Sigma ef t uop v ct g g' i m v', 
+type_expr Gamma Sigma (Val v t) ef t ->
+transBeePL_type t g = Res ct g' i ->
 Cop.sem_unary_operation uop (transBeePL_value_cvalue v) ct m = Some v' ->
 exists v'', transC_val_bplvalue v' = OK v''.
 Proof.
@@ -733,7 +735,10 @@ Proof.
 Admitted.
 
 (* Complete Me : Easy *)
-Lemma trans_value_bop_success : forall bcmp bop v1 v2 ct m v', 
+Lemma trans_value_bop_success : forall Gamma Sigma bcmp bop v1 v2 ef t ct g g' i m v', 
+type_expr Gamma Sigma (Val v1 t) ef t ->
+type_expr Gamma Sigma (Val v2 t) ef t ->
+transBeePL_type t g = Res ct g' i ->
 Cop.sem_binary_operation bcmp bop (transBeePL_value_cvalue v1) ct 
                                   (transBeePL_value_cvalue v2) ct m = Some v' ->
 exists v'', transC_val_bplvalue v' = OK v''.
@@ -766,6 +771,39 @@ Cop.bool_val (transBeePL_value_cvalue v) ct m = Some b.
 Proof.
 move=> Gamma Sigma v t ef ct m b hte.
 Admitted.
+
+(* A well typed value and expression can always lead to substitution *)
+(*Lemma subst_success:  
+(*(forall Gamma Sigma es efs ts Gamma x t bge vm m v, type_exprs Gamma' Sigma es efs ts ->
+                                                     Gamma = (extend_context Gamma x t) ->
+                                                     type_expr Gamma Sigma (Val v t) efs t ->
+                                                     store_well_typed Sigma bge vm m ->
+                                                     exists m' es', substs bge vm m x v es m' es') /\*)
+forall Gamma Sigma ef t x se t' bge vm m e, type_expr Gamma Sigma (Bind x t' se e t) ef t ->
+                                            store_well_typed Sigma bge vm m ->
+                                            exists e', subst x se e e'.
+Proof.
+move=> Gamma Sigma ef t x se t' bge vm m e hte hw. inversion hte; subst.
+elim: e hte H9=> //=.
+(* val *)
++ move=> v1 t1 hte htv. exists (Val v1 t1). by apply val_subst.
+(* var *)
++ move=> y t1 hte hty. inversion hty; subst. rewrite /extend_context in H5.
+  rewrite PTree.gsspec in H5. move: H5. destruct (peq x y).
+  + destruct (peq y y).
+    + move=> _. rewrite e /= in hty. inversion hty; subst.
+      exists se. apply var_subst1. by apply POrderedType.Positive_as_OT.eqb_refl.
+    move: n. by move=> [].
+  destruct (peq y y).
+  + move=> _. exists (Var y t). apply var_subst2. have [h1 h2] := Pos.eqb_neq x y.
+    by move: (h2 n).
+  by case: n0.
+(* const *)
++ move=> c tc hte ht. exists (Const c tc). by apply const_subst.
+(* App *)
++ move=> e hin es ts hte hta.
+
+Admitted. *)
 
 (*** Proving theorems related to type system for small step semantics of BeePL ***)
 
@@ -896,7 +934,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
     have htuop := type_uop_inject Gamma Sigma (Val v t) t ef op hf hf' hte.
     move: (hwt Gamma Sigma (Val v t) ef t hte)=> [] ct [] g [] i hct.
     have [v' hsop] := well_typed_uop Gamma Sigma bge vm v ef t op m ct g i htuop hct hw.
-    have [v'' hbv] := trans_value_uop_success op v ct m v' hsop. 
+    have [v'' hbv] := trans_value_uop_success Gamma Sigma ef t op v ct g g i m v' hte hct hsop. 
     exists (Val v'' t). apply ssem_uop2 with v' ct g g i. + by apply hct.
     + by apply hsop. by apply hbv.
   (* step *)
@@ -918,7 +956,8 @@ apply type_exprs_type_expr_ind_mut=> //=.
       have htop := type_bop_inject Gamma Sigma (Val v t) (Val v' t) t ef op hf hf' hte hte'.
       have [v'' hsop] := well_typed_bop Gamma Sigma bge vm (genv_cenv bge) v v' ef t op 
                          m ct1 g i htop hct1 hw.
-      have [v''' htv] := trans_value_bop_success (genv_cenv bge) op v v' ct1 m v'' hsop.
+      have [v''' htv] := trans_value_bop_success Gamma Sigma (genv_cenv bge) op v v' ef t
+                             ct1 g g i m v'' hte hte' hct1 hsop.
       exists m. exists vm. exists (Val v''' t). 
       apply ssem_bop3 with (genv_cenv bge) v'' ct1 ct1 g g i g i. + by apply hct1.
       + by apply hct1. + by apply hsop. by apply htv.
@@ -931,7 +970,17 @@ apply type_exprs_type_expr_ind_mut=> //=.
   have hteq := type_rel_typeof Gamma Sigma e ef t hte; subst.
   exists (Prim (Bop op) [:: e''; e'] (typeof_expr e)). apply ssem_bop1. by apply he''.
 (* bind *)
-+ admit.
++ move=> Gamma Sigma x t e e' t' ef ef' hte hin hte' hin' bge vm m hw. right.
+  move: (hin bge vm m hw)=> [] hv.
+  (* value e *)
+  + case: e hte hin hv=> //= v tv hte hin _. exists m. exists vm. exists (subst x (Val v tv) e').
+    have hteq := type_rel_typeof (extend_context Gamma x t) Sigma e' ef' t' hte'; subst. 
+    have hteq' := type_rel_typeof Gamma Sigma (Val v tv) ef t hte; subst.
+    by apply ssem_bind2.
+  (* e steps *)
+  move: hv. move=> [] m' [] vm' [] e'' he''. exists m'. exists vm'. exists (Bind x t e'' e' t').
+  have hteq := type_rel_typeof (extend_context Gamma x t) Sigma e' ef' t' hte'; subst. 
+  by apply ssem_bind1.
 (* cond *)
 + move=> Gamma Sigma e1 e2 e3 tb t ef1 ef2 ef3 hte1 hin htb hte2 hin' hte3 hin'' bge vm m hw.
   right. move: (hin bge vm m hw)=> [] hv.

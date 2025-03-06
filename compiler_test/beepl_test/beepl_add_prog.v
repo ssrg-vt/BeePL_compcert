@@ -33,27 +33,31 @@ Module Info.
 End Info.
 
 Definition dattr := {| attr_volatile := false; attr_alignas := Some 4%N |}.
-Definition _x := {| vname := 1%positive; vtype := Ptype (BeeTypes.Tint I32 Unsigned dattr) |}.
-Definition _y := {| vname := 2%positive; vtype := Ptype (BeeTypes.Tint I32 Unsigned dattr) |}.
-Definition _r := {| vname := 3%positive; vtype := Ptype (BeeTypes.Tint I32 Unsigned dattr) |}.
+Definition _x := 1%positive.
+Definition _y := 2%positive.
+Definition _r := 3%positive.
 Definition _main : ident := $"main".
 
 Definition f_main : function := {| fn_return := (Ptype (BeeTypes.Tint I32 Unsigned dattr));
+                                   fn_effect := nil;
                                    fn_callconv := cc_default;
                                    fn_args := nil;
-                                   fn_vars := (_x :: _y :: _r :: nil);
-                                   fn_body := Bind (_x.(vname)) 
+                                   fn_vars := ((_x, Ptype (BeeTypes.Tint I32 Unsigned dattr)) :: 
+                                               (_y, Ptype (BeeTypes.Tint I32 Unsigned dattr)) :: 
+                                               (_r, Ptype (BeeTypes.Tint I32 Unsigned dattr)) :: nil);
+                                   fn_body := Bind (_x) 
                                                 (Ptype (BeeTypes.Tint I32 Unsigned dattr))
                                                 (Const (ConsInt (Int.repr 1)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
-                                                (Bind (_y.(vname)) 
+                                                (Bind (_y) 
                                                    (Ptype (BeeTypes.Tint I32 Unsigned dattr))
                                                    (Const (ConsInt (Int.repr 2)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
-                                                   (Bind (_r.(vname)) 
+                                                   (Bind (_r) 
                                                       (Ptype (BeeTypes.Tint I32 Unsigned dattr))
                                                       (Prim (Bop Cop.Oadd) 
-                                                         (Var _x  :: Var _y :: nil)
+                                                         (Var _x (Ptype (BeeTypes.Tint I32 Unsigned dattr)) :: 
+                                                          Var _y (Ptype (BeeTypes.Tint I32 Unsigned dattr)) :: nil)
                                                          (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
-                                                      (Var _r)
+                                                      (Var _r (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
                                                       (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
                                                    (Ptype Tunit))
                                                 (Ptype Tunit) |}.
