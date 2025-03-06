@@ -531,7 +531,9 @@ move=> p ofs hvt. inversion hvt; subst. inversion H8; subst. case: uop hvt=> //=
 Qed.
 
 (* Complete Me : Easy *)
-Lemma trans_value_uop_success : forall uop v ct m v', 
+Lemma trans_value_uop_success : forall Gamma Sigma ef t uop v ct g g' i m v', 
+type_expr Gamma Sigma (Val v t) ef t ->
+transBeePL_type t g = Res ct g' i ->
 Cop.sem_unary_operation uop (transBeePL_value_cvalue v) ct m = Some v' ->
 exists v'', transC_val_bplvalue v' = OK v''.
 Proof.
@@ -549,7 +551,10 @@ Proof.
 Admitted.
 
 (* Complete Me : Easy *)
-Lemma trans_value_bop_success : forall bcmp bop v1 v2 ct m v', 
+Lemma trans_value_bop_success : forall Gamma Sigma bcmp bop v1 v2 ef t ct g g' i m v', 
+type_expr Gamma Sigma (Val v1 t) ef t ->
+type_expr Gamma Sigma (Val v2 t) ef t ->
+transBeePL_type t g = Res ct g' i ->
 Cop.sem_binary_operation bcmp bop (transBeePL_value_cvalue v1) ct 
                                   (transBeePL_value_cvalue v2) ct m = Some v' ->
 exists v'', transC_val_bplvalue v' = OK v''.
@@ -745,7 +750,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
     have htuop := type_uop_inject Gamma Sigma (Val v t) t ef op hf hf' hte.
     move: (hwt Gamma Sigma (Val v t) ef t hte)=> [] ct [] g [] i hct.
     have [v' hsop] := well_typed_uop Gamma Sigma bge vm v ef t op m ct g i htuop hct hw.
-    have [v'' hbv] := trans_value_uop_success op v ct m v' hsop. 
+    have [v'' hbv] := trans_value_uop_success Gamma Sigma ef t op v ct g g i m v' hte hct hsop. 
     exists (Val v'' t). apply ssem_uop2 with v' ct g g i. + by apply hct.
     + by apply hsop. by apply hbv.
   (* step *)
@@ -767,7 +772,8 @@ apply type_exprs_type_expr_ind_mut=> //=.
       have htop := type_bop_inject Gamma Sigma (Val v t) (Val v' t) t ef op hf hf' hte hte'.
       have [v'' hsop] := well_typed_bop Gamma Sigma bge vm (genv_cenv bge) v v' ef t op 
                          m ct1 g i htop hct1 hw.
-      have [v''' htv] := trans_value_bop_success (genv_cenv bge) op v v' ct1 m v'' hsop.
+      have [v''' htv] := trans_value_bop_success Gamma Sigma (genv_cenv bge) op v v' ef t
+                             ct1 g g i m v'' hte hte' hct1 hsop.
       exists m. exists vm. exists (Val v''' t). 
       apply ssem_bop3 with (genv_cenv bge) v'' ct1 ct1 g g i g i. + by apply hct1.
       + by apply hct1. + by apply hsop. by apply htv.
