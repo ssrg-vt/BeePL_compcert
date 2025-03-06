@@ -313,7 +313,7 @@ Qed.
 Lemma wsubst_preservation : forall Gamma Sigma x t v e ef t' e'', 
 type_expr (extend_context Gamma x t) Sigma e ef t' ->
 wtypeof_value v (wtype_of_type t) ->
-subst x (Val v t) e e'' ->
+subst x (Val v t) e = e'' ->
 type_expr Gamma Sigma e'' ef t'.
 Proof.
 Admitted.
@@ -321,7 +321,7 @@ Admitted.
 Lemma subst_preservation : forall Gamma Sigma x t se e ef' ef t' e', 
 type_expr (extend_context Gamma x t) Sigma e ef' t' ->
 type_expr Gamma Sigma se ef t ->
-subst x se e e' ->
+subst x se e = e' ->
 type_expr Gamma Sigma e' ef' t'.
 Proof.
 Admitted.
@@ -590,26 +590,31 @@ Admitted.
                                                      type_expr Gamma Sigma (Val v t) efs t ->
                                                      store_well_typed Sigma bge vm m ->
                                                      exists m' es', substs bge vm m x v es m' es') /\*)
-forall Gamma Sigma ef t x v t' bge vm m e, type_expr Gamma Sigma (Bind x t' (Val v t') e t) ef t ->
-                                              store_well_typed Sigma bge vm m ->
-                                              exists m' e', subst bge vm m x v e m' e'.
+forall Gamma Sigma ef t x se t' bge vm m e, type_expr Gamma Sigma (Bind x t' se e t) ef t ->
+                                            store_well_typed Sigma bge vm m ->
+                                            exists e', subst x se e e'.
 Proof.
-move=> Gamma Sigma ef t x v t' bge vm m e hte hw. inversion hte; subst.
+move=> Gamma Sigma ef t x se t' bge vm m e hte hw. inversion hte; subst.
 elim: e hte H9=> //=.
 (* val *)
-+ move=> v1 t1 hte htv. exists m. exists (Val v1 t1). by apply val_subst.
++ move=> v1 t1 hte htv. exists (Val v1 t1). by apply val_subst.
 (* var *)
 + move=> y t1 hte hty. inversion hty; subst. rewrite /extend_context in H5.
   rewrite PTree.gsspec in H5. move: H5. destruct (peq x y).
-  (* x = y *)
   + destruct (peq y y).
     + move=> _. rewrite e /= in hty. inversion hty; subst.
-      rewrite /store_well_typed in hw. move: hw. move=> [] hw1 [] hw2 hw3.
-      
-  move: n. by move=> [].
-  (* x = y *)
-  + rewrite /store_well_typed in hw. move: hw. move=> [] hw1 [] hw2 hw3.
-Admitted.*)
+      exists se. apply var_subst1. by apply POrderedType.Positive_as_OT.eqb_refl.
+    move: n. by move=> [].
+  destruct (peq y y).
+  + move=> _. exists (Var y t). apply var_subst2. have [h1 h2] := Pos.eqb_neq x y.
+    by move: (h2 n).
+  by case: n0.
+(* const *)
++ move=> c tc hte ht. exists (Const c tc). by apply const_subst.
+(* App *)
++ move=> e hin es ts hte hta.
+
+Admitted. *)
 
 (*** Proving theorems related to type system for small step semantics of BeePL ***)
 
@@ -778,8 +783,14 @@ apply type_exprs_type_expr_ind_mut=> //=.
 + move=> Gamma Sigma x t e e' t' ef ef' hte hin hte' hin' bge vm m hw. right.
   move: (hin bge vm m hw)=> [] hv.
   (* value e *)
-  + case: e hte hin hv=> //= v tv hte hin _. admit.
-  admit. 
+  + case: e hte hin hv=> //= v tv hte hin _. exists m. exists vm. exists (subst x (Val v tv) e').
+    have hteq := type_rel_typeof (extend_context Gamma x t) Sigma e' ef' t' hte'; subst. 
+    have hteq' := type_rel_typeof Gamma Sigma (Val v tv) ef t hte; subst.
+    by apply ssem_bind2.
+  (* e steps *)
+  move: hv. move=> [] m' [] vm' [] e'' he''. exists m'. exists vm'. exists (Bind x t e'' e' t').
+  have hteq := type_rel_typeof (extend_context Gamma x t) Sigma e' ef' t' hte'; subst. 
+  by apply ssem_bind1.
 (* cond *)
 + move=> Gamma Sigma e1 e2 e3 tb t ef1 ef2 ef3 hte1 hin htb hte2 hin' hte3 hin'' bge vm m hw.
   right. move: (hin bge vm m hw)=> [] hv.

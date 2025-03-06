@@ -429,7 +429,24 @@ Definition blocks_of_env (e: vmap) : list (ident * Z * Z) :=
   List.map block_of_binding (PTree.elements e).
 
 (* Substitution *)
-Inductive subst : ident -> expr -> expr -> expr -> Prop :=
+Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
+match e with 
+| Val v t => e
+| Var y t => if (x =? y)%positive then se else Var y t
+| Const c t => e 
+| App e es t => App (subst x se e) (map (subst x se) es) t
+| Prim b es t => Prim b (map (subst x se) es) t
+| Bind y t e1 e2 t' => if (x =? y)%positive 
+                       then Bind y t (subst x se e1) e2 t'
+                       else Bind y t (subst x se e1) (subst x se e2) t'
+| Cond e1 e2 e3 t => Cond (subst x se e1) (subst x se e2) (subst x se e3) t
+| Unit t => Unit t 
+| Addr l p t => Addr l p t
+| Hexpr h e t => Hexpr h (subst x se e) t
+| Eapp ef ts es t => Eapp ef ts (map (subst x se) es) t
+end.
+
+(*Inductive subst : ident -> expr -> expr -> expr -> Prop :=
 | val_subst : forall x se v t,
               subst x se (Val v t) (Val v t)
 | var_subst1 : forall x se y t,
@@ -481,7 +498,7 @@ with substs : ident -> expr -> list expr -> list expr -> Prop :=
 
 Scheme subst_ind_mut := Induction for subst Sort Prop
   with substs_ind_mut := Induction for substs Sort Prop.
-Combined Scheme substs_subst_ind_mut from substs_ind_mut, subst_ind_mut.
+Combined Scheme substs_subst_ind_mut from substs_ind_mut, subst_ind_mut.*)
 
 Fixpoint is_simple_expr (e : expr) : bool :=
 match e with 
@@ -738,7 +755,7 @@ Inductive bestep : state -> state -> Prop :=
 | step_bind : forall vm f k x tx e1 v e2 e2' t m m' v',
               (*leftcontext RV RV C ->*)
               bsem_expr_srv vm m e1 v -> 
-              subst x (Val v t) e2 e2' ->
+              subst x (Val v t) e2 = e2' ->
               bestep (ExprState f e2' k vm m) (ExprState f (Val v' t) k vm m') ->
               bestep (ExprState f (Bind x tx e1 e2 t) k vm m)
                      (ExprState f (Val v' t) k vm m')
@@ -940,9 +957,8 @@ Inductive rreduction : expr -> Memory.mem -> expr -> Memory.mem -> Prop :=
                 assign_addr ge (Ptype t) hm l ofs bf v' hm' v' ->
                 rreduction (Prim Massgn ((Addr {| lname := l; lbitfield := bf |} ofs (Reftype h (Bprim t) a)) 
                                          :: Val v (Ptype tv2) :: nil) (Ptype t)) hm (Val v' (Ptype t)) hm'
-| rred_bind : forall hm x v e2 e2' t t',
-              subst x (Val v t) e2 e2' ->
-              rreduction (Bind x t (Val v t) e2 t') hm e2 hm
+| rred_bind : forall hm x v e2 t t',
+              rreduction (Bind x t (Val v t) e2 t') hm (subst x (Val v t) e2) hm
 | rred_unit : forall hm,
               rreduction (Unit (Ptype Tunit)) hm (Val Vunit (Ptype Tunit)) hm.
 
@@ -1072,7 +1088,7 @@ Inductive ssem : state -> state -> Prop :=
             ssem (ExprState f (Val v t) (Kcond e2 e3 k) vm m) (ExprState f (if b then e2 else e3) k vm m)
 (* add one more rule for bind to evaluate e1 *)
 | s_bind1 : forall f x t' v e2 t k m e2',
-            subst x (Val v t') e2 e2' ->
+            subst x (Val v t') e2 = e2' ->
             ssem (ExprState f (Bind x t' (Val v t') e2 t) k vm m) (ExprState f e2' k vm m).
 
 Definition step (s : state) (s' : state) : Prop :=
