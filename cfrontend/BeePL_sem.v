@@ -114,11 +114,11 @@ Inductive bsem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
              transC_val_bplvalue v = OK v' ->
              bsem_expr vm m (Prim (Bop bop) (e1 :: e2 :: nil) (typeof_expr e1)) m'' vm'' v'
 (* fix me : add semantics for run primitive *)
-| bsem_bind : forall vm m x e1 vm' m' v m'' vm'' e2 e2' m''' v' tx,
+| bsem_bind : forall vm m x e1 vm' m' v e2 e2' v' tx,
               bsem_expr vm m e1 m' vm' v -> 
-              subst ge vm' m' x v e2 m'' e2' ->
-              bsem_expr vm' m'' e2' m''' vm'' v' ->
-              bsem_expr vm m (Bind x tx e1 e2 (typeof_expr e2)) m''' vm'' v'
+              subst x (Val v (typeof_expr e1)) e2 e2' ->
+              bsem_expr vm m e2' m' vm' v' ->
+              bsem_expr vm m (Bind x tx e1 e2 (typeof_expr e2)) m' vm' v'
 | bsem_ctrue : forall vm m e1 e2 e3 t vm' m' vb g ct1 g' i v vm'' m'', 
                bsem_expr vm m e1 m' vm' vb -> 
                transBeePL_type (typeof_expr e1) g = Res ct1 g' i ->
@@ -269,9 +269,9 @@ Inductive ssem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
                ssem_expr vm m e1 m' vm' e1' -> 
                ssem_expr vm m (Bind x tx e1 e2 (typeof_expr e2)) m' vm' 
                               (Bind x tx e1' e2 (typeof_expr e2)) 
-| ssem_bind2 : forall vm m x v1 e2 vm' m' tx e2',
-               subst ge vm m x v1 e2 m' e2' ->
-               ssem_expr vm m (Bind x tx (Val v1 tx) e2 (typeof_expr e2)) m' vm' e2' 
+| ssem_bind2 : forall vm m x v1 e2 tx e2',
+               subst x (Val v1 tx) e2 e2' ->
+               ssem_expr vm m (Bind x tx (Val v1 tx) e2 (typeof_expr e2)) m vm e2' 
 | ssem_cond : forall vm m e1 e2 e3 vm' m' e1', 
               ssem_expr vm m e1 m' vm' e1' -> 
               ssem_expr vm m (Cond e1 e2 e3 (typeof_expr e2)) m' vm' (Cond e1' e2 e3 (typeof_expr e2))

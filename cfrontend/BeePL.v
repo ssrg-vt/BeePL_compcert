@@ -429,60 +429,59 @@ Definition blocks_of_env (e: vmap) : list (ident * Z * Z) :=
   List.map block_of_binding (PTree.elements e).
 
 (* Substitution *)
-Inductive subst : vmap -> Memory.mem -> ident -> value -> expr -> Memory.mem -> expr -> Prop :=
-| var_subst1 : forall vm hm x v y t l hm',
+Inductive subst : ident -> expr -> expr -> expr -> Prop :=
+| val_subst : forall x se v t,
+              subst x se (Val v t) (Val v t)
+| var_subst1 : forall x se y t,
                (x =? y)%positive = true ->
-               vm!y = Some (l, t) ->
-               assign_addr t hm l Ptrofs.zero Full v hm' v ->
-               subst vm hm x v (Var y t) hm' (Var y t)
-| var_subst2 : forall vm hm x v y t,
+               subst x se (Var y t) se
+| var_subst2 : forall x se y t,
                (x =? y)%positive = false -> 
-               subst vm hm x v (Var y t) hm (Var y t)
-| const_subst : forall vm hm x v c t,
-                subst vm hm x v (Const c t) hm (Const c t)
-| app_subst : forall vm hm x v e es t e' hm' hm'' es', (* Fix me *)
-              subst vm hm x v e hm' e' ->
-              substs vm hm' x v es hm'' es' ->
-              subst vm hm x v (App e es t) hm'' (App e' es' t)
-| prim_subst : forall vm hm hm' x v b es es' t,
-               substs vm hm x v es hm' es' ->
-               subst vm hm x v (Prim b es t) hm' (Prim b es' t)
-| bind_subst1 : forall vm hm x v y t e1 e2 t',
+               subst x se (Var y t) (Var y t)
+| const_subst : forall x se c t,
+                subst x se (Const c t) (Const c t)
+| app_subst : forall x se e e' es es' t,
+              subst x se e e' ->
+              substs x se es es' ->
+              subst x se (App e es t) (App e' es' t)
+| prim_subst : forall b x se es t es',
+               substs x se es es' ->
+               subst x se (Prim b es t) (Prim b es' t)
+| bind_subst1 : forall x se y t e1 e1' e2 t', 
+                (* x is shadowed in e2: new variable binding hides older one *)
                 (x =? y)%positive = true ->
-                subst vm hm x v (Bind y t e1 e2 t') hm (Bind y t e1 e2 t')
-| bind_subst2 : forall vm hm x v y t e1 e2 t' e2' hm',
+                subst x se e1 e1' ->
+                subst x se (Bind y t e1 e2 t') (Bind y t e1' e2 t')
+| bind_subst2 : forall x se y t e1 e2 t' e1' e2',
                 (x =? y)%positive = false ->
-                subst vm hm x v e2 hm' e2' ->
-                subst vm hm x v (Bind y t e1 e2 t') hm (Bind y t e1 e2' t')
-| cond_subst : forall vm hm x v e1 hm' e1' e2 hm'' e2' e3 hm''' e3' t,
-               subst vm hm x v e1 hm' e1' ->
-               subst vm hm' x v e2 hm'' e2' ->
-               subst vm hm'' x v e3 hm''' e3' ->
-               subst vm hm x v (Cond e1 e2 e3 t) hm''' (Cond e1' e2' e3' t)
-| unit_subst : forall vm hm x v,
-               subst vm hm x v (Unit (Ptype Tunit)) hm (Unit (Ptype Tunit))
-| addr_subst : forall vm hm x v l p t,
-               subst vm hm x v (Addr l p t) hm (Addr l p t)
-| hexpr_subst : forall vm hm x v h e t hm' e', 
-                subst vm hm x v e hm' e' ->
-                subst vm hm x v (Hexpr h e t) hm' (Hexpr h e' t)
-| eapp_subst : forall vm hm x v ef ts t es hm' es',
-               substs vm hm x v es hm' es' ->
-               subst vm hm x v (Eapp ef ts es t) hm' (Eapp ef ts es' t)
-with substs : vmap -> Memory.mem -> ident -> value -> list expr -> Memory.mem -> list expr -> Prop :=
-| substs_nil : forall vm hm x v, 
-               substs vm hm x v nil hm nil
-| substs_cons : forall vm hm hm' hm'' x v e es e' es',
-                subst vm hm x v e hm' e' ->
-                substs vm hm' x v es hm'' es' -> 
-                substs vm hm x v (e :: es) hm'' (e' :: es').
+                subst x se e1 e1' ->
+                subst x se (Bind y t e1 e2 t') (Bind y t e1' e2' t')
+| cond_subst : forall x se e1 e1' e2 e2' e3 e3' t,
+               subst x se e1 e1' ->
+               subst x se e2 e2' ->
+               subst x se e3 e3' ->
+               subst x se (Cond e1 e2 e3 t) (Cond e1' e2' e3' t)
+| unit_subst : forall x se,
+               subst x se (Unit (Ptype Tunit)) (Unit (Ptype Tunit))
+| addr_subst : forall x se l p t,
+               subst x se (Addr l p t) (Addr l p t)
+| hexpr_subst : forall x se h e t e', 
+                subst x se e e' ->
+                subst x se (Hexpr h e t) (Hexpr h e' t)
+| eapp_subst : forall x se ef ts t es es',
+               substs x se es es' ->
+               subst x se (Eapp ef ts es t) (Eapp ef ts es' t)
+with substs : ident -> expr -> list expr -> list expr -> Prop :=
+| substs_nil : forall x e, 
+               substs x e nil nil
+| substs_cons : forall x se e es e' es',
+                subst x se e e' ->
+                substs x se es es' -> 
+                substs x se (e :: es) (e' :: es').
 
 Scheme subst_ind_mut := Induction for subst Sort Prop
   with substs_ind_mut := Induction for substs Sort Prop.
 Combined Scheme substs_subst_ind_mut from substs_ind_mut, subst_ind_mut.
-
-(* Complete Me *)
-(* Write the mututally inductive principles for subst and substs *)
 
 Fixpoint is_simple_expr (e : expr) : bool :=
 match e with 
@@ -736,13 +735,13 @@ Inductive bestep : state -> state -> Prop :=
                      typeof_expr e1 = t ->
                      bestep (ExprState f (Prim Massgn (e1 :: e2 :: nil) t) k vm m)
                             (ExprState f (Val v' t) k vm m')
-| step_bind : forall vm f k x tx e1 v e2 e2' t m m' v' m'',
+| step_bind : forall vm f k x tx e1 v e2 e2' t m m' v',
               (*leftcontext RV RV C ->*)
               bsem_expr_srv vm m e1 v -> 
-              subst vm m x v e2 m' e2' ->
-              bestep (ExprState f e2' k vm m') (ExprState f (Val v' t) k vm m'') ->
+              subst x (Val v t) e2 e2' ->
+              bestep (ExprState f e2' k vm m) (ExprState f (Val v' t) k vm m') ->
               bestep (ExprState f (Bind x tx e1 e2 t) k vm m)
-                     (ExprState f (Val v' t) k vm m'')
+                     (ExprState f (Val v' t) k vm m')
 | step_condition : forall vm f e1 e2 e3 vb t k m b ct1 g g' i,
                    (*leftcontext RV RV C ->*)
                    bsem_expr_srv vm m e1 vb -> 
@@ -941,9 +940,9 @@ Inductive rreduction : expr -> Memory.mem -> expr -> Memory.mem -> Prop :=
                 assign_addr ge (Ptype t) hm l ofs bf v' hm' v' ->
                 rreduction (Prim Massgn ((Addr {| lname := l; lbitfield := bf |} ofs (Reftype h (Bprim t) a)) 
                                          :: Val v (Ptype tv2) :: nil) (Ptype t)) hm (Val v' (Ptype t)) hm'
-| rred_bind : forall vm hm x v e2 e2' t t' hm',
-              subst ge vm hm x v e2 hm' e2' ->
-              rreduction (Bind x t (Val v t) e2 t') hm e2' hm'
+| rred_bind : forall hm x v e2 e2' t t',
+              subst x (Val v t) e2 e2' ->
+              rreduction (Bind x t (Val v t) e2 t') hm e2 hm
 | rred_unit : forall hm,
               rreduction (Unit (Ptype Tunit)) hm (Val Vunit (Ptype Tunit)) hm.
 
@@ -1072,9 +1071,9 @@ Inductive ssem : state -> state -> Prop :=
             bool_val (transBeePL_value_cvalue v) ct m = Some b -> 
             ssem (ExprState f (Val v t) (Kcond e2 e3 k) vm m) (ExprState f (if b then e2 else e3) k vm m)
 (* add one more rule for bind to evaluate e1 *)
-| s_bind1 : forall f x t' v e2 t k m e2' m',
-            subst ge vm m x v e2 m' e2' ->
-            ssem (ExprState f (Bind x t' (Val v t') e2 t) k vm m) (ExprState f e2' k vm m').
+| s_bind1 : forall f x t' v e2 t k m e2',
+            subst x (Val v t') e2 e2' ->
+            ssem (ExprState f (Bind x t' (Val v t') e2 t) k vm m) (ExprState f e2' k vm m).
 
 Definition step (s : state) (s' : state) : Prop :=
 ssem s s'.

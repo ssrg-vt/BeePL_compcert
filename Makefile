@@ -60,7 +60,7 @@ endif
 COQCOPTS ?= \
   -w -unused-pattern-matching-variable \
   -w -deprecated-ident-entry \
-  -w -notation-overwritten
+  -w -notation-overridden
 
 cparser/Parser.vo: COQCOPTS += -w -deprecated-instance-without-locality
 flocq/IEEE754/Bits.vo: COQCOPTS += -w -opaque-let
