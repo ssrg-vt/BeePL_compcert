@@ -136,7 +136,7 @@ BACKEND=\
 
 # C front-end modules (in cfrontend/)
 
-CFRONTEND=BeePL_mem.v BeePL_aux.v BeeTypes.v BeePL.v BeePL_auxlemmas.v BeePL_sem.v BeePL_typesystem.v BeePL_Csyntax.v BeePL_typesystem_proofs.v BeePL_compiler_proofs.v Ctypes.v Cop.v Csyntax.v Csem.v Ctyping.v Cstrategy.v Cexec.v \
+CFRONTEND=BeePL_mem.v BeePL_aux.v BeeTypes.v BeePL.v BeePL_auxlemmas.v BeePL_sem.v BeePL_typesystem.v BeePL_safety.v BeePL_typesystem_proofs.v BeePL_Csyntax.v BeePL_compiler_proofs.v Ctypes.v Cop.v Csyntax.v Csem.v Ctyping.v Cstrategy.v Cexec.v \
   Initializers.v Initializersproof.v \
   SimplExpr.v SimplExprspec.v SimplExprproof.v \
   Clight.v ClightBigstep.v SimplLocals.v SimplLocalsproof.v \
