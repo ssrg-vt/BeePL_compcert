@@ -223,11 +223,11 @@ Context (Hbbop : forall cenv vm m e1 e2 v1 v2 bop vm' m' m'' vm'' v ct1 ct2 v' g
                                               (transBeePL_value_cvalue v2) ct2 m'' = Some v ->
                 transC_val_bplvalue v = OK v' ->
                 Pb vm m (Prim (Bop bop) (e1 :: e2 :: nil) (typeof_expr e1)) m'' vm'' v').
-Context (Hbbind : forall vm m x e1 vm' m' v m'' vm'' e2 e2' m''' v' tx,
+Context (Hbbind : forall vm m x e1 vm' m' v  e2 e2' v' tx,
                  Pb vm m e1 m' vm' v -> 
-                 subst ge vm' m' x v e2 m'' e2' ->
-                 Pb vm' m'' e2' m''' vm'' v' ->
-                 Pb vm m (Bind x tx e1 e2 (typeof_expr e2)) m''' vm'' v').
+                 subst x (Val v (typeof_expr e1)) e2 = e2' ->
+                 Pb vm m e2' m' vm' v' ->
+                 Pb vm m (Bind x tx e1 e2 (typeof_expr e2)) m' vm' v').
 Context (Hbctrue : forall vm m e1 e2 e3 t vm' m' vb g ct1 g' i v vm'' m'', 
                   Pb vm m e1 m' vm' vb -> 
                   transBeePL_type (typeof_expr e1) g = Res ct1 g' i ->
@@ -521,9 +521,8 @@ Context (Hsbind1 : forall vm m x e1 e1' e2 vm' m' tx,
                  Ps vm m e1 m' vm' e1' -> 
                  Ps vm m (Bind x tx e1 e2 (typeof_expr e2)) m' vm' 
                          (Bind x tx e1' e2 (typeof_expr e2))).
-Context (Hsbind2 : forall vm m x v1 e2 vm' m' tx e2',
-                   subst ge vm m x v1 e2 m' e2' ->
-                   Ps vm m (Bind x tx (Val v1 tx) e2 (typeof_expr e2)) m' vm' e2').
+Context (Hsbind2 : forall vm m x v1 e2 tx,
+                   Ps vm m (Bind x tx (Val v1 tx) e2 (typeof_expr e2)) m vm (subst x (Val v1 tx) e2)).
 Context (Hscond : forall vm m e1 e2 e3 vm' m' e1',
                   Ps vm m e1 m' vm' e1' -> 
                   Ps vm m (Cond e1 e2 e3 (typeof_expr e2)) m' vm' (Cond e1' e2 e3 (typeof_expr e2))).
