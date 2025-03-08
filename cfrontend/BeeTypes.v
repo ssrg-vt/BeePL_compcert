@@ -78,6 +78,15 @@ match t with
              end
 | _ => false
 end. 
+
+Definition is_primtype (t : type) : bool :=
+match t with 
+| Ptype p => true 
+| _ => false
+end.
+
+Definition is_primtype_notunit (t : type) : Prop :=
+is_primtype t /\ (not (is_unittype t)).
      
 (** The following describes types that can be interpreted as a boolean:
   integers, pointers.  It is used for the semantics of

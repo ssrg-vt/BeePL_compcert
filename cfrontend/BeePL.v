@@ -171,6 +171,15 @@ match e with
 | Val v t => true 
 | _ => false
 end.
+
+Definition is_pointer (e : expr) : bool :=
+match e with 
+| Val v t => match v with 
+             | Vloc l ofs => true 
+             | _ => false
+            end
+| _ => false
+end.
  
 Definition typeof_expr (e : expr) : BeeTypes.type :=
 match e with 
