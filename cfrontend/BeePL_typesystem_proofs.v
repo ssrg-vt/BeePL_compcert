@@ -534,6 +534,14 @@ transC_val_bplvalue v = Errors.OK v' ->
 transBeePL_type bt g = SimplExpr.Res ct g' i ->
 wtypeof_value v' (wtype_of_type bt). 
 Proof.
+  intros.
+  unfold transC_val_bplvalue in H0.
+  unfold wtypeof_value.
+  destruct v eqn:Ev; try discriminate;
+  injection H0 as H0;
+  subst v';
+  unfold transBeePL_type in H1;
+  destruct bt eqn:Ebt; try discriminate.
 Admitted.
  
 (* Complete me *) (* Medium level *)
@@ -558,7 +566,39 @@ Lemma uop_type_preserve : forall uop v ct m v',
 Cop.sem_unary_operation uop v ct m = Some v' ->
 Values.Val.has_type v' (typ_of_type ct).
 Proof.
+  intros.
+  destruct uop eqn:Euop; simpl in *.
+  (* notbool *)
+  - unfold Cop.sem_notbool in H.
+    unfold Cop.bool_val in H.
+    unfold Cop.classify_bool in H.
+    unfold typeconv in H.
+    unfold remove_attributes in H.
+    unfold change_attributes in H.
+    destruct v eqn:Ev; destruct ct eqn:Ect; simpl in *; try discriminate;
+    try (destruct i; discriminate);
+    try (destruct f; discriminate);
+    try (destruct i0; destruct (Int.eq i Int.zero); simpl in H;
+    injection H as H; subst; simpl in *; auto);
+    try (destruct i0; discriminate).
+    destruct (Int64.eq i Int64.zero); simpl in H;
+    injection H as H; subst; simpl in *; auto.
+    admit. admit.
+    destruct Archi.ptr64; destruct (Int64.eq i Int64.zero);
+    try discriminate;
+    simpl in H;
+    injection H as H. 
+    subst v'.
+    unfold Values.Val.has_type. simpl in *.
+    destruct Tptr; auto.
+  (* notint *)
+  - admit.
+  (* neg *)
+  - admit.
+  (* absfloat *)
+  - admit.
 Admitted.
+
 
 (* Complete Me *)
 Lemma eq_uop_types : forall uop t g g' i v ct m v' v'',
