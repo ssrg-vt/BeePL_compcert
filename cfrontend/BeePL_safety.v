@@ -178,12 +178,17 @@ end.
 
 
 (* Proofs related to safety condition generator *)
-(* Complete Me : Easy *)
 Lemma interp_safe_conds_concat : forall sc1 sc2 Sigma bge vm m,
 interp_safe_conds (sc1 ++ sc2) Sigma bge vm m ->
 interp_safe_conds sc1 Sigma bge vm m /\ interp_safe_conds sc2 Sigma bge vm m.
 Proof.
-Admitted.
+  intros.
+  induction sc1; simpl in *.
+  - auto.
+  - destruct H.
+    rewrite and_assoc.
+    split; auto.
+Qed.
 
 (**** Well formedness ****)
 (** Well-Typed Store **)
