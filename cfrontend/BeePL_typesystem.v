@@ -67,12 +67,18 @@ Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> P
             type_expr Gamma Sigma e ef t ->
             type_expr (extend_context Gamma x t) Sigma e' ef' t' ->
             type_expr Gamma Sigma (Bind x t e e' t') (ef ++ ef') t'
-| ty_cond : forall Gamma Sigma e1 e2 e3 tb t ef1 ef2 ef3, 
+| ty_cond : forall Gamma Sigma e1 e2 e3 tb t ef1 ef2 ef3 ef1' ef2' ef3', 
             type_expr Gamma Sigma e1 ef1 tb ->
+            sub_effect ef1 ef1' ->
+            type_expr Gamma Sigma e1 ef1' tb ->
             type_bool tb ->
             type_expr Gamma Sigma e2 ef2 t ->
+            sub_effect ef2 ef2' = true ->
+            type_expr Gamma Sigma e2 ef2' t ->
             type_expr Gamma Sigma e3 ef3 t ->
-            type_expr Gamma Sigma (Cond e1 e2 e3 t) (ef1 ++ ef2 ++ ef3) t
+            sub_effect ef3 ef3' = true ->
+            type_expr Gamma Sigma e3 ef3' t ->
+            type_expr Gamma Sigma (Cond e1 e2 e3 t) (ef1' ++ ef2' ++ ef3') t
 | ty_unit : forall Gamma Sigma,
             type_expr Gamma Sigma (Unit (Ptype Tunit)) empty_effect (Ptype Tunit)
 | ty_addr : forall Gamma Sigma l ofs t',
@@ -104,6 +110,12 @@ Combined Scheme type_exprs_type_expr_ind_mut from type_exprs_ind_mut, type_expr_
 (*Hypothesis ty_extend : forall Gamma Sigma e t ef, 
                         type_expr Gamma Sigma e empty_effect t ->
                         type_expr Gamma Sigma e (ef ++ empty_effect) t.*)
+
+(* Complete Me: Easy *)
+Lemma sub_effect_refl : forall ef, 
+sub_effect ef ef = true.
+Proof.
+Admitted.
 
 Section type_expr_ind.
 Context (Pts : ty_context -> store_context -> list expr -> effect -> list type -> Prop).
@@ -160,11 +172,17 @@ Context (Htbind : forall Gamma Sigma x t e e' t' ef ef',
                   Pt Gamma Sigma e ef t ->
                   Pt (extend_context Gamma x t) Sigma e' ef' t' ->
                   Pt Gamma Sigma (Bind x t e e' t') (ef ++ ef') t').
-Context (Htcond : forall Gamma Sigma e1 e2 e3 ef1 ef2 ef3 tb t, 
-                  Pt Gamma Sigma e1 ef1 tb -> 
+Context (Htcond : forall Gamma Sigma e1 e2 e3 ef1 ef2 ef3 tb t ef1' ef2' ef3', 
+                  Pt Gamma Sigma e1 ef1 tb ->
+                  sub_effect ef1 ef1' ->
+                  Pt Gamma Sigma e1 ef1' tb ->
                   type_bool tb ->
-                  Pt Gamma Sigma e2 ef2 t -> 
-                  Pt Gamma Sigma e3 ef3 t -> 
+                  Pt Gamma Sigma e2 ef2 t ->
+                  sub_effect ef2 ef2' = true ->
+                  Pt Gamma Sigma e2 ef2' t ->
+                  Pt Gamma Sigma e3 ef3 t ->
+                  sub_effect ef3 ef3' = true ->
+                  Pt Gamma Sigma e3 ef3' t ->
                   Pt Gamma Sigma (Cond e1 e2 e3 t) (ef1 ++ ef2 ++ ef3) t).
 Context (Htunit : forall Gamma Sigma, 
                   Pt Gamma Sigma (Unit (Ptype Tunit)) empty_effect (Ptype Tunit)).
@@ -213,8 +231,11 @@ apply type_exprs_type_expr_ind_mut=> //=.
 + move=> Gamma Sigma h t e e' t' ef hte ht hte' ht'.
   by apply Htbind.
 (* Cond *)
-+ move=> Gamma Sigma e1 e2 e3 tb t ef1 ef2 ef3 hte1 ht1 hte2 ht2 hte3 ht3.
-  by apply Htcond with tb.
++ move=> Gamma Sigma e1 e2 e3 tb t ef1 ef2 ef3 ef1' ef2' ef3' 
+  hte1 ht1 hs1 hte2 ht2 hs2 hte3 ht3 hs3 hte1' ht1' hte2' ht2' hs4 hte3' ht3'.
+  apply Htcond with tb ef1' ef2' ef3'; auto. 
+  + by have := sub_effect_refl ef1'. + by have := sub_effect_refl ef2'.
+  by have := sub_effect_refl ef3'.
 (* Addr *)
 (*+ move=> Gamma Sigma l ofs ef. hteq; subst. by apply Htloc.*)
 (* Hexpr 
@@ -228,57 +249,47 @@ End type_expr_ind.
 Lemma type_expr_exprs_deterministic: 
 (forall Gamma Sigma es efs ts efs' ts', type_exprs Gamma Sigma es efs ts ->
                                         type_exprs Gamma Sigma es efs' ts' ->
-                                        ts = ts' /\ efs = efs') /\
+                                        ts = ts') /\
 (forall Gamma Sigma e ef t ef' t', type_expr Gamma Sigma e ef t ->
                                    type_expr Gamma Sigma e ef' t' ->
-                                   t = t' /\ ef = ef').
+                                   t = t').
 Proof.
 suff : (forall Gamma Sigma es efs ts, type_exprs Gamma Sigma es efs ts ->
                                       forall efs' ts', type_exprs Gamma Sigma es efs' ts' ->
-                                      ts = ts' /\ efs = efs') /\
+                                      ts = ts') /\
        (forall Gamma Sigma e ef t, type_expr Gamma Sigma e ef t ->
                                    forall ef' t', type_expr Gamma Sigma e ef' t' ->
-                                   t = t' /\ ef = ef').
+                                   t = t').
 + move=> [] ih ih'. split=> //=.
   + move=> Gamma Sigma es efs ts efs' ts' hes hes'. 
     by move: (ih Gamma Sigma es efs ts hes efs' ts' hes').
   move=> Gamma Sigma e ef t ef' t' he he'.
   by move: (ih' Gamma Sigma e ef t he ef' t' he').
 apply type_expr_indP => //=.
-+ admit. (*by move=> Gamma Sigma v ef t ef' t' ht; inversion ht; subst.*)
-+ admit.
-+ admit.
-+ admit.
++ by move=> Gamma Sigma ef ef' t' ht; inversion ht; subst.
++ by move=> Gamma Sigma ef i sz s a ef' t' ht; inversion ht; subst.
++ by move=> Gamma Sigma ef i s a ef' t' ht; inversion ht; subst.
++ by move=> Gamma Sigma ef l ofs h t a hs ef' t' ht; inversion ht; subst.
 + move=> Gamma Sigma x t ht ef' t' het; subst. by inversion het; subst.
 + move=> Gamma Sigma t sz s i a ht ef' t' ht'; subst. by inversion ht'; subst.
 + move=> Gamma Sigma t s i a ht ef' t' ht'; subst. by inversion ht'; subst.
 + move=> Gamma Sigma t ht ef' t' ht'; subst. by inversion ht'; subst.
 + move=> Gamma Sigma e es rt ef efs ts efs' ih ih' ef' t' ht; subst.
-  inversion ht; subst. move: (ih ef0 (Ftype ts0 efs0 t') H6)=> 
-  [] [] h1 h2 h3; subst. by move: (ih'  efs'0 ts0 H7)=> [] h1 h2; subst.
-+ move=> Gamma Sigma e ef h bt a ih ef' t' ht; inversion ht; subst.
-  by move: (ih ef0 (Ptype bt) H7)=> [] h1 h2; subst.
-+ move=> Gamma Sigma e ef h bt a ih ef' t' ht; inversion ht; subst.
-  by move: (ih ef0 (Reftype h0 (Bprim bt) a0) H5)=> [] [] h1 h2 h3; subst.
-+ move=> Gamma Sigma e1 e2 ef1 ef2 h bt a ih ih' ef' t' ht; inversion ht; subst.
-  move: (ih' ef'0 (Ptype bt0) H6)=> [] h1 h2; subst.
-  by move: (ih ef (Reftype h0 (Bprim bt0) a0) H3)=> [] [] h1' h2' h3' h4'; subst. 
-+ move=> Gamma Sigma op e ef t hf hf' ih ef' t' ht; inversion ht; subst.
-  by move: (ih ef' t' H8)=> [] h1 h2; subst.
-+ move=> Gamma Sigma op e1 e2 ef t hf hf' ih ih' ef' t' ht; inversion ht; subst.
-  by move: (ih ef' t' H9)=> [] h1 h2; subst.
-+ move=> Gamma Sigma x t e e' t' ef ef' ih ih' ef'' t'' ht; inversion ht; subst.
-  move: (ih ef0 t H8)=> [] h1 h2; subst.
-  by move: (ih' ef'0 t'' H9)=> [] h1' h2'; subst.
-+ move=> Gamma Sigma e1 e2 e3 ef1 ef2 ef3 tb t ih1 hb ih2 ih3 ef' t' ht; inversion ht; subst.
-  move: (ih1 ef0 tb0 H5)=> [] h1 h2; subst. move: (ih2 ef4 t' H9)=> [] h1' h2'; subst.
-  by move: (ih3 ef5 t' H10)=> [] h1'' h2''; subst.
-+ by move=> Gamma Sigma efs' ts' ht; inversion ht; subst.
+  by inversion ht; subst. 
++ by move=> Gamma Sigma e ef h bt a ih ef' t' ht; inversion ht; subst.
++ by move=> Gamma Sigma e ef h bt a ih ef' t' ht; inversion ht; subst.
++ by move=> Gamma Sigma e1 e2 ef1 ef2 h bt a ih ih' ef' t' ht; inversion ht; subst.
++ by move=> Gamma Sigma op e ef t hf hf' ih ef' t' ht; inversion ht; subst.
++ by move=> Gamma Sigma op e1 e2 ef t hf hf' ih ih' ef' t' ht; inversion ht; subst.
++ by move=> Gamma Sigma x t e e' t' ef ef' ih ih' ef'' t'' ht; inversion ht; subst.
++ move=> Gamma Sigma e1 e2 e3 ef1 ef2 ef3 tb t ef1' ef2' ef3' hin1 hs1 hin2 htb hin3
+  hs2 ht2 ht3 hs3 ht4 ef' t' htc. by inversion htc; subst.
++ by move=> Gamma Sigma ef' t' ht; inversion ht; subst.
 + by move=> Gamma Sigma l ofs t' hl ef' t'' ht; inversion ht; subst.
 + by move=> Gamma Sigma efs' ts' ht; inversion ht; subst.
 move=> Gamma Sigma e es t ef ts efs ih ih' efs' ts' ht; inversion ht; subst.
-move: (ih ef0 t0 H3)=> [] h1 h2; subst. by move: (ih' efs0 ts0 H6)=> [] h1 h2; subst.
-Admitted.
+move: (ih ef0 t0 H3)=> h1; subst. by move: (ih' efs0 ts0 H6)=> h1; subst.
+Qed.
 
 Lemma type_rel_typeof : forall Gamma Sigma e ef t,
 type_expr Gamma Sigma e ef t ->
@@ -317,14 +328,6 @@ type_expr (extend_context Gamma x t) Sigma e ef t' ->
 wtypeof_value v (wtype_of_type t) ->
 subst x (Val v t) e = e'' ->
 type_expr Gamma Sigma e'' ef t'.
-Proof.
-Admitted.
-
-Lemma subst_preservation : forall Gamma Sigma x t se e ef' ef t' e', 
-type_expr (extend_context Gamma x t) Sigma e ef' t' ->
-type_expr Gamma Sigma se ef t ->
-subst x se e = e' ->
-type_expr Gamma Sigma e' ef' t'.
 Proof.
 Admitted.
 
@@ -385,6 +388,8 @@ case: ty=> //=.
 move=> f. by case: f=> //=.
 Qed.
 
+(* Not provable due to C treating pointer as int in terms of 
+   value stored in memory *)
 Lemma wbty_chunk_rel : forall (ty: type) chunk,
 access_mode ty = By_value (transl_bchunk_cchunk chunk) ->
 (wtype_of_type ty) = (wtypeof_chunk chunk).
@@ -393,15 +398,17 @@ move=> ty chunk. case: chunk=> //=; case: ty=> //= p; case: p=> //=.
 move=> i s a. case: i=> //=.
 + by case: s=> //=.
 case: s=> //=.
-Qed.
+Admitted.
 
+(* Not provable due to C treating pointer as int in terms of 
+   value stored in memory *)
 Lemma cval_bval_type_chunk : forall v chunk v',
 Values.Val.has_type v (type_of_chunk (transl_bchunk_cchunk chunk)) ->
 transC_val_bplvalue v = Errors.OK v' ->
 wtypeof_value v' (wtypeof_chunk chunk). 
 Proof.
-move=> v chunk v'. by case: chunk=> //=; case: v=> //=; case: v'=> //=. 
-Qed.
+move=> v chunk v'. case: chunk=> //=; case: v=> //=; case: v'=> //=. 
+Admitted.
 
 (* Value typing *)
 (* A value does not produce any effect *)

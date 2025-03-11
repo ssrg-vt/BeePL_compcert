@@ -179,11 +179,13 @@ Inductive ssem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
 | ssem_lvar : forall vm m x t l ofs v,
               vm!x = Some (l, t) -> 
               deref_addr ge t m l ofs Full v ->
+              is_vloc v = false ->
               ssem_expr vm m (Var x t) m vm (Val v t)
 | ssem_gbvar : forall vm m x t l ofs v,
                vm!x = None ->
                Genv.find_symbol ge x = Some l -> 
                deref_addr ge t m l ofs Full v ->
+               is_vloc v = false ->
                ssem_expr vm m (Var x t) m vm (Val v t)
 | ssem_consti : forall vm m i t,
                 ssem_expr vm m (Const (ConsInt i) t) m vm (Val (Vint i) t)
@@ -226,6 +228,7 @@ Inductive ssem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
                                (Prim Deref (e' :: nil) (Ptype t))
 | ssem_deref2 : forall vm m l ofs bf v h a t,
                 deref_addr ge (Ptype t) m l ofs bf v ->
+                is_vloc v = false ->
                 ssem_expr vm m (Prim Deref [:: (Val (Vloc l ofs) (Reftype h (Bprim t) a))] (Ptype t)) m vm 
                                (Val v (Ptype t))
 | ssem_massgn1 : forall vm m e1 e2 m' vm' e1',  
@@ -238,6 +241,7 @@ Inductive ssem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
                                 (Prim Massgn ((Val (Vloc l ofs) (Reftype h (Bprim t) a)) :: e2' :: nil) (Ptype Tunit))
 | ssem_massgn3 : forall vm m t m' l ofs bf v h a,  
                  assign_addr ge (Ptype t) m l ofs bf v m' v -> 
+                 is_vloc v = false ->
                  ssem_expr vm m (Prim Massgn ((Val (Vloc l ofs) (Reftype h (Bprim t) a)) ::  Val v (Ptype t):: nil) (Ptype Tunit)) 
                                 m' vm (Val Vunit (Ptype Tunit))
 | ssem_uop1 : forall vm m e e' uop m' vm',
@@ -257,13 +261,12 @@ Inductive ssem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
               ssem_expr vm m e2 m' vm' e2' ->
               ssem_expr vm m (Prim (Bop bop) (Val v1 t1 :: e2 :: nil) t1) m' vm' 
                              (Prim (Bop bop) (Val v1 t1 :: e2' :: nil) t1)
-| ssem_bop3 : forall cenv vm m v1 v2 bop t1 t2 v ct1 ct2 v' g g' i g'' i',
-              transBeePL_type t1 g = Res ct1 g' i ->
-              transBeePL_type t2 g' = Res ct2 g'' i'->
-              sem_binary_operation cenv bop (transBeePL_value_cvalue v1) ct1 
-                                            (transBeePL_value_cvalue v2) ct2 m = Some v ->
+| ssem_bop3 : forall cenv vm m v1 v2 bop t v ct v' g g' i,
+              transBeePL_type t g = Res ct g' i ->
+              sem_binary_operation cenv bop (transBeePL_value_cvalue v1) ct 
+                                            (transBeePL_value_cvalue v2) ct m = Some v ->
               transC_val_bplvalue v = OK v' ->
-              ssem_expr vm m (Prim (Bop bop) (Val v1 t1 :: Val v2 t2 :: nil) t1) m vm (Val v' t1)
+              ssem_expr vm m (Prim (Bop bop) (Val v1 t :: Val v2 t :: nil) t) m vm (Val v' t)
 (* fix me : add semantics for run primitive *)
 | ssem_bind1 : forall vm m x e1 e1' e2 vm' m' tx,
                ssem_expr vm m e1 m' vm' e1' -> 

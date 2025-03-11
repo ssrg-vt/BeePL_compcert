@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Globalenvs compcert.lib.Coqlib Ctypes.
-Require Import BeePL_aux BeeTypes Axioms Memory Int Cop Memtype Errors Csem SimplExpr Events.
+Require Import BeePL_aux Axioms Memory Int Cop Memtype Errors Csem SimplExpr Events BeeTypes.
 From mathcomp Require Import all_ssreflect. 
 
 Set Implicit Arguments.
@@ -25,17 +25,24 @@ Inductive value : Type :=
 | Vint64 : int64 -> value
 | Vloc : positive -> ptrofs -> value.
 
+Definition is_vloc (v : value) : bool :=
+match v with 
+| Vunit => false
+| Vint i => false 
+| Vint64 l => false
+| Vloc l ofs => true 
+end.
+
 (* Pointer will be stores in a 64 bit value or 32 bit value *) 
 Definition default_attr (t : type) := {| attr_volatile := false;  
                                          attr_alignas := (attr_alignas (attr_of_type t)) |}.
 
-Definition wtypeof_value (v : value) (t : wtype) : Prop :=
+Definition wtypeof_value (v : value) (t :  BeeTypes.wtype) : Prop :=
 match v, t with 
 | Vunit, Twuint => True 
-| Vint i, Twint => True 
-| Vint64 i, Twlong => True 
-| Vloc p ofs, Twint => Archi.ptr64 = false 
-| Vloc p ofs, Twlong => Archi.ptr64 = true
+| Vint i, BeeTypes.Twint => True 
+| Vint64 i, BeeTypes.Twlong => True 
+| Vloc p ofs, BeeTypes.Twref => True
 | _, _ => False
 end.
 
