@@ -70,8 +70,8 @@ Mem.valid_pointer m l (Ptrofs.unsigned ofs).
 Definition valid_deref (Sigma : store_context) (bge : genv) (vm : vmap) (m : Memory.mem) (e : expr) := 
 if is_pointer e 
 then forall l ofs t h a, PTree.get l Sigma = Some (Reftype h (Bprim t) a) /\
-                                         is_valid_pointer bge vm m e /\ 
-                                         exists v, deref_addr bge (Ptype t) m l ofs Full v 
+                         is_valid_pointer bge vm m e /\ 
+                         exists v, is_vloc v = false /\ deref_addr bge (Ptype t) m l ofs Full v 
 else false.
 
 (* A value of the same type can be always assigned to a valid location in memory *)
@@ -79,14 +79,15 @@ Definition valid_assgn (Sigma : store_context) (bge : genv) (vm : vmap) (m : Mem
 if is_pointer e1 && is_value e2 
 then forall l ofs h t a v, PTree.get l Sigma = Some (Reftype h (Bprim t) a) /\
                            is_valid_pointer bge vm m e1 /\ 
-                           exists bf m', assign_addr bge (Ptype t) m l ofs bf v m' v
+                           exists bf m', is_vloc v = false /\ assign_addr bge (Ptype t) m l ofs bf v m' v
 else false.
 
 (* checks that a variable is defined in the memory *)
 Definition is_defined_var (x : positive) (t : type) (vm : vmap) (m : Memory.mem) (Sigma : store_context) (bge : genv) : Prop :=
 match vm ! x with 
-| Some (l', t') => t = t' /\ PTree.get x Sigma = Some t /\ exists ofs v, deref_addr bge t m l' ofs Full v
-| None => PTree.get x Sigma = Some t  /\ exists l' ofs v, Genv.find_symbol bge x = Some l' /\ deref_addr bge t m l' ofs Full v
+| Some (l', t') => t = t' /\ PTree.get x Sigma = Some t /\ exists ofs v, is_vloc v = false /\ deref_addr bge t m l' ofs Full v
+| None => PTree.get x Sigma = Some t  /\ exists l' ofs v, Genv.find_symbol bge x = Some l' /\ is_vloc v = false 
+                                         /\ deref_addr bge t m l' ofs Full v
 end.
 
 Inductive safe_cond : Type :=

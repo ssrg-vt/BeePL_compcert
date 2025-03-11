@@ -49,7 +49,9 @@ Inductive type : Type :=
 Inductive wtype : Type :=
 | Twunit : wtype
 | Twint : wtype
-| Twlong : wtype.
+| Twlong : wtype
+| Twref : wtype
+| Twfun : wtype.
 
 (** To describe the values returned by functions, we use the more precise
     types below. *)
@@ -122,8 +124,8 @@ match t with
              | Tint _ _ _ => Twint 
              | Tlong _ _ => Twlong 
              end
-| Reftype _ _ _ => Twptr 
-| Ftype _ _ _ => Twptr
+| Reftype _ _ _ => Twref 
+| Ftype _ _ _ => Twfun
 end.
 
 Fixpoint wtypes_of_types (t : list type) : list wtype :=
@@ -148,6 +150,18 @@ match es1, es2 with
 | nil, nil => true 
 | e :: es, e' :: es' => eq_effect_label e e' && eq_effect es es'
 | _, _ => false
+end.
+
+Fixpoint in_effect (ef : effect_label) (efs : effect) : bool :=
+match efs with
+| nil => false
+| ef' :: efs' => if eq_effect_label ef ef' then true else in_effect ef efs'
+end.
+
+Fixpoint sub_effect (efs1 efs2 : effect) : bool :=
+match efs1 with
+| nil => true
+| ef1 :: efs1 => if in_effect ef1 efs2 then sub_effect efs1 efs2  else false
 end.
 
 Definition eq_primitive_type (p1 p2 : primitive_type) : bool :=
