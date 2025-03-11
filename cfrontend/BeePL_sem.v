@@ -338,7 +338,25 @@ Definition ssafe_expr (bge : genv) (vm : vmap) (m : Memory.mem) (e : BeePL.expr)
 is_value e \/ exists m' vm' e', ssem_expr bge vm m e m' vm' e'.
 
 
-          
+Inductive ssem_closure : genv -> vmap -> Memory.mem -> BeePL.expr -> nat -> 
+                         Memory.mem -> vmap -> BeePL.expr -> Prop :=
+| ssem_one : forall bge vm m e m' vm' e',
+             ssem_expr bge vm m e m' vm' e' ->
+             ssem_closure bge vm m e 1%nat m' vm' e'
+| ssem_multi : forall bge vm m e m' vm' e' n vm'' m'' e'',
+               ssem_expr bge vm m e m' vm' e' ->
+               ssem_closure bge vm' m' e' n m'' vm'' e'' ->
+               ssem_closure bge vm m e (n + 1) %nat m'' vm'' e''
+with ssem_closures : genv -> vmap -> Memory.mem -> list BeePL.expr -> nat ->
+                     Memory.mem -> vmap -> list BeePL.expr -> Prop :=
+| ssems_one : forall bge vm m e m' vm' e',
+              ssem_exprs bge vm m e m' vm' e' ->
+              ssem_closures bge vm m e 1%nat m' vm' e'
+| ssems_multi : forall bge vm m e m' vm' e' n vm'' m'' e'',
+                ssem_exprs bge vm m e m' vm' e' ->
+                ssem_closures bge vm' m' e' n m'' vm'' e'' ->
+                ssem_closures bge vm m e (n + 1)%nat m'' vm'' e''.
+
           
 
 

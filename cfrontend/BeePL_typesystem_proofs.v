@@ -680,6 +680,21 @@ suff : (forall Gamma Sigma es efs ts,
 apply type_expr_indP=> //=.
 Admitted.
 
+
+(***** Normalization ******)
+(* A well typed program takes multistep to produce a value *)
+Lemma normalization :
+(forall Gamma Sigma es efs ts bge vm m n m' vm' es', 
+ type_exprs Gamma Sigma es efs ts ->
+ interp_safe_conds (flatten (map gen_safe_cond_expr es)) Sigma bge vm m ->
+ ssem_closures bge vm m es n m' vm' es' /\ is_values es') /\
+(forall Gamma Sigma e ef t bge vm m n m' vm' e', 
+ type_expr Gamma Sigma e ef t ->
+ interp_safe_conds (gen_safe_cond_expr e) Sigma bge vm m ->
+ ssem_closure bge vm m e n m' vm' e' /\ is_value e).
+Proof.
+Admitted.
+
 (***** With respect to big step semantics *****)
 
 (* Complete me *) (* Medium level *)
