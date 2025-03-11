@@ -287,8 +287,8 @@ Inductive ssem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
                 ssem_expr vm m (Cond (Val v1 t1) e2 e3 (typeof_expr e2)) m vm e3
 | ssem_ut : forall vm m, 
             ssem_expr vm m (Unit (Ptype Tunit)) m vm (Val Vunit (Ptype Tunit))
-| ssem_adr : forall vm m l ofs t,
-             ssem_expr vm m (Addr l ofs t) m vm (Val (Vloc l.(lname) ofs) t)
+| ssem_adr : forall vm m l ofs h t a,
+             ssem_expr vm m (Addr l ofs (Reftype h t a)) m vm (Val (Vloc l.(lname) ofs) (Reftype h t a))
 | ssem_hexpr1 : forall vm m e m' vm' e' t,
                 ssem_expr vm m e m' vm' e' ->
                 ssem_expr vm m (Hexpr m e t) m' vm' (Hexpr m e' t)

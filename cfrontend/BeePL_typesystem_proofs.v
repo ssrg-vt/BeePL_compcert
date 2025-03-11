@@ -361,15 +361,15 @@ apply type_exprs_type_expr_ind_mut=> //=.
   have hteq := type_rel_typeof (extend_context Gamma x t) Sigma e' ef' t' hte'; subst. 
   by apply ssem_bind1.
 (* cond *)
-+ move=> Gamma Sigma e1 e2 e3 tb t ef1 ef2 ef3 ef1' ef2' ef3' hte1 hin hs1 hte1' hin' htb
-         hte2 hin'' hs2 hte2' hin1 hte3 hin2 hs3 hte3' hin3 bge vm m hw. 
++ move=> Gamma Sigma e1 e2 e3 tb t ef1 ef2 ef3 ef1' ef2' ef3' hte1 hin hs1 htb
+         hte2 hin'' hs2 hte3 hin2 hs3 bge vm m hw. 
   rewrite catA in hw.
   have [hw1 hw2]:= interp_safe_conds_concat (gen_safe_cond_expr e1 ++ gen_safe_cond_expr e2) (gen_safe_cond_expr e3)
           Sigma bge vm m hw.
   have [hw1' hw2'] := interp_safe_conds_concat (gen_safe_cond_expr e1) (gen_safe_cond_expr e2) Sigma bge vm m hw1.
   right. move: (hin bge vm m hw1')=> [] hv {hw} {hw1}.
   (* value e1 *)
-  + case: e1 hte1 hte1' hin hin' hv hw1'=> //= v t' hte1 hin _. exists m. exists vm. exists e2.
+  + case: e1 hte1 hin hv hw1'=> //= v t' hte1 hin _. exists m. exists vm. exists e2.
     have hteq := type_rel_typeof Gamma Sigma e2 ef2 t hte2; subst. 
     have [hwt1 hwt2] := well_typed_success. move: (hwt2 Gamma Sigma (Val v t') ef1 tb hte1).
     move=> [] ct [] g [] i hct.
@@ -385,8 +385,8 @@ apply type_exprs_type_expr_ind_mut=> //=.
 + move=> Gamma Sigma bge vm m hw. right. exists m. exists vm. exists (Val Vunit (Ptype Tunit)).
   by apply ssem_ut.
 (* addr *)
-+ move=> Gamma Sigma l ofs t' hs bge vm m hw. right.
-  exists m. exists vm. exists (Val (Vloc l.(lname) ofs) t'). by apply ssem_adr.
++ move=> Gamma Sigma l ofs h t' a hs bge vm m hw. right.
+  exists m. exists vm. exists (Val (Vloc l.(lname) ofs) (Reftype h t' a)). by apply ssem_adr.
 (* nil *)
 + move=> Gamma Sigma bge vm m hw. by left.
 (* cons *)
@@ -617,16 +617,32 @@ apply type_exprs_type_expr_ind_mut=> //=.
   (* value *)
   by have := subst_preservation Gamma Sigma x t (Val v1 t) e' ef' ef (typeof_expr e') htx hte.
 (* cond *)
-+ move=> Gamma Sigma e1 e2 e3 tb t ef1 ef2 ef3 ef1' ef2' ef3' hte1 hin1 hs1 hte1' hinb htb
-         hte2 hin2 hs2 hte2' hin2' hte3 hin3 hs3 hte3' hin4 bge vm m vm' m' e' he. 
++ move=> Gamma Sigma e1 e2 e3 tb t ef1 ef2 ef3 ef1' ef2' ef3' hte1 hin1 hs1 htb
+         hte2 hin2 hs2 hte3 hin3 hs3 bge vm m vm' m' e' he. 
  inversion he; subst.
   (* step e1 *)
-  + move: (hin1 bge vm m vm' m' e1' H8)=> hin1'. move: (hinb bge vm m vm' m' e1' H8)=> hinb'.
-    apply ty_cond with tb ef1' ef2' ef3'; auto.
-    + by have := sub_effect_refl ef1'.
-    + by have := sub_effect_refl ef2'.
-    by have := sub_effect_refl ef3'.
+  + move: (hin1 bge vm m vm' m' e1' H8)=> hin1'. 
+    by apply ty_cond with tb ef1 ef2 ef3; auto.
   (* e1 is val *)
+  admit. (* we would need something like principal typing *)
+  admit. (* we would need something like principal typing *)
+(* unit *)
++ move=> Gamma Sigma bge vm m vm' m' e' he. inversion he; subst.
+  by apply ty_valu.
+(* addr *)
++ move=> Gamma Sigma l ofs h t' a hs bge vm m vm' m' e' he. inversion he; subst.
+  by apply ty_valloc.
+(* nil *)
++ move=> Gamma Sigma bge vm m vm' m' es' hes. inversion hes; subst. by apply ty_nil.
+(* cons *)
+move=> Gamma Sigma e es ef efs t ts hte hin htes hins bge vm m vm' m' es' hes.
+inversion hes; subst.
++ apply ty_cons. 
+  + by move: (hin bge vm m vm' m' e' H6).
+  by apply htes.
+apply ty_cons.
++ by move: (hin bge vm m vm' m' (Val v t0)).
+by move: (hins bge vm m vm' m' vs H6).
 Admitted.
 
 (* Stateful effects cannot be discarded :

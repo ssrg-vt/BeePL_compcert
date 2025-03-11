@@ -70,21 +70,18 @@ Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> P
 | ty_cond : forall Gamma Sigma e1 e2 e3 tb t ef1 ef2 ef3 ef1' ef2' ef3', 
             type_expr Gamma Sigma e1 ef1 tb ->
             sub_effect ef1 ef1' ->
-            type_expr Gamma Sigma e1 ef1' tb ->
             type_bool tb ->
             type_expr Gamma Sigma e2 ef2 t ->
             sub_effect ef2 ef2' = true ->
-            type_expr Gamma Sigma e2 ef2' t ->
             type_expr Gamma Sigma e3 ef3 t ->
             sub_effect ef3 ef3' = true ->
-            type_expr Gamma Sigma e3 ef3' t ->
             type_expr Gamma Sigma (Cond e1 e2 e3 t) (ef1' ++ ef2' ++ ef3') t
 | ty_unit : forall Gamma Sigma,
             type_expr Gamma Sigma (Unit (Ptype Tunit)) empty_effect (Ptype Tunit)
-| ty_addr : forall Gamma Sigma l ofs t',
-            PTree.get l.(lname) Sigma = Some t' ->
+| ty_addr : forall Gamma Sigma l ofs h t a,
+            PTree.get l.(lname) Sigma = Some (Reftype h t a) ->
             (*t' = (Reftype h t a) ->*)
-            type_expr Gamma Sigma (Addr l ofs t') empty_effect t' 
+            type_expr Gamma Sigma (Addr l ofs (Reftype h t a)) empty_effect (Reftype h t a) 
 (* fix me : Run *)
 (* fix me : Hexpr *)
 (*| ty_hexpr : forall Gamma Sigma m e h ef t a, 
@@ -175,21 +172,18 @@ Context (Htbind : forall Gamma Sigma x t e e' t' ef ef',
 Context (Htcond : forall Gamma Sigma e1 e2 e3 ef1 ef2 ef3 tb t ef1' ef2' ef3', 
                   Pt Gamma Sigma e1 ef1 tb ->
                   sub_effect ef1 ef1' ->
-                  Pt Gamma Sigma e1 ef1' tb ->
                   type_bool tb ->
                   Pt Gamma Sigma e2 ef2 t ->
                   sub_effect ef2 ef2' = true ->
-                  Pt Gamma Sigma e2 ef2' t ->
                   Pt Gamma Sigma e3 ef3 t ->
                   sub_effect ef3 ef3' = true ->
-                  Pt Gamma Sigma e3 ef3' t ->
-                  Pt Gamma Sigma (Cond e1 e2 e3 t) (ef1 ++ ef2 ++ ef3) t).
+                  Pt Gamma Sigma (Cond e1 e2 e3 t) (ef1' ++ ef2' ++ ef3') t).
 Context (Htunit : forall Gamma Sigma, 
                   Pt Gamma Sigma (Unit (Ptype Tunit)) empty_effect (Ptype Tunit)).
-Context (Htloc : forall Gamma Sigma l ofs t', 
-                 PTree.get l.(lname) Sigma = Some t'  ->
+Context (Htloc : forall Gamma Sigma l ofs h t a, 
+                 PTree.get l.(lname) Sigma = Some (Reftype h t a)  ->
                  (*t' = (Reftype h t a) ->*)
-                 Pt Gamma Sigma (Addr l ofs t') empty_effect t'). 
+                 Pt Gamma Sigma (Addr l ofs (Reftype h t a)) empty_effect (Reftype h t a)). 
 (*Context (Htheap : forall Gamma Sigma m e h ef t a, 
                   Pt Gamma Sigma e ef (Reftype h (Bprim t) a) ->
                   Pt Gamma Sigma (Hexpr m e (Reftype h (Bprim t) a)) ef (Reftype h (Bprim t) a)).*)
@@ -232,10 +226,8 @@ apply type_exprs_type_expr_ind_mut=> //=.
   by apply Htbind.
 (* Cond *)
 + move=> Gamma Sigma e1 e2 e3 tb t ef1 ef2 ef3 ef1' ef2' ef3' 
-  hte1 ht1 hs1 hte2 ht2 hs2 hte3 ht3 hs3 hte1' ht1' hte2' ht2' hs4 hte3' ht3'.
-  apply Htcond with tb ef1' ef2' ef3'; auto. 
-  + by have := sub_effect_refl ef1'. + by have := sub_effect_refl ef2'.
-  by have := sub_effect_refl ef3'.
+  hte1 ht1 hs1 htb hte2 ht2 hs2 hte3 ht3 hs3. 
+  apply Htcond with ef1 ef2 ef3 tb; auto. 
 (* Addr *)
 (*+ move=> Gamma Sigma l ofs ef. hteq; subst. by apply Htloc.*)
 (* Hexpr 
@@ -282,10 +274,10 @@ apply type_expr_indP => //=.
 + by move=> Gamma Sigma op e ef t hf hf' ih ef' t' ht; inversion ht; subst.
 + by move=> Gamma Sigma op e1 e2 ef t hf hf' ih ih' ef' t' ht; inversion ht; subst.
 + by move=> Gamma Sigma x t e e' t' ef ef' ih ih' ef'' t'' ht; inversion ht; subst.
-+ move=> Gamma Sigma e1 e2 e3 ef1 ef2 ef3 tb t ef1' ef2' ef3' hin1 hs1 hin2 htb hin3
-  hs2 ht2 ht3 hs3 ht4 ef' t' htc. by inversion htc; subst.
++ move=> Gamma Sigma e1 e2 e3 ef1 ef2 ef3 tb t ef1' ef2' ef3' hin1 hs1 htb hin3
+  hs2 ht2 hs3 ef' t' htc. by inversion htc; subst.
 + by move=> Gamma Sigma ef' t' ht; inversion ht; subst.
-+ by move=> Gamma Sigma l ofs t' hl ef' t'' ht; inversion ht; subst.
++ by move=> Gamma Sigma l ofs h t a hl ef' t'' ht; inversion ht; subst.
 + by move=> Gamma Sigma efs' ts' ht; inversion ht; subst.
 move=> Gamma Sigma e es t ef ts efs ih ih' efs' ts' ht; inversion ht; subst.
 move: (ih ef0 t0 H3)=> h1; subst. by move: (ih' efs0 ts0 H6)=> h1; subst.
