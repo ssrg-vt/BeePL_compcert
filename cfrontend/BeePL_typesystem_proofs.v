@@ -387,6 +387,8 @@ apply type_exprs_type_expr_ind_mut=> //=.
 (* addr *)
 + move=> Gamma Sigma l ofs h t' a hs bge vm m hw. right.
   exists m. exists vm. exists (Val (Vloc l.(lname) ofs) (Reftype h t' a)). by apply ssem_adr.
+(* ext *)
++ admit.
 (* nil *)
 + move=> Gamma Sigma bge vm m hw. by left.
 (* cons *)
@@ -632,6 +634,8 @@ apply type_exprs_type_expr_ind_mut=> //=.
 (* addr *)
 + move=> Gamma Sigma l ofs h t' a hs bge vm m vm' m' e' he. inversion he; subst.
   by apply ty_valloc.
+(* ext *)
++ admit.
 (* nil *)
 + move=> Gamma Sigma bge vm m vm' m' es' hes. inversion hes; subst. by apply ty_nil.
 (* cons *)

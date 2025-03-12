@@ -82,6 +82,12 @@ Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> P
             PTree.get l.(lname) Sigma = Some (Reftype h t a) ->
             (*t' = (Reftype h t a) ->*)
             type_expr Gamma Sigma (Addr l ofs (Reftype h t a)) empty_effect (Reftype h t a) 
+(* return type, arg types, and effect must agree with the signature *)
+| ty_ext : forall Gamma Sigma exf ts es ef rt,
+           rt = get_rt_eapp exf ->
+           ts = get_at_eapp exf ->
+           type_exprs Gamma Sigma es ef ts ->
+           type_expr Gamma Sigma (Eapp exf ts es rt) ((get_ef_eapp exf) ++ ef) rt
 (* fix me : Run *)
 (* fix me : Hexpr *)
 (*| ty_hexpr : forall Gamma Sigma m e h ef t a, 
@@ -184,6 +190,11 @@ Context (Htloc : forall Gamma Sigma l ofs h t a,
                  PTree.get l.(lname) Sigma = Some (Reftype h t a)  ->
                  (*t' = (Reftype h t a) ->*)
                  Pt Gamma Sigma (Addr l ofs (Reftype h t a)) empty_effect (Reftype h t a)). 
+Context (Htext :  forall Gamma Sigma exf ts es ef rt,
+                  rt = get_rt_eapp exf ->
+                  ts = get_at_eapp exf ->
+                  Pts Gamma Sigma es ef ts ->
+                  Pt Gamma Sigma (Eapp exf ts es rt) ((get_ef_eapp exf) ++ ef) rt).
 (*Context (Htheap : forall Gamma Sigma m e h ef t a, 
                   Pt Gamma Sigma e ef (Reftype h (Bprim t) a) ->
                   Pt Gamma Sigma (Hexpr m e (Reftype h (Bprim t) a)) ef (Reftype h (Bprim t) a)).*)
@@ -228,6 +239,9 @@ apply type_exprs_type_expr_ind_mut=> //=.
 + move=> Gamma Sigma e1 e2 e3 tb t ef1 ef2 ef3 ef1' ef2' ef3' 
   hte1 ht1 hs1 htb hte2 ht2 hs2 hte3 ht3 hs3. 
   apply Htcond with ef1 ef2 ef3 tb; auto. 
+(* Ext *)
++ move=> Gamma Sigma exf ts es ef rt hrt hts tes hts'.
+  by apply Htext.
 (* Addr *)
 (*+ move=> Gamma Sigma l ofs ef. hteq; subst. by apply Htloc.*)
 (* Hexpr 
@@ -278,6 +292,7 @@ apply type_expr_indP => //=.
   hs2 ht2 hs3 ef' t' htc. by inversion htc; subst.
 + by move=> Gamma Sigma ef' t' ht; inversion ht; subst.
 + by move=> Gamma Sigma l ofs h t a hl ef' t'' ht; inversion ht; subst.
++ by move=> Gamma Sigma exf ts es ef rt hrt hts hin ef' t' ht; inversion ht; subst.
 + by move=> Gamma Sigma efs' ts' ht; inversion ht; subst.
 move=> Gamma Sigma e es t ef ts efs ih ih' efs' ts' ht; inversion ht; subst.
 move: (ih ef0 t0 H3)=> h1; subst. by move: (ih' efs0 ts0 H6)=> h1; subst.
@@ -304,24 +319,6 @@ move=> v t t'. case: t=> //=.
 + by case: t'=> //=. 
 by case: t'=> //=.
 Qed.
-
-(* Complete Me *) (* Difficult level *)
-(**** Substitution preserves typing ****)
-(* Substitution preserve typing says that suppose we
-   have an expression [e] with a free variable [x], and suppose we've been
-   able to assign a type [t'] to [e] under the assumption that [x] has
-   some type [t].  Also, suppose that we have some other term [e'] and
-   that we've shown that [e'] has type [t].  Then, since [e'] satisfies
-   the assumption we made about [x] when typing [e], we should be
-   able to substitute [e'] for each of the occurrences of [x] in [e]
-   and obtain a new expression that still has type [t]. *)
-Lemma wsubst_preservation : forall Gamma Sigma x t v e ef t' e'', 
-type_expr (extend_context Gamma x t) Sigma e ef t' ->
-wtypeof_value v (wtype_of_type t) ->
-subst x (Val v t) e = e'' ->
-type_expr Gamma Sigma e'' ef t'.
-Proof.
-Admitted.
 
 (* Complete Me *) (* Difficult level *)
 Lemma extend_ty_context_deterministic : forall Gamma Sigma x x' t1 t2 e ef t,

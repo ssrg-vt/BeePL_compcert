@@ -138,6 +138,16 @@ match ef with
 | EF_external n sig => sig.(bsig_ef)
 end.
 
+Definition get_rt_eapp (ef : external_function) : type :=
+match ef with 
+| EF_external n sig => sig.(bsig_res)
+end.
+
+Definition get_at_eapp (ef : external_function) : list type :=
+match ef with 
+| EF_external n sig => sig.(bsig_args)
+end.
+
 Definition befuntion_to_cefunction (bef : external_function) : mon AST.external_function :=
 match bef with 
 | EF_external n bsig => do aef <- bsig_to_csig bsig;
@@ -148,7 +158,7 @@ end.
    but during evaluation the reductions on heap operations create heaps and use them. *)
 Inductive expr : Type :=
 | Val : value -> type -> expr                                           (* value *) (* rvalue *)
-| Var : ident -> type -> expr                                                   (* variable *) (* lvalue *)
+| Var : ident -> type -> expr                                           (* variable *) (* lvalue *)
 | Const : constant -> type -> expr                                      (* constant *) (* rvalue *)
 | App : expr -> list expr -> type -> expr                               (* function application *) (* rvalue *)
 | Prim : builtin -> list expr -> type -> expr                           (* primitive operations *)
