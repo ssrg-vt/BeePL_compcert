@@ -137,7 +137,7 @@ Inductive bsem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
               bsem_expr vm m (Addr l ofs t) m vm (Vloc l.(lname) ofs)
 | bsem_eapp : forall vm m es vm' m' m'' vs ef g cef g' i' vres bv ts ty t,
               bsem_exprs vm m es m' vm' vs ->
-              befuntion_to_cefunction ef g = Res cef g' i' ->
+              befunction_to_cefunction ef g = Res cef g' i' ->
               external_call cef ge (transBeePL_values_cvalues vs) m' t vres m'' ->
               transC_val_bplvalue vres = OK bv ->
               bsem_expr vm m (BeePL.Eapp ef ts es ty) m'' vm' bv
@@ -297,7 +297,7 @@ Inductive ssem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
                 ssem_expr vm m (Hexpr m (Val (Vloc l ofs) (Reftype h (Bprim bt) a)) t) m vm (Val (Vloc l ofs) (Reftype h (Bprim bt) a))
 | ssem_eapp : forall vm m es vm' m' m'' vs ef g cef g' i' vres bv ts ty t,
               ssem_exprs vm m es m' vm' vs ->
-              befuntion_to_cefunction ef g = Res cef g' i' ->
+              befunction_to_cefunction ef g = Res cef g' i' ->
               external_call cef ge (transBeePL_values_cvalues (extract_values_exprs vs)) m' t vres m'' ->
               transC_val_bplvalue vres = OK bv ->
               ssem_expr vm m (BeePL.Eapp ef ts es ty) m'' vm' (Val bv ty)

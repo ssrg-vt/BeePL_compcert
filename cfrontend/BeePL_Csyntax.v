@@ -96,7 +96,7 @@ match e with
 | Addr l ofs t => do ct <- transBeePL_type t;
                   ret (Eloc l.(lname) ofs l.(lbitfield) ct)
 | Hexpr h e t => ret (Eval (Values.Vundef) Tvoid) (* FIX ME *)
-| Eapp ef ts es t => do cef <- befuntion_to_cefunction ef;
+| Eapp ef ts es t => do cef <- befunction_to_cefunction ef;
                      do cts <- (transBeePL_types transBeePL_type ts);
                      do ct <- (transBeePL_type t);
                      do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
@@ -195,7 +195,7 @@ match e with
 | Addr l ofs t => do ct <- (transBeePL_type t);
                   ret (Sdo (Eloc l.(lname) ofs l.(lbitfield) ct))                    
 | Hexpr h e t => ret (Sdo (Eval (Values.Vundef) Tvoid)) (* FIX ME *)
-| Eapp ef ts es t => do cef <- befuntion_to_cefunction ef;
+| Eapp ef ts es t => do cef <- befunction_to_cefunction ef;
                      do cts <- (transBeePL_types transBeePL_type ts);
                      do ct <- (transBeePL_type t);
                      do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
@@ -230,7 +230,7 @@ Definition transBeePL_fundef_fundef (fd : BeePL.fundef) : res Csyntax.fundef :=
 match fd with 
 | Internal f => do tf <- transBeePL_function_function f;
                 OK (Ctypes.Internal tf)
-| External ef ts t cc => match (befuntion_to_cefunction ef (initial_generator tt)) with
+| External ef ts t cc => match (befunction_to_cefunction ef (initial_generator tt)) with
                          | Err msg => Error msg
                          | Res cef g' i => match (transBeePL_types transBeePL_type ts (initial_generator tt)) with 
                                            | Err msg => Error msg

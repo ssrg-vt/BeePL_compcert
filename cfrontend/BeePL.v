@@ -148,7 +148,7 @@ match ef with
 | EF_external n sig => sig.(bsig_args)
 end.
 
-Definition befuntion_to_cefunction (bef : external_function) : mon AST.external_function :=
+Definition befunction_to_cefunction (bef : external_function) : mon AST.external_function :=
 match bef with 
 | EF_external n bsig => do aef <- bsig_to_csig bsig;
                         ret (AST.EF_external n aef)
@@ -813,7 +813,7 @@ Inductive bestep : state -> state -> Prop :=
 | step_external_fun : forall vm f ef ts es ty k e m vs t vres m' cef g g' i' bv,
                       (*leftcontext RV RV C ->*)
                       bsem_expr_srvs vm m es vs ->
-                      befuntion_to_cefunction ef g = Res cef g' i' ->
+                      befunction_to_cefunction ef g = Res cef g' i' ->
                       external_call cef ge (transBeePL_values_cvalues vs) m t vres m' ->
                       transC_val_bplvalue vres = OK bv ->
                       bestep (ExprState f (Eapp ef ts es ty) k e m)

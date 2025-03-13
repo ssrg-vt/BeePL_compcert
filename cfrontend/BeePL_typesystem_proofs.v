@@ -508,6 +508,189 @@ type_expr Gamma Sigma (subst x se e) (ef ++ ef') t'.
 Proof.
 Admitted.
 
+(* Generalize it to take into account all cases in one lemma *)
+Lemma exf_ret_extract_int : forall g bt ct g' i,
+bt <> Ptype Tunit ->
+is_funtype bt = false -> 
+transBeePL_type bt g = Res ct g' i ->
+rettype_of_type ct = AST.Tint ->
+exists sz s a, bt = Ptype (Tint sz s a).
+Proof.
+move=> sg bt ct g' i htu htf ht hp. case: bt htu htf ht=> //=.
+(* prim *)
++ move=> p. case: p=> //=.
+  (* int *)
+  + move=> sz s a hut _ [] h1 h2; subst. exists sz. exists s. by exists a.
+  move=> s a hut _ [] h1 h2; subst. by rewrite /proj_rettype /= in hp.
+(* ref *)
+move=> h b a hut. case: b hut=> //= p hut.
+case: p hut =>//=.  + move=> hut _ [] h1 h2; subst. by rewrite /proj_rettype /= in hp.
++ move=> sz s a' hut _ [] h1 h2; subst. by rewrite  /proj_rettype /= in hp.
+move=> s a' hut _ [] h1 h2; subst. by rewrite /proj_rettype /= in hp.
+Qed.
+
+Lemma exf_ret_extract_long : forall g bt ct g' i,
+bt <> Ptype Tunit ->
+is_funtype bt = false -> 
+transBeePL_type bt g = Res ct g' i ->
+rettype_of_type ct = AST.Tlong ->
+(exists s a, bt = Ptype (Tlong s a)) \/ (exists h t a, bt = Reftype h t a).
+Proof.
+move=> sg bt ct g' i htu htf ht hp. case: bt htu htf ht=> //=.
+(* prim *)
++ move=> p. case: p=> //=.
+  (* int *)
+  + move=> sz s a hut _ [] h1 h2; subst. 
+    rewrite /rettype_of_type /= in hp. case: sz hp hut=> //=.
+    + by case: s=> //=.
+    by case: s=> //=.
+  move=> s a hut _ [] h1 h2; subst. left. exists s. by exists a.
+(* ref *)
+move=> h b a hut _. case: b hut=> //= p hut.
+case: p hut =>//=.  
++ move=> hut [] h1 h2; subst. rewrite /rettype_of_type /= in hp.
+  rewrite /Tptr in hp. move: hp. case: Archi.ptr64=> //=. right.
+  exists h. exists (Bprim Tunit). by exists a.
++ move=> sz s a' hut [] h1 h2; subst. rewrite /rettype_of_type /= in hp.
+  rewrite /Tptr in hp. move: hp. case: Archi.ptr64=> //=. right.
+  exists h. exists  (Bprim (Tint sz s a')). by exists a.
+move=> s a' hut [] h1 h2; subst. rewrite /rettype_of_type /= in hp.
+rewrite /Tptr in hp. move: hp. case: Archi.ptr64=> //=. right.
+exists h. exists (Bprim (Tlong s a')). by exists a.
+Qed.
+
+(*Lemma exf_ret_extract_type : forall g bt ct t g' i,
+bt <> Ptype Tunit ->
+is_funtype bt = false -> 
+transBeePL_type bt g = Res ct g' i ->
+proj_rettype (rettype_of_type ct) = t ->
+match t with 
+| AST.Tint => exists sz s a, bt = Ptype (Tint sz s a)
+| AST.Tptr => AST.Tptr
+end.*)
+
+(**** External call result has the same type as present in the signature *)
+Lemma well_typed_res_ext : forall Gamma Sigma bge exf g cef g' i' m m' vs vres bv ef t,
+(get_rt_eapp exf) <> Ptype Tunit ->
+is_funtype (get_rt_eapp exf) = false ->
+befunction_to_cefunction exf g = Res cef g' i' ->
+Events.external_call cef bge vs m t vres m' ->
+transC_val_bplvalue vres = OK bv ->
+type_expr Gamma Sigma (Val bv (get_rt_eapp exf)) (get_ef_eapp exf ++ ef) (get_rt_eapp exf).
+Proof.
+move=> Gamma Sigma bge exf g cef g' i' m m' vs vres bv ef t hut hft hcf hext hv.
+have hcvs := Events.external_call_well_typed cef bge vs m t vres m' hext.
+rewrite /befunction_to_cefunction in hcf. case hexf: exf hcf=> [exn sig ] //=.
+rewrite /bind /=. case hsig: (bsig_to_csig sig g) hut hft=> [ | cexf cs ca] /= hut /= hft //=.
+move=> [] h1 h2; subst. 
+case: bv hv=> //=.
+(* unit 4 *)
++ by case: vres hext hcvs=> //=.
+(* int 3 *)
++ move=> i. case: vres hext hcvs=> //= i1 hext hcvs [] hieq; subst. 
+  case: sig hsig hft hut=> //= bts bef brt bcc /=. 
+  case: cexf hext hcvs=> //= cts cef crt ccc /=. rewrite /proj_sig_res /=.
+  case: cef ccc=> //=.
+  (* typ 9 *)
+  + move=> t' hext. case: t' hext=> //=.
+    (* int 10 *)
+    + move=> hext _. rewrite /bsig_to_csig /bind /=.
+      case hts : (transBeePL_types transBeePL_type bts g)=> [err | cts' gs gis] //=.
+      case ht: (transBeePL_type brt gs)=> [err1 | ct1 gs1 gis1] //=. 
+      move=> [] h1 h2 h3 h4 hft hut; subst. 
+      have [sz [] s [] a hbrt] := exf_ret_extract_int gs brt ct1 g' gis1 hut hft ht h2.
+      rewrite hbrt. by apply ty_vali.
+    (* 11 *)
+    + move=> hext _. rewrite /bsig_to_csig /bind /=.
+      case hts : (transBeePL_types transBeePL_type bts g)=> [err | cts' gs gis] //=.
+      case ht: (transBeePL_type brt gs)=> [err1 | ct1 gs1 gis1] //=. 
+      move=> [] h1 h2 h3 h4 hft hut; subst. case: ct1 ht h2=> //=.
+      + move=> sz s a ht. have hbrt:= transBeePL_type_int brt gs g' gis1 sz s a ht.
+        rewrite hbrt. move=> h. by apply ty_vali.
+      move=> f a hbrt. by have hf := no_btype_to_float brt gs f a g' gis1.
+     move=> hext _. rewrite /bsig_to_csig /bind /=.
+     case hts : (transBeePL_types transBeePL_type bts g)=> [err | cts' gs gis] //=.
+     case ht: (transBeePL_type brt gs)=> [err1 | ct1 gs1 gis1] //=. 
+     move=> [] h1 h2 h3 h4 hft hut; subst. case: ct1 ht h2=> //=.
+     + move=> sz s a ht. have hbrt:= transBeePL_type_int brt gs g' gis1 sz s a ht.
+       rewrite hbrt. move=> h. by apply ty_vali.
+     move=> f a hbrt. by have hf := no_btype_to_float brt gs f a g' gis1.
+  (* 8 *)
+  + move=> hext _. rewrite /bsig_to_csig /= /bind /=.
+    case hts : (transBeePL_types transBeePL_type bts g)=> [err | cts' gs gis] //=.
+    case ht: (transBeePL_type brt gs)=> [err1 | ct1 gs1 gis1] //=. 
+    move=> [] h1 h2 h3 h4 hft hut; subst. case: ct1 ht h2=> //=.
+    + move=> sz s a ht. have hbrt:= transBeePL_type_int brt gs g' gis1 sz s a ht.
+      rewrite hbrt. move=> h. by apply ty_vali.
+    move=> f a ht. by have hf := no_btype_to_float brt gs f a g' gis1.
+  (* 7 *)
+  + move=> hext _. rewrite /bsig_to_csig /= /bind /=.
+    case hts : (transBeePL_types transBeePL_type bts g)=> [err | cts' gs gis] //=.
+    case ht: (transBeePL_type brt gs)=> [err1 | ct1 gs1 gis1] //=. 
+    move=> [] h1 h2 h3 h4 hft hut; subst. case: ct1 ht h2=> //=.
+    + move=> sz s a ht. have hbrt:= transBeePL_type_int brt gs g' gis1 sz s a ht.
+      rewrite hbrt. move=> h. by apply ty_vali.
+    move=> f a ht. by have hf := no_btype_to_float brt gs f a g' gis1.
+  (* 6 *)
+  + move=> hext _. rewrite /bsig_to_csig /= /bind /=.
+    case hts : (transBeePL_types transBeePL_type bts g)=> [err | cts' gs gis] //=.
+    case ht: (transBeePL_type brt gs)=> [err1 | ct1 gs1 gis1] //=. 
+    move=> [] h1 h2 h3 h4 hft hut; subst. case: ct1 ht h2=> //=.
+    + move=> sz s a ht. have hbrt:= transBeePL_type_int brt gs g' gis1 sz s a ht.
+      rewrite hbrt. move=> h. by apply ty_vali.
+    move=> f a ht. by have hf := no_btype_to_float brt gs f a g' gis1.
+  (* 5 *)
+  + move=> hext _. rewrite /bsig_to_csig /= /bind /=.
+    case hts : (transBeePL_types transBeePL_type bts g)=> [err | cts' gs gis] //=.
+    case ht: (transBeePL_type brt gs)=> [err1 | ct1 gs1 gis1] //=. 
+    move=> [] h1 h2 h3 h4 hft hut; subst. case: ct1 ht h2=> //=.
+    + move=> sz s a ht. have hbrt:= transBeePL_type_int brt gs g' gis1 sz s a ht.
+      rewrite hbrt. move=> h. by apply ty_vali.
+    move=> f a ht. by have hf := no_btype_to_float brt gs f a g' gis1.
+  + (* 4 *)
+    move=> hext _. rewrite /bsig_to_csig /= /bind /=.
+    case hts : (transBeePL_types transBeePL_type bts g)=> [err | cts' gs gis] //=.
+    case ht: (transBeePL_type brt gs)=> [err1 | ct1 gs1 gis1] //=. 
+    move=> [] h1 h2 h3 h4 hft hut; subst. case: ct1 ht h2=> //=.
+    + move=> sz s a ht. have hbrt:= transBeePL_type_int brt gs g' gis1 sz s a ht.
+      rewrite hbrt. move=> h. by apply ty_vali.
+    move=> f a ht. by have hf := no_btype_to_float brt gs f a g' gis1.
+   move=> hext _. rewrite /bsig_to_csig /= /bind /=.
+   case hts : (transBeePL_types transBeePL_type bts g)=> [err | cts' gs gis] //=.
+   case ht: (transBeePL_type brt gs)=> [err1 | ct1 gs1 gis1] //=. 
+   move=> [] h1 h2 h3 h4 hft hut; subst. case: ct1 ht h2=> //=.
+   + move=> ht _. by have hbrt := transBeePL_type_void brt gs g' gis1 ht.
+   + move=> sz s a ht. have hbrt:= transBeePL_type_int brt gs g' gis1 sz s a ht.
+     rewrite hbrt. move=> h. by apply ty_vali.
+   + move=> f a ht. by have hf := no_btype_to_float brt gs f a g' gis1. 
+   + move=> t' z a ht. by have hf := no_btype_to_array brt t' z a gs g' gis1.
+   + move=> ts t1 ct ht _. 
+     have [bt [] ef' [] rt hbrt] := transBeePL_type_function brt ts t1 ct gs g' gis1 ht.
+     by rewrite hbrt in hft.
+   + move=> h a ht. by have := no_btype_to_struct brt h a gs g' gis1.
+   + move=> h a ht. by have := no_btype_to_union brt h a gs g' gis1.
+ (* long *)
+ + move=> i. case: vres hext hcvs=> //= i1 hext hcvs [] hieq; subst. 
+   case: sig hsig hft hut=> //= bts bef brt bcc /=. 
+   case: cexf hext hcvs=> //= cts cef crt ccc /=. rewrite /proj_sig_res /=.
+   case: cef ccc=> //=.
+   (* typ 9 *)
+  + move=> t' hext. case: t' hext=> //=.
+    + move=> hext _. rewrite /bsig_to_csig /bind /=.
+      case hts : (transBeePL_types transBeePL_type bts g)=> [err | cts' gs gis] //=.
+      case ht: (transBeePL_type brt gs)=> [err1 | ct1 gs1 gis1] //=.
+      move=> [] h1 h2 h3 h4 hut hft; subst. 
+      have htlp := exf_ret_extract_long gs brt ct1 g' gis1 hft hut ht h2.
+      case: htlp.
+      (* long *)
+      + move=> [] s [] a hbrt. rewrite hbrt. by apply ty_vall.
+      (* ref *)
+      admit. (* because in C they treat pointer as long *)
+   admit.
+move=> loc ofs. case: vres hext hcvs=> //= loc' ofs'. 
+admit.
+Admitted.
+
 (*** Preservation for small-step semantics ***)
 (* If a program starts well-typed, it remains well-typed throughout execution,
    an evaluation does not produce type errors.*)
@@ -635,7 +818,8 @@ apply type_exprs_type_expr_ind_mut=> //=.
 + move=> Gamma Sigma l ofs h t' a hs bge vm m vm' m' e' he. inversion he; subst.
   by apply ty_valloc.
 (* ext *)
-+ admit.
++ move=> Gamma Sigma exf ts es ef rt hrt [] hut hft hts htes hin bge vm m vm' m' e' he; subst.
+  inversion he; subst. admit.
 (* nil *)
 + move=> Gamma Sigma bge vm m vm' m' es' hes. inversion hes; subst. by apply ty_nil.
 (* cons *)

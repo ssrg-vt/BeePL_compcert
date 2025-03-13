@@ -82,9 +82,11 @@ Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> P
             PTree.get l.(lname) Sigma = Some (Reftype h t a) ->
             (*t' = (Reftype h t a) ->*)
             type_expr Gamma Sigma (Addr l ofs (Reftype h t a)) empty_effect (Reftype h t a) 
-(* return type, arg types, and effect must agree with the signature *)
+(* return type, arg types, and effect must agree with the signature
+   eBPF helper functions never return a void type  *)
 | ty_ext : forall Gamma Sigma exf ts es ef rt,
            rt = get_rt_eapp exf ->
+           rt <> Ptype Tunit /\ is_funtype rt = false -> 
            ts = get_at_eapp exf ->
            type_exprs Gamma Sigma es ef ts ->
            type_expr Gamma Sigma (Eapp exf ts es rt) ((get_ef_eapp exf) ++ ef) rt
@@ -192,6 +194,7 @@ Context (Htloc : forall Gamma Sigma l ofs h t a,
                  Pt Gamma Sigma (Addr l ofs (Reftype h t a)) empty_effect (Reftype h t a)). 
 Context (Htext :  forall Gamma Sigma exf ts es ef rt,
                   rt = get_rt_eapp exf ->
+                  rt <> Ptype Tunit /\ is_funtype rt = false -> 
                   ts = get_at_eapp exf ->
                   Pts Gamma Sigma es ef ts ->
                   Pt Gamma Sigma (Eapp exf ts es rt) ((get_ef_eapp exf) ++ ef) rt).
@@ -292,7 +295,7 @@ apply type_expr_indP => //=.
   hs2 ht2 hs3 ef' t' htc. by inversion htc; subst.
 + by move=> Gamma Sigma ef' t' ht; inversion ht; subst.
 + by move=> Gamma Sigma l ofs h t a hl ef' t'' ht; inversion ht; subst.
-+ by move=> Gamma Sigma exf ts es ef rt hrt hts hin ef' t' ht; inversion ht; subst.
++ by move=> Gamma Sigma exf ts es ef rt hrt [] h1 h2 hts hin ef' t' ht; inversion ht; subst.
 + by move=> Gamma Sigma efs' ts' ht; inversion ht; subst.
 move=> Gamma Sigma e es t ef ts efs ih ih' efs' ts' ht; inversion ht; subst.
 move: (ih ef0 t0 H3)=> h1; subst. by move: (ih' efs0 ts0 H6)=> h1; subst.

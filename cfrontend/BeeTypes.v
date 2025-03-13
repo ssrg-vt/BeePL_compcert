@@ -81,6 +81,12 @@ match t with
 | _ => false
 end. 
 
+Definition is_funtype (t : type) : bool :=
+match t with 
+| Ftype ts ef t => true 
+| _ => false
+end.
+
 Definition is_primtype (t : type) : bool :=
 match t with 
 | Ptype p => true 
