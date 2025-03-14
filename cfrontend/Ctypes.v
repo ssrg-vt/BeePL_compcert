@@ -83,6 +83,12 @@ with typelist : Type :=
   | Tnil: typelist
   | Tcons: type -> typelist -> typelist.
 
+Definition is_pointer (t : type) : bool :=
+match t with 
+| Tpointer _ _ => true
+| _ => false
+end.
+
 Lemma intsize_eq: forall (s1 s2: intsize), {s1=s2} + {s1<>s2}.
 Proof.
   decide equality.

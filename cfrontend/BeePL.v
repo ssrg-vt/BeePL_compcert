@@ -33,6 +33,12 @@ match v with
 | Vloc l ofs => true 
 end.
 
+Definition is_vint64 (v : value) : bool :=
+match v with 
+| Vint64 _ => true 
+| _ => false
+end.
+
 (* Pointer will be stores in a 64 bit value or 32 bit value *) 
 Definition default_attr (t : type) := {| attr_volatile := false;  
                                          attr_alignas := (attr_alignas (attr_of_type t)) |}.

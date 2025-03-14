@@ -369,6 +369,21 @@ case ht: (transBeePL_type t gs)=> [er | ct1 g1 i1] //=. move=> [] h1 h2 h3 h4; s
 exists es. exists ef. by exists t.
 Qed.
 
+Lemma transBeePL_type_ref : forall t t' a' g g' i,
+transBeePL_type t g = Res (Tpointer t' a') g' i ->
+exists h bt a, t = Reftype h bt a. 
+Proof.
+move=> [].
++ by move=> p t' a' g g' i; case: p=> //=.
++ move=> h b a t' a' g g' i' /=; case: b=> //= p; case: p=> //=.
+  + move=> [] h1 h2 h3; subst. exists h. exists (Bprim Tunit). by exists a'.
+  + move=> sz s a'' [] h1 h2 h3; subst. exists h. exists (Bprim (Tint sz s a'')). by exists a'.
+  move=> s a'' [] h1 h2 h3; subst. exists h. exists (Bprim (Tlong s a'')). by exists a'.
+move=> es e t t' a' g g' i /=. rewrite /SimplExpr.bind /=.
+case hts: (transBeePL_types transBeePL_type es g)=> [errs | cts gs igs] //=.
+by case ht: (transBeePL_type t gs)=> [er | ct1 g1 i1] //=.
+Qed.
+
 (*** Complete Me ***)
 (*** Write more such lemmas for all available BeePL and C types ***)
 

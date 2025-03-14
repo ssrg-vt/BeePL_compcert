@@ -20,7 +20,7 @@ Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> P
 | ty_vall : forall Gamma Sigma ef i s a,
             type_expr Gamma Sigma (Val (Vint64 i) (Ptype (Tlong s a))) ef (Ptype (Tlong s a))
 | ty_valloc : forall Gamma Sigma ef l ofs h t a,
-              PTree.get l Sigma = Some (Reftype h t a) ->
+              (*PTree.get l Sigma = Some (Reftype h t a) ->*)
               type_expr Gamma Sigma (Val (Vloc l ofs) (Reftype h t a)) ef (Reftype h t a)
 | ty_var : forall Gamma Sigma x t, 
            PTree.get x (extend_context Gamma x t) = Some t ->
@@ -132,7 +132,7 @@ Context (Htvali : forall Gamma Sigma ef i sz s a,
 Context (Htvall : forall Gamma Sigma ef i s a,
                   Pt Gamma Sigma (Val (Vint64 i) (Ptype (Tlong s a))) ef (Ptype (Tlong s a))).
 Context (Htvalloc : forall Gamma Sigma ef l ofs h t a,
-                    PTree.get l Sigma = Some (Reftype h t a) ->
+                    (*PTree.get l Sigma = Some (Reftype h t a) ->*)
                     Pt Gamma Sigma (Val (Vloc l ofs) (Reftype h t a)) ef (Reftype h t a)).
 Context (Htval : forall Gamma Sigma v ef t,
                  Pt Gamma Sigma (Val v t) ef t).
@@ -278,7 +278,7 @@ apply type_expr_indP => //=.
 + by move=> Gamma Sigma ef ef' t' ht; inversion ht; subst.
 + by move=> Gamma Sigma ef i sz s a ef' t' ht; inversion ht; subst.
 + by move=> Gamma Sigma ef i s a ef' t' ht; inversion ht; subst.
-+ by move=> Gamma Sigma ef l ofs h t a hs ef' t' ht; inversion ht; subst.
++ by move=> Gamma Sigma ef l ofs h t a ef' t' ht; inversion ht; subst.
 + move=> Gamma Sigma x t ht ef' t' het; subst. by inversion het; subst.
 + move=> Gamma Sigma t sz s i a ht ef' t' ht'; subst. by inversion ht'; subst.
 + move=> Gamma Sigma t s i a ht ef' t' ht'; subst. by inversion ht'; subst.
@@ -437,7 +437,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
 + move=> Gamma Sigma ef. exists Tvoid. eexists. by eexists.
 + move=> Gamma Sigma ef i sz s a. exists (Ctypes.Tint sz s a). eexists. by eexists.
 + move=> Gamma Sigma ef l s a. exists (Ctypes.Tlong s a). eexists. by eexists.
-+ move=> Gamma Sigma ef l ofs h t a hs. case: t hs=> //= p. case: p=> //=.
++ move=> Gamma Sigma ef l ofs h t a. case: t=> //= p. case: p=> //=.
   + exists (Tpointer Tvoid a). eexists. by eexists.
   + move=> sz s a'. exists (Tpointer (Ctypes.Tint sz s a') a). eexists. by eexists.
   move=> s a'. exists (Tpointer (Ctypes.Tlong s a') a). eexists. by eexists.
