@@ -484,7 +484,6 @@ Proof.
 move=> Gamma Sigma v t ef t' ht. by inversion ht; subst.
 Qed.
 
-
 (* Complete Me: Easy *)
 (* There always exists a C type for BeePL type which is 
    inferred from the typing rules. *)
@@ -501,8 +500,26 @@ apply type_exprs_type_expr_ind_mut=> //=.
 + move=> Gamma Sigma ef l ofs h t a hs. case: t hs=> //= p. case: p=> //=.
   + exists (Tpointer Tvoid a). eexists. by eexists.
   + move=> sz s a'. exists (Tpointer (Ctypes.Tint sz s a') a). eexists. by eexists.
-  move=> s a'. exists (Tpointer (Ctypes.Tlong s a') a). eexists. by eexists.
-+ move=> Gamma Sigma x t ht. case: t ht=> //=.
-  + move=> p. case: p=> //=.
-    + exists Tvoid.
+  + move=> s a'. exists (Tpointer (Ctypes.Tlong s a') a). eexists. by eexists.
++ intros Gamma Sigma x t h. destruct t eqn:Htype.
+  + destruct p; simpl in *.
+    + exists Tvoid. repeat eexists.
+    + exists (Ctypes.Tint i s a). repeat eexists.
+    + exists (Ctypes.Tlong s a). repeat eexists.
+  + destruct b; simpl in *.
+    + destruct p; simpl in *.
+      + exists (Tpointer Tvoid a). repeat eexists.
+      + exists (Tpointer (Ctypes.Tint i0 s a0) a). repeat eexists.
+      + exists (Tpointer (Ctypes.Tlong s a0) a). repeat eexists.
+  + admit.
++ intros Gamma Sigmma t sz s a i ht. subst. simpl. exists (Ctypes.Tint sz s a). eexists. by eexists.
++ intros Gamma Sigma t s a i ht. subst. simpl. exists (Ctypes.Tlong s a). repeat eexists.
++ intros Gamma Sigma t ht. subst. simpl. exists Tvoid. repeat eexists.
++ intros Gamma Sigma e es rt efs ts ef efs' ht h hts h0.
+  unfold SimplExpr.bind in h.
+  destruct h as [ct [g [i h]]].
+  destruct (transBeePL_types transBeePL_type ts g) as [| a g' i']; try discriminate.
+  destruct (transBeePL_type rt g') as [| ct' g'' i''] eqn:hrt; try discriminate.
+  exists ct'. exists g''. eexists. simpl in h. eauto.
+    
 Admitted.
