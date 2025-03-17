@@ -959,7 +959,6 @@ Admitted.
   end.
 Proof.*)
 
-(* Complete Me : Medium *)
 Lemma bsem_cexpr_list :
 forall m es tes vs cts ces g g' i, 
 bsem_expr_srvs bge benv m es vs ->
