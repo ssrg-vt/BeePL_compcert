@@ -7,4 +7,18 @@ Require Import BeePL_sem BeePL_typesystem BeePL_safety BeePL_typesystem_proofs.
 
 From mathcomp Require Import all_ssreflect.
 
-
+(***** Termination *****)
+(* A well typed program where the effects contain no divergence effect is always terminating *)
+Lemma guaranteed_termination : 
+(forall Gamma Sigma es efs ts bge vm m n m' vm' es', 
+ type_exprs Gamma Sigma es efs ts ->
+ no_divergence efs ->
+ ssem_closures bge vm m es n m' vm' es' ->
+ exists m, (n <= m)%nat) /\
+(forall Gamma Sigma e ef t bge vm m n m' vm' e', 
+ type_expr Gamma Sigma e ef t ->
+ no_divergence ef ->
+ ssem_closure bge vm m e n m' vm' e' ->
+ exists m, (n <= m)%nat).
+Proof.
+Admitted.

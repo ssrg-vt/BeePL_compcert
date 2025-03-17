@@ -346,22 +346,124 @@ rel_types bts cts).
 Proof.
 Admitted.
 
-(*
-Lemma type_exprsE : forall Gamma Sigma es efs ts,
-type_exprs Gamma Sigma es efs ts ->
-match es with 
-| [::] => efs = [::] /\ ts = [::]
-| e1 :: es1 => exists ef1 t1 efs1 ts1,
-               type_expr Gamma Sigma e1 ef1 t1 /\  
-               type_exprs Gamma Sigma es1 efs1 ts1 /\
-               es = e1 :: es1 /\ efs = ef1 ++ efs1 /\ ts = t1 :: ts1
-end.
+Lemma transBeePL_type_int : forall t g g' i sz s a,
+transBeePL_type t g = Res (Ctypes.Tint sz s a) g' i ->
+t = Ptype (Tint sz s a).
 Proof.
-move=> Gamma Sigma es efs ts hs. elim: es hs=> //=.
-+ by move=> hs; inversion hs.
-move=> e es ih hs; inversion hs; subst.
-by exists ef, t, efs0, ts0; split=> //=.
-Qed.  *)
+move=> [].
++ move=> p g g' i sz s a /=. by case: p=> //= sz' s' a' [] h1 h2 h3 h4; subst.
++ by move=> h b a g g' i' sz a' a'' /=;case: b=> //= p; case: p=> //=.
+move=> es e t g g' i sz s a /=. rewrite /SimplExpr.bind /=.
+case hts: (transBeePL_types transBeePL_type es g)=> [errs | cts gs igs] //=.
+by case ht: (transBeePL_type t gs)=> [er | ct1 g1 i1] //=.
+Qed.
+
+Lemma transBeePL_type_long : forall t g g' i s a,
+transBeePL_type t g = Res (Ctypes.Tlong s a) g' i ->
+t = Ptype (Tlong s a).
+Proof.
+move=> [].
++ move=> p g g' i s a /=. by case: p=> //= s' a' [] h1 h2 h3; subst.  
++ by move=> h b a g g' i' a' a'' /=;case: b=> //= p; case: p=> //=.
+move=> es e t g g' i sz s /=. rewrite /SimplExpr.bind /=.
+case hts: (transBeePL_types transBeePL_type es g)=> [errs | cts gs igs] //=.
+by case ht: (transBeePL_type t gs)=> [er | ct1 g1 i1] //=.
+Qed.
+
+Lemma transBeePL_type_void : forall t g g' i,
+transBeePL_type t g = Res Tvoid g' i ->
+t = Ptype Tunit.
+Proof.
+move=> [].
++ by move=> p g g' i /=; case: p=> //=.
++ by move=> h b a g g' i /=; case: b=> //= p; case: p=> //=.
+move=> es ef t g g' i /=. rewrite /SimplExpr.bind /=.
+case hts: (transBeePL_types transBeePL_type es g)=> [errs | cts gs igs] //=.
+by case ht: (transBeePL_type t gs)=> [er | ct1 g1 i1] //=.
+Qed.
+
+Lemma transBeePL_type_function : forall t ts t1 ct g g' i,
+transBeePL_type t g = Res (Tfunction ts t1 ct) g' i ->
+exists bts bef brt, t = Ftype bts bef brt. 
+Proof.
+move=> [].
++ by move=> p ts t1 ct g g' i /=; case: p=> //=.
++ by move=> h b a ts t1 ct g g' i' /=; case: b=> //=; move=> p; case: p=> //=.
+move=> es ef t ts t1 ct g g' i /=. rewrite /SimplExpr.bind /=.
+case hts: (transBeePL_types transBeePL_type es g)=> [errs | cts gs igs] //=.
+case ht: (transBeePL_type t gs)=> [er | ct1 g1 i1] //=. move=> [] h1 h2 h3 h4; subst.
+exists es. exists ef. by exists t.
+Qed.
+
+Lemma transBeePL_type_ref : forall t t' a' g g' i,
+transBeePL_type t g = Res (Tpointer t' a') g' i ->
+exists h bt a, t = Reftype h bt a. 
+Proof.
+move=> [].
++ by move=> p t' a' g g' i; case: p=> //=.
++ move=> h b a t' a' g g' i' /=; case: b=> //= p; case: p=> //=.
+  + move=> [] h1 h2 h3; subst. exists h. exists (Bprim Tunit). by exists a'.
+  + move=> sz s a'' [] h1 h2 h3; subst. exists h. exists (Bprim (Tint sz s a'')). by exists a'.
+  move=> s a'' [] h1 h2 h3; subst. exists h. exists (Bprim (Tlong s a'')). by exists a'.
+move=> es e t t' a' g g' i /=. rewrite /SimplExpr.bind /=.
+case hts: (transBeePL_types transBeePL_type es g)=> [errs | cts gs igs] //=.
+by case ht: (transBeePL_type t gs)=> [er | ct1 g1 i1] //=.
+Qed.
+
+(*** Complete Me ***)
+(*** Write more such lemmas for all available BeePL and C types ***)
+
+Lemma no_btype_to_float : forall t g f a g' i,
+transBeePL_type t g <> Res (Tfloat f a) g' i.
+Proof.
+move=> t g f a g' i /=. case: t=> //=.
++ by move=> p; case: p=> //=.
++ by move=> h b a';case: b=> //= p;case: p=> //=.
+move=> es ef t. rewrite /SimplExpr.bind /=.
+case hts: (transBeePL_types transBeePL_type es g)=> [errs | cts gs igs] //=.
+by case ht: (transBeePL_type t gs)=> [er | ct1 g1 i1] //=.
+Qed.
+
+Lemma no_btype_to_array : forall t t' z a g g' i,
+transBeePL_type t g <> Res (Tarray t' z a) g' i.
+Proof.
+move=> t t' z a g g' i /=. case: t=> //=.
++ by move=> p; case: p=> //=.
++ by move=> h b a';case: b=> //= p;case: p=> //=.
+move=> es ef t. rewrite /SimplExpr.bind /=.
+case hts: (transBeePL_types transBeePL_type es g)=> [errs | cts gs igs] //=.
+by case ht: (transBeePL_type t gs)=> [er | ct1 g1 i1] //=.
+Qed.
+
+(* not valid once we add struct data type in BeePL *)
+Lemma no_btype_to_struct : forall t s a g g' i,
+transBeePL_type t g <> Res (Tstruct s a) g' i.
+Proof.
+move=> t s a g g' i /=. case: t=> //=.
++ by move=> p; case: p=> //=.
++ by move=> h b a';case: b=> //= p;case: p=> //=.
+move=> es ef t. rewrite /SimplExpr.bind /=.
+case hts: (transBeePL_types transBeePL_type es g)=> [errs | cts gs igs] //=.
+by case ht: (transBeePL_type t gs)=> [er | ct1 g1 i1] //=.
+Qed.
+
+Lemma no_btype_to_union : forall t s a g g' i,
+transBeePL_type t g <> Res (Tunion s a) g' i.
+Proof.
+move=> t s a g g' i /=. case: t=> //=.
++ by move=> p; case: p=> //=.
++ by move=> h b a';case: b=> //= p;case: p=> //=.
+move=> es ef t. rewrite /SimplExpr.bind /=.
+case hts: (transBeePL_types transBeePL_type es g)=> [errs | cts gs igs] //=.
+by case ht: (transBeePL_type t gs)=> [er | ct1 g1 i1] //=.
+Qed.
+
+
+(*** Complete Me ***)
+(*** Write more such lemmas for all available C types that are not allowed in BeePL ***)
+
+(***** End of Proof for correctness of type transformation *****)
+
 
 Lemma tranBeePL_expr_expr_spec: forall vm e ce g g' i,
 transBeePL_expr_expr e g = Res ce g' i ->
@@ -629,7 +731,7 @@ Inductive match_fundef : BeePL.fundef -> Csyntax.fundef -> Prop :=
 | match_fundef_external : forall ef cef ts cts t ct cc gs gs' i'' g g' i' gf gf' if',
   transBeePL_types transBeePL_type ts gs = Res cts gs' i'' ->
   transBeePL_type t g = Res ct g' i' ->
-  befuntion_to_cefunction ef gf = Res cef gf' if' ->
+  befunction_to_cefunction ef gf = Res cef gf' if' ->
   match_fundef (External ef ts t cc) (Ctypes.External cef cts ct cc).
 
 Lemma transBeePL_fundef_spec : forall f cf, 
@@ -687,7 +789,7 @@ rewrite /transBeePL_globdef_globdef in EQ. case: gd EQ=> //=.
 + move=> fd h. monadInv h. apply match_gfun. rewrite /transBeePL_fundef_fundef in EQ.
   case: fd EQ=> //= f h. monadInv h. apply match_fundef_internal.
   by apply tranBeePL_function_spec.
-+ move=> t cc. case hef: (befuntion_to_cefunction f (initial_generator tt))=> [er | cef g1 i1] //=.
++ move=> t cc. case hef: (befunction_to_cefunction f (initial_generator tt))=> [er | cef g1 i1] //=.
   case hts: (transBeePL_types transBeePL_type h (initial_generator tt))=> [er1 | cts g3 i3] //=.
   case ht: (transBeePL_type t (initial_generator tt))=> [er2 | ct g4 i4] //=.
   move=> [] heq; subst. by apply match_fundef_external with (initial_generator tt) g3 i3 
@@ -1100,7 +1202,6 @@ Admitted.
   end.
 Proof.*)
 
-(* Complete Me : Medium *)
 Lemma bsem_cexpr_list :
 forall m es tes vs cts ces g g' i, 
 bsem_expr_srvs bge benv m es vs ->

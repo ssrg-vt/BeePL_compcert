@@ -33,6 +33,12 @@ match v with
 | Vloc l ofs => true 
 end.
 
+Definition is_vint64 (v : value) : bool :=
+match v with 
+| Vint64 _ => true 
+| _ => false
+end.
+
 (* Pointer will be stores in a 64 bit value or 32 bit value *) 
 Definition default_attr (t : type) := {| attr_volatile := false;  
                                          attr_alignas := (attr_alignas (attr_of_type t)) |}.
@@ -138,7 +144,17 @@ match ef with
 | EF_external n sig => sig.(bsig_ef)
 end.
 
-Definition befuntion_to_cefunction (bef : external_function) : mon AST.external_function :=
+Definition get_rt_eapp (ef : external_function) : type :=
+match ef with 
+| EF_external n sig => sig.(bsig_res)
+end.
+
+Definition get_at_eapp (ef : external_function) : list type :=
+match ef with 
+| EF_external n sig => sig.(bsig_args)
+end.
+
+Definition befunction_to_cefunction (bef : external_function) : mon AST.external_function :=
 match bef with 
 | EF_external n bsig => do aef <- bsig_to_csig bsig;
                         ret (AST.EF_external n aef)
@@ -148,7 +164,7 @@ end.
    but during evaluation the reductions on heap operations create heaps and use them. *)
 Inductive expr : Type :=
 | Val : value -> type -> expr                                           (* value *) (* rvalue *)
-| Var : ident -> type -> expr                                                   (* variable *) (* lvalue *)
+| Var : ident -> type -> expr                                           (* variable *) (* lvalue *)
 | Const : constant -> type -> expr                                      (* constant *) (* rvalue *)
 | App : expr -> list expr -> type -> expr                               (* function application *) (* rvalue *)
 | Prim : builtin -> list expr -> type -> expr                           (* primitive operations *)
@@ -803,7 +819,7 @@ Inductive bestep : state -> state -> Prop :=
 | step_external_fun : forall vm f ef ts es ty k e m vs t vres m' cef g g' i' bv,
                       (*leftcontext RV RV C ->*)
                       bsem_expr_srvs vm m es vs ->
-                      befuntion_to_cefunction ef g = Res cef g' i' ->
+                      befunction_to_cefunction ef g = Res cef g' i' ->
                       external_call cef ge (transBeePL_values_cvalues vs) m t vres m' ->
                       transC_val_bplvalue vres = OK bv ->
                       bestep (ExprState f (Eapp ef ts es ty) k e m)

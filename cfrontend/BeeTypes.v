@@ -1,6 +1,6 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL PeanoNat Coq.NArith.BinNat Ctypes Errors.
-Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps SimplExpr.
+Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps SimplExpr Coq.Strings.BinaryString.
 From mathcomp Require Import all_ssreflect. 
 
 Local Open Scope string_scope.
@@ -80,6 +80,12 @@ match t with
              end
 | _ => false
 end. 
+
+Definition is_funtype (t : type) : bool :=
+match t with 
+| Ftype ts ef t => true 
+| _ => false
+end.
 
 Definition is_primtype (t : type) : bool :=
 match t with 
@@ -162,6 +168,12 @@ Fixpoint sub_effect (efs1 efs2 : effect) : bool :=
 match efs1 with
 | nil => true
 | ef1 :: efs1 => if in_effect ef1 efs2 then sub_effect efs1 efs2  else false
+end.
+
+Fixpoint no_divergence (ef : effect) : bool :=
+match ef with 
+| nil => true 
+| ef :: efs => if eq_effect_label Divergence ef then false else no_divergence efs
 end.
 
 Definition eq_primitive_type (p1 p2 : primitive_type) : bool :=

@@ -2,7 +2,7 @@ Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Globalenvs Coqlib Memory. 
 Require Import Csyntax Csem SimplExpr Ctypes Memtype.
-Require Import BeePL_aux BeePL_mem BeeTypes BeePL BeePL_auxlemmas BeePL_sem Errors.
+Require Import BeePL_aux BeePL_mem BeeTypes BeePL BeePL_auxlemmas BeePL_sem Errors BeePL_typesystem.
 From mathcomp Require Import all_ssreflect.
 
 (** Safety conditions **)
@@ -191,26 +191,90 @@ Proof.
     split; auto.
 Qed.
 
-(**** Well formedness ****)
-(** Well-Typed Store **)
-(* A store st is well-typed with respect to a store typing context Sigma if the
-   term at each location l in vm has the type at location l in store typing context
-   and there exists a value in the memory at that location. *)
-(* It is more evolved due to two maps used in CompCert for retrieving data from the memory *)
-(* Since we only allow pointers through references, it is safe to say that if there exists a 
-   location in memory then it is also safe to deref that location *)
-(* Mem.valid_pointer ensures that the location l with ofset ofs is nonempty in memory m *)
-(*Definition store_well_typed (Sigma : store_context) (bge : genv) (vm : vmap) (m : Memory.mem) :=
-((forall l t, 
- exists l' ofs v, vm! l = Some(l', t) /\
-                  PTree.get l Sigma = Some t /\ 
-                  deref_addr bge t m l' ofs Full v) \/
-(forall l t, vm! l = None /\ 
-             exists l' ofs v, Genv.find_symbol bge l = Some l' /\ 
-                              deref_addr bge t m l' ofs Full v)) /\
-(forall l ofs h t a, PTree.get l Sigma = Some (Reftype h (Bprim t) a) ->
-                     exists v, deref_addr bge (Ptype t) m l ofs Full v /\  
-                               Mem.valid_pointer m l (Ptrofs.unsigned ofs)) /\
-(forall l ofs h t a v, PTree.get l Sigma = Some (Reftype h (Bprim t) a) ->
-                       exists bf m', assign_addr bge (Ptype t) m l ofs bf v m' v /\
-                                     Mem.valid_pointer m l (Ptrofs.unsigned ofs)).*)
+(* A well-typed uop always has a semantics that leads to a value. *)
+Lemma well_typed_safe_uop : forall Gamma Sigma bge vm v ef t uop m ct g i,
+type_expr Gamma Sigma (Prim (Uop uop) ((Val v t) :: nil) t) ef t ->
+transBeePL_type t g = Res ct g i ->
+interp_safe_conds (gen_safe_cond_expr (Val v t)) Sigma bge vm m ->
+exists v', Cop.sem_unary_operation uop (transBeePL_value_cvalue v) ct m = Some v'.
+Proof.
+move=> Gamma Sigma bge vm v ef t uop m ct g i htv. case: v htv=> //=. 
+(* unit *)
++ move=> htv. inversion htv; subst. inversion H8; subst.
+  rewrite /transBeePL_type /=. move=> [] hct hw; subst.
+  by case: uop htv=> //=.
+(* int *)
++ move=> i' hvt. inversion hvt; subst. inversion H8; subst. 
+  rewrite /transBeePL_type. move=> [] hct; subst.
+  case: uop hvt=> //=.
+  (* sem_notbool *)
+  + rewrite /Cop.sem_notbool /option_map /=. 
+    case hop: (Cop.bool_val (Values.Vint i') (Ctypes.Tint sz s a) m)=> [ vo | ] //=.
+    by exists (Values.Val.of_bool (~~ vo)).
+  move: hop. rewrite /Cop.bool_val /=. case hc: (Cop.classify_bool (Ctypes.Tint sz s a))=> //=.
+  + rewrite /Cop.classify_bool /= in hc. move: hc. by case: sz H4 H6 H7 H8=> //=.
+  + rewrite /Cop.classify_bool /= in hc. move: hc. by case: sz H4 H6 H7 H8=> //=.
+  + rewrite /Cop.classify_bool /= in hc. move: hc. by case: sz H4 H6 H7 H8=> //=.
+  rewrite /Cop.classify_bool /= in hc. move: hc. by case: sz H4 H6 H7 H8=> //=.
+  (* sem_notint *)
+  + rewrite /Cop.sem_notint /Cop.classify_notint. case: sz H4 H6 H7 H8=> //=.
+    + move=> hvt. by exists (Values.Vint (Int.not i')).
+    + move=> hvt. by exists  (Values.Vint (Int.not i')).
+    + case: s=> //=.
+      + by exists (Values.Vint (Int.not i')).
+      by exists (Values.Vint (Int.not i')).
+    by exists (Values.Vint (Int.not i')).
+  (* sem_neg *)
+  + rewrite /Cop.sem_neg /Cop.classify_neg. case: sz H4 H6 H7 H8=> //=.
+    + by exists (Values.Vint (Int.neg i')).
+    + by exists (Values.Vint (Int.neg i')).
+    + case: s=> //=. + by exists (Values.Vint (Int.neg i')).
+      by exists (Values.Vint (Int.neg i')).
+    by exists (Values.Vint (Int.neg i')).
+  (* sem_absfloat *)
+  + rewrite /Cop.sem_absfloat /Cop.classify_neg /=. case: sz H4 H6 H7 H8=> //=.
+    + by exists (Values.Vfloat (Floats.Float.abs (Floats.Float.of_int i'))).
+    + by exists (Values.Vfloat (Floats.Float.abs (Floats.Float.of_int i'))).
+    + case: s=> //=. + by exists (Values.Vfloat (Floats.Float.abs (Floats.Float.of_int i'))).
+      by exists (Values.Vfloat (Floats.Float.abs (Floats.Float.of_intu i'))).
+    by exists (Values.Vfloat (Floats.Float.abs (Floats.Float.of_int i'))).
+(* long *)
++ move=> i' hvt. inversion hvt; subst. inversion H8; subst. 
+  rewrite /transBeePL_type. move=> [] hct; subst.
+  case: uop hvt=> //=.
+  (* sem_notbool *)
+  + rewrite /Cop.sem_notbool /option_map /=. 
+    by exists (Values.Val.of_bool (~~ ~~ Int64.eq i' Int64.zero)).
+  (* sem_notint *)
+  + rewrite /Cop.sem_notint /Cop.classify_notint. by exists (Values.Vlong (Int64.not i')).
+  (* sem_neg *)
+  + rewrite /Cop.sem_neg /Cop.classify_neg. by exists (Values.Vlong (Int64.neg i')).
+  (* sem_absfloat *)
+  + rewrite /Cop.sem_absfloat /Cop.classify_neg /=. 
+    by exists (Values.Vfloat (Floats.Float.abs (Cop.cast_long_float s i'))).
+(* ptr *)
+move=> p ofs hvt. inversion hvt; subst. inversion H8; subst. case: uop hvt=> //=.
+Qed.
+
+
+(* Complete Me : Medium *) (* Hint : Follow similar proof style like well_typed_uop 
+(* A well-typed bop always has a semantics that leads to a value. *)
+Lemma well_typed_safe_bop : forall Gamma Sigma bge vm bcmp v1 v2 ef t bop m ct g i,
+type_expr Gamma Sigma (Prim (Bop bop) (Val v1 t:: Val v2 t :: nil) t) ef t ->
+transBeePL_type t g = Res ct g i ->
+interp_safe_conds (gen_safe_cond_expr (Prim (Bop bop) (Val v1 t:: Val v2 t :: nil) t)) Sigma bge vm m ->
+exists v', Cop.sem_binary_operation bcmp bop (transBeePL_value_cvalue v1) ct 
+                                             (transBeePL_value_cvalue v2) ct m = Some v'.
+Proof.
+Admitted.*)
+
+(* Complete Me : Medium 
+Lemma trans_value_bop_success : forall Gamma Sigma bge bcmp vm bop v1 v2 ef t ct g i m v', 
+type_expr Gamma Sigma (Prim (Bop bop) (Val v1 t:: Val v2 t :: nil) t) ef t ->
+transBeePL_type t g = Res ct g i ->
+interp_safe_conds (gen_safe_cond_expr (Prim (Bop bop) (Val v1 t:: Val v2 t :: nil) t)) Sigma bge vm m ->
+Cop.sem_binary_operation bcmp bop (transBeePL_value_cvalue v1) ct 
+                                  (transBeePL_value_cvalue v2) ct m = Some v' ->
+exists v'', transC_val_bplvalue v' = OK v''.
+Proof.
+Admitted.*)
