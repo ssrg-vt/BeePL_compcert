@@ -449,6 +449,49 @@ destruct t as [p | h bt a | ts ef t].
 + apply IH.
 Qed.
 
+Lemma transBeePL_type_typelist_ind_mut:
+  forall (Pt : BeeTypes.type -> Prop) (Pts : list BeeTypes.type -> Prop),
+    (forall (t : primitive_type), Pt (Ptype t)) ->
+    (forall (h : ident) (bt : basic_type) (a : attr), Pt (Reftype h bt a)) ->
+    (forall (ts : list BeeTypes.type) (ef : effect) (t : BeeTypes.type),
+      Pts ts -> Pt t -> Pt (Ftype ts ef t)) ->
+    (Pts nil) ->
+    (forall (t : BeeTypes.type) (ts : list BeeTypes.type),
+      Pt t -> Pts ts -> Pts (t :: ts)) ->
+    (forall t, Pt t) /\ (forall ts, Pts ts).
+Proof.
+  intros Pt Pts Hprim Href Hfun Hnil Hcons.
+  assert (forall t, Pt t) as Htype.
+  { apply transBeePL_type_ind; auto.
+    intros ts ef t Hforall HPt.
+    apply Hfun; auto.
+    induction ts as [|t' ts' IH].
+    - assumption.
+    - apply Hcons.
+      + apply Forall_inv in Hforall. assumption.
+      + apply IH. apply Forall_inv_tail in Hforall. assumption.
+  }
+  assert (forall ts, Pts ts) as Htypes.
+  { induction ts as [|t ts' IH].
+    - assumption.
+    - apply Hcons; auto.
+  }
+  split; assumption.
+Qed.
+
+Lemma transBeePL_types_length : forall ts cts g g' i,
+  transBeePL_types transBeePL_type ts g = Res cts g' i ->
+  length ts = length (from_typelist cts).
+Proof.
+  induction ts; intros.
+  - inversion H. subst. reflexivity.
+  - simpl in H. unfold SimplExpr.bind in H.
+    destruct (transBeePL_type a g) as [|ct g1 i1] eqn:Ha; try discriminate.
+    destruct (transBeePL_types transBeePL_type ts g1) as [|cts' g2 i2] eqn:Hts; try discriminate.
+    injection H as H; subst.
+    simpl. f_equal. eapply IHts. apply Hts.
+Qed.
+
 (* Typing context *)
 Definition ty_context := PTree.t type.
 

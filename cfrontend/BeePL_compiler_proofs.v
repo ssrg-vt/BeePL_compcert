@@ -1,8 +1,9 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx FunInd.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Linking.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Linking Ctypes Smallstep SimplExpr.
-Require Import BeePL_aux BeePL_mem BeeTypes BeePL Csyntax Csem Clight Globalenvs BeePL_Csyntax SimplExpr.
+Require Import BeePL_aux BeePL_mem BeeTypes BeePL BeePL_typesystem Csyntax Csem Clight Globalenvs BeePL_Csyntax SimplExpr.
 Require Import Initializersproof Cstrategy BeePL_auxlemmas Coqlib Errors.
+
 
 From mathcomp Require Import all_ssreflect. 
 
@@ -86,7 +87,7 @@ Inductive sim_bexpr_cexpr : vmap -> BeePL.expr -> Csyntax.expr -> Prop :=
 | sim_hexpr : forall le h e t, (* Fix me *)
               sim_bexpr_cexpr le (BeePL.Hexpr h e t) (Eval (Values.Vundef) Tvoid)
 | sim_eapp : forall le ef ts e t ce cts ce' ct g g' i' g'' i'' g''' i''',
-             befuntion_to_cefunction ef g = Res ce g' i' ->
+             befunction_to_cefunction ef g = Res ce g' i' ->
              transBeePL_types transBeePL_type ts g' = Res cts g'' i'' ->  
              transBeePL_type t g'' = Res ct g''' i''' ->
              sim_bexpr_cexpr le e ce' ->
@@ -217,7 +218,7 @@ Inductive sim_bexpr_cstmt : vmap -> BeePL.expr -> Csyntax.statement -> Prop :=
 | sim_hexpr_st : forall le h e t, (* Fix me *)
                  sim_bexpr_cstmt le (BeePL.Hexpr h e t) (Sdo (Eval (Values.Vundef) Tvoid))
 | sim_eapp_st : forall le ef ts e t ce cts ce' ct g g' i' g'' i'' g''' i''',
-                befuntion_to_cefunction ef g = Res ce g' i' ->
+                befunction_to_cefunction ef g = Res ce g' i' ->
                 transBeePL_types transBeePL_type ts g' = Res cts g'' i'' ->  
                 transBeePL_type t g'' = Res ct g''' i''' ->
                 sim_bexpr_cexpr le e ce' ->
@@ -344,7 +345,39 @@ rel_type bt ct) /\
 transBeePL_types transBeePL_type bts g = Res cts g' i ->
 rel_types bts cts).
 Proof.
-Admitted.
+  apply transBeePL_type_typelist_ind_mut with
+    (Pt := fun bt => forall ct g g' i,
+           transBeePL_type bt g = Res ct g' i ->
+           rel_type bt ct)
+    (Pts := fun bts => forall cts g g' i,
+           transBeePL_types transBeePL_type bts g = Res cts g' i ->
+           rel_types bts cts).
+  - intros. apply rel_pt. destruct t eqn:Hpt.
+    + injection H as H. subst. apply rel_tunit.
+    + injection H as H. subst. apply rel_tint.
+    + injection H as H. subst. apply rel_tlong.
+  - intros. inversion H. destruct bt; destruct p.
+    + injection H1 as H1. subst. apply rel_reftype. apply rel_bt. apply rel_tunit.
+    + injection H1 as H1. subst. apply rel_reftype. apply rel_bt. apply rel_tint.
+    + injection H1 as H1. subst. apply rel_reftype. apply rel_bt. apply rel_tlong.
+  - intros ts ef t IHts IHt ct g g' i H. inversion H.
+    unfold SimplExpr.bind in H1.
+    destruct (transBeePL_types transBeePL_type ts g) as [|ct' g'' i'] eqn:Htypes; try discriminate.
+    destruct (transBeePL_type t g'') as [|ct'' g''' i''] eqn:Htype; try discriminate.
+    injection H1 as H1. subst. apply rel_ftype.
+    + eapply IHts. apply Htypes.
+    + eapply IHt. apply Htype.
+    + eapply transBeePL_types_length. apply Htypes.
+  - intros. injection H as H. subst. apply rel_tnil.
+  - intros t ts IHt IHts cts g g' i H. inversion H.
+    unfold SimplExpr.bind in H1.
+    destruct (transBeePL_type t g) as [|ct g'' i'] eqn:Htype; try discriminate.
+    destruct (transBeePL_types transBeePL_type ts g'') as [|ct' g''' i''] eqn:Htypes; try discriminate.
+    injection H1 as H1. subst. apply rel_tcons.
+    + eapply IHt. apply Htype.
+    + eapply IHts. apply Htypes.
+Qed.
+
 
 Lemma transBeePL_type_int : forall t g g' i sz s a,
 transBeePL_type t g = Res (Ctypes.Tint sz s a) g' i ->
@@ -609,7 +642,7 @@ Proof.
   - admit.
   (* Eapp *)
   - unfold SimplExpr.bind in H.
-    destruct (befuntion_to_cefunction e g) as [| ce' g1 i1] eqn:Hfun; try discriminate.
+    destruct (befunction_to_cefunction e g) as [| ce' g1 i1] eqn:Hfun; try discriminate.
     destruct (transBeePL_types transBeePL_type l g1) as [| cts g2 i2] eqn:Htypes; try discriminate.
     destruct (transBeePL_type t g2) as [| ct g3 i3] eqn:Htype; try discriminate.
     destruct (transBeePL_expr_exprs transBeePL_expr_expr l0 g3) as [| ces g4 i4] eqn:Hexprs; try discriminate.

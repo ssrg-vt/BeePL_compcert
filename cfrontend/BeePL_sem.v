@@ -246,7 +246,7 @@ Context (Hbadr : forall vm m l ofs t,
                  Pb vm m (Addr l ofs t) m vm (Vloc l.(lname) ofs)).
 Context (Hbeapp : forall vm m es vm' m' m'' vs ef g cef g' i' vres bv ts ty t,
                    Pbs vm m es m' vm' vs ->
-                   befuntion_to_cefunction ef g = Res cef g' i' ->
+                   befunction_to_cefunction ef g = Res cef g' i' ->
                    external_call cef ge (transBeePL_values_cvalues vs) m' t vres m'' ->
                    transC_val_bplvalue vres = OK bv ->
                    Pb vm m (BeePL.Eapp ef ts es ty) m'' vm' bv).
@@ -547,7 +547,7 @@ Context (Hshexpr2 : forall vm m h bt a l ofs t,
                  Ps vm m (Hexpr m (Val (Vloc l ofs) (Reftype h (Bprim bt) a)) t) m vm (Val (Vloc l ofs) (Reftype h (Bprim bt) a))).
 Context (Hseapp : forall vm m es vm' m' m'' vs ef g cef g' i' vres bv ts ty t,
                   Pss vm m es m' vm' vs ->
-                  befuntion_to_cefunction ef g = Res cef g' i' ->
+                  befunction_to_cefunction ef g = Res cef g' i' ->
                   external_call cef ge (transBeePL_values_cvalues (extract_values_exprs vs)) m' t vres m'' ->
                   transC_val_bplvalue vres = OK bv ->
                   Ps vm m (BeePL.Eapp ef ts es ty) m'' vm' (Val bv ty)).

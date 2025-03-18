@@ -381,7 +381,7 @@ Proof.
   - constructor.
   - eapply ty_addr with (Gamma := extend_context Gamma0 x t1);
     eauto.
-  - constructor.
+  - constructor; eauto.
   - constructor; eauto.
 Admitted.
 
