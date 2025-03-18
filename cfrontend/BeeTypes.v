@@ -164,11 +164,21 @@ match efs with
 | ef' :: efs' => if eq_effect_label ef ef' then true else in_effect ef efs'
 end.
 
-Fixpoint sub_effect (efs1 efs2 : effect) : bool :=
+Fixpoint sub_effect (s1 s2 : effect) : bool :=
+if s1 is x :: s1' 
+then if s2 is y :: s2' 
+     then if eq_effect_label x y 
+          then sub_effect s1' s2'
+          else sub_effect s1 s2'
+     else false
+else true.
+
+
+(*Fixpoint sub_effect (efs1 efs2 : effect) : bool :=
 match efs1 with
 | nil => true
 | ef1 :: efs1 => if in_effect ef1 efs2 then sub_effect efs1 efs2  else false
-end.
+end.*)
 
 Fixpoint no_divergence (ef : effect) : bool :=
 match ef with 

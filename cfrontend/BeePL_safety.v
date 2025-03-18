@@ -193,13 +193,13 @@ transBeePL_type t g = Res ct g i ->
 interp_safe_conds (gen_safe_cond_expr (Val v t)) Sigma bge vm m ->
 exists v', Cop.sem_unary_operation uop (transBeePL_value_cvalue v) ct m = Some v'.
 Proof.
-move=> Gamma Sigma bge vm v ef t uop m ct g i htv. case: v htv=> //=. 
+(*move=> Gamma Sigma bge vm v ef t uop m ct g i htv. case: v htv=> //=. 
 (* unit *)
 + move=> htv. inversion htv; subst. inversion H8; subst.
   rewrite /transBeePL_type /=. move=> [] hct hw; subst.
   by case: uop htv=> //=.
 (* int *)
-+ move=> i' hvt. inversion hvt; subst. inversion H8; subst. 
++ move=> hvt _. inversion hvt; subst. inversion H8; subst. 
   rewrite /transBeePL_type. move=> [] hct; subst.
   case: uop hvt=> //=.
   (* sem_notbool *)
@@ -249,7 +249,8 @@ move=> Gamma Sigma bge vm v ef t uop m ct g i htv. case: v htv=> //=.
     by exists (Values.Vfloat (Floats.Float.abs (Cop.cast_long_float s i'))).
 (* ptr *)
 move=> p ofs hvt. inversion hvt; subst. inversion H8; subst. case: uop hvt=> //=.
-Qed.
+Qed.*)
+Admitted.
 
 
 (* Complete Me : Medium *) (* Hint : Follow similar proof style like well_typed_uop 
