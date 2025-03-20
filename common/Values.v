@@ -55,6 +55,16 @@ Definition Vnullptr :=
 Definition Vptrofs (n: ptrofs) :=
   if Archi.ptr64 then Vlong (Ptrofs.to_int64 n) else Vint (Ptrofs.to_int n).
 
+Definition is_vptr (v : val) : bool :=
+match v with 
+| Vundef => false
+| Vint i => false
+| Vlong l => false
+| Vfloat f => false
+| Vsingle f => false
+| Vptr b p => true 
+end.
+
 (** * Operations over values *)
 
 (** The module [Val] defines a number of arithmetic and logical operations
