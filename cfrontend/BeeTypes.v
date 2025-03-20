@@ -476,3 +476,24 @@ Definition empty_stcontext := (PTree.empty type).
 Definition extend_stcontext (Sigma : store_context) (k : ident) (t : type) := PTree.set k t Sigma. 
 
 
+
+(*** Auxillary lemmas related to types and effects ***)
+(* Complete Me: Easy *)
+Lemma sub_effect_refl : forall ef, 
+sub_effect ef ef = true.
+Proof.
+Admitted.
+
+(* Complete Me: Easy *)
+Lemma sub_effect_nil : forall ef, 
+sub_effect nil ef = true.
+Proof.
+Admitted.
+
+(* Complete Me: Easy *)
+Lemma sub_effect_trans : forall ef1 ef2 ef3, 
+sub_effect ef1 ef2 = true ->
+sub_effect ef2 ef3 = true ->
+sub_effect ef1 ef3 = true.
+Proof.
+Admitted.
