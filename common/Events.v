@@ -603,7 +603,7 @@ Definition extcall_sem : Type :=
   Senv.t -> list val -> mem -> trace -> val -> mem -> Prop.
 
 (*Definition extstore_well_typed : Type :=
-  PTree.t typ -> Senv.t -> vmap -> Memory.mem -> Prop. *)
+  PTree.t type -> Senv.t -> vmap -> Memory.mem -> Prop.*) 
 
 (** We now specify the expected properties of this predicate. *)
 

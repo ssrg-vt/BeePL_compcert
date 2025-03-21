@@ -28,7 +28,7 @@ else
 ARCHDIRS=$(ARCH)_$(BITSIZE) $(ARCH)
 endif
 
-DIRS := lib common $(ARCHDIRS) backend cfrontend driver export cparser
+DIRS := lib beepl common $(ARCHDIRS) backend cfrontend driver export cparser
 
 COQINCLUDES := $(foreach d, $(DIRS), -R $(d) compcert.$(d))
 
@@ -96,6 +96,9 @@ VLIB=Axioms.v Coqlib.v Intv.v Maps.v Heaps.v Lattice.v Ordered.v \
   Iteration.v Zbits.v Integers.v  Archi.v IEEE754_extra.v Floats.v \
   Parmov.v UnionFind.v Wfsimpl.v \
   Postorder.v FSetAVLplus.v IntvSets.v Decidableplus.v BoolEqual.v
+
+# Parts common to the BeePL
+BEEPL=BeeTypes.v BeePL_values.v 
 
 # Parts common to the front-ends and the back-end (in common/)
 
@@ -170,7 +173,7 @@ endif
 
 # All source files
 
-FILES=$(VLIB) $(COMMON) $(BACKEND) $(CFRONTEND) $(DRIVER) $(FLOCQ) \
+FILES=$(VLIB) $(BEEPL) $(COMMON) $(BACKEND) $(CFRONTEND) $(DRIVER) $(FLOCQ) \
   $(MENHIRLIB) $(PARSER) $(EXPORTLIB)
 
 # Generated source files
