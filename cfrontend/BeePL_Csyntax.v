@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx Coq.Strings.BinaryString.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Coq.Lists.List.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes Coqlib SimplExpr.
-Require Import BeePL_aux BeePL BeeTypes Csyntax Errors SimplExpr.
+Require Import BeePL_aux BeePL BeeTypes Csyntax Errors SimplExpr BeePL_values.
 
 Local Open Scope string_scope.
 Local Open Scope gensym_monad_scope.

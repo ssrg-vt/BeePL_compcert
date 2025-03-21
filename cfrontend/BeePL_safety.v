@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
-Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Globalenvs Coqlib Memory. 
-Require Import Csyntax Csem SimplExpr Ctypes Memtype.
+Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers Maps Globalenvs Coqlib Memory. 
+Require Import Csyntax Csem SimplExpr Ctypes Memtype BeePL_values.
 Require Import BeePL_aux BeePL_mem BeeTypes BeePL BeePL_auxlemmas BeePL_sem Errors BeePL_typesystem.
 From mathcomp Require Import all_ssreflect.
 

@@ -2,7 +2,7 @@ Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx FunI
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Linking.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Linking Ctypes Smallstep.
 Require Import Globalenvs Cop BeePL_aux BeePL_mem BeeTypes BeePL Csyntax.
-Require Import Initializersproof Cstrategy BeePL_auxlemmas Coqlib Errors SimplExpr Events.
+Require Import Initializersproof Cstrategy BeePL_auxlemmas Coqlib Errors SimplExpr Events BeePL_values.
 
 From mathcomp Require Import all_ssreflect. 
 
