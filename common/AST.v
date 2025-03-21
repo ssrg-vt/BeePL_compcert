@@ -42,6 +42,26 @@ Inductive typ : Type :=
   | Tany32              (**r any 32-bit value *)
   | Tany64.             (**r any 64-bit value, i.e. any value *)
 
+Inductive styp : Type :=
+  | Tint32                 (**r 32-bit integers *)
+  | Tfloat64               (**r 64-bit double-precision floats *)
+  | Tint64                 (**r 64-bit integers *)
+  | Tfloat32               (**r 32-bit single-precision floats *)
+  | Tany32s                 (**r any 32-bit value *)
+  | Tany64s                (**r any 64-bit value, i.e. any value *)
+  | Tpointer              (**r pointer **)
+  | Tfun                  (**r function **).
+
+Definition typ_to_styp (t : typ) : styp :=
+match t with 
+| Tint => Tint32
+| Tfloat => Tfloat64
+| Tlong => Tint64
+| Tsingle => Tfloat32
+| Tany32 => Tany32s
+| Tany64 => Tany64s
+end.
+
 Lemma typ_eq: forall (t1 t2: typ), {t1=t2} + {t1<>t2}.
 Proof. decide equality. Defined.
 Global Opaque typ_eq.
@@ -101,7 +121,30 @@ Inductive rettype : Type :=
   | Tint16unsigned                      (**r 16-bit unsigned integer *)
   | Tvoid.                              (**r no value returned *)
 
+Inductive srettype : Type :=
+  | Trets (t: styp)                       (**r like type [t] *)
+  | Tbools                               (**r Boolean value (0 or 1) *)
+  | Tint8signeds                         (**r 8-bit signed integer *)
+  | Tint8unsigneds                       (**r 8-bit unsigned integer *)
+  | Tint16signeds                        (**r 16-bit signed integer *)
+  | Tint16unsigneds                      (**r 16-bit unsigned integer *)
+  | Tvoids.                              (**r no value returned *)
+
 Coercion Tret: typ >-> rettype.
+
+Coercion Trets: styp >-> srettype.
+
+
+Definition rettype_to_srettype (r : rettype) : srettype :=
+  match r with 
+  | Tret t => Trets (typ_to_styp t)
+  | Tbool => Tbools
+  | Tint8signed => Tint8signeds
+  | Tint8unsigned => Tint8unsigneds
+  | Tint16signed => Tint16signeds
+  | Tint16unsigned => Tint16unsigneds
+  | Tvoid => Tvoids
+  end.
 
 Lemma rettype_eq: forall (t1 t2: rettype), {t1=t2} + {t1<>t2}.
 Proof. generalize typ_eq; decide equality. Defined.
@@ -112,6 +155,13 @@ Definition proj_rettype (r: rettype) : typ :=
   | Tret t => t
   | Tbool | Tint8signed | Tint8unsigned | Tint16signed | Tint16unsigned => Tint
   | Tvoid => Tint
+  end.
+
+Definition proj_srettype (r: srettype) : styp :=
+  match r with
+  | Trets t => t
+  | Tbools | Tint8signeds | Tint8unsigneds | Tint16signeds | Tint16unsigneds => Tint32
+  | Tvoids => Tint32
   end.
 
 (** Additionally, function definitions and function calls are annotated

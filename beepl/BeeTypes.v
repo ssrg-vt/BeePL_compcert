@@ -164,11 +164,21 @@ match efs with
 | ef' :: efs' => if eq_effect_label ef ef' then true else in_effect ef efs'
 end.
 
-Fixpoint sub_effect (efs1 efs2 : effect) : bool :=
+Fixpoint sub_effect (s1 s2 : effect) : bool := 
+if s1 is x :: s1' 
+then if s2 is y :: s2' 
+     then if eq_effect_label x y 
+          then sub_effect s1' s2'
+          else sub_effect s1 s2'
+     else false
+else true.
+
+
+(*Fixpoint sub_effect (efs1 efs2 : effect) : bool :=
 match efs1 with
 | nil => true
 | ef1 :: efs1 => if in_effect ef1 efs2 then sub_effect efs1 efs2  else false
-end.
+end.*)
 
 Fixpoint no_divergence (ef : effect) : bool :=
 match ef with 
@@ -509,3 +519,36 @@ Definition empty_stcontext := (PTree.empty type).
 Definition extend_stcontext (Sigma : store_context) (k : ident) (t : type) := PTree.set k t Sigma. 
 
 
+
+(*** Auxillary lemmas related to types and effects ***)
+(* Complete Me: Easy *)
+Lemma sub_effect_refl : forall ef, 
+sub_effect ef ef = true.
+Proof.
+Admitted.
+
+(* Complete Me: Easy *)
+Lemma sub_effect_nil : forall ef, 
+sub_effect nil ef = true.
+Proof.
+Admitted.
+
+(* Complete Me: Easy *)
+Lemma sub_effect_trans : forall ef1 ef2 ef3, 
+sub_effect ef1 ef2 = true ->
+sub_effect ef2 ef3 = true ->
+sub_effect ef1 ef3 = true.
+Proof.
+Admitted.
+
+(* Complete Me: Easy *)
+Lemma prefix_sub_effect : forall (ef1 ef2 : effect), 
+sub_effect ef1 (ef1 ++ ef2)%list = true.
+Proof. 
+Admitted.
+
+(* Complete Me: Easy *)
+Lemma suffix_sub_effect : forall (ef1 ef2 : effect), 
+sub_effect ef2 (ef1 ++ ef2)%list = true.
+Proof. 
+Admitted.

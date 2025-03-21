@@ -26,6 +26,7 @@ Require Import Values.
 Require Import Memory.
 Require Import Globalenvs.
 Require Import Builtins.
+Require Import Maps.
 
 (** Backwards compatibility for Hint Rewrite locality attributes. *)
 Set Warnings "-unsupported-attributes".
@@ -601,6 +602,9 @@ Inductive volatile_store (ge: Senv.t):
 Definition extcall_sem : Type :=
   Senv.t -> list val -> mem -> trace -> val -> mem -> Prop.
 
+(*Definition extstore_well_typed : Type :=
+  PTree.t type -> Senv.t -> vmap -> Memory.mem -> Prop.*) 
+
 (** We now specify the expected properties of this predicate. *)
 
 Definition loc_out_of_bounds (m: mem) (b: block) (ofs: Z) : Prop :=
@@ -621,6 +625,7 @@ Definition inject_separated (f f': meminj) (m1 m2: mem): Prop :=
   f b1 = None -> f' b1 = Some(b2, delta) ->
   ~Mem.valid_block m1 b1 /\ ~Mem.valid_block m2 b2.
 
+
 Record extcall_properties (sem: extcall_sem) (sg: signature) : Prop :=
   mk_extcall_properties {
 
@@ -629,6 +634,12 @@ Record extcall_properties (sem: extcall_sem) (sg: signature) : Prop :=
     forall ge vargs m1 t vres m2,
     sem ge vargs m1 t vres m2 ->
     Val.has_rettype vres sg.(sig_res);
+
+(** The return value of an external call in BeePL must agree with its signtaure. 
+  bec_well_typed:
+    forall ge vargs m1 t vres m2,
+    sem ge vargs m1 t vres m2 ->
+    Val.has_srettype vres (rettype_to_srettype sg.(sig_res)); **)
 
 (** The semantics is invariant under change of global environment that preserves symbols. *)
   ec_symbols_preserved:
@@ -707,6 +718,12 @@ Record extcall_properties (sem: extcall_sem) (sg: signature) : Prop :=
     forall ge vargs m t1 vres1 m1 t2 vres2 m2,
     sem ge vargs m t1 vres1 m1 -> sem ge vargs m t2 vres2 m2 ->
     match_traces ge t1 t2 /\ (t1 = t2 -> vres1 = vres2 /\ m1 = m2)
+
+(** External calls preserves the well formedness of the store/mem. 
+  ec_store_wellformed:
+    forall Gamma Sigma vm m m' ge vs t vres,
+    sem ge vs m t vres m' -> 
+    store_well_typed Sigma bge vm m'*)
 }.
 
 (** ** Semantics of volatile loads *)

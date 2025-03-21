@@ -55,6 +55,16 @@ Definition Vnullptr :=
 Definition Vptrofs (n: ptrofs) :=
   if Archi.ptr64 then Vlong (Ptrofs.to_int64 n) else Vint (Ptrofs.to_int n).
 
+Definition is_vptr (v : val) : bool :=
+match v with 
+| Vundef => false
+| Vint i => false
+| Vlong l => false
+| Vfloat f => false
+| Vsingle f => false
+| Vptr b p => true 
+end.
+
 (** * Operations over values *)
 
 (** The module [Val] defines a number of arithmetic and logical operations
@@ -90,12 +100,30 @@ Definition has_type (v: val) (t: typ) : Prop :=
   | _, _ => False
   end.
 
+Definition has_stype (v: val) (t: styp) : Prop :=
+  match v, t with 
+  | Vundef, _ => True
+  | Vint _, Tint32 => True 
+  | Vlong _, Tint64 => True
+  | Vfloat _, Tfloat64 => True 
+  | Vsingle _, Tfloat32 => True
+  | Vptr _ _, Tpointer => True 
+  | _, _ => False
+  end.
+
 Fixpoint has_type_list (vl: list val) (tl: list typ) {struct vl} : Prop :=
   match vl, tl with
   | nil, nil => True
   | v1 :: vs, t1 :: ts => has_type v1 t1 /\ has_type_list vs ts
   | _, _ => False
   end.
+
+Fixpoint has_stype_list (vl: list val) (tl: list styp) {struct vl} : Prop :=
+ match vl, tl with 
+ | nil, nil => True 
+ | v1 :: vs, t1 :: ts => has_stype v1 t1 /\ has_stype_list vs ts 
+ | _, _ => False
+end.
 
 Definition has_opttype (v: val) (ot: option typ) : Prop :=
   match ot with
@@ -161,6 +189,19 @@ Definition has_rettype (v: val) (r: rettype) : Prop :=
   | _, Vundef => True
   | _, _ => False
   end.
+
+
+Definition has_srettype (v : val) (t : srettype) : Prop :=
+ match t, v with 
+ | Trets t, _ => has_stype v t
+ | Tbools, Vint n => n = Int.zero \/ n = Int.one
+ | Tint8signeds, Vint n => n = Int.sign_ext 8 n
+ | Tint8unsigneds, Vint n => n = Int.zero_ext 8 n
+ | Tint16signeds, Vint n => n = Int.sign_ext 16 n
+ | Tint16unsigneds, Vint n => n = Int.zero_ext 16 n
+ | _, Vundef => True
+ | _, _ => False
+end.
 
 Lemma has_proj_rettype: forall v r,
   has_rettype v r -> has_type v (proj_rettype r).

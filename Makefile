@@ -28,7 +28,7 @@ else
 ARCHDIRS=$(ARCH)_$(BITSIZE) $(ARCH)
 endif
 
-DIRS := lib common $(ARCHDIRS) backend cfrontend driver export cparser
+DIRS := lib beepl common $(ARCHDIRS) backend cfrontend driver export cparser
 
 COQINCLUDES := $(foreach d, $(DIRS), -R $(d) compcert.$(d))
 
@@ -97,6 +97,10 @@ VLIB=Axioms.v Coqlib.v Intv.v Maps.v Heaps.v Lattice.v Ordered.v \
   Parmov.v UnionFind.v Wfsimpl.v \
   Postorder.v FSetAVLplus.v IntvSets.v Decidableplus.v BoolEqual.v
 
+# Parts common to the BeePL
+BEEPL=\
+      BeeTypes.v BeePL_values.v 
+
 # Parts common to the front-ends and the back-end (in common/)
 
 COMMON=Errors.v AST.v Linking.v \
@@ -136,7 +140,7 @@ BACKEND=\
 
 # C front-end modules (in cfrontend/)
 
-CFRONTEND=BeePL_mem.v BeePL_aux.v BeeTypes.v BeePL.v BeePL_auxlemmas.v BeePL_sem.v BeePL_typesystem.v BeePL_safety.v BeePL_typesystem_proofs.v BeePL_Csyntax.v BeePL_compiler_proofs.v Ctypes.v Cop.v Csyntax.v Csem.v Ctyping.v Cstrategy.v Cexec.v \
+CFRONTEND=BeePL_mem.v BeePL_aux.v BeePL.v BeePL_auxlemmas.v BeePL_sem.v BeePL_typesystem.v BeePL_safety.v BeePL_typesystem_proofs.v BeePL_Csyntax.v BeePL_compiler_proofs.v Ctypes.v Cop.v Csyntax.v Csem.v Ctyping.v Cstrategy.v Cexec.v \
   Initializers.v Initializersproof.v \
   SimplExpr.v SimplExprspec.v SimplExprproof.v \
   Clight.v ClightBigstep.v SimplLocals.v SimplLocalsproof.v \
@@ -170,7 +174,7 @@ endif
 
 # All source files
 
-FILES=$(VLIB) $(COMMON) $(BACKEND) $(CFRONTEND) $(DRIVER) $(FLOCQ) \
+FILES=$(VLIB) $(BEEPL) $(COMMON) $(BACKEND) $(CFRONTEND) $(DRIVER) $(FLOCQ) \
   $(MENHIRLIB) $(PARSER) $(EXPORTLIB)
 
 # Generated source files
