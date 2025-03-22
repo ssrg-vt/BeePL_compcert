@@ -525,13 +525,19 @@ Definition extend_stcontext (Sigma : store_context) (k : ident) (t : type) := PT
 Lemma sub_effect_refl : forall ef, 
 sub_effect ef ef = true.
 Proof.
+  induction ef.
+  - reflexivity.
+  - unfold sub_effect.
+    destruct (eq_effect_label a a).
+    + apply IHef.
+    + destruct a.
 Admitted.
+  
 
 (* Complete Me: Easy *)
 Lemma sub_effect_nil : forall ef, 
 sub_effect nil ef = true.
-Proof.
-Admitted.
+Proof. induction ef; auto. Qed.
 
 (* Complete Me: Easy *)
 Lemma sub_effect_trans : forall ef1 ef2 ef3, 
@@ -539,12 +545,24 @@ sub_effect ef1 ef2 = true ->
 sub_effect ef2 ef3 = true ->
 sub_effect ef1 ef3 = true.
 Proof.
+  intros ef1 ef2 ef3 H1.
+  generalize dependent ef3.
+  induction ef3; intros H2.
+  - induction ef2; auto.
+  - admit.
 Admitted.
 
 (* Complete Me: Easy *)
 Lemma prefix_sub_effect : forall (ef1 ef2 : effect), 
 sub_effect ef1 (ef1 ++ ef2)%list = true.
 Proof. 
+  induction ef1; intros.
+  - simpl. apply sub_effect_nil.
+  - destruct a; simpl.
+    + apply IHef1.
+    + apply IHef1.
+    + destruct ((i =? i)%positive).
+      * apply IHef1.
 Admitted.
 
 (* Complete Me: Easy *)
