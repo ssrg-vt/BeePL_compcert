@@ -358,5 +358,51 @@ with ssem_closures : genv -> vmap -> Memory.mem -> list BeePL.expr -> nat ->
                 ssem_closures bge vm m e (n + 1)%nat m'' vm'' e''.
 
           
+(**
+Reuse value domain 
+What we want to do with respect to function calls? **)
 
+(** int x = 3; 
+    for (i = 0; i < x + 2) {
+         body;  (** we should not decrement i **)
+    } **)
+(** verify at runtime if range is less than BPF_MAX_LOOPS **)
+
+(** Types for integer variables : (int, range-interval)
+    x + y 
+
+             Gamma |- x : (t, rx)    Gamma |- y : (t, ry)
+    -----------------------------------------------------------------
+      Gamma |- x + y : (t, ((min(rx) + min(ry), max(rx) + max(ry))))
+
+
+2+3 = 5
+
+2 --> {2}
+3 --> {3}
+2+3 --> {5}
+
+
+For var expr expr 
+
+     Gamma |- n : int, rn  Gamma, (Gamma |- i : int, rn) |- e : (t, r), Gamma' 
+                            Gamma' <= Gamma    
+   ---------------------------------------------------------------------------------
+   Gamma |- for (i = 0; i < n) e : (t
+
+
+l := 4; 
+
+|- l : ref, lr
+|- 4 : int, {4}
+{4} <= lr ***)
+
+
+(*int uid; ---> *int
+
+
+int x ----> int x *)
+
+
+(* ref 0 ---> uid = 0; &uid where uid is fresh var *)
 
