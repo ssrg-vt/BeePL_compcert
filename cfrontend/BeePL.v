@@ -84,6 +84,82 @@ match(e0, e1, x2, e2) --> v1
 match(e0, e1, x2, e2) --> v2 *)
 (* Use case for checking null derefencing *)
 
+Lemma expr_list_expr_ind_mut:
+  forall (Pe : BeePL.expr -> Prop) (Pl : list BeePL.expr -> Prop),
+    (* Expression constructors *)
+    (forall (v : value) (t : type), Pe (Val v t)) ->
+    (forall (x : ident) (t : type), Pe (Var x t)) ->
+    (forall (c : BeePL_values.constant) (t : type), Pe (Const c t)) ->
+    (forall (e : BeePL.expr) (es : list BeePL.expr) (t : type),
+      Pe e -> Pl es -> Pe (App e es t)) ->
+    (forall (b : builtin) (es : list BeePL.expr) (t : type),
+      Pl es -> Pe (Prim b es t)) ->
+    (forall (x : ident) (t : type) (e e' : BeePL.expr) (t' : type),
+      Pe e -> Pe e' -> Pe (Bind x t e e' t')) ->
+    (forall (e1 e2 e3 : BeePL.expr) (t : type),
+      Pe e1 -> Pe e2 -> Pe e3 -> Pe (Cond e1 e2 e3 t)) ->
+    (forall (t : type), Pe (Unit t)) ->
+    (forall (l : linfo) (ofs : ptrofs) (t : type), Pe (Addr l ofs t)) ->
+    (forall (m : Memory.mem) (e : BeePL.expr) (t : type),
+      Pe e -> Pe (Hexpr m e t)) ->
+    (forall (ef : external_function) (ts : list type) (es : list BeePL.expr) (t : type),
+      Pl es -> Pe (Eapp ef ts es t)) ->
+    (Pl nil) ->
+    (forall (e : BeePL.expr) (es : list BeePL.expr),
+      Pe e -> Pl es -> Pl (e :: es)) ->
+    (forall e, Pe e) /\ (forall es, Pl es).
+Proof.
+  intros Pe Pl HVal HVar HConst HApp HPrim HBind HCond HUnit HAddr HHexpr HEapp Hnil Hcons.
+  
+  (* Main proof strategy: induction on the structure of expressions and lists *)
+  assert (forall e, Pe e) as He.
+  { 
+    fix IHe 1.
+    intros e.
+    destruct e.
+    - apply HVal.
+    - apply HVar.
+    - apply HConst.
+    - apply HApp.
+      + apply IHe.
+      + apply (fix IHl (l : list BeePL.expr) : Pl l :=
+          match l with
+          | nil => Hnil
+          | e :: es => Hcons e es (IHe e) (IHl es)
+          end).
+    - apply HPrim.
+      apply (fix IHl (l : list BeePL.expr) : Pl l :=
+        match l with
+        | nil => Hnil
+        | e :: es => Hcons e es (IHe e) (IHl es)
+        end).
+    - apply HBind; apply IHe.
+    - apply HCond; apply IHe.
+    - apply HUnit.
+    - apply HAddr.
+    - apply HHexpr. apply IHe.
+    - apply HEapp.
+      apply (fix IHl (l : list BeePL.expr) : Pl l :=
+        match l with
+        | nil => Hnil
+        | e :: es => Hcons e es (IHe e) (IHl es)
+        end).
+  }
+  
+  assert (forall l, Pl l) as Hl.
+  {
+    fix IHl 1.
+    intros l.
+    destruct l.
+    - apply Hnil.
+    - apply Hcons.
+      + apply He.
+      + apply IHl.
+  }
+  
+  split; assumption.
+Qed.
+
 Definition is_value (e : expr) : bool :=
 match e with 
 | Val v t => true 
