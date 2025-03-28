@@ -188,30 +188,31 @@ Inductive sim_bexpr_cstmt : vmap -> BeePL.expr -> Csyntax.statement -> Prop :=
                                                                       (hd default_expr (exprlist_list_expr ces))
                                                                       (hd default_expr (tl (exprlist_list_expr ces)))
                                                                       ct))
-| sim_prim_run_st : forall le h t,
-                    sim_bexpr_cstmt le (BeePL.Prim (Run h) nil t) (Sdo (Eval (Values.Vundef) Tvoid)) (* Fix me *)
-| sim_bind_var_st : forall le x t e x' t' ct ct' rt ce ce' g g' i' g'' i'' g''' i''',
+| sim_prim_run_st : forall le es h t,
+                    sim_bexpr_cstmt le (BeePL.Prim (Run h) es t) (Sdo (Eval (Values.Vundef) Tvoid)) (* Fix me *)
+(* Added an extra t'' because of variable shadowing for this case in BeePL_Csyntax *)
+| sim_bind_var_st : forall le x t e x' t' ct ct' t'' rt ce ce' g g' i' g'' i'' g''' i''',
+                     sim_bexpr_cexpr le e ce ->
+                     sim_bexpr_cexpr le (Var x' t') ce' ->
                      transBeePL_type t g = Res ct g' i' ->
                      transBeePL_type t' g' = Res ct' g'' i'' ->
                      transBeePL_type (BeePL.typeof_expr (Var x' t')) g'' = Res rt g''' i''' ->
-                     sim_bexpr_cexpr le e ce ->
-                     sim_bexpr_cexpr le (Var x' t') ce' ->
-                     sim_bexpr_cstmt le (BeePL.Bind x t e (Var x' t') t') 
+                     sim_bexpr_cstmt le (BeePL.Bind x t e (Var x' t') t'') 
                                         (Csyntax.Ssequence (Sdo (Eassign (Csyntax.Evar x ct) ce Tvoid)) 
                                                           (Csyntax.Sreturn (Some (Evalof ce' rt))))
-| sim_bind_const_st : forall le x t e c ct ce ce' g g' i', 
+(* Added an extra t'' because of variable shadowing for this case in BeePL_Csyntax *)
+| sim_bind_const_st : forall le x t t' e c t'' ct ce ce' g g' i', 
                      transBeePL_type t g = Res ct g' i' ->
                      sim_bexpr_cexpr le e ce ->
                      sim_bexpr_cexpr le (Const c t) ce' ->
-                     sim_bexpr_cstmt le (BeePL.Bind x t e (Const c t) t) 
+                     sim_bexpr_cstmt le (BeePL.Bind x t' e (Const c t) t'') 
                                         (Csyntax.Ssequence (Sdo (Eassign (Csyntax.Evar x ct) ce Tvoid)) (Csyntax.Sreturn (Some ce')))
-| sim_bind_st : forall le x t e e' t' ct ct' ce ce' g g' g'' i' i'', (* Fix me *)
+| sim_bind_st : forall le x t e e' t' ct ce ce' g g' i', (* Fix me *)
                 transBeePL_type t g = Res ct g' i' ->
-                transBeePL_type t' g' = Res ct' g'' i'' ->
                 sim_bexpr_cexpr le e ce ->
                 sim_bexpr_cexpr le e' ce' ->
                 sim_bexpr_cstmt le (BeePL.Bind x t e e' t') 
-                                   (Csyntax.Ssequence (Sdo (Eassign (Csyntax.Evar x ct) ce Tvoid)) (Csyntax.Sreturn (Some (Evalof ce' ct'))))
+                                   (Csyntax.Ssequence (Sdo (Eassign (Csyntax.Evar x ct) ce Tvoid)) ((Sdo ce')))
 | sim_cond_vars_st : forall le e1 e2 e3 t ct ce1 ce2 ce3 g g' i',
                      transBeePL_type t g = Res ct g' i' ->
                      sim_bexpr_cexpr le e1 ce1 ->
@@ -221,24 +222,24 @@ Inductive sim_bexpr_cstmt : vmap -> BeePL.expr -> Csyntax.statement -> Prop :=
                      check_var_const e3 ->
                      sim_bexpr_cstmt le (BeePL.Cond e1 e2 e3 t) 
                                         (Csyntax.Sifthenelse ce1 (Csyntax.Sreturn (Some (Evalof ce2 ct))) (Csyntax.Sreturn (Some (Evalof ce3 ct))))
-| sim_cond_var1_st : forall le e1 e2 e3 t ct ce1 ce2 ce3,
-                     transBeePL_type t = ret ct ->
+| sim_cond_var1_st : forall le e1 e2 e3 t ct ce1 ce2 ce3 g g' i',
+                     transBeePL_type t g = Res ct g' i' ->
                      sim_bexpr_cexpr le e1 ce1 ->
                      sim_bexpr_cexpr le e2 ce2 ->
                      sim_bexpr_cexpr le e3 ce3 ->
                      check_var_const e2 ->
                      sim_bexpr_cstmt le (BeePL.Cond e1 e2 e3 t) 
                                         (Csyntax.Sifthenelse ce1 (Csyntax.Sreturn (Some (Evalof ce2 ct))) (Csyntax.Sdo ce3))
-| sim_cond_var2_st : forall le e1 e2 e3 t ct ce1 ce2 ce3,
-                     transBeePL_type t = ret ct ->
+| sim_cond_var2_st : forall le e1 e2 e3 t ct ce1 ce2 ce3 g g' i',
+                     transBeePL_type t g = Res ct g' i' ->
                      sim_bexpr_cexpr le e1 ce1 ->
                      sim_bexpr_cexpr le e2 ce2 ->
                      sim_bexpr_cexpr le e3 ce3 ->
                      check_var_const e3 ->
                      sim_bexpr_cstmt le (BeePL.Cond e1 e2 e3 t) 
-                                        (Csyntax.Sifthenelse ce1 (Csyntax.Sdo ce2) (Csyntax.Sreturn (Some (Evalof ce2 ct))))
-| sim_cond_st : forall le e1 e2 e3 t ct ce1 ce2 ce3,
-                transBeePL_type t = ret ct ->
+                                        (Csyntax.Sifthenelse ce1 (Csyntax.Sdo ce2) (Csyntax.Sreturn (Some (Evalof ce3 ct))))
+| sim_cond_st : forall le e1 e2 e3 t ct ce1 ce2 ce3 g g' i',
+                transBeePL_type t g = Res ct g' i' ->
                 sim_bexpr_cexpr le e1 ce1 ->
                 sim_bexpr_cexpr le e2 ce2 ->
                 sim_bexpr_cexpr le e3 ce3 ->
@@ -704,7 +705,7 @@ transBeePL_expr_st e g = Res ce g' i ->
 sim_bexpr_cstmt vm e ce.
 Proof.
   intro vm. 
-  destruct transBeePL_expr_expr_spec with (vm:=vm).
+  destruct transBeePL_expr_expr_spec with (vm:=vm) as [Hexprspec Hexprsspec].
   induction e; intros; simpl in H.
   (* Val *)
   - unfold SimplExpr.bind in H.
@@ -747,9 +748,6 @@ Proof.
     inversion Hret. subst cs.
     injection H as H; subst.
     eapply sim_app_st; eauto.
-    apply transBeePL_expr_expr_spec with (vm:=vm).
-    (* apply Hexprs. *)
-    admit. admit.
   (* Prim *)
   - destruct b; unfold SimplExpr.bind in H.
     (* Ref *)
@@ -761,16 +759,133 @@ Proof.
                                      ct)) g3) as [|cs g4 i4] eqn:Hret; try discriminate.
       inversion Hret. subst cs.
       injection H as H; subst.
-      (* eapply sim_prim_ref_st with (le:=vm) (ct:=ct) (ce:=(hd default_expr (exprlist_list_expr cexprs))); eauto. *)
-      admit.
-      (* Seems to be a mismatch in what the constructor expects *)
+      eapply sim_prim_ref_st with (le:=vm) (ct:=ct); eauto.
+    (* Deref *)
     + destruct (transBeePL_expr_exprs transBeePL_expr_expr l g) as [|cexprs g1 i1] eqn:Hexprs; try discriminate.
       destruct (transBeePL_type t g1) as [| ct g2 i2] eqn:Htype; try discriminate.
       destruct (ret (Csyntax.Sdo (Csyntax.Ederef (hd default_expr (exprlist_list_expr cexprs)) ct)) g2) as [|cs g3 i3] eqn:Hret; try discriminate.
       inversion Hret. subst cs.
       injection H as H; subst.
-      admit.
-  Admitted.
+      eapply sim_prim_deref_st with (le:=vm) (ct:=ct); eauto.
+    (* Massgn *)
+    + destruct (transBeePL_expr_exprs transBeePL_expr_expr l g) as [|cexprs g1 i1] eqn:Hexprs; try discriminate.
+      destruct (transBeePL_type t g1) as [| ct g2 i2] eqn:Htype; try discriminate.
+      destruct (ret (Csyntax.Sdo (Csyntax.Eassign
+                            (hd default_expr (exprlist_list_expr cexprs))
+                            (hd default_expr (tl (exprlist_list_expr cexprs))) ct)) g2) as [| cs g3 i3] eqn:Hret;
+                            try discriminate.
+      inversion Hret. subst cs.
+      inv H.
+      eapply sim_prim_massgn_st; eauto.
+    (* Uop *)
+    + destruct (transBeePL_expr_exprs transBeePL_expr_expr l g) as [|cexprs g1 i1] eqn:Hexprs; try discriminate.
+      destruct (transBeePL_type t g1) as [| ct g2 i2] eqn:Htype; try discriminate.
+      destruct (ret (Csyntax.Sdo (Csyntax.Eunop u
+                              (hd default_expr (exprlist_list_expr cexprs)) ct)) g2) as [| cs g3 i3] eqn:Hret;
+                              try discriminate.
+      inversion Hret. subst cs.
+      inv H.
+      eapply sim_prim_uop_st; eauto.
+    (* Bop *)
+    + destruct (transBeePL_expr_exprs transBeePL_expr_expr l g) as [|cexprs g1 i1] eqn:Hexprs; try discriminate.
+      destruct (transBeePL_type t g1) as [| ct g2 i2] eqn:Htype; try discriminate.
+      destruct (ret (Csyntax.Sdo (Csyntax.Ebinop b
+                                  (hd default_expr (exprlist_list_expr cexprs))
+                                  (hd default_expr (tl (exprlist_list_expr cexprs))) ct)) g2) as [| cs g3 i3] eqn:Hret;
+                                  try discriminate.
+      inversion Hret. subst cs.
+      inv H.
+      eapply sim_prim_bop_st; eauto.
+    (* Run: Fix me *)
+    + inv H.
+      eapply sim_prim_run_st.
+  (* Bind *)
+  - unfold SimplExpr.bind in H.
+    destruct e2 eqn:Ee2;
+    (* All cases except Const and Var *)
+    try (
+      destruct (transBeePL_type t g) as [| ct g1 i1'] eqn:Htype; try discriminate;
+      destruct (transBeePL_expr_expr e1 g1) as [| ce1 g2 i2] eqn:Hexpr; try discriminate;
+      destruct (transBeePL_expr_expr _ g2) as [| ce2 g3 i3] eqn:Hexpr'; try discriminate;
+      destruct (ret (Csyntax.Ssequence (Csyntax.Sdo (Csyntax.Eassign (Csyntax.Evar i ct) ce1 Tvoid)) (Csyntax.Sdo ce2)) g3) as [| cs g4 i4] eqn:Hret;
+      try discriminate;
+      inversion Hret; subst cs;
+      inv H;
+      eapply sim_bind_st; eauto
+    ).
+    (* e2 is Var *)
+    + destruct (transBeePL_expr_expr e1 g) as [| ce1 g1 i1'] eqn:Hexpr; try discriminate.
+      destruct (transBeePL_expr_expr (Var i1 t1) g1) as [| ce2 g2 i2] eqn:Hexpr'; try discriminate. 
+      destruct (transBeePL_type t g2) as [| ct1 g3 i3] eqn:Htype; try discriminate.
+      destruct (transBeePL_type t1 g3) as [| ct2 g4 i4] eqn:Htype'; try discriminate.
+      destruct (transBeePL_type (typeof_expr (Var i1 t1)) g4) as [| ct3 g5 i5] eqn:Htype''; try discriminate.
+      destruct (ret (Csyntax.Ssequence (Sdo (Eassign (Csyntax.Evar i ct1) ce1 Tvoid)) (Csyntax.Sreturn (Some (Evalof ce2 ct3)))) g5) as [| cs g6 i6] eqn:Hret;
+      try discriminate.
+      inversion Hret; subst cs.
+      inv H.
+      eapply sim_bind_var_st; eauto.
+    (* e2 is Const *) 
+    + destruct (transBeePL_type t1 g) as [| ct g1 i1] eqn:Htype; try discriminate.
+      destruct (transBeePL_expr_expr e1 g1) as [| ce1 g2 i2] eqn:Hexpr; try discriminate.
+      destruct (transBeePL_expr_expr (Const c t1) g2) as [| ce2 g3 i3] eqn:Hexpr'; try discriminate.
+      destruct (ret (Csyntax.Ssequence (Sdo (Eassign (Csyntax.Evar i ct) ce1 Tvoid)) (Csyntax.Sreturn (Some ce2))) g3) as [| cs g4 i4] eqn:Hret;
+      try discriminate.
+      inversion Hret. subst cs.
+      inv H.
+      eapply sim_bind_const_st; eauto.
+  (* Cond *)
+  - unfold SimplExpr.bind in H.
+    destruct (transBeePL_expr_expr e1 g) as [| ce1 g1 i1] eqn:Hexpr1; try discriminate.
+    destruct (transBeePL_expr_expr e2 g1) as [| ce2 g2 i2] eqn:Hexpr2; try discriminate.
+    destruct (transBeePL_expr_expr e3 g2) as [| ce3 g3 i3] eqn:Hexpr3; try discriminate.
+    destruct (transBeePL_type t g3) as [| ct g4 i4] eqn:Htype; try discriminate.
+    destruct (check_var_const e2) eqn:Hconst1; destruct (check_var_const e3) eqn:Hconst2.
+    + simpl in H.
+      inversion H.
+      subst.
+      eapply sim_cond_vars_st; eauto.
+    + simpl in H.
+      inversion H.
+      subst.
+      eapply sim_cond_var1_st; eauto.
+    + simpl in H.
+      inversion H.
+      subst.
+      eapply sim_cond_var2_st; eauto.
+    + simpl in H.
+      inversion H.
+      subst.
+      eapply sim_cond_st; eauto.
+  (* Unit *)
+  - unfold SimplExpr.bind in H.
+    destruct (transBeePL_type t g) as [| ct g1 i1] eqn:Htype; try discriminate.
+    destruct (ret (Csyntax.Sreturn (Some (Evalof (Eval (Values.Vint (Int.repr 0)) ct) ct))) g1) as [| cs g2 i2] eqn:Hret;
+    try discriminate.
+    inversion Hret. subst cs.
+    inv H.
+    eapply sim_unit_st; eauto.
+  (* Addr *)
+  - unfold SimplExpr.bind in H.
+    destruct (transBeePL_type t g) as [| ct g1 i1] eqn:Htype; try discriminate. 
+    destruct (ret (Sdo (Eloc (lname l) i (lbitfield l) ct)) g1) as [| cs g2 i2] eqn:Hret;
+    try discriminate.
+    inversion Hret. subst cs.
+    inv H.
+    eapply sim_addr_st; eauto.
+  (* Hexpr: Fix me *)
+  - inv H.
+    eapply sim_hexpr_st; eauto.
+  (* Eapp *)
+  - unfold SimplExpr.bind in H.
+    destruct (befunction_to_cefunction e g) as [| cf g1 i1] eqn:Hfunc; try discriminate.
+    destruct (transBeePL_types transBeePL_type l g1) as [| cts g2 i2] eqn:Htypes; try discriminate.
+    destruct (transBeePL_type t g2) as [| ct g3 i3] eqn:Htype; try discriminate.
+    destruct (transBeePL_expr_exprs transBeePL_expr_expr l0 g3) as [| ces g4 i4] eqn:Hexprs; try discriminate.
+    destruct (ret (Sdo (Ebuiltin cf cts ces ct)) g4) as [| cs g5 i5] eqn:Hret; try discriminate.
+    inversion Hret. subst cs.
+    inv H.
+    eapply sim_eapp_st; eauto.
+Qed.
 
 
 (* Relates global variables of BeePL and Csyntax *)
