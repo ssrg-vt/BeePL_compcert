@@ -37,3 +37,17 @@ mailing list.
 
 For inquiries on the commercial version of CompCert, please contact
 info@absint.com
+
+
+## BeePL
+
+To run a BeePL program run CompCert with a file that ends in `.b`. 
+```
+./ccomp ~/test.b
+```
+The contents of the file do not matter. The `.b` suffix tells the driver to call 
+`process_b_file` which in turn calls `compile_b_file`. The program compiled is
+hard coded in `compile_b_file` and passed to `transf_beepl_program_csyntax`.
+
+
+To pretty print csyntax: `./ccomp ~/test.b -dc`

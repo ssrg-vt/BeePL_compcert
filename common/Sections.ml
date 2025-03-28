@@ -39,6 +39,32 @@ type section_name =
   | Section_debug_str
   | Section_ais_annotation
 
+(* Convert a single section_name to a string *)
+let section_name_to_string = function
+  | Section_text -> "text"
+  | Section_data _ -> "data"
+  | Section_small_data _ -> "small_data"
+  | Section_const _ -> "const"
+  | Section_small_const _ -> "small_const"
+  | Section_string size -> Printf.sprintf "string(%d)" size
+  | Section_literal size -> Printf.sprintf "literal(%d)" size
+  | Section_jumptable -> "jumptable"
+  | Section_user (name, writable, executable) ->
+      Printf.sprintf "user(%s, writable=%b, executable=%b)" name writable executable
+  | Section_debug_abbrev -> "debug_abbrev"
+  | Section_debug_info _ -> "debug_info"
+  | Section_debug_loc -> "debug_loc"
+  | Section_debug_line _ -> "debug_line"
+  | Section_debug_ranges -> "debug_ranges"
+  | Section_debug_str -> "debug_str"
+  | Section_ais_annotation -> "ais_annotation"
+
+(* Convert a list of sections into a comma-separated string *)
+let sections_list_to_string sections =
+  match sections with
+  | [] -> "None"
+  | _ -> String.concat ", " (List.map section_name_to_string sections)
+
 let with_size sz = function
   | Section_string prev -> assert (prev = 0); Section_string sz
   | Section_literal prev -> assert (prev = 0); Section_literal sz

@@ -285,6 +285,12 @@ let string_of_atom = (Hashtbl.create 17 : (atom, string) Hashtbl.t)
 let next_atom = ref Coq_xH
 let use_canonical_atoms = ref false
 
+let print_atom_of_string () =
+  Printf.printf "Contents of atom_of_string:\n";
+  Hashtbl.iter (fun name atom ->
+    Printf.printf "  %s -> %d\n%!" name (P.to_int atom)
+  ) atom_of_string
+
 (* If [use_canonical_atoms] is false, strings are numbered from 1 up
    in the order in which they are encountered.  This produces small
    numbers, and is therefore efficient, but the number for a given
