@@ -45,6 +45,51 @@ type atom_info =
 
 let decl_atom : (AST.ident, atom_info) Hashtbl.t = Hashtbl.create 103
 
+let print_atom_info () =
+  Hashtbl.iter (fun (id: AST.ident) (info: atom_info) ->
+    let storage_str = match info.a_storage with
+      | C.Storage_default -> "default"
+      | C.Storage_extern -> "extern"
+      | C.Storage_static -> "static"
+      | C.Storage_auto -> "auto"
+      | C.Storage_register -> "register"
+    in
+    let size_str = match info.a_size with
+      | Some size -> Int64.to_string size
+      | None -> "Unknown"
+    in
+    let alignment_str = match info.a_alignment with
+      | Some alignment -> string_of_int alignment
+      | None -> "Unknown"
+    in
+    let sections_str = Sections.sections_list_to_string info.a_sections in
+    let access_str = match info.a_access with
+      | Sections.Access_default -> "default"
+      | Sections.Access_near -> "near"
+      | Sections.Access_far -> "far"
+    in
+    let inline_str = match info.a_inline with
+      | No_specifier -> "No specifier"
+      | Noinline -> "Noinline"
+      | Inline -> "Inline"
+    in
+    let filename, line_number = info.a_loc in
+    
+    (* Improved multi-line formatting *)
+    Printf.printf
+      "Ident: %d\n\
+       ├─ Storage:    %s\n\
+       ├─ Size:       %s\n\
+       ├─ Alignment:  %s\n\
+       ├─ Sections:   [%s]\n\
+       ├─ Access:     %s\n\
+       ├─ Inline:     %s\n\
+       └─ Location:   %s:%d\n\n"
+      (Camlcoq.P.to_int id) storage_str size_str alignment_str
+      sections_str access_str inline_str filename line_number
+  ) decl_atom
+;;
+
 let atom_is_static a =
   try
     (Hashtbl.find decl_atom a).a_storage = C.Storage_static

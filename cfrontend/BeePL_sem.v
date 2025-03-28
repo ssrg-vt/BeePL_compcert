@@ -280,6 +280,14 @@ match es with
 | e :: es => extract_value_expr e ++ extract_values_exprs es 
 end.
 
+Definition check_for_zero (v : value) : bool :=
+match v with
+| Vunit => true (* as we translate unit to produce 0 in C *)
+| Vint i => if (Int.eq i Int.zero) then true else false
+| Vint64 i => if (Int64.eq i Int64.zero) then true else false
+| Vloc p ofs => false
+end.
+
 Section Small_Step_Semantics.
 
 Variable (ge : genv).
@@ -375,6 +383,13 @@ Inductive ssem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
                              (Prim (Bop bop) (Val v1 t1 :: e2' :: nil) t1)
 | ssem_bop3 : forall cenv vm m v1 v2 bop t v ct v' g g' i,
               transBeePL_type t g = Res ct g' i ->
+              (*rv = if (check_for_zero v2 && is_primint t) 
+                   then Val (Vint (Int.repr 0)) t 
+                   else if (check_for_zero v2 && is_primlong t) 
+                        then Val (Vint64 (Int64.repr 0)) t
+                        else if (check_for_zero v2 && is_primunit t) 
+                        then Val (Vint64 (Int64.repr 0)) t (* not good result: 32/64 bit? *) 
+                        else *)
               sem_binary_operation cenv bop (transBeePL_value_cvalue v1) ct 
                                             (transBeePL_value_cvalue v2) ct m = Some v ->
               transC_val_bplvalue v = OK v' ->

@@ -53,8 +53,9 @@ let compile_c_file sourcename ifile ofile =
   set_dest PrintLTL.destination option_dltl ".ltl";
   set_dest PrintMach.destination option_dmach ".mach";
   set_dest AsmToJSON.destination option_sdump !sdump_suffix;
-  (* Parse the ast *)
+  (* Parse C file *)
   let csyntax = parse_c_file sourcename ifile in
+
   (* Convert to Asm *)
   let asm =
     match Compiler.apply_partial
@@ -63,8 +64,73 @@ let compile_c_file sourcename ifile ofile =
     | Errors.OK asm ->
         asm
     | Errors.Error msg ->
-      let loc = file_loc sourcename in
-        fatal_error loc "%a"  print_error msg in
+        let loc = file_loc sourcename in
+        fatal_error loc "error during transf_c_program: %a"  print_error msg in
+  (* Dump Asm in binary and JSON format *)
+  AsmToJSON.print_if asm sourcename;
+  (* Print Asm in text form *)
+  let oc = open_out ofile in
+  PrintAsm.print_program oc asm;
+  close_out oc
+
+(* TODO: remove duplicate code from compile_c_file and compile_b_file *)
+let compile_b_file sourcename ofile =
+  (* Prepare to dump Clight, RTL, etc, if requested *)
+  let set_dest dst opt ext =
+    dst := if !opt then Some (output_filename sourcename ~suffix:ext)
+      else None in
+  set_dest Cprint.destination option_dparse ".parsed.c";
+  set_dest PrintCsyntax.destination option_dcmedium ".compcert.c";
+  set_dest PrintClight.destination option_dclight ".light.c";
+  set_dest PrintCminor.destination option_dcminor ".cm";
+  set_dest PrintCminorSel.destination option_dcminorsel ".cms";
+  set_dest PrintRTL.destination option_drtl ".rtl";
+  set_dest Regalloc.destination_alloctrace option_dalloctrace ".alloctrace";
+  set_dest PrintLTL.destination option_dltl ".ltl";
+  set_dest PrintMach.destination option_dmach ".mach";
+  set_dest AsmToJSON.destination option_sdump !sdump_suffix;
+
+  (* All references to variable and function names in CSyntax are a numeric 
+   * identifier (refered to as atom). CompCert looks up names in string_of_atom 
+   * whenever it needs to. This will look different once the lexer and parser is 
+   * implemented but for now define the mapping manually *)
+  List.iter (fun (id, charlist) ->
+    (* Coq extracts string to char list so concatenate chars to recreate string *)
+    let s : string = String.concat "" (List.map (String.make 1) charlist) in
+    Hashtbl.add Camlcoq.string_of_atom id s;
+    Hashtbl.add Camlcoq.atom_of_string s id;
+  ) BeePL_add_prog.example1_atom_of_string;
+
+  (* Parse BeePL AST *)
+  let beepl_csyntax = Compiler.transf_beepl_program_csyntax BeePL_add_prog.example1 in
+  let csyntax =
+    match beepl_csyntax with
+    | Errors.OK program -> program
+    | Errors.Error msg ->
+        let loc = file_loc sourcename in
+        fatal_error loc "error during transf_beepl_program_csyntax: %a" print_error msg
+  in
+  (* The BeePL compiler does not add the helper functions so that must be done here *)
+  let gl = C2C.add_helper_functions csyntax.Ctypes.prog_defs in 
+  let updated_csyntax = {csyntax with 
+    Ctypes.prog_defs = gl; 
+    Ctypes.prog_public = C2C.public_globals gl} in
+  (* print_program_defs updated_csyntax; *)
+  PrintCsyntax.print_if updated_csyntax;
+  
+  (* C2C.print_atom_info (); *)
+  (* Camlcoq.print_atom_of_string (); *)
+  
+  (* Convert to Asm *)
+  let asm =
+    match Compiler.apply_partial
+               (Compiler.transf_c_program updated_csyntax)
+               Asmexpand.expand_program with
+    | Errors.OK asm ->
+        asm
+    | Errors.Error msg ->
+        let loc = file_loc sourcename in
+        fatal_error loc "error during transf_c_program: %a"  print_error msg in
   (* Dump Asm in binary and JSON format *)
   AsmToJSON.print_if asm sourcename;
   (* Print Asm in text form *)
@@ -147,6 +213,16 @@ let process_h_file sourcename =
     ""
   end else
     fatal_error no_loc "input file %s ignored (not in -E mode)\n" sourcename
+
+let process_b_file sourcename =
+  let asmname =
+    if !option_dasm
+    then output_filename sourcename ~suffix:".s"
+    else tmp_file ".s" in
+  compile_b_file sourcename asmname;
+  let objname = object_filename sourcename in
+  assemble asmname objname;
+  objname
 
 let target_help =
   if Configuration.arch = "arm" && Configuration.model <> "armv6" then
@@ -380,6 +456,8 @@ let cmdline_actions =
   Prefix "-", Self (fun s ->
       fatal_error no_loc "Unknown option `%s'" s);
 (* File arguments *)
+  Suffix ".b", Self (fun s ->
+      push_action process_b_file s; incr num_source_files; incr num_input_files);
   Suffix ".c", Self (fun s ->
       push_action process_c_file s; incr num_source_files; incr num_input_files);
   Suffix ".i", Self (fun s ->

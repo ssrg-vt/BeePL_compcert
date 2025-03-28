@@ -32,6 +32,9 @@ DIRS := lib beepl common $(ARCHDIRS) backend cfrontend driver export cparser
 
 COQINCLUDES := $(foreach d, $(DIRS), -R $(d) compcert.$(d))
 
+DIRS += compiler_test/beepl_test
+COQINCLUDES += -R compiler_test/beepl_test BeePL_Progs
+
 ifeq ($(LIBRARY_FLOCQ),local)
 DIRS += flocq/Core flocq/Prop flocq/Calc flocq/IEEE754
 COQINCLUDES += -R flocq Flocq
@@ -99,7 +102,7 @@ VLIB=Axioms.v Coqlib.v Intv.v Maps.v Heaps.v Lattice.v Ordered.v \
 
 # Parts common to the BeePL
 BEEPL=\
-      BeeTypes.v BeePL_values.v 
+      BeeTypes.v BeePL_values.v BeePL_add_prog.v 
 
 # Parts common to the front-ends and the back-end (in common/)
 
@@ -169,6 +172,7 @@ DRIVER=Compopts.v Compiler.v Complements.v
 ifeq ($(CLIGHTGEN),true)
 EXPORTLIB=Ctypesdefs.v Clightdefs.v Csyntaxdefs.v
 else
+# Include EXPORTLIB files in ccomp for BeePL compiler
 EXPORTLIB=Ctypesdefs.v Clightdefs.v Csyntaxdefs.v
 endif
 

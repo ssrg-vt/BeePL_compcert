@@ -93,6 +93,35 @@ match t with
 | _ => false
 end.
 
+Definition is_primint (t : type) : bool :=
+match t with 
+| Ptype p => match p with 
+             | Tunit => false
+             | Tint _ _ _ => true 
+             | Tlong _ _ => false
+             end
+| _ => false
+end.
+
+Definition is_primlong (t : type) : bool :=
+match t with 
+| Ptype p => match p with 
+             | Tunit => false
+             | Tint _ _ _ => false 
+             | Tlong _ _ => true
+             end
+| _ => false
+end.
+
+Definition is_primunit (t : type) : bool :=
+match t with 
+| Ptype p => match p with 
+             | Tunit => true 
+             | _ => false
+             end
+| _ => false
+end.
+
 Definition is_primtype_notunit (t : type) : Prop :=
 is_primtype t /\ (not (is_unittype t)).
      
