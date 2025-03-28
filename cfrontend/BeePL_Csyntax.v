@@ -111,7 +111,7 @@ match e with
 end.
 
 
-Definition transBeePL_expr_st (e : BeePL.expr) : mon Csyntax.statement :=
+Fixpoint transBeePL_expr_st (e : BeePL.expr) : mon Csyntax.statement :=
 match e with 
 | Val v t => do vt <- (transBeePL_type t);
              ret (Sreturn (Some (Eval (transBeePL_value_cvalue v) vt))) 
@@ -162,34 +162,35 @@ match e with
 | Bind x t e e' t' => match e' with 
                       (* no side-effect case *)
                       | Var x' t' => do ce <- (transBeePL_expr_expr e);
-                                     do ce' <- (transBeePL_expr_expr e'); 
+                                     do ce' <- (transBeePL_expr_st e'); 
                                      do ct <- (transBeePL_type t);
                                      do ct' <- (transBeePL_type t');
                                      do rt <- (transBeePL_type (BeePL.typeof_expr (e')));
                                      ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid))
-                                                 (Sreturn (Some (Evalof ce' rt))))
+                                                    (ce'))
                       | Const c t => do ct <- (transBeePL_type t); 
                                      do ce <- (transBeePL_expr_expr e);
-                                     do ce' <- (transBeePL_expr_expr e');
+                                     do ce' <- (transBeePL_expr_st e');
                                      ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
-                                                   (Sreturn (Some ce')))
+                                                    ce')
                       (* can produce side-effects *)
                       | _ => do ct <- (transBeePL_type t);
                              do ce <- (transBeePL_expr_expr e);
-                             do ce' <- (transBeePL_expr_expr e');
+                             do ce' <- (transBeePL_expr_st e');
                              ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
-                                            (Sdo ce'))
+                                            (ce'))
                     end
 | Cond e e' e'' t' => do ce <- (transBeePL_expr_expr e);
-                      do ce' <- (transBeePL_expr_expr e');
-                      do ce'' <- (transBeePL_expr_expr e'');
+                      do ce' <- (transBeePL_expr_st e');
+                      do ce'' <- (transBeePL_expr_st e'');
                       do ct' <- (transBeePL_type t');
-                      if (check_var_const e' && check_var_const e'') (* check for expressions with side-effects *)
-                      then ret (Sifthenelse ce (Sreturn (Some (Evalof ce' ct'))) (Sreturn (Some (Evalof ce'' ct'))))
-                      else if (check_var_const e') then ret (Sifthenelse ce (Sreturn (Some (Evalof ce' ct'))) (Sdo ce''))
+                      ret (Sifthenelse ce ce' ce'')
+                      (*if (check_var_const e' && check_var_const e'') (* check for expressions with side-effects *)
+                      then ret (Sifthenelse ce ce' ce'')
+                      else if (check_var_const e') then ret (Sifthenelse ce ce' ce'')
                                                    else if (check_var_const e'') 
-                                                        then ret (Sifthenelse ce (Sdo ce') (Sreturn (Some (Evalof ce'' ct'))))
-                                                        else ret (Sifthenelse ce (Sdo ce') (Sdo ce''))
+                                                        then ret (Sifthenelse ce ce' (Sreturn (Some (Evalof ce'' ct'))))
+                                                        else ret (Sifthenelse ce ce' (Sdo ce''))*)
 | Unit t=> do ct <- (transBeePL_type t);
            ret (Sreturn (Some (Evalof (Eval (transBeePL_value_cvalue Vunit) ct) ct))) (* Fix me *)
 | Addr l ofs t => do ct <- (transBeePL_type t);
