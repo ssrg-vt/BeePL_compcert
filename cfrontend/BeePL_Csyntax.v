@@ -110,7 +110,6 @@ match e with
 | _ => false
 end.
 
-
 Fixpoint transBeePL_expr_st (e : BeePL.expr) : mon Csyntax.statement :=
 match e with 
 | Val v t => do vt <- (transBeePL_type t);
@@ -192,7 +191,7 @@ match e with
                                                         then ret (Sifthenelse ce ce' (Sreturn (Some (Evalof ce'' ct'))))
                                                         else ret (Sifthenelse ce ce' (Sdo ce''))*)
 | Unit t=> do ct <- (transBeePL_type t);
-           ret (Sreturn (Some (Evalof (Eval (transBeePL_value_cvalue Vunit) ct) ct))) (* Fix me *)
+           ret (Sreturn (Some (Eval (Values.Vint (Int.repr 0)) (Ctypes.Tint I32 Unsigned noattr)))) (* In case of unit, we return 0 *)
 | Addr l ofs t => do ct <- (transBeePL_type t);
                   ret (Sdo (Eloc l.(lname) ofs l.(lbitfield) ct))                    
 | Hexpr h e t => ret (Sdo (Eval (Values.Vundef) Tvoid)) (* FIX ME *)

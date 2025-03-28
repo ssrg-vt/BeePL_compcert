@@ -47,7 +47,7 @@ Definition f_main_atom_of_string : list (ident * string) := ((_x, "x") ::
                                                              (_r, "r") :: 
                                                              (_main, "main") :: nil).
 
-Definition f_main : BeePL.function := {| 
+Definition f_bind : BeePL.function := {| 
                                    fn_return := (Ptype (BeeTypes.Tint I32 Signed dattr));
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
@@ -77,11 +77,25 @@ Definition f_main : BeePL.function := {|
 
 (* int main() {
      unsigned int x = 1;
-     return x;
   }
 *)
 
-Definition simple_assignment : BeePL.function := {|
+Definition f_assign1 : BeePL.function := {|
+   fn_return := (Ptype (BeeTypes.Tint I32 Signed dattr));
+   fn_effect := nil;
+   fn_callconv := cc_default;
+   fn_args := nil;
+   fn_vars := ((_x, BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)) :: nil);
+   fn_body := Bind
+               (_x)
+               (Ptype (BeeTypes.Tint I32 Unsigned dattr))
+               (Const (ConsInt (Int.repr 1)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
+               (Const (ConsInt (Int.repr 0)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)))  (* Should be return expr *)
+               (Ptype (BeeTypes.Tint I32 Unsigned dattr))
+   |}.
+
+
+Definition f_assign1_unit : BeePL.function := {|
    fn_return := (Ptype (BeeTypes.Tint I32 Signed dattr));
    fn_effect := nil;
    fn_callconv := cc_default;
@@ -102,7 +116,7 @@ Definition simple_assignment : BeePL.function := {|
    }
 *)
 
-Definition two_assignments : BeePL.function := {|
+Definition f_assign2 : BeePL.function := {|
    fn_return := (Ptype (BeeTypes.Tint I32 Signed dattr));
    fn_effect := nil;
    fn_callconv := cc_default;
@@ -117,7 +131,7 @@ Definition two_assignments : BeePL.function := {|
                  (_y) 
                  (Ptype (BeeTypes.Tint I32 Unsigned dattr))
                  (Const (ConsInt (Int.repr 2)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
-                 (Unit (Ptype Tunit)) (* Should be return expr *)
+                 (Var _x (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
                  (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
                (Ptype (BeeTypes.Tint I32 Unsigned dattr))
    |}.
@@ -127,7 +141,7 @@ Definition two_assignments : BeePL.function := {|
 
 Definition composites : list composite_definition := nil.
 
-Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) := (_main, AST.Gfun(BeePL.Internal (f_main))) :: nil.
+Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) := (_main, AST.Gfun(BeePL.Internal (f_assign1_unit))) :: nil.
 
 Definition public_idents : list ident := (_main :: nil).
 
@@ -145,3 +159,6 @@ Definition example1 : BeePL.program := {| prog_defs := global_definitions;
                                           prog_comp_env_eq := composite_default |}.
 
 Definition example1_atom_of_string : list (ident * string) := f_main_atom_of_string.
+
+
+(*Compute (transf_beepl_program_csyntax (example1)).*)
