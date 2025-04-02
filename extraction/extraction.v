@@ -36,7 +36,7 @@ Require Clight.
 Require Compiler.
 Require Parser.
 Require Initializers.
-Require BeePL_add_prog.
+Require BeePL_progs.
 
 (* Standard lib *)
 Require Import ExtrOcamlBasic.
@@ -156,7 +156,7 @@ Set Extraction AccessOpaque.
 Cd "extraction".
 
 Separate Extraction
-   BeePL_add_prog.example1 BeePL_add_prog.example1_atom_of_string
+   BeePL_progs.example1 BeePL_progs.example1_atom_of_string
    Compiler.transf_beepl_program Compiler.transf_c_program Compiler.transf_cminor_program
    Cexec.do_initial_state Cexec.do_step Cexec.at_final_state
    Ctypes.merge_attributes Ctypes.remove_attributes 
