@@ -79,7 +79,7 @@ Definition f_app_add : BeePL.function := {|
                                                       (Ptype (BeeTypes.Tint I32 Signed dattr))
                                                       (App (Var _add (Ftype (Ptype (BeeTypes.Tint I32 Signed dattr) ::
                                                                              Ptype (BeeTypes.Tint I32 Signed dattr) :: nil) (* type signature *)
-                                                                            (nil) (* effect, should be NONE*)
+                                                                            (nil) (* effect *)
                                                                             (Ptype (BeeTypes.Tint I32 Signed dattr)))) (* return type *)
                                                            (Var _a (Ptype (BeeTypes.Tint I32 Signed dattr)) :: 
                                                             Var _b (Ptype (BeeTypes.Tint I32 Signed dattr)) :: nil)
