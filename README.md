@@ -47,7 +47,15 @@ To run a BeePL program run CompCert with a file that ends in `.b`.
 ```
 The contents of the file do not matter. The `.b` suffix tells the driver to call 
 `process_b_file` which in turn calls `compile_b_file`. The program compiled is
-hard coded in `compile_b_file` and passed to `transf_beepl_program_csyntax`.
-
+hard coded in `compile_b_file` and passed to `transf_beepl_program_csyntax`. The 
+hard coded program in `compile_b_file` is defined in `BeePL_progs.v`.
 
 To pretty print csyntax: `./ccomp ~/test.b -dc`
+
+#### Add a new test file
+
+1) Add a Coq file to `compiler_test/beepl_test`
+2) In `Makefile` add the file to the list of `BEEPL_TESTS`
+3) In `BeePL_progs.v` `Require Import` the file
+4) Define the BeePL AST in the newly created Coq file
+5) Modify the required lines in `BeePL_progs.v` so the correct program gets extracted

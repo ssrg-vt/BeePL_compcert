@@ -99,10 +99,10 @@ let compile_b_file sourcename ofile =
     let s : string = String.concat "" (List.map (String.make 1) charlist) in
     Hashtbl.add Camlcoq.string_of_atom id s;
     Hashtbl.add Camlcoq.atom_of_string s id;
-  ) BeePL_add_prog.example1_atom_of_string;
+  ) BeePL_progs.example1_atom_of_string;
 
   (* Parse BeePL AST *)
-  let beepl_csyntax = Compiler.transf_beepl_program_csyntax BeePL_add_prog.example1 in
+  let beepl_csyntax = Compiler.transf_beepl_program_csyntax BeePL_progs.example1 in
   let csyntax =
     match beepl_csyntax with
     | Errors.OK program -> program
