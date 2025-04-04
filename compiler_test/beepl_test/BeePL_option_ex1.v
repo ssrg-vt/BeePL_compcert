@@ -11,12 +11,11 @@ Local Open Scope csyntax_scope.
   }
 *)
 
-(* attr_alignas is optional *)
 Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
 Definition _r : ident := $"r".
 Definition _main : ident := $"main".
 
-Definition atom_of_string : list (ident * string) := ((_r, "r") :: 
+Definition ident_to_string : list (ident * string) := ((_r, "r") :: 
                                                       (_main, "main") :: nil).
 
 Definition f_option1 : BeePL.function := {| 

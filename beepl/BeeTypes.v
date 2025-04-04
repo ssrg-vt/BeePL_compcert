@@ -41,6 +41,7 @@ Inductive primitive_type : Type :=
 | Tint : intsize -> signedness -> attr -> primitive_type
 | Tlong : signedness -> attr -> primitive_type.
 
+(* In the future basic_type will include arrays, structs, etc. *)
 Inductive basic_type : Type :=  
 | Bprim : primitive_type -> basic_type.
 

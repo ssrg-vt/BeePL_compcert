@@ -249,7 +249,6 @@ end.
 Definition typeof_expr (e : expr) : BeeTypes.type :=
 match e with 
 | Val v t => t
-(*| Valof e t => t*)
 | Var x t => t
 | Const x t => t
 | App e ts t => t
@@ -372,12 +371,14 @@ Record program  : Type := mkprogam { prog_defs : list (ident * globdef fundef ty
                                      prog_main : ident;
                                      prog_types : list bcomposite_definition;
                                      prog_comp_env : bcomposite_env;
-                                     prog_comp_env_eq : build_bcomposite_env prog_types = OK prog_comp_env }.
+                                     prog_comp_env_eq : build_bcomposite_env prog_types = OK prog_comp_env; 
+                                     prog_ident_to_string : list (ident * string)}.
 
-Program Definition make_bprogram (types: list bcomposite_definition)
-                                 (defs: list (ident * globdef fundef type))
-                                 (public: list ident)
-                                 (main: ident) : res program :=
+Program Definition make_bprogram (types : list bcomposite_definition)
+                                 (defs : list (ident * globdef fundef type))
+                                 (public : list ident)
+                                 (main : ident)
+                                 (ident_to_string :  list (ident * string)) : res program :=
   match build_bcomposite_env types with
   | Error e => Error e
   | OK ce =>
@@ -386,21 +387,24 @@ Program Definition make_bprogram (types: list bcomposite_definition)
             prog_main := main;
             prog_types := types;
             prog_comp_env := ce;
-            prog_comp_env_eq := _ |}
+            prog_comp_env_eq := _;
+            prog_ident_to_string := ident_to_string|}
   end.
 
 Definition mkbprogram (types: list bcomposite_definition)
-                     (defs: list (ident * globdef fundef type))
-                     (public: list ident)
-                     (main: ident)
-                     (WF: wf_bcomposites types) : BeePL.program :=
+                      (defs: list (ident * globdef fundef type))
+                      (public: list ident)
+                      (main: ident)
+                      (WF: wf_bcomposites types) 
+                      (ident_to_string :  list (ident * string)): BeePL.program :=
   let (ce, EQ) := build_bcomposite_env' types WF in
   {| prog_defs := defs;
      prog_public := public;
      prog_main := main;
      prog_types := types;
      prog_comp_env := ce;
-     prog_comp_env_eq := EQ |}.
+     prog_comp_env_eq := EQ; 
+     prog_ident_to_string := ident_to_string |}.
 
 (************************** Operation Semantics **************************************)
 (* Global environments are a component of the dynamic semantics of
