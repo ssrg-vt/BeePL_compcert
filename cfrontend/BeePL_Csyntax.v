@@ -82,9 +82,9 @@ match e with
                                 ct)
                  end 
 | Bind x t e e' t' => do ct <- (transBeePL_type t);
+                      do ct' <- (transBeePL_type t');
                       do ce <- (transBeePL_expr_expr e);
                       do ce' <- (transBeePL_expr_expr e');
-                      do ct' <- (transBeePL_type t');
                       ret (Ecomma (Eassign (Evar x ct) ce ct) ce' ct') 
 | Cond e e' e'' t => do ce <- (transBeePL_expr_expr e);
                      do ce' <- (transBeePL_expr_expr e');

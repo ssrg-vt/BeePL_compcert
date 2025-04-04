@@ -2,7 +2,7 @@ Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx FunI
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Linking.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Linking Ctypes Smallstep SimplExpr.
 Require Import BeePL BeePL_aux BeePL_mem BeeTypes BeePL Csyntax Clight Globalenvs BeePL_Csyntax SimplExpr.
-Require Import compcert.common.Errors Initializersproof Cstrategy lib.Coqlib Errors.
+Require Import compcert.common.Errors Initializersproof Cstrategy compcert.lib.Coqlib Errors.
 
 From mathcomp Require Import all_ssreflect. 
 
@@ -11,14 +11,56 @@ access_mode ty = md ->
 transBeePL_type ty g =  Res cty g' i ->
 Ctypes.access_mode cty = md.
 Proof.
-Admitted.
+  intros ty cty md g g' i HACCESS HTRANS.
+  destruct ty eqn:Htype.
+  (* Prim *)
+  - destruct p eqn:Hp;
+    simpl in *;
+    injection HTRANS as H1 H2;
+    subst;
+    reflexivity.
+  (* Ref *)
+  - destruct b; simpl in *;
+    destruct p; simpl in *;
+    injection HTRANS as H1 H2;
+    subst;
+    reflexivity.
+  (* Ftype *)
+  - destruct e; simpl in *;
+    unfold SimplExpr.bind in HTRANS;
+    destruct (transBeePL_types transBeePL_type l g) eqn:Htypes; try discriminate;
+    destruct (transBeePL_type t g'0) eqn:Htype'; try discriminate;
+    injection HTRANS as H1 H2; subst;
+    reflexivity.
+Qed.
 
 Lemma non_volatile_type_preserved : forall ty cty g g' i' b,
 type_is_volatile ty = b ->
 transBeePL_type ty g = Res cty g' i' ->
 Ctypes.type_is_volatile cty = b.
 Proof.
-Admitted.
+  intros ty cty g g' i' b HVOL HTRANS.
+  destruct ty eqn:Htype.
+  (* Prim *)
+  - destruct p eqn:Hp; 
+    simpl in *;
+    injection HTRANS as H1 H2;
+    subst;
+    reflexivity.
+  (* Ref *)
+  - destruct b0; simpl in *;
+    destruct p; simpl in *;
+    injection HTRANS as H1 H2;
+    subst;
+    reflexivity.
+(* Ftype *)
+  - destruct e; simpl in *;
+    unfold SimplExpr.bind in HTRANS;
+    destruct (transBeePL_types transBeePL_type l g) eqn:Htypes; try discriminate;
+    destruct (transBeePL_type t g'0) eqn:Htype'; try discriminate;
+    injection HTRANS as H1 H2; subst;
+    reflexivity.
+Qed.
 
 Lemma typec_expr : forall e ct ce g g' g'' i i',
 transBeePL_type (typeof_expr e) g = Res ct g' i ->
@@ -31,7 +73,10 @@ Lemma bv_cv_reflex : forall v' v,
 transC_val_bplvalue v' = OK v ->
 transBeePL_value_cvalue v = v'.
 Proof.
-Admitted.
+  intros v' v H.
+  destruct v' eqn:?; simpl in *; try discriminate;
+  inv H; reflexivity.
+Qed.
 
 (* Since translation of types does not depend on the generator, it 
    should produce the same result irrespective of them *)
@@ -49,11 +94,11 @@ Lemma transBeePL_expr_expr_type_equiv : forall e ce g g' i,
 transBeePL_expr_expr e g = Res ce g' i ->
 transBeePL_type (typeof_expr e) g = Res (Csyntax.typeof ce) g' i.
 Proof.
-Admitted. 
+Admitted.
 
-(*
-Lemma val_cannot_be_reduced : forall bge benv e m e' m',
-is_val e -> 
+
+Lemma value_cannot_be_reduced : forall bge benv e m e' m',
+is_value e -> 
 ~ (rreduction bge benv e m e' m') /\
 ~ (lreduction bge benv e m e' m').
 Proof.
@@ -62,6 +107,7 @@ move=> bge benv e. elim: e=> //= v t m e' m' _ /=. split=> //=.
 move=> h. by inversion h.
 Qed.
 
+(* 
 Lemma addr_cannot_be_reduced : forall bge benv e m e' m',
 is_addr e -> 
 ~ (rreduction bge benv e m e' m') /\
@@ -71,10 +117,5 @@ move=> beg benv e. elim: e=> //= v t m e' m' _ /=. split=> //=.
 + move=> h. by inversion h.
 move=> h. by inversion h.
 Qed.*)
-
-
-
-
-
 
 
