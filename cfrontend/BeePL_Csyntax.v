@@ -27,13 +27,21 @@ match es with
 | Econs e1 es => (e1 :: exprlist_list_expr es)
 end.
 
-Definition default_expr := (Eval (Values.Vundef) Tvoid).
+Definition return_czero (t : Ctypes.type) : mon Values.val :=
+match t with 
+| Tvoid => error (msg "Tvoid not allowed")
+| Ctypes.Tint sz s a => ret (Values.Vint (Int.repr 0))
+| Ctypes.Tlong s a => ret (Values.Vlong (Int64.repr 0))
+| Tfloat sz a => error (msg "Tfloat not allowed")
+| Tpointer t a => error (msg "Tpointer not allowed")
+| Tarray t z a => error (msg "Tarray not allowed")
+| Tfunction ts t cc => error (msg "Tfunction not allowed")
+| Tstruct h a => error (msg "Tstruct not allowed")
+| Tunion h a => error (msg "Tunion not allowed")
+end.
 
-(*Definition Ederef' (a: Csyntax.expr) (t: Ctypes.type) : Csyntax.expr :=
-  match a with
-  | Eaddrof a' t' => if type_eq t (typeof a') then a' else Ederef a t
-  | _ => Ederef a t
-  end.*)
+
+Definition default_expr := (Eval (Values.Vundef) Tvoid).
 
 Fixpoint transBeePL_expr_expr (e : BeePL.expr) : mon Csyntax.expr := 
 match e with 
@@ -74,12 +82,16 @@ match e with
                             ret (Eunop o
                                 (hd default_expr (exprlist_list_expr ces)) 
                                 ct)
-                 | Bop o => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
-                            do ct <- (transBeePL_type t);
-                            ret (Ebinop o
-                                  (hd default_expr (exprlist_list_expr ces)) 
-                                  (hd default_expr (tl (exprlist_list_expr ces)))
-                                ct)
+                 | Bop o => if is_bop_undef t o es 
+                            then do ct <- (transBeePL_type t);
+                                 do v <- return_czero ct;
+                                 ret (Eval v ct)
+                            else do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
+                                 do ct <- (transBeePL_type t);
+                                 ret (Ebinop o
+                                        (hd default_expr (exprlist_list_expr ces)) 
+                                        (hd default_expr (tl (exprlist_list_expr ces)))
+                                        ct)
                  end 
 | Bind x t e e' t' => do ct <- (transBeePL_type t);
                       do ce <- (transBeePL_expr_expr e);
@@ -151,9 +163,13 @@ match e with
                             ret (Sdo (Eunop o 
                                      (hd default_expr (exprlist_list_expr ces)) 
                                      ct)) 
-                 | Bop o => do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
-                            do ct <- (transBeePL_type t);
-                            ret (Sdo (Ebinop o 
+                 | Bop o => if is_bop_undef t o es 
+                            then do ct <- (transBeePL_type t);
+                                 do v <- return_czero ct;
+                                 ret (Sdo (Eval v ct))
+                            else do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
+                                 do ct <- (transBeePL_type t);
+                                 ret (Sdo (Ebinop o 
                                      (hd default_expr (exprlist_list_expr ces)) 
                                      (hd default_expr (tl (exprlist_list_expr ces)))
                                      ct))

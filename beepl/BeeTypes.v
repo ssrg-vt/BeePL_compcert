@@ -124,7 +124,17 @@ end.
 
 Definition is_primtype_notunit (t : type) : Prop :=
 is_primtype t /\ (not (is_unittype t)).
-     
+
+Definition extract_signedness_type (t : type) : option signedness :=
+match t with 
+| Ptype p => match p with 
+             | Tunit => None
+             | Tint sz s a => Some s
+             | Tlong s a => Some s
+             end
+| _ => None 
+end.
+
 (** The following describes types that can be interpreted as a boolean:
   integers, pointers.  It is used for the semantics of
   the [!] and [?] operators, as well as the [cond] expression *)

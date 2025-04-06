@@ -29,14 +29,14 @@ Proof.
   unfold build_composite_env; simpl; reflexivity.
 Qed.
 
-Definition example1 : BeePL.program := {| prog_defs := BeePL_app.global_definitions; (* <-- MODIFY *)
-                                          prog_public := BeePL_app.public_idents;    (* <-- MODIFY *)
-                                          prog_main := BeePL_app._main;              (* <-- MODIFY *)
+Definition example1 : BeePL.program := {| prog_defs := BeePL_add.global_definitions; (* <-- MODIFY *)
+                                          prog_public := BeePL_add.public_idents;    (* <-- MODIFY *)
+                                          prog_main := BeePL_add._main;              (* <-- MODIFY *)
                                           prog_types := composites;
                                           prog_comp_env := PTree.empty composite;
                                           prog_comp_env_eq := composite_default |}.
 
-Definition example1_atom_of_string : list (ident * string) := BeePL_app.atom_of_string. (* <-- MODIFY *)
+Definition example1_atom_of_string : list (ident * string) := BeePL_add.atom_of_string. (* <-- MODIFY *)
 
 
 (*Compute (transf_beepl_program_csyntax (example1)).*)
