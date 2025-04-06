@@ -266,6 +266,11 @@ match op with
 | _ => false
 end.
 
+(* Test 
+Compute (is_bop_undef (Ptype (BeeTypes.Tint I32 Signed {| attr_volatile := false; attr_alignas := None |})) 
+                      Cop.Odiv ((Const (ConsInt (Int.repr 10)) (Ptype (BeeTypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := None |}))) ::
+                                (Const (ConsInt (Int.repr 0)) (Ptype (BeeTypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := None |}))) :: nil)).*)
+
 
 Record function : Type := mkfunction { (*fn_sec: option string; XDP ==> SEC("xdp") *)
                                        fn_return: type;

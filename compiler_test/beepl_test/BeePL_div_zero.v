@@ -6,7 +6,7 @@ Local Open Scope string_scope.
 Local Open Scope csyntax_scope.
 
 (* int main() {
-     unsigned int x = 1;
+     unsigned int x = 10;
      unsigned int y = 0;
      unsigned int r = x / y;
      return r;
@@ -36,7 +36,7 @@ Definition f_div_zero : BeePL.function := {|
                                    fn_body := Bind 
                                                 (_x) 
                                                 (Ptype (BeeTypes.Tint I32 Unsigned dattr))
-                                                (Const (ConsInt (Int.repr 1)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
+                                                (Const (ConsInt (Int.repr 10)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
                                                 (Bind 
                                                    (_y) 
                                                    (Ptype (BeeTypes.Tint I32 Unsigned dattr))
