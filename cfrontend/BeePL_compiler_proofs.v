@@ -74,9 +74,13 @@ Inductive sim_bexpr_cexpr : vmap -> BeePL.expr -> Csyntax.expr -> Prop :=
                                (Csyntax.Eunop o
                                   (hd default_expr (exprlist_list_expr ces))
                                   ct)
-| sim_prim_bop : forall le o es t ct ces g g' i',
+| sim_prim_bop_undef : forall le o es t ct v g g' i' g'' i'',
                  transBeePL_type t g = Res ct g' i' ->
+                 return_czero ct g' = Res v g'' i'' ->
+                 sim_bexpr_cexpr le (BeePL.Prim (Bop o) es t) (Eval v ct)
+| sim_prim_bop : forall le o es t ct ces g g' i',
                  sim_bexprs_cexprs le es ces ->
+                 transBeePL_type t g = Res ct g' i' ->
                  sim_bexpr_cexpr le (BeePL.Prim (Bop o) es t) 
                                 (Csyntax.Ebinop o
                                    (hd default_expr (exprlist_list_expr ces))
@@ -181,6 +185,10 @@ Inductive sim_bexpr_cstmt : vmap -> BeePL.expr -> Csyntax.statement -> Prop :=
                     transBeePL_type t g = Res ct g' i' ->
                     sim_bexprs_cexprs le es ces ->
                     sim_bexpr_cstmt le (BeePL.Prim (Uop o) es t) (Sdo (Csyntax.Eunop o (hd default_expr (exprlist_list_expr ces)) ct))
+| sim_prim_bop_undef_st : forall le o es t ct v g g' i' g'' i'',
+                 transBeePL_type t g = Res ct g' i' ->
+                 return_czero ct g' = Res v g'' i'' ->
+                 sim_bexpr_cstmt le (BeePL.Prim (Bop o) es t) (Sdo (Eval v ct))
 | sim_prim_bop_st : forall le o es t ct ces g g' i',
                     transBeePL_type t g = Res ct g' i' ->
                     sim_bexprs_cexprs le es ces ->
@@ -579,6 +587,15 @@ Proof.
       destruct (gensym ct g2) as [|i0 g3 p] eqn:Hgen; try discriminate;
       inv H0;
     econstructor; eauto).
+    destruct (is_bop_undef t b0 es) eqn:Hundef.
+    + destruct (transBeePL_type t g) as [|ct g1 i1] eqn:Htype; try discriminate.
+      destruct (return_czero ct g1) as [|v g2 i2] eqn:Hzero; try discriminate.
+      inv H0.
+      econstructor; eauto.
+    + destruct (transBeePL_expr_exprs transBeePL_expr_expr es g) as [|ces g1 i1] eqn:Hexprs; try discriminate.
+      destruct (transBeePL_type t g1) as [|ct g2 i2] eqn:Htype; try discriminate.
+      inv H0.
+      econstructor; eauto.
     inv H0.
     econstructor.
   (* Bind *)
@@ -681,10 +698,15 @@ Proof.
       inv H.
       econstructor; eauto.
     (* Bop *)
-    + destruct (transBeePL_expr_exprs transBeePL_expr_expr l g) as [|cexprs g1 i1] eqn:Hexprs; try discriminate.
-      destruct (transBeePL_type t g1) as [| ct g2 i2] eqn:Htype; try discriminate.
-      inv H.
-      econstructor; eauto.
+    + destruct (is_bop_undef t b l) eqn:Hundef.
+      * destruct (transBeePL_type t g) as [|ct g1 i1] eqn:Htype; try discriminate.
+        destruct (return_czero ct g1) as [|v g2 i2] eqn:Hzero; try discriminate.
+        inv H.
+        econstructor; eauto.
+      * destruct (transBeePL_expr_exprs transBeePL_expr_expr l g) as [|cexprs g1 i1] eqn:Hexprs; try discriminate.
+        destruct (transBeePL_type t g1) as [| ct g2 i2] eqn:Htype; try discriminate.
+        inv H.
+        econstructor; eauto.
     (* Run: Fix me *)
     + inv H.
       econstructor.
@@ -994,6 +1016,10 @@ match chunk_for_volatile_type cty bf with
 end.
 Admitted.
 
+End semantic_preservation.
+
+
+(*
 (* Big step semantics with rvalue *) 
 (* If an expression evaluates to a value then in the c semantics if the expression is 
    evaluated in RV position then it should also produce the same value 
@@ -1493,6 +1519,5 @@ forall cs1, match_bstate_cstate bs1 cs1 ->
 exists cs2 t, Csem.step cge cs1 t cs2 /\ match_bstate_cstate bs2 cs2.
 Proof.
 induction 1; intros.
-Admitted.
+Admitted. *)
 
-End semantic_preservation.
