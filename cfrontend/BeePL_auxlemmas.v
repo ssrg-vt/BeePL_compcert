@@ -138,6 +138,7 @@ Proof.
 Admitted.
 
 
+(*
 Lemma value_cannot_be_reduced : forall bge benv e m e' m',
 is_value e -> 
 ~ (rreduction bge benv e m e' m') /\
@@ -147,6 +148,7 @@ move=> bge benv e. elim: e=> //= v t m e' m' _ /=. split=> //=.
 + move=> h. by inversion h.
 move=> h. by inversion h.
 Qed.
+*)
 
 (* 
 Lemma addr_cannot_be_reduced : forall bge benv e m e' m',
