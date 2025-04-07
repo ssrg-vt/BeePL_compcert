@@ -1,4 +1,4 @@
-Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values. 
+Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values BeePL_typechecker. 
 From Coq Require Import String ZArith.
 From compcert Require Import Csyntaxdefs.
 Import Csyntaxdefs.CsyntaxNotations.
@@ -58,3 +58,5 @@ Definition global_definitions : list (ident * AST.globdef BeePL.fundef type)
    := (_main, AST.Gfun(BeePL.Internal (f_div_zero))) :: nil.
 
 Definition public_idents : list ident := (_main :: nil).
+
+(*Compute (type_check_expr empty_context empty_context f_div_zero.(fn_body)).*)
