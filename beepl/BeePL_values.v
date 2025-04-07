@@ -16,6 +16,44 @@ Inductive constant : Type :=
 | ConsLong : int64 -> constant
 | ConsUnit : constant.
 
+Definition is_zero_constant (c : constant) : bool :=
+match c with 
+| ConsInt i => if Int.eq i Int.zero then true else false
+| ConsLong i => if Int64.eq i Int64.zero then true else false
+| ConsUnit => false
+end.
+
+Definition is_overflow_constant (c1 c2 : constant) : bool :=
+match c1, c2 with 
+| ConsInt i1, ConsInt i2 => if Int.eq i1 (Int.repr Int.min_signed) 
+                               && Int.eq i2 Int.mone then true else false
+| ConsLong i1, ConsLong i2 => if Int64.eq i1 (Int64.repr Int.min_signed) 
+                                 && Int64.eq i2 Int64.mone then true else false 
+| _, _ => false
+end.
+
+Definition is_constant_min_signed (c : constant) : bool :=
+match c with 
+| ConsInt i => if Int.eq i (Int.repr Int.min_signed) then true else false
+| ConsLong i => if Int64.eq i (Int64.repr Int.min_signed) then true else false 
+| _ => false
+end.
+
+Definition is_constant_mone (c : constant) : bool :=
+match c with 
+| ConsInt i => if Int.eq i Int.mone then true else false
+| ConsLong i => if Int64.eq i Int64.mone then true else false 
+| _ => false
+end.
+
+Definition is_constant_shift (c : constant) : bool :=
+match c with 
+| ConsInt i => if negb (Int.ltu i Int.iwordsize) then true else false
+| ConsLong i => if negb (Int64.ltu i Int64.iwordsize) then true else false
+| _ => false
+end.
+
+
 (*Record vinfo : Type := mkvar { vname : ident; vtype : BeeTypes.basic_type }.*)
 Record linfo : Type := mkloc { lname : ident; (*ltype : BeeTypes.basic_type;*) lbitfield : bitfield }.
 
@@ -31,6 +69,44 @@ match v with
 | Vint i => false 
 | Vint64 l => false
 | Vloc l ofs => true 
+end.
+
+Definition is_zero_val (v : value) : bool :=
+match v with 
+| Vunit => false
+| Vint i => if Int.eq i Int.zero then true else false
+| Vint64 i => if Int64.eq i Int64.zero then true else false
+| Vloc p ofs => false
+end.
+
+Definition is_overflow_vals (v1 v2 : value) : bool :=
+match v1, v2 with 
+| Vint i1, Vint i2 => if Int.eq i1 (Int.repr Int.min_signed) 
+                         && Int.eq i2 Int.mone then true else false
+| Vint64 i1, Vint64 i2 => if Int64.eq i1 (Int64.repr Int.min_signed) 
+                             && Int64.eq i2 Int64.mone then true else false 
+| _, _ => false
+end.
+
+Definition is_val_min_signed (v : value) : bool :=
+match v with 
+| Vint i => Int.eq i (Int.repr Int.min_signed)
+| Vint64 i => Int64.eq i (Int64.repr Int64.min_signed)
+| _ => false
+end.
+
+Definition is_val_mone (v : value) : bool :=
+match v with 
+| Vint i => Int.eq i Int.mone 
+| Vint64 i => Int64.eq i Int64.mone 
+| _ => false
+end.
+
+Definition is_val_shift (v : value) : bool :=
+match v with 
+| Vint i => if negb (Int.ltu i Int.iwordsize) then true else false
+| Vint64 i => if negb (Int64.ltu i Int64.iwordsize) then true else false
+| _ => false
 end.
 
 Definition is_vint64 (v : value) : bool :=
@@ -115,3 +191,14 @@ if (v1.(vname) =? v2.(vname))%positive && (eq_basic_type (vtype v1) (vtype v2)) 
 (* add equality over bitfield *)
 Definition eq_linfo (v1 : linfo) (v2 : linfo) : bool :=
 if (v1.(lname) =? v2.(lname))%positive then true else false.
+
+Definition return_bzero (t : type) : mon value :=
+match t with 
+| Ptype p => match p with   
+             | Tunit => error (msg "Tunit not allowed")
+             | Tint i s a => ret (Vint (Int.repr 0))
+             | Tlong s a => ret (Vint64 (Int64.repr 0))
+             end
+| Reftype h b a => error (msg "Tpointer not allowed")
+| Ftype ts e t => error (msg "Tfunction not allowed")
+end.

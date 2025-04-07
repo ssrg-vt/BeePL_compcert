@@ -166,6 +166,114 @@ match e with
 | _ => false
 end.
 
+Section Is_zero_exprs.
+
+Variable is_zero_expr : expr -> bool.
+
+Fixpoint is_zero_exprs (es : list expr) : bool :=
+match es with 
+| nil => true 
+| e :: es => is_zero_expr e && is_zero_exprs es
+end.
+
+End Is_zero_exprs.
+
+Fixpoint is_zero_expr (e : expr) : bool :=
+match e with 
+| Val v t => is_zero_val v
+| Var x t => false 
+| Const c t => is_zero_constant c
+| App e ts t => false
+| Prim b es t => is_zero_exprs is_zero_expr es
+| Bind x t e e' t' => is_zero_expr e && is_zero_expr e'
+| Cond e e' e'' t => is_zero_expr e && is_zero_expr e' && is_zero_expr e''
+| Unit t => false
+| Addr l p t => false
+| Hexpr h e t => false
+| Eapp ef ts es t => is_zero_exprs is_zero_expr es
+end.
+
+Section Is_exprs_min_signed.
+
+Variable is_expr_min_signed : expr -> bool.
+
+Fixpoint is_exprs_min_signed (es : list expr) : bool :=
+match es with 
+| nil => true 
+| e :: es => is_expr_min_signed e && is_exprs_min_signed es
+end.
+
+End Is_exprs_min_signed.
+
+Fixpoint is_expr_min_signed (e : expr) : bool :=
+match e with 
+| Val v t => is_val_min_signed v 
+| Var x t => false 
+| Const c t => is_constant_min_signed c
+| App e ts t => false
+| Prim b es t => is_exprs_min_signed is_expr_min_signed es
+| Bind x t e e' t' => is_expr_min_signed e && is_expr_min_signed e'
+| Cond e e' e'' t => is_expr_min_signed e && is_expr_min_signed e' && is_expr_min_signed e''
+| Unit t => false
+| Addr l p t => false
+| Hexpr h e t => false
+| Eapp ef ts es t => is_exprs_min_signed is_expr_min_signed es
+end.
+
+Section Is_exprs_mone.
+
+Variable is_expr_mone : expr -> bool.
+
+Fixpoint is_exprs_mone (es : list expr) : bool :=
+match es with 
+| nil => true 
+| e :: es => is_expr_mone e && is_exprs_mone es
+end.
+
+End Is_exprs_mone.
+
+Fixpoint is_expr_mone (e : expr) : bool :=
+match e with 
+| Val v t => is_val_mone v 
+| Var x t => false 
+| Const c t => is_constant_mone c
+| App e ts t => false
+| Prim b es t => is_exprs_mone is_expr_mone es
+| Bind x t e e' t' => is_expr_mone e && is_expr_mone e'
+| Cond e e' e'' t => is_expr_mone e && is_expr_mone e' && is_expr_mone e''
+| Unit t => false
+| Addr l p t => false
+| Hexpr h e t => false
+| Eapp ef ts es t => is_exprs_mone is_expr_mone es
+end.
+
+Section Is_exprs_shift.
+
+Variable is_expr_shift : expr -> bool.
+
+Fixpoint is_exprs_shift (es : list expr) : bool :=
+match es with 
+| nil => true 
+| e :: es => is_expr_shift e && is_exprs_shift es 
+end.
+
+End Is_exprs_shift.
+
+Fixpoint is_expr_shift (e : expr) : bool :=
+match e with 
+| Val v t => is_val_shift v 
+| Var x t => false 
+| Const c t => is_constant_shift c
+| App e ts t => false
+| Prim b es t => is_exprs_shift is_expr_shift es
+| Bind x t e e' t' => is_expr_shift e && is_expr_shift e'
+| Cond e e' e'' t => is_expr_shift e && is_expr_shift e' && is_expr_shift e''
+| Unit t => false
+| Addr l p t => false
+| Hexpr h e t => false
+| Eapp ef ts es t => is_exprs_shift is_expr_shift es
+end.
+
 Definition is_pointer (e : expr) : bool :=
 match e with 
 | Val v t => match v with 
@@ -196,6 +304,49 @@ match e with
 | nil => nil
 | e :: es => typeof_expr e :: typeof_exprs es
 end.
+
+Definition is_bop_undef (t : type) (op : binary_operation) (es : list expr) : bool :=
+match op with 
+| Odiv => match es with 
+          | e1 :: e2 :: nil => match extract_signedness_type t with 
+                               | Some s => if signedness_eq s Signed 
+                                           then if (is_zero_expr e2) || 
+                                                   (is_expr_min_signed e1 && is_expr_mone e2) 
+                                                then true 
+                                                else false 
+                                           else if is_zero_expr e2 then true else false
+                               | None => false 
+                               end
+          | _ => false
+          end
+| Omod => match es with 
+          | e1 :: e2 :: nil => match extract_signedness_type t with 
+                               | Some s => if (signedness_eq s Signed) 
+                                           then if (is_zero_expr e2) || 
+                                                   (is_expr_min_signed e1 && is_expr_mone e2) 
+                                               then true 
+                                               else false 
+                                           else if is_zero_expr e2 then true else false
+                               | None => false
+                        end
+          | _ => false 
+          end
+| Oshl => match es with 
+          | e1 :: e2 :: nil => is_expr_shift e2
+          | _ => false 
+          end
+| Oshr => match es with 
+          | e1 :: e2 :: nil => is_expr_shift e2
+          | _ => false 
+          end
+| _ => false
+end.
+
+(* Test 
+Compute (is_bop_undef (Ptype (BeeTypes.Tint I32 Signed {| attr_volatile := false; attr_alignas := None |})) 
+                      Cop.Odiv ((Const (ConsInt (Int.repr 10)) (Ptype (BeeTypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := None |}))) ::
+                                (Const (ConsInt (Int.repr 0)) (Ptype (BeeTypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := None |}))) :: nil)).*)
+
 
 Record function : Type := mkfunction { (*fn_sec: option string; XDP ==> SEC("xdp") *)
                                        fn_return: type;
@@ -325,7 +476,7 @@ end.
 
 (* Operational Semantics *)
 
-Section Semantics.
+Section Memory_semantics.
 
 Variable (ge : BeePL.genv).
 
@@ -449,59 +600,6 @@ match e with
 | Eapp ef ts es t => Eapp ef ts (map (subst x se) es) t
 end.
 
-(*Inductive subst : ident -> expr -> expr -> expr -> Prop :=
-| val_subst : forall x se v t,
-              subst x se (Val v t) (Val v t)
-| var_subst1 : forall x se y t,
-               (x =? y)%positive = true ->
-               subst x se (Var y t) se
-| var_subst2 : forall x se y t,
-               (x =? y)%positive = false -> 
-               subst x se (Var y t) (Var y t)
-| const_subst : forall x se c t,
-                subst x se (Const c t) (Const c t)
-| app_subst : forall x se e e' es es' t,
-              subst x se e e' ->
-              substs x se es es' ->
-              subst x se (App e es t) (App e' es' t)
-| prim_subst : forall b x se es t es',
-               substs x se es es' ->
-               subst x se (Prim b es t) (Prim b es' t)
-| bind_subst1 : forall x se y t e1 e1' e2 t', 
-                (* x is shadowed in e2: new variable binding hides older one *)
-                (x =? y)%positive = true ->
-                subst x se e1 e1' ->
-                subst x se (Bind y t e1 e2 t') (Bind y t e1' e2 t')
-| bind_subst2 : forall x se y t e1 e2 t' e1' e2',
-                (x =? y)%positive = false ->
-                subst x se e1 e1' ->
-                subst x se (Bind y t e1 e2 t') (Bind y t e1' e2' t')
-| cond_subst : forall x se e1 e1' e2 e2' e3 e3' t,
-               subst x se e1 e1' ->
-               subst x se e2 e2' ->
-               subst x se e3 e3' ->
-               subst x se (Cond e1 e2 e3 t) (Cond e1' e2' e3' t)
-| unit_subst : forall x se,
-               subst x se (Unit (Ptype Tunit)) (Unit (Ptype Tunit))
-| addr_subst : forall x se l p t,
-               subst x se (Addr l p t) (Addr l p t)
-| hexpr_subst : forall x se h e t e', 
-                subst x se e e' ->
-                subst x se (Hexpr h e t) (Hexpr h e' t)
-| eapp_subst : forall x se ef ts t es es',
-               substs x se es es' ->
-               subst x se (Eapp ef ts es t) (Eapp ef ts es' t)
-with substs : ident -> expr -> list expr -> list expr -> Prop :=
-| substs_nil : forall x e, 
-               substs x e nil nil
-| substs_cons : forall x se e es e' es',
-                subst x se e e' ->
-                substs x se es es' -> 
-                substs x se (e :: es) (e' :: es').
-
-Scheme subst_ind_mut := Induction for subst Sort Prop
-  with substs_ind_mut := Induction for substs Sort Prop.
-Combined Scheme substs_subst_ind_mut from substs_ind_mut, subst_ind_mut.*)
 
 Fixpoint is_simple_expr (e : expr) : bool :=
 match e with 
@@ -546,7 +644,8 @@ Inductive well_formed_value : value -> type -> Prop :=
 | wf_vloc : forall l ofs h t a,
             well_formed_value (Vloc l ofs) (Reftype h t a).
 
-Section Simpl_big_step_semantics.
+End Memory_semantics.
+(*Section Simpl_big_step_semantics.
 
 Variable (vm : vmap).
 
@@ -586,14 +685,17 @@ Inductive bsem_expr_srv : Memory.mem -> expr -> value -> Prop :=
                   transC_val_bplvalue v' = OK v'' ->
                   bsem_expr_srv hm (Prim (Uop uop) (e :: nil) t) v''
 | bsem_prim_bop : forall hm e1 e2 t v1 v2 bop v ct1 ct2 v' g g' g'' i i',
-                  bsem_expr_srv hm e1 v1 ->
-                  bsem_expr_srv hm e2 v2 ->
-                  transBeePL_type (typeof_expr e1) g = Res ct1 g' i ->
-                  transBeePL_type (typeof_expr e2) g' = Res ct2 g'' i'->
-                  t = (typeof_expr e1) /\ t = (typeof_expr e2) ->
-                  sem_binary_operation ge bop (transBeePL_value_cvalue v1) ct1 (transBeePL_value_cvalue v2) ct2 hm = Some v ->
-                  transC_val_bplvalue v = OK v' ->
-                  bsem_expr_srv hm (Prim (Bop bop) (e1 :: e2 :: nil) t) v'
+                  if (is_bop_undef t bop (e1 :: e2 :: nil)) 
+                  then return_bzero t = Ok v ->
+                       bsem_expr_srv hm (Prim (Bop bop) (e1 :: e2 :: nil) t) v 
+                  else bsem_expr_srv hm e1 v1 ->
+                       bsem_expr_srv hm e2 v2 ->
+                       transBeePL_type (typeof_expr e1) g = Res ct1 g' i ->
+                       transBeePL_type (typeof_expr e2) g' = Res ct2 g'' i'->
+                       t = (typeof_expr e1) /\ t = (typeof_expr e2) ->
+                       sem_binary_operation ge bop (transBeePL_value_cvalue v1) ct1 (transBeePL_value_cvalue v2) ct2 hm = Some v ->
+                       transC_val_bplvalue v = OK v' ->
+                       bsem_expr_srv hm (Prim (Bop bop) (e1 :: e2 :: nil) t) v'
 | bsem_unit : forall hm, 
               bsem_expr_srv hm (Unit (Ptype Tunit)) Vunit.
 
@@ -1101,7 +1203,7 @@ Definition step (s : state) (s' : state) : Prop :=
 ssem s s'.
 
 
-End Small_step_semantics.
+End Small_step_semantics.*)
 
 
 

@@ -994,6 +994,10 @@ match chunk_for_volatile_type cty bf with
 end.
 Admitted.
 
+End semantic_preservation.
+
+
+(*
 (* Big step semantics with rvalue *) 
 (* If an expression evaluates to a value then in the c semantics if the expression is 
    evaluated in RV position then it should also produce the same value 
@@ -1493,6 +1497,5 @@ forall cs1, match_bstate_cstate bs1 cs1 ->
 exists cs2 t, Csem.step cge cs1 t cs2 /\ match_bstate_cstate bs2 cs2.
 Proof.
 induction 1; intros.
-Admitted.
+Admitted. *)
 
-End semantic_preservation.

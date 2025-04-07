@@ -6,9 +6,9 @@ Local Open Scope string_scope.
 Local Open Scope csyntax_scope.
 
 (* int main() {
-     unsigned int x = 1;
-     unsigned int y = 2;
-     unsigned int r = x + y;
+     unsigned int x = 10;
+     unsigned int y = 0;
+     unsigned int r = x / y;
      return r;
   }
 *)
@@ -25,7 +25,7 @@ Definition atom_of_string : list (ident * string) := ((_x, "x") ::
                                                       (_r, "r") :: 
                                                       (_main, "main") :: nil).
 
-Definition f_add : BeePL.function := {| 
+Definition f_div_zero : BeePL.function := {| 
                                    fn_return := (Ptype (BeeTypes.Tint I32 Signed dattr));
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
@@ -36,15 +36,15 @@ Definition f_add : BeePL.function := {|
                                    fn_body := Bind 
                                                 (_x) 
                                                 (Ptype (BeeTypes.Tint I32 Unsigned dattr))
-                                                (Const (ConsInt (Int.repr 1)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
+                                                (Const (ConsInt (Int.repr 10)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
                                                 (Bind 
                                                    (_y) 
                                                    (Ptype (BeeTypes.Tint I32 Unsigned dattr))
-                                                   (Const (ConsInt (Int.repr 2)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
+                                                   (Const (ConsInt (Int.repr 0)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
                                                    (Bind 
                                                       (_r) 
                                                       (Ptype (BeeTypes.Tint I32 Unsigned dattr))
-                                                      (Prim (Bop Cop.Oadd) 
+                                                      (Prim (Bop Cop.Odiv) 
                                                             (Var _x (Ptype (BeeTypes.Tint I32 Unsigned dattr)) :: 
                                                              Var _y (Ptype (BeeTypes.Tint I32 Unsigned dattr)) :: nil)
                                                             (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
@@ -55,8 +55,8 @@ Definition f_add : BeePL.function := {|
 
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
-   := (_main, AST.Gfun(BeePL.Internal (f_add))) :: nil.
+   := (_main, AST.Gfun(BeePL.Internal (f_div_zero))) :: nil.
 
 Definition public_idents : list ident := (_main :: nil).
 
-(*Compute (type_check_expr empty_context empty_context f_add.(fn_body)).*)
+(*Compute (type_check_expr empty_context empty_context f_div_zero.(fn_body)).*)

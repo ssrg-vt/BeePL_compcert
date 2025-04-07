@@ -2,7 +2,7 @@ Require Import AST Maps Ctypes.
 Require Import BeePL BeeTypes Errors. 
 From Coq Require Import String.
 
-Require Import BeePL_add BeePL_cond BeePL_app.
+Require Import BeePL_add BeePL_cond BeePL_app BeePL_div_zero.
 
 (* In this file you will see two definitions. One for example1 and the other for
    example1_atom_of_string. Those two definitions are extracted to OCaml by 
@@ -29,14 +29,14 @@ Proof.
   unfold build_composite_env; simpl; reflexivity.
 Qed.
 
-Definition example1 : BeePL.program := {| prog_defs := BeePL_app.global_definitions; (* <-- MODIFY *)
-                                          prog_public := BeePL_app.public_idents;    (* <-- MODIFY *)
-                                          prog_main := BeePL_app._main;              (* <-- MODIFY *)
+Definition example1 : BeePL.program := {| prog_defs := BeePL_div_zero.global_definitions; (* <-- MODIFY *)
+                                          prog_public := BeePL_div_zero.public_idents;    (* <-- MODIFY *)
+                                          prog_main := BeePL_div_zero._main;              (* <-- MODIFY *)
                                           prog_types := composites;
                                           prog_comp_env := PTree.empty composite;
                                           prog_comp_env_eq := composite_default |}.
 
-Definition example1_atom_of_string : list (ident * string) := BeePL_app.atom_of_string. (* <-- MODIFY *)
+Definition example1_atom_of_string : list (ident * string) := BeePL_div_zero.atom_of_string. (* <-- MODIFY *)
 
 
 (*Compute (transf_beepl_program_csyntax (example1)).*)
