@@ -982,7 +982,6 @@ Lemma function_ptr_translated : forall v f,
 Genv.find_funct_ptr bge v = Some f ->
 exists tf, Genv.find_funct_ptr (Csem.genv_genv cge) v = Some tf /\ match_fundef f tf. 
 Proof.
-  intros v f h.
 Admitted.
 
 (* Complete Me *)
@@ -999,9 +998,6 @@ Lemma function_return_preserved : forall f tf g g' i,
 match_function f tf ->
 transBeePL_type (BeePL.fn_return f) g = Res (Csyntax.fn_return tf) g' i.
 Proof.
-  intros.
-  inv H.
-  apply H0.
 Admitted.
 
 (* Preservation of deref_addr between BeePL and Csyntax *) 
@@ -1037,7 +1033,6 @@ case: ifP=> //= hc.
 by apply Csem.deref_loc_reference.
 Qed.
 
-(* Complete Me *)
 (* Preservation of assign_addr between BeePL and Csyntax *)
 Lemma assign_addr_translated: forall ty m addr ofs bf v m' cty cv v' cv' g g' i,
 assign_addr bge ty m addr ofs bf v m' v' ->
@@ -1049,7 +1044,32 @@ match chunk_for_volatile_type cty bf with
 | Some chunk => exists tr, bf = Full /\ 
                 Events.volatile_store (Csem.genv_genv cge) chunk m addr ofs cv tr m'
 end.
-Admitted.
+Proof.
+  intros ty m addr ofs bf v m' cty cv v' cv' g g' i hd ht hv hv'.
+  unfold chunk_for_volatile_type.
+  inv hd.
+  - have hcty := non_volatile_type_preserved ty cty g g' i false H0 ht.
+    rewrite hcty.
+    eapply Csem.assign_loc_value.
+    + erewrite BeePL_auxlemmas.access_mode_preserved; eauto.
+    + assumption.
+    + inv H1. simpl. f_equal. 
+      unfold transC_val_bplvalue in H2.
+      destruct v0; try discriminate;
+      inv H2;
+      reflexivity.
+  - have -> := non_volatile_type_preserved ty cty g g' i true H0 ht.
+    have -> := access_mode_preserved ty cty (By_value (transl_bchunk_cchunk chunk)) g g' i H ht.
+    exists tr.
+    split. reflexivity.
+    simpl.
+    have -> := bv_cv_reflex v0 v' H2.
+    have hequiv := senv_preserved.
+    simpl in hequiv.
+    by have := @Events.volatile_store_preserved bge (Genv.globalenv cprog) (transl_bchunk_cchunk chunk)
+           m addr ofs v0 tr m' hequiv H1.
+Qed.
+
 
 End semantic_preservation.
 
