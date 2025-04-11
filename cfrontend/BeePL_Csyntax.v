@@ -229,7 +229,7 @@ match (transBeePL_type (fd.(BeePL.fn_return)) (initial_generator tt)) with
                                 | Res vt g i => match (transBeePL_expr_st (fd.(BeePL.fn_body)) (initial_generator tt)) with 
                                                 | Err msg => Error msg
                                                 | Res fbody g i => OK {| fn_return := crt; 
-                                                                         fn_callconv := cc_default; 
+                                                                         fn_callconv := fd.(BeePL.fn_callconv); 
                                                                          fn_params := zip (unzip1 (fd.(fn_args)))
                                                                                    (from_typelist pt);
                                                                          fn_vars := zip (unzip1 (fd.(BeePL.fn_vars)))

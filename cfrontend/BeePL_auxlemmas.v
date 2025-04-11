@@ -161,4 +161,72 @@ move=> beg benv e. elim: e=> //= v t m e' m' _ /=. split=> //=.
 move=> h. by inversion h.
 Qed.*)
 
+Lemma unzip1_cancel {A} {B} : forall (l1 : list A) (l2 : list B),
+  length l1 = length l2 ->
+  l1 = BeePL_aux.unzip1 (BeePL_aux.zip l1 l2).
+Proof.
+  induction l1; intros.
+  - destruct l2; auto.
+  - simpl.
+    destruct l2.
+    + discriminate.
+    + simpl. f_equal. auto.
+Qed.
 
+Lemma unzip2_cancel {A} {B} : forall (l1 : list A) (l2 : list B),
+  length l1 = length l2 ->
+  l1 = BeePL_aux.unzip2 (BeePL_aux.zip l2 l1).
+Proof.
+  induction l1; intros.
+  - destruct l2; auto.
+  - simpl.
+    destruct l2.
+    + discriminate.
+    + simpl. f_equal. auto.
+Qed.
+
+Lemma unzip1_preserves_length {A} {B} {C} : forall (l1 : list (A * B)) (l2 : list C),
+  length (BeePL_aux.unzip1 l1) = length l2 <->
+  length l1 = length l2.
+Proof.
+  induction l1; intros; split; intros; auto.
+  - simpl. 
+    destruct l2.
+    + discriminate.
+    + simpl in *. f_equal. rewrite <- IHl1. auto.
+  - simpl.
+    destruct l2.
+    + discriminate.
+    + simpl in *. f_equal. rewrite IHl1. auto.
+Qed.
+
+Lemma unzip2_preserves_length {A} {B} {C} : forall (l1 : list (A * B)) (l2 : list C),
+  length (BeePL_aux.unzip2 l1) = length l2 <->
+  length l1 = length l2.
+Proof.
+  induction l1; intros; split; intros; auto.
+  - simpl. 
+    destruct l2.
+    + discriminate.
+    + simpl in *. f_equal. rewrite <- IHl1. auto.
+  - simpl.
+    destruct l2.
+    + discriminate.
+    + simpl in *. f_equal. rewrite IHl1. auto.
+Qed.
+
+Lemma to_typelist_cancel : forall (l : typelist),
+  to_typelist (from_typelist l) = l.
+Proof.
+  induction l.
+  - auto.
+  - simpl. f_equal. auto.
+Qed.
+
+Lemma from_typelist_cancel : forall (l : list Ctypes.type),
+  from_typelist (to_typelist l) = l.
+Proof.
+  induction l.
+  - auto.
+  - simpl. f_equal. auto.
+Qed.

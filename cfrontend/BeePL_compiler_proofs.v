@@ -127,8 +127,6 @@ Scheme sim_bexpr_cexpr_ind_mut := Induction for sim_bexpr_cexpr Sort Prop
 with sim_bexprs_cexprs_ind_mut := Induction for sim_bexprs_cexprs Sort Prop.
 Combined Scheme sim_bexprs_cexprs_bexpr_cexpr_ind_mut from sim_bexpr_cexpr_ind_mut, sim_bexprs_cexprs_ind_mut.
 
-(* Complete me *)  
-(* Can put the other cases that were left out/not fixed*)
 Inductive sim_bexpr_cstmt : vmap -> BeePL.expr -> Csyntax.statement -> Prop :=
 | sim_val_st : forall le v t ct cv g g' i',
                transBeePL_type t g = Res ct g' i' ->
@@ -490,9 +488,6 @@ case hts: (transBeePL_types transBeePL_type es g)=> [errs | cts gs igs] //=.
 by case ht: (transBeePL_type t gs)=> [er | ct1 g1 i1] //=.
 Qed.
 
-(*** Complete Me ***)
-(*** Write more such lemmas for all available BeePL and C types ***)
-
 Lemma no_btype_to_float : forall t g f a g' i,
 transBeePL_type t g <> Res (Tfloat f a) g' i.
 Proof.
@@ -538,9 +533,6 @@ case hts: (transBeePL_types transBeePL_type es g)=> [errs | cts gs igs] //=.
 by case ht: (transBeePL_type t gs)=> [er | ct1 g1 i1] //=.
 Qed.
 
-
-(*** Complete Me ***)
-(*** Write more such lemmas for all available C types that are not allowed in BeePL ***)
 
 (***** End of Proof for correctness of type transformation *****)
 
@@ -767,6 +759,8 @@ Proof.
 Qed.
 
 
+Variable benv : BeePL.vmap.
+
 (* Relates global variables of BeePL and Csyntax *)
 Inductive match_globvar : BeePL.globvar type -> AST.globvar Ctypes.type -> Prop :=
 | match_globvar_intro : forall t init t' init' rd vo g g' i,
@@ -776,15 +770,15 @@ Inductive match_globvar : BeePL.globvar type -> AST.globvar Ctypes.type -> Prop 
 
 (* Relates the function definition of BeePL and Csyntax *)
 Inductive match_function : BeePL.function -> Csyntax.function -> Prop :=
-| match_fun : forall vm bf cf,
-  transBeePL_type (BeePL.fn_return bf) = ret (Csyntax.fn_return cf) ->
+| match_fun : forall vm bf cf g1 i1 g2 i2 g3 i3,
+  transBeePL_type (BeePL.fn_return bf) (initial_generator tt) = Res (Csyntax.fn_return cf) g1 i1 ->
   BeePL.fn_callconv bf = Csyntax.fn_callconv cf ->
-  unzip1 (BeePL.fn_args bf) = unzip1 (Csyntax.fn_params cf) ->
-  transBeePL_types transBeePL_type (unzip2 (BeePL.fn_args bf)) = 
-  ret (to_typelist (unzip2 (Csyntax.fn_params cf))) ->
-  unzip1 (BeePL.fn_vars bf) = unzip1 (Csyntax.fn_vars cf) ->
-  transBeePL_types transBeePL_type (unzip2 (BeePL.fn_vars bf)) = 
-  ret (to_typelist (unzip2 (Csyntax.fn_vars cf))) ->
+  BeePL_aux.unzip1 (BeePL.fn_args bf) = BeePL_aux.unzip1 (Csyntax.fn_params cf) ->
+  transBeePL_types transBeePL_type (BeePL_aux.unzip2 (BeePL.fn_args bf)) (initial_generator tt) = 
+  Res (to_typelist (BeePL_aux.unzip2 (Csyntax.fn_params cf))) g2 i2 ->
+  BeePL_aux.unzip1 (BeePL.fn_vars bf) = BeePL_aux.unzip1 (Csyntax.fn_vars cf) ->
+  transBeePL_types transBeePL_type (BeePL_aux.unzip2 (BeePL.fn_vars bf)) (initial_generator tt) = 
+  Res (to_typelist (BeePL_aux.unzip2 (Csyntax.fn_vars cf))) g3 i3 ->
   sim_bexpr_cstmt vm (BeePL.fn_body bf) (Csyntax.fn_body cf) ->
   match_function bf cf.
 
@@ -792,7 +786,44 @@ Lemma transBeePL_function_spec: forall bf cf,
 transBeePL_function_function bf = OK cf ->
 match_function bf cf.
 Proof.
-Admitted.
+  intros.
+  unfold transBeePL_function_function in H.
+  destruct (transBeePL_type (BeePL.fn_return bf) (initial_generator tt)) as [|crt g1 i1] eqn:Hreturn; try discriminate.
+  destruct (transBeePL_types transBeePL_type (BeePL_aux.unzip2 (fn_args bf)) (initial_generator tt)) as [|pt g2 i2] eqn:Hargs; try discriminate.
+  destruct (transBeePL_types transBeePL_type (BeePL_aux.unzip2 (BeePL.fn_vars bf)) (initial_generator tt)) as [|vt g3 i3] eqn:Hvars; try discriminate.
+  destruct (transBeePL_expr_st (BeePL.fn_body bf) (initial_generator tt)) as [|fbody g4 i4] eqn:Hbody; try discriminate.
+  injection H as H.
+  erewrite <- H.
+  eapply match_fun with (vm := benv); cbn in *.
+  - eauto.
+  - eauto.
+  - apply transBeePL_types_length in Hargs.
+    eapply unzip1_cancel.
+    rewrite unzip2_preserves_length in Hargs.
+    rewrite <- unzip1_preserves_length in Hargs.
+    apply Hargs.
+  - rewrite <- unzip2_cancel.
+    + rewrite to_typelist_cancel.
+      eauto.
+    + apply transBeePL_types_length in Hargs.
+      rewrite unzip2_preserves_length in Hargs.
+      rewrite <- unzip1_preserves_length in Hargs.
+      eauto.
+  - apply transBeePL_types_length in Hvars.
+    eapply unzip1_cancel.
+    rewrite unzip2_preserves_length in Hvars.
+    rewrite <- unzip1_preserves_length in Hvars.
+    apply Hvars.
+  - rewrite <- unzip2_cancel.
+    + rewrite to_typelist_cancel.
+      eauto.
+    + apply transBeePL_types_length in Hvars.
+      rewrite unzip2_preserves_length in Hvars.
+      rewrite <- unzip1_preserves_length in Hvars.
+      eauto.
+  - eapply transBeePL_expr_stmt_spec.
+    eauto.
+Qed.
 
 (* Relates the fundef of BeePL and Csyntax *)
 (* Fix me: Add external function rel later *) 
@@ -951,6 +982,7 @@ Lemma function_ptr_translated : forall v f,
 Genv.find_funct_ptr bge v = Some f ->
 exists tf, Genv.find_funct_ptr (Csem.genv_genv cge) v = Some tf /\ match_fundef f tf. 
 Proof.
+  intros v f h.
 Admitted.
 
 (* Complete Me *)
@@ -967,6 +999,9 @@ Lemma function_return_preserved : forall f tf g g' i,
 match_function f tf ->
 transBeePL_type (BeePL.fn_return f) g = Res (Csyntax.fn_return tf) g' i.
 Proof.
+  intros.
+  inv H.
+  apply H0.
 Admitted.
 
 (* Preservation of deref_addr between BeePL and Csyntax *) 
