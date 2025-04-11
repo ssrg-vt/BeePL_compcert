@@ -26,7 +26,7 @@ Definition atom_of_string : list (ident * string) := ((_x, "x") ::
                                                       (_main, "main") :: nil).
 
 Definition f_div_zero : BeePL.function := {| 
-                                   fn_return := (Ptype (BeeTypes.Tint I32 Signed dattr));
+                                   fn_return := (Ptype (BeeTypes.Tint I32 Unsigned dattr));
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
                                    fn_args := nil;

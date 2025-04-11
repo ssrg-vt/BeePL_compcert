@@ -1,6 +1,6 @@
 Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values BeePL_typechecker. 
-From Coq Require Import String ZArith.
-From compcert Require Import Csyntaxdefs.
+From Coq Require Import String ZArith Lists.List.
+From compcert Require Import Csyntaxdefs Errors Maps BeePL_aux.
 Import Csyntaxdefs.CsyntaxNotations.
 Local Open Scope string_scope.
 Local Open Scope csyntax_scope.
@@ -26,7 +26,7 @@ Definition atom_of_string : list (ident * string) := ((_x, "x") ::
                                                       (_main, "main") :: nil).
 
 Definition f_add : BeePL.function := {| 
-                                   fn_return := (Ptype (BeeTypes.Tint I32 Signed dattr));
+                                   fn_return := (Ptype (BeeTypes.Tint I32 Unsigned dattr));
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
                                    fn_args := nil;
@@ -60,3 +60,4 @@ Definition global_definitions : list (ident * AST.globdef BeePL.fundef type)
 Definition public_idents : list ident := (_main :: nil).
 
 (*Compute (type_check_expr empty_context empty_context f_add.(fn_body)).*)
+

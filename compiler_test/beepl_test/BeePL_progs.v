@@ -1,5 +1,5 @@
 Require Import AST Maps Ctypes.
-Require Import BeePL BeeTypes Errors. 
+Require Import BeePL BeeTypes Errors BeePL_typechecker. 
 From Coq Require Import String.
 
 Require Import BeePL_add BeePL_cond BeePL_app BeePL_div_zero.
@@ -38,5 +38,4 @@ Definition example1 : BeePL.program := {| prog_defs := BeePL_div_zero.global_def
 
 Definition example1_atom_of_string : list (ident * string) := BeePL_div_zero.atom_of_string. (* <-- MODIFY *)
 
-
-(*Compute (transf_beepl_program_csyntax (example1)).*)
+Compute (type_check_program empty_context empty_context example1).
