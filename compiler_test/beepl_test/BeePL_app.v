@@ -99,6 +99,8 @@ Definition public_idents : list ident := (_main :: _add :: nil).
 
 Compute (type_check_expr empty_context empty_context f_app_add.(fn_body)).*)
 
+(*Compute (type_check_expr empty_context empty_context (Prim Deref ((Var _a (Ptype (BeeTypes.Tint I32 Signed dattr))) :: nil) 
+(Ptype (BeeTypes.Tint I32 Signed dattr)))).*)
 
-
+(*Compute type_check_function  empty_context empty_context f_add.*)
 

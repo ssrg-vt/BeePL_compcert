@@ -140,7 +140,58 @@ match e with
                    | None => Error (msg "Location not found")
                    end
 | Hexpr h e t =>  Error (msg "Hexpr is not yet supported")
-| Eapp ef ts es t => Error (msg "Not found")
+| Eapp ef ts es t => Error (msg "Not found") (* we need to check with the map that contains all external call info *)
 end.
+
+Open Scope string_scope.
+
+Definition type_check_function (Gamma : ty_context) (Sigma : store_context) (fn : function) : res string :=
+match type_check_expr Gamma Sigma fn.(fn_body) with 
+| Error msg => Error msg
+| OK tef => if eq_type fn.(fn_return) tef.1 && eq_effect fn.(fn_effect) tef.2
+             then OK "Success in type checking" 
+             else Error (msg "Type of function body does not match with the return type in the function declaration")
+end.
+
+Definition type_check_fundef (Gamma : ty_context) (Sigma : store_context) (fn : BeePL.fundef) : res string :=
+match fn with 
+| Internal f => type_check_function Gamma Sigma f 
+| External ef ts t cc => match ef with 
+                         | EF_external fn fs => if eq_types eq_type fs.(bsig_args) ts && eq_type t fs.(bsig_res) (* add the check with the map *)
+                                                then OK "Success in type checking" 
+                                                else Error (msg "Type of external function is not as expected")
+                         end
+end.
+
+(* Fix me *)
+Definition type_check_globvar (Gamma : ty_context) (Sigma : store_context) (gv : BeePL.globvar type) : res type :=
+OK (gv.(gvar_info)).
+
+Section Type_check_globdefs.
+
+Variable type_check_globdef : ty_context -> store_context -> BeePL.globdef BeePL.fundef BeeTypes.type -> res string.
+
+Fixpoint type_check_globdefs (Gamma : ty_context) (Sigma : store_context) (gds : list (BeePL.globdef BeePL.fundef BeeTypes.type)) : res string :=
+match gds with 
+| nil => OK "Program type checks!"
+| gd :: gds => do gds1 <- type_check_globdef Gamma Sigma gd;
+               type_check_globdefs Gamma Sigma gds
+end.
+  
+End Type_check_globdefs.
+
+Definition type_check_globdef (Gamma : ty_context) (Sigma : store_context)  (gd : BeePL.globdef BeePL.fundef BeeTypes.type) : res string :=
+match gd with 
+| AST.Gfun f => type_check_fundef Gamma Sigma f  
+| Gvar g => do gt <- type_check_globvar Gamma Sigma g;
+            OK "Success in type checking globdef"
+end.
+
+(* Add later type checking for composite definitions *)
+Definition type_check_program (Gamma : ty_context) (Sigma : store_context) (p : BeePL.program) : res string :=
+type_check_globdefs type_check_globdef Gamma Sigma (unzip2 (p.(prog_defs))).
+
+
+
 
 
