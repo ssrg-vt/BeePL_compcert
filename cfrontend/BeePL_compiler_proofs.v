@@ -976,12 +976,26 @@ move=> vi l t ct g g' i h ht hm.
 case h=> //= h' h''. by move: (h' vi l t ct g g' i hm ht). 
 Qed.
 
+Search Genv.find_funct_ptr.
+Print trans_program_astprog.
 (* Complete Me *)
 (* Preservation of function ptr *) 
 Lemma function_ptr_translated : forall v f,
 Genv.find_funct_ptr bge v = Some f ->
 exists tf, Genv.find_funct_ptr (Csem.genv_genv cge) v = Some tf /\ match_fundef f tf. 
 Proof.
+  intros v f FIND.
+  simpl in FIND.
+  destruct TRANSBPL as [MATCH_PROG _].
+  exploit (Genv.find_funct_ptr_inversion); eauto.
+  eapply Genv.find_funct_ptr_match in FIND; eauto.
+  destruct FIND as (cunit & tf & FIND_TF & MATCH_F & LINKORD).
+  simpl.
+  exists tf; split; eauto.
+  eapply MATCH_F.
+  unfold match_program_gen in MATCH_PROG.
+  unfold Linking.match_program_gen.
+  eapply MATCH_PROG.
 Admitted.
 
 (* Complete Me *)
@@ -994,11 +1008,11 @@ Admitted.
 
 (* Complete me *)
 (* Preservation of function returns *)
-Lemma function_return_preserved : forall f tf g g' i,
+(* changed to exists because match_function gives a specific g its true for *)
+Lemma function_return_preserved : forall f tf,
 match_function f tf ->
-transBeePL_type (BeePL.fn_return f) g = Res (Csyntax.fn_return tf) g' i.
-Proof.
-Admitted.
+exists g i, transBeePL_type (BeePL.fn_return f) (initial_generator tt) = Res (Csyntax.fn_return tf) g i.
+Proof. intros. inv H. eauto. Qed.
 
 (* Preservation of deref_addr between BeePL and Csyntax *) 
 Lemma deref_addr_translated:  forall ty m addr ofs bf v cty cv g g' i,
