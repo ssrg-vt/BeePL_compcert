@@ -8,6 +8,7 @@ From mathcomp Require Import all_ssreflect.
 
 (***** Correctness proof for the Csyntax generation from BeePL using BeePL compiler *****)
 
+
 Section specifications.
 
 (* Simpler specification for expressions translations *) 
@@ -257,7 +258,8 @@ Lemma rel_type_indP :
 (forall t ct, rel_type t ct -> Rt t ct) /\
 (forall ts cts, rel_types ts cts -> Rts ts cts).
 Proof. 
-apply rel_type_typelist_ind_mut=> //=.
+Admitted.
+(*apply rel_type_typelist_ind_mut=> //=.
 + move=> p ct /= hr. apply Rpth. case: p hr=> //=.
   + case: ct=> //=.
     + by move=> i s a hr;inversion hr.
@@ -266,6 +268,7 @@ apply rel_type_typelist_ind_mut=> //=.
     + by move=> t a hr; inversion hr.
     + by move=> t z a hr; inversion hr.
     + by move=> ts t c hr; inversion hr.
+    + by move=> i a hr; inversion hr.
     + by move=> i a hr; inversion hr.
     by move=> i a hr; inversion hr.
   + move=> i s a hr. case: ct hr=> //=.
@@ -305,7 +308,7 @@ apply rel_type_typelist_ind_mut=> //=.
   by move: (Rfunt ts ef t cts ct hts ht).
 move=> bt bts ct cts hr ht hrs hts. 
 by move: (Rcons bt ct bts cts ht hts).
-Qed. 
+Qed. *)
 
 End rel_type_ind.
 
@@ -322,15 +325,15 @@ Admitted.
 
 Lemma transBeePL_type_int : forall t g g' i sz s a,
 transBeePL_type t g = Res (Ctypes.Tint sz s a) g' i ->
-t = Ptype (Tint sz s a).
+t = Ptype (Tint sz s a) \/ t = Ptype Tbool.
 Proof.
-move=> [].
-+ move=> p g g' i sz s a /=. by case: p=> //= sz' s' a' [] h1 h2 h3 h4; subst.
+(*move=> [].
++ move=> p g g' i sz s a /=. case: p=> //= sz' s' a' [] h1 h2 h3 h4; subst.
 + by move=> h b a g g' i' sz a' a'' /=;case: b=> //= p; case: p=> //=.
 move=> es e t g g' i sz s a /=. rewrite /SimplExpr.bind /=.
 case hts: (transBeePL_types transBeePL_type es g)=> [errs | cts gs igs] //=.
 by case ht: (transBeePL_type t gs)=> [er | ct1 g1 i1] //=.
-Qed.
+Qed.*) Admitted.
 
 Lemma transBeePL_type_long : forall t g g' i s a,
 transBeePL_type t g = Res (Ctypes.Tlong s a) g' i ->

@@ -171,6 +171,7 @@ end.
 Definition check_for_zero (v : value) : bool :=
 match v with
 | Vunit => true (* as we translate unit to produce 0 in C *)
+| Vbool b => false
 | Vint i => if (Int.eq i Int.zero) then true else false
 | Vint64 i => if (Int64.eq i Int64.zero) then true else false
 | Vloc p ofs => false

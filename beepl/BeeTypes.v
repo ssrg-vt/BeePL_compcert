@@ -35,6 +35,7 @@ end.
 
 Inductive primitive_type : Type :=
 | Tunit : primitive_type
+| Tbool : primitive_type
 | Tint : intsize -> signedness -> attr -> primitive_type
 | Tlong : signedness -> attr -> primitive_type.
 
@@ -48,6 +49,7 @@ Inductive type : Type :=
 
 Inductive wtype : Type :=
 | Twunit : wtype
+| Twbool : wtype
 | Twint : wtype
 | Twlong : wtype
 | Twref : wtype
@@ -58,7 +60,7 @@ Inductive wtype : Type :=
 
 Inductive rettype : Type :=
 | Tret (t: type)      (**r like type [t] *)
-| Tbool               (**r Boolean value (0 or 1) *)
+| Trbool               (**r Boolean value (0 or 1) *)
 | Tint8signed         (**r 8-bit signed integer *)
 | Tint8unsigned       (**r 8-bit unsigned integer *)
 | Tint16signed        (**r 16-bit signed integer *)
@@ -97,6 +99,7 @@ Definition is_primint (t : type) : bool :=
 match t with 
 | Ptype p => match p with 
              | Tunit => false
+             | Tbool => false
              | Tint _ _ _ => true 
              | Tlong _ _ => false
              end
@@ -107,6 +110,7 @@ Definition is_primlong (t : type) : bool :=
 match t with 
 | Ptype p => match p with 
              | Tunit => false
+             | Tbool => false
              | Tint _ _ _ => false 
              | Tlong _ _ => true
              end
@@ -122,6 +126,15 @@ match t with
 | _ => false
 end.
 
+Definition is_primbool (t : type) : bool :=
+match t with 
+| Ptype p => match p with 
+             | Tbool => true 
+             | _ => false
+             end
+| _ => false
+end.
+
 Definition is_primtype_notunit (t : type) : Prop :=
 is_primtype t /\ (not (is_unittype t)).
 
@@ -129,6 +142,7 @@ Definition extract_signedness_type (t : type) : option signedness :=
 match t with 
 | Ptype p => match p with 
              | Tunit => None
+             | Tbool => None
              | Tint sz s a => Some s
              | Tlong s a => Some s
              end
@@ -137,7 +151,7 @@ end.
 
 (** The following describes types that can be interpreted as a boolean:
   integers, pointers.  It is used for the semantics of
-  the [!] and [?] operators, as well as the [cond] expression *)
+  the [!] and [?] operators, as well as the [cond] expression 
 
 Inductive classify_bool_cases : Type :=
 | bool_case_i     (**r integer *)
@@ -153,7 +167,7 @@ match t with
              end
 | Reftype _ _ _ => if Archi.ptr64 then bool_case_l else bool_case_i
 | _ => bool_default
-end.
+end.*)
 
 Definition basic_to_type (b : basic_type) : type :=
 match b with 
@@ -164,8 +178,9 @@ Definition Twptr := if Archi.ptr64 then Twlong else Twint.
 
 Definition wtype_of_type (t : type) : wtype :=
 match t with 
-| Ptype p => match p with 
+| Ptype p => match p with
              | Tunit => Twunit 
+             | Tbool => Twbool
              | Tint _ _ _ => Twint 
              | Tlong _ _ => Twlong 
              end
@@ -212,13 +227,6 @@ then if s2 is y :: s2'
      else false
 else true.
 
-
-(*Fixpoint sub_effect (efs1 efs2 : effect) : bool :=
-match efs1 with
-| nil => true
-| ef1 :: efs1 => if in_effect ef1 efs2 then sub_effect efs1 efs2  else false
-end.*)
-
 Fixpoint no_divergence (ef : effect) : bool :=
 match ef with 
 | nil => true 
@@ -228,6 +236,7 @@ end.
 Definition eq_primitive_type (p1 p2 : primitive_type) : bool :=
 match p1, p2 with 
 | Tunit, Tunit => true 
+| Tbool, Tbool => true
 | Tint sz s a, Tint sz' s' a'=> if intsize_eq sz sz' 
                                 then if signedness_eq s s'
                                      then if attr_eq a a'
@@ -265,7 +274,7 @@ end.
 
 Definition wtypeof_chunk (c : bmemory_chunk) : wtype :=
 match c with 
-| BMbool => Twint 
+| BMbool => Twbool 
 | BMint8signed => Twint 
 | BMint8unsigned => Twint 
 | BMint16signed => Twint 
@@ -289,6 +298,7 @@ type must be accessed:
 Definition access_mode_prim (t : primitive_type) : mode :=
 match t with 
 | Tunit =>  By_nothing (* Fix me *)
+| Tbool => By_value Mint8signed
 | Tint I8 Signed _ => By_value Mint8signed
 | Tint I8 Unsigned _ => By_value Mint8unsigned
 | Tint I16 Signed _ => By_value Mint16signed
@@ -313,6 +323,7 @@ end.
 Definition attr_of_primitive_type (t : primitive_type) : attr :=
 match t with 
 | Tunit => noattr 
+| Tbool => noattr
 | Tint sz s a => a
 | Tlong s a => a
 end.
@@ -412,6 +423,7 @@ end.
 Definition sizeof_ptype (t : primitive_type) : Z :=
 match t with 
 | Tunit => 1
+| Tbool => 1
 | Tint I8 _ _ => 1
 | Tint I16 _ _ => 2
 | Tint I32 _ _ => 4
@@ -464,11 +476,13 @@ Fixpoint transBeePL_type (t : BeeTypes.type) : mon Ctypes.type :=
 match t with
 | Ptype t => match t with  
              | Tunit => ret Ctypes.Tvoid (* Fix me *)
+             | Tbool => ret (Ctypes.Tint I8 Unsigned noattr)
              | Tint sz s a => ret (Ctypes.Tint sz s a)
              | Tlong s a => ret (Ctypes.Tlong s a)
              end
 | Reftype h bt a => match bt with 
                     | Bprim Tunit => ret (Ctypes.Tpointer Ctypes.Tvoid a)
+                    | Bprim Tbool => ret (Ctypes.Tint I8 Unsigned noattr)
                     | Bprim (Tint sz s a') => ret (Ctypes.Tpointer (Ctypes.Tint sz s a') a)
                     | Bprim (Tlong s a') => ret (Ctypes.Tpointer (Ctypes.Tlong s a') a)
                     end

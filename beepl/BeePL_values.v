@@ -12,12 +12,14 @@ Local Open Scope string_scope.
 Local Open Scope gensym_monad_scope.
 
 Inductive constant : Type :=
+| ConsBool : bool -> constant
 | ConsInt : int -> constant
 | ConsLong : int64 -> constant
 | ConsUnit : constant.
 
 Definition is_zero_constant (c : constant) : bool :=
 match c with 
+| ConsBool b => false
 | ConsInt i => if Int.eq i Int.zero then true else false
 | ConsLong i => if Int64.eq i Int64.zero then true else false
 | ConsUnit => false
@@ -53,12 +55,12 @@ match c with
 | _ => false
 end.
 
-
 (*Record vinfo : Type := mkvar { vname : ident; vtype : BeeTypes.basic_type }.*)
 Record linfo : Type := mkloc { lname : ident; (*ltype : BeeTypes.basic_type;*) lbitfield : bitfield }.
 
 Inductive value : Type :=
 | Vunit : value
+| Vbool : bool -> value
 | Vint : int -> value
 | Vint64 : int64 -> value
 | Vloc : positive -> ptrofs -> value.
@@ -66,6 +68,7 @@ Inductive value : Type :=
 Definition is_vloc (v : value) : bool :=
 match v with 
 | Vunit => false
+| Vbool b => false
 | Vint i => false 
 | Vint64 l => false
 | Vloc l ofs => true 
@@ -74,6 +77,7 @@ end.
 Definition is_zero_val (v : value) : bool :=
 match v with 
 | Vunit => false
+| Vbool b => false
 | Vint i => if Int.eq i Int.zero then true else false
 | Vint64 i => if Int64.eq i Int64.zero then true else false
 | Vloc p ofs => false
@@ -122,6 +126,7 @@ Definition default_attr (t : type) := {| attr_volatile := false;
 Definition wtypeof_value (v : value) (t :  BeeTypes.wtype) : Prop :=
 match v, t with 
 | Vunit, Twuint => True 
+| Vbool b, BeeTypes.Twbool => True
 | Vint i, BeeTypes.Twint => True 
 | Vint64 i, BeeTypes.Twlong => True 
 | Vloc p ofs, BeeTypes.Twref => True
@@ -130,7 +135,8 @@ end.
 
 Definition typeof_value (v : value) (t : type) : Prop :=
 match v, t with 
-| Vunit, (Ptype Tunit) => True 
+| Vunit, Ptype Tunit => True 
+| Vbool b, Ptype Tbool => True
 | Vint i, Ptype (Tint sz s a) => True 
 | Vint64 i, Ptype (Tlong s a) => True 
 | Vloc p ofs, Reftype h b a => True (* targeting only 64 bit arch *)
@@ -196,6 +202,7 @@ Definition return_bzero (t : type) : mon value :=
 match t with 
 | Ptype p => match p with   
              | Tunit => error (msg "Tunit not allowed")
+             | Tbool => error (msg "Tbool not allowed")
              | Tint i s a => ret (Vint (Int.repr 0))
              | Tlong s a => ret (Vint64 (Int64.repr 0))
              end

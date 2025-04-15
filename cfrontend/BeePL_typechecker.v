@@ -8,14 +8,6 @@ Local Open Scope error_monad_scope.
 
 (***** Type checker for BeePL *****)
 
-(* Any number can be treated as bool: 0 for false and rest for true *)
-Definition check_type_bool (t : type) : bool :=
-match classify_bool t with 
-| bool_case_i => true
-| bool_case_l => true 
-| bool_default => false
-end.
-
 (* Type-checking of constants *)
 (* We type check it with weak type: wtype because it is 
    hard to get size and signedness from constants *) 
@@ -24,6 +16,7 @@ match c with
 | ConsInt i => Twint
 | ConsLong i => Twlong
 | ConsUnit => Twunit
+| ConsBool b => Twbool
 end.
 
 (* Type-checking of values *)
@@ -32,6 +25,7 @@ end.
 Definition type_value (v : value) : wtype :=
 match v with 
 | Vunit => Twunit
+| Vbool b => Twbool
 | Vint i => Twint
 | Vint64 i => Twlong
 | Vloc p ofs => Twptr
@@ -103,20 +97,159 @@ match e with
                                                  end
                             | _ => Error (msg " Wrong number of arguments to Massgn")
                             end                                                         
-                 | Uop o => match es with 
-                            | e :: nil => do (te, ef) <- type_check_expr Gamma Sigma e;
-                                          if negb(is_reftype te) && negb(is_unittype te) && eq_type t te
-                                          then OK (te, ef)
-                                          else Error (msg "Reftype and unitype are not allowed as arguments of unary operators")
-                            | _ => Error (msg "Wrong number of arguments to Unary operator")
-                            end
-                 | Bop o => match es with 
-                            | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr Gamma Sigma e1;
-                                                 do (te2, ef2) <- type_check_expr Gamma Sigma e2;
-                                                 if (eq_type te1 te2 && negb(is_reftype te1) && negb(is_unittype te1) && eq_effect ef1 ef2 && eq_type te1 t) 
-                                                 then OK(te1, ef1)
-                                                 else Error (msg "Reftype and unitype are not allowed as arguments of binary operators") 
-                            | _ => Error (msg "Wrong number of arguments to Binary operators") 
+                 | Uop o => match o with 
+                            | Cop.Onotbool => match es with 
+                                              | e :: nil => do (te, ef) <- type_check_expr Gamma Sigma e;
+                                                            if is_primbool te && eq_type t te
+                                                            then OK (te, ef)
+                                                            else Error (msg "Wrong argument type to negation bool operator, it expects bool as argument")
+                                              | _ => Error (msg "Wrong number of arguments to Unary operator")
+                                              end
+                            | Cop.Onotint => match es with 
+                                              | e :: nil => do (te, ef) <- type_check_expr Gamma Sigma e;
+                                                            if (is_primint te || is_primlong te) && eq_type t te
+                                                            then OK (te, ef)
+                                                            else Error (msg "Wrong argument type to bitwise not operator, it expects int or long as argument")
+                                              | _ => Error (msg "Wrong number of arguments to Unary operator")
+                                              end
+                            | Cop.Oneg => match es with 
+                                          | e :: nil => do (te, ef) <- type_check_expr Gamma Sigma e;
+                                                        if (is_primint te || is_primlong te) && eq_type t te
+                                                        then OK (te, ef)
+                                                        else Error (msg "Wrong argument type to unary minus operator, it expects int or long as argument")
+                                          | _ => Error (msg "Wrong number of arguments to Unary operator")
+                                          end
+                            | Cop.Oabsfloat => Error (msg "Floating-point absolute value operator is not supported in BeePL")
+                            end 
+                 | Bop o => match o with 
+                            | Cop.Oadd => match es with 
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr Gamma Sigma e1;
+                                                               do (te2, ef2) <- type_check_expr Gamma Sigma e2;
+                                                               if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_effect ef1 ef2 && eq_type te1 t) 
+                                                               then OK(te1, ef1)
+                                                               else Error (msg "Wrong argument types to add operator, it expects int or long as argument")
+                                          | _ => Error (msg "Wrong number of arguments to Binary operators") 
+                                          end 
+                            | Cop.Osub => match es with 
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr Gamma Sigma e1;
+                                                               do (te2, ef2) <- type_check_expr Gamma Sigma e2;
+                                                               if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_effect ef1 ef2 && eq_type te1 t) 
+                                                               then OK(te1, ef1)
+                                                               else Error (msg "Wrong argument types to add operator, it expects int or long as argument") 
+                                          | _ => Error (msg "Wrong number of arguments to Binary operators") 
+                                          end
+                            | Cop.Omul => match es with 
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr Gamma Sigma e1;
+                                                           do (te2, ef2) <- type_check_expr Gamma Sigma e2;
+                                                           if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_effect ef1 ef2 && eq_type te1 t) 
+                                                           then OK(te1, ef1)
+                                                           else Error (msg "Wrong argument types to mul operator, it expects int or long as argument")
+                                          | _ => Error (msg "Wrong number of arguments to Binary operators") 
+                                          end 
+                            | Cop.Odiv => match es with 
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr Gamma Sigma e1;
+                                                           do (te2, ef2) <- type_check_expr Gamma Sigma e2;
+                                                           if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_effect ef1 ef2 && eq_type te1 t) 
+                                                           then OK(te1, ef1)
+                                                           else Error (msg "Wrong argument types to div operator, it expects int or long as argument")
+                                          | _ => Error (msg "Wrong number of arguments to Binary operators") 
+                                          end
+                            | Cop.Omod => match es with 
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr Gamma Sigma e1;
+                                                           do (te2, ef2) <- type_check_expr Gamma Sigma e2;
+                                                           if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_effect ef1 ef2 && eq_type te1 t) 
+                                                           then OK(te1, ef1)
+                                                           else Error (msg "Wrong argument types to mod operator, it expects int or long as argument") 
+                                          | _ => Error (msg "Wrong number of arguments to Binary operators") 
+                                          end
+                            | Cop.Oand => match es with 
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr Gamma Sigma e1;
+                                                           do (te2, ef2) <- type_check_expr Gamma Sigma e2;
+                                                           if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_effect ef1 ef2 && eq_type te1 t) 
+                                                           then OK(te1, ef1)
+                                                           else Error (msg "Wrong argument types to and operator, it expects bool as argument")
+                                          | _ => Error (msg "Wrong number of arguments to Binary operators") 
+                                          end
+                            | Cop.Oor => match es with 
+                                         | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr Gamma Sigma e1;
+                                                           do (te2, ef2) <- type_check_expr Gamma Sigma e2;
+                                                           if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_effect ef1 ef2 && eq_type te1 t) 
+                                                           then OK(te1, ef1)
+                                                           else Error (msg "Wrong argument types to or operator, it expects bool as argument")
+                                         | _ => Error (msg "Wrong number of arguments to Binary operators") 
+                                         end
+                            | Cop.Oxor => match es with 
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr Gamma Sigma e1;
+                                                           do (te2, ef2) <- type_check_expr Gamma Sigma e2;
+                                                           if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_effect ef1 ef2 && eq_type te1 t) 
+                                                           then OK(te1, ef1)
+                                                           else Error (msg "Wrong argument types to xor operator, it expects int or long as argument")
+                                          | _ =>  Error (msg "Wrong number of arguments to Binary operators") 
+                                          end
+                            | Cop.Oshl => match es with 
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr Gamma Sigma e1;
+                                                           do (te2, ef2) <- type_check_expr Gamma Sigma e2;
+                                                           if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_effect ef1 ef2 && eq_type te1 t) 
+                                                           then OK(te1, ef1)
+                                                           else Error (msg "Wrong argument types to shl operator, it expects int or long as argument")
+                                          | _ =>  Error (msg "Wrong number of arguments to Binary operators") 
+                                          end
+                            | Cop.Oshr => match es with 
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr Gamma Sigma e1;
+                                                           do (te2, ef2) <- type_check_expr Gamma Sigma e2;
+                                                           if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_effect ef1 ef2 && eq_type te1 t) 
+                                                           then OK(te1, ef1)
+                                                           else Error (msg "Wrong argument types to shr operator, it expects int or long as argument")
+                                          | _ =>  Error (msg "Wrong number of arguments to Binary operators") 
+                                          end
+                            | Cop.Oeq => match es with 
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr Gamma Sigma e1;
+                                                               do (te2, ef2) <- type_check_expr Gamma Sigma e2;
+                                                               if (eq_type te1 te2 && (is_primint te1 || is_primlong te1 || is_primbool te2) && eq_effect ef1 ef2 && eq_type te1 t) 
+                                                               then OK(Ptype Tbool, ef1)
+                                                               else Error (msg "Wrong argument types to eq operator, it expects int or long as argument")
+                                          | _ =>  Error (msg "Wrong number of arguments to Binary operators") 
+                                          end
+                            | Cop.One => match es with 
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr Gamma Sigma e1;
+                                                               do (te2, ef2) <- type_check_expr Gamma Sigma e2;
+                                                               if (eq_type te1 te2 && (is_primint te1 || is_primlong te1 || is_primbool te2) && eq_effect ef1 ef2 && eq_type te1 t) 
+                                                               then OK(Ptype Tbool, ef1)
+                                                               else Error (msg "Wrong argument types to ne operator, it expects int or long as argument")
+                                          | _ =>  Error (msg "Wrong number of arguments to Binary operators") 
+                                          end
+                            | Cop.Olt => match es with 
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr Gamma Sigma e1;
+                                                               do (te2, ef2) <- type_check_expr Gamma Sigma e2;
+                                                               if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_effect ef1 ef2 && eq_type te1 t) 
+                                                               then OK(Ptype Tbool, ef1)
+                                                               else Error (msg "Wrong argument types to lt operator, it expects int or long as argument")
+                                          | _ =>  Error (msg "Wrong number of arguments to Binary operators") 
+                                          end
+                            | Cop.Ogt => match es with 
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr Gamma Sigma e1;
+                                                               do (te2, ef2) <- type_check_expr Gamma Sigma e2;
+                                                               if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_effect ef1 ef2 && eq_type te1 t) 
+                                                               then OK(Ptype Tbool, ef1)
+                                                               else Error (msg "Wrong argument types to gt operator, it expects int or long as argument")
+                                          | _ =>  Error (msg "Wrong number of arguments to Binary operators") 
+                                          end
+                            | Cop.Ole => match es with 
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr Gamma Sigma e1;
+                                                               do (te2, ef2) <- type_check_expr Gamma Sigma e2;
+                                                               if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_effect ef1 ef2 && eq_type te1 t) 
+                                                               then OK(Ptype Tbool, ef1)
+                                                               else Error (msg "Wrong argument types to le operator, it expects int or long as argument")
+                                          | _ =>  Error (msg "Wrong number of arguments to Binary operators") 
+                                          end
+                            | Cop.Oge => match es with 
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr Gamma Sigma e1;
+                                                               do (te2, ef2) <- type_check_expr Gamma Sigma e2;
+                                                               if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_effect ef1 ef2 && eq_type te1 t) 
+                                                               then OK(Ptype Tbool, ef1)
+                                                               else Error (msg "Wrong argument types to ge operator, it expects int or long as argument")
+                                          | _ =>  Error (msg "Wrong number of arguments to Binary operators") 
+                                          end
                             end
                  | Run h => Error (msg "Run is not yet supported")
                  end
@@ -128,7 +261,7 @@ match e with
 | Cond e1 e2 e3 t =>  do (te1, ef1) <- type_check_expr Gamma Sigma e1;
                       do (te2, ef2) <- type_check_expr Gamma Sigma e2;
                       do (te3, ef3) <- type_check_expr Gamma Sigma e3;
-                      if check_type_bool te1 && eq_type te2 te3 && eq_effect ef2 ef3 && eq_type t te2
+                      if is_primbool te1 && eq_type te2 te3 && eq_effect ef2 ef3 && eq_type t te2
                       then OK (te1, ef1 ++ ef2)
                       else Error (msg "Type of cond does not match the inferred type")
 | Unit t => OK (Ptype Tunit, nil)

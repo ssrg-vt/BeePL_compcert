@@ -56,6 +56,10 @@ match e with
                | ConsInt i => do it <- (transBeePL_type t); ret (Eval (Values.Vint i) it)
                | ConsLong i => do it <- (transBeePL_type t); ret (Eval (Values.Vlong i) it)
                | ConsUnit => do ut <- (transBeePL_type t); ret (Eval (Values.Vint (Int.repr 0)) ut) 
+               | ConsBool b => do ut <- (transBeePL_type t); 
+                               ret (if eqb b true 
+                                    then (Eval (Values.Vint (Int.repr 1)) ut) 
+                                    else (Eval (Values.Vint (Int.repr 0)) ut))
                end
 | App e es t => do ce <- (transBeePL_expr_expr e); 
                 do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);
@@ -136,6 +140,9 @@ match e with
                                       | ConsInt i => Eval (Values.Vint i) ct
                                       | ConsLong i => Eval (Values.Vlong i) ct
                                       | ConsUnit => Eval (Values.Vint (Int.repr 0)) ct
+                                      | ConsBool b => if eqb b true 
+                                                      then Eval (Values.Vint (Int.repr 1)) ct
+                                                      else Eval (Values.Vint (Int.repr 0)) ct
                                       end) ct)))
 | App e es t => do ce <- (transBeePL_expr_expr e);
                 do ces <- (transBeePL_expr_exprs transBeePL_expr_expr es);

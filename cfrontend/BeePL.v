@@ -364,6 +364,7 @@ end.
 Definition transBeePL_value_cvalue (v : value) : Values.val :=
 match v with 
 | Vunit => Values.Vint (Int.repr 0) (* Fix me *)
+| Vbool b => if eqb b true then Values.Vint (Int.repr 1) else Values.Vint (Int.repr 0)
 | Vint i => Values.Vint i
 | Vint64 i => Values.Vlong i 
 | Vloc p ofs => Values.Vptr p ofs
