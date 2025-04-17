@@ -1,11 +1,10 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
-Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL PeanoNat Coq.NArith.BinNat Ctypes Errors.
+Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL PeanoNat Coq.NArith.BinNat Ctypes Errors Ctypes Coq.ZArith.Znumtheory.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps SimplExpr Coq.Strings.BinaryString.
 From mathcomp Require Import all_ssreflect. 
 
 Local Open Scope string_scope.
 Local Open Scope error_monad_scope.
-Local Open Scope gensym_monad_scope.
 
 Inductive effect_label : Type :=
 | Panic : effect_label               (* exception effect *)
@@ -45,7 +44,8 @@ Inductive basic_type : Type :=
 Inductive type : Type :=
 | Ptype : primitive_type -> type                          (* primitive types *)
 | Reftype : ident -> basic_type -> attr -> type           (* reference type ref<h,int> *)
-| Ftype : list type -> effect -> type -> type             (* function/arrow type *).
+| Ftype : list type -> effect -> type -> type             (* function/arrow type *)
+| Stype : ident -> attr -> type                           (* struct type *).
 
 Inductive wtype : Type :=
 | Twunit : wtype
@@ -53,7 +53,202 @@ Inductive wtype : Type :=
 | Twint : wtype
 | Twlong : wtype
 | Twref : wtype
-| Twfun : wtype.
+| Twfun : wtype
+| Twst : wtype.
+
+(****** Translation from BeePL types to Csyntax types ******)
+
+Fixpoint from_typelist (ts : Ctypes.typelist) : list Ctypes.type :=
+match ts with
+| Tnil => nil
+| Tcons t ts => t :: from_typelist ts
+end. 
+
+Fixpoint to_typelist (ts : list Ctypes.type) : Ctypes.typelist :=
+match  ts with 
+| nil => Tnil
+| t :: ts => Tcons t (to_typelist ts)
+end.
+
+Section translate_types.
+
+Variable transBeePL_type : BeeTypes.type -> Ctypes.type.
+
+(* Translates a list of BeePL types to list of Clight types *) 
+Fixpoint transBeePL_types (ts : list BeeTypes.type) : Ctypes.typelist :=
+match ts with 
+| nil => Tnil
+| t :: ts => (Tcons (transBeePL_type t) (transBeePL_types ts))
+end.
+
+End translate_types.
+
+Fixpoint transBeePL_type (t : BeeTypes.type) : Ctypes.type :=
+match t with
+| Ptype t => match t with  
+             | Tunit => Ctypes.Tvoid (* Fix me *)
+             | Tbool => (Ctypes.Tint I8 Unsigned noattr)
+             | Tint sz s a => (Ctypes.Tint sz s a)
+             | Tlong s a => (Ctypes.Tlong s a)
+             end
+| Reftype h bt a => match bt with 
+                    | Bprim Tunit => (Ctypes.Tpointer Ctypes.Tvoid a)
+                    | Bprim Tbool => (Ctypes.Tint I8 Unsigned noattr)
+                    | Bprim (Tint sz s a') => (Ctypes.Tpointer (Ctypes.Tint sz s a') a)
+                    | Bprim (Tlong s a') => (Ctypes.Tpointer (Ctypes.Tlong s a') a)
+                    end
+| BeeTypes.Ftype ts ef t => (Tfunction (transBeePL_types transBeePL_type ts) (transBeePL_type t) 
+                                       {| cc_vararg := Some (Z.of_nat(length(ts))); 
+                                       cc_unproto := false; cc_structret := false |}) (* Fix me *) 
+| BeeTypes.Stype x a => (Tstruct x a)
+end.
+
+
+Lemma transBeePL_type_ind :
+forall (P : BeeTypes.type -> Prop),
+ (forall (t : primitive_type), P (Ptype t)) ->
+ (forall (h : ident) (bt : basic_type) (a : attr), P (Reftype h bt a)) ->
+ (forall (ts : list BeeTypes.type) (ef : effect) (t : BeeTypes.type),
+  Forall P ts -> P t -> P (Ftype ts ef t)) ->
+ (forall (h : ident) (a : attr), P (Stype h a)) ->
+forall t : BeeTypes.type, P t.
+Proof.
+intros P Hprim Href Hfun Hs.
+fix IH 1.
+intros t.
+destruct t as [p | h bt a | ts ef t | h a].
+- apply Hprim.
+- apply Href.
+- apply Hfun.
++ induction ts as [| t' ts' IHts]; constructor; auto.
++ apply IH.
+- apply Hs.
+Qed.
+
+(*** Composite Definition for BeePL ***)
+Inductive bmember : Type :=
+| Member_plain : ident -> BeeTypes.type -> bmember
+| Member_bitfield : ident -> intsize -> signedness -> attr -> Z -> bool -> bmember.
+
+Definition bmember_cmember (b : bmember) : member :=
+match b with 
+| Member_plain h t => Ctypes.Member_plain h (transBeePL_type t)
+| Member_bitfield h sz s a z b => Ctypes.Member_bitfield h sz s a z b
+end. 
+
+Fixpoint bmembers_cmembers (bs : list bmember) : members :=
+match bs with 
+| nil => nil
+| b :: bs => bmember_cmember b :: bmembers_cmembers bs
+end.
+
+
+Definition member_is_padding (m: bmember) : bool :=
+  match m with
+  | Member_plain _ _ => false
+  | Member_bitfield _ _ _ _ _ p => p
+  end.
+
+Inductive bcomposite_definition : Type :=  
+| Bcomposite : ident -> struct_or_union -> list bmember -> attr -> bcomposite_definition.
+
+Definition bcomposite_ccomposite_definition (bd : bcomposite_definition) : composite_definition :=
+match bd with 
+| Bcomposite h s bs a => (Composite h s (bmembers_cmembers bs) a)
+end.
+
+Open Scope Z_scope.
+
+Record bcomposite : Type := Build_bcomposite
+  { co_su : struct_or_union;
+    co_members : list bmember;
+    co_attr : attr;
+    co_sizeof : Z;
+    co_alignof : Z;
+    co_rank : nat;
+    co_sizeof_pos : (co_sizeof >= 0)%Z;
+    co_alignof_two_p : exists n : nat, co_alignof = two_power_nat n;
+    co_sizeof_alignof : (co_alignof | co_sizeof) }.
+
+Definition bcomposite_ccomposite (b : bcomposite) : Ctypes.composite :=
+{| Ctypes.co_su := b.(co_su);
+   Ctypes.co_members := bmembers_cmembers b.(co_members);
+   Ctypes.co_attr :=  b.(co_attr);
+   Ctypes.co_sizeof := b.(co_sizeof);
+   Ctypes.co_alignof := b.(co_alignof); 
+   Ctypes.co_rank := b.(co_rank);
+   Ctypes.co_sizeof_pos := b.(@co_sizeof_pos);
+   Ctypes.co_alignof_two_p := b.(co_alignof_two_p);
+   Ctypes.co_sizeof_alignof := b.(co_sizeof_alignof)|}.
+
+Definition bcomposite_env := PTree.t bcomposite.
+
+Definition bcomposite_composite_env (benv : bcomposite_env) : composite_env :=
+  PTree.fold
+    (fun (acc : composite_env) id (b : bcomposite) =>
+       PTree.set id (bcomposite_ccomposite b) acc)
+    benv
+    (PTree.empty composite).
+
+Program Definition bcomposite_of_def
+     (env: bcomposite_env) (id: ident) (su: struct_or_union) (m: list bmember) (a: attr)
+     : res bcomposite :=
+  match env!id, complete_members (bcomposite_composite_env env) (bmembers_cmembers m) return _ with
+  | Some _, _ =>
+      Error (MSG "Multiple definitions of struct or union " :: CTX id :: nil)
+  | None, false =>
+      Error (MSG "Incomplete struct or union " :: CTX id :: nil)
+  | None, true =>
+      let al := align_attr a (alignof_composite (bcomposite_composite_env env) (bmembers_cmembers m)) in
+      OK {| co_su := su;
+            co_members := m;
+            co_attr := a;
+            co_sizeof := Coqlib.align (sizeof_composite (bcomposite_composite_env env) su (bmembers_cmembers m)) al;
+            co_alignof := al;
+            co_rank := rank_members (bcomposite_composite_env env) (bmembers_cmembers m);
+            co_sizeof_pos := _;
+            co_alignof_two_p := _;
+            co_sizeof_alignof := _ |}
+  end.
+Next Obligation.
+  apply Z.le_ge. eapply Z.le_trans. eapply sizeof_composite_pos.
+  apply Coqlib.align_le; apply alignof_composite_pos.
+Defined.
+Next Obligation.
+  apply align_attr_two_p. apply alignof_composite_two_p.
+Defined.
+Next Obligation.
+  apply Coqlib.align_divides. apply alignof_composite_pos.
+Defined.
+
+(** The composite environment for a program is obtained by entering
+  its composite definitions in sequence.  The definitions are assumed
+  to be listed in dependency order: the definition of a composite
+  must precede all uses of this composite, unless the use is under
+  a pointer or function type. *)
+Fixpoint add_bcomposite_definitions (env: bcomposite_env) (defs: list bcomposite_definition) : res bcomposite_env :=
+  match defs with
+  | nil => OK env
+  | Bcomposite id su m a :: defs =>
+      do co <- bcomposite_of_def env id su m a;
+      add_bcomposite_definitions (PTree.set id co env) defs
+  end.
+
+Definition build_bcomposite_env (defs: list bcomposite_definition) :=
+  add_bcomposite_definitions (PTree.empty _) defs.
+
+
+Definition wf_bcomposites (types: list bcomposite_definition) : Prop :=
+  match build_bcomposite_env types with OK _ => True | Error _ => False end.
+
+Definition build_bcomposite_env' (types: list bcomposite_definition)
+                                (WF: wf_bcomposites types)
+                             : { ce | build_bcomposite_env types  = OK ce }.
+Proof.
+  revert WF. unfold wf_bcomposites. case (build_bcomposite_env types); intros.
+- exists b; reflexivity.
+- contradiction.
+Defined.
 
 (** To describe the values returned by functions, we use the more precise
     types below. *)
@@ -65,13 +260,23 @@ Inductive rettype : Type :=
 | Tint8unsigned       (**r 8-bit unsigned integer *)
 | Tint16signed        (**r 16-bit signed integer *)
 | Tint16unsigned      (**r 16-bit unsigned integer *)
-| Teunit              (**r no value returned *).
+| Teunit              (**r no value returned *)
+| Testype             (**r struct type **).
 
 Definition is_reftype (t : type) : bool :=
 match t with 
 | Ptype p => false
 | Reftype h bt a => true 
 | Ftype es ef t => false
+| Stype x a => false
+end. 
+
+Definition is_stype (t : type) : bool :=
+match t with 
+| Ptype p => false
+| Reftype h bt a => false
+| Ftype es ef t => false
+| Stype x a => true
 end. 
 
 Definition is_unittype (t : type) : bool :=
@@ -149,26 +354,6 @@ match t with
 | _ => None 
 end.
 
-(** The following describes types that can be interpreted as a boolean:
-  integers, pointers.  It is used for the semantics of
-  the [!] and [?] operators, as well as the [cond] expression 
-
-Inductive classify_bool_cases : Type :=
-| bool_case_i     (**r integer *)
-| bool_case_l     (**r long *)
-| bool_default    (** default case to check if it does not have right type to represent bool *).
-
-Definition classify_bool (t : type) : classify_bool_cases :=
-match t with 
-| Ptype t => match t with 
-             | Tunit => bool_default
-             | Tint _ _ _ => bool_case_i
-             | Tlong _ _ => bool_case_l
-             end
-| Reftype _ _ _ => if Archi.ptr64 then bool_case_l else bool_case_i
-| _ => bool_default
-end.*)
-
 Definition basic_to_type (b : basic_type) : type :=
 match b with 
 | Bprim p => Ptype p
@@ -186,6 +371,7 @@ match t with
              end
 | Reftype _ _ _ => Twref 
 | Ftype _ _ _ => Twfun
+| Stype _ _ => Twst
 end.
 
 Fixpoint wtypes_of_types (t : list type) : list wtype :=
@@ -318,6 +504,7 @@ match t with
 | Ptype t => access_mode_prim t
 | Reftype h t _ => By_value Mptr
 | Ftype ts ef t => By_reference
+| Stype x a => By_copy
 end.
 
 Definition attr_of_primitive_type (t : primitive_type) : attr :=
@@ -333,6 +520,7 @@ match t with
 | Ptype t => attr_of_primitive_type t
 | Reftype h t a => a
 | Ftype ts ef t => noattr
+| Stype x a => a
 end.
 
 
@@ -436,81 +624,13 @@ match t with
 | Bprim t => sizeof_ptype t 
 end. 
 
-Definition sizeof_type (t : type) : Z :=
+Definition sizeof_type (env : bcomposite_env) (t : type) : Z :=
 match t with 
 | Ptype t => sizeof_ptype t 
 | Reftype h t _ => sizeof_btype t
 | Ftype ts e t => 1
+| Stype x a => match env!x with Some co => co_sizeof co | None => 0 end
 end.
-
-(****** Translation from BeePL types to Csyntax types ******)
-
-Fixpoint from_typelist (ts : Ctypes.typelist) : list Ctypes.type :=
-match ts with
-| Tnil => nil
-| Tcons t ts => t :: from_typelist ts
-end. 
-
-Fixpoint to_typelist (ts : list Ctypes.type) : Ctypes.typelist :=
-match  ts with 
-| nil => Tnil
-| t :: ts => Tcons t (to_typelist ts)
-end.
-
-Section translate_types.
-
-Variable transBeePL_type : BeeTypes.type -> mon Ctypes.type.
-
-(* Translates a list of BeePL types to list of Clight types *) 
-Fixpoint transBeePL_types (ts : list BeeTypes.type) : mon Ctypes.typelist :=
-match ts with 
-| nil => ret Tnil
-| t :: ts => do ct <- (transBeePL_type t);
-             do cts <- (transBeePL_types ts);
-             ret (Tcons ct cts)
-end.
-
-End translate_types.
-
-Fixpoint transBeePL_type (t : BeeTypes.type) : mon Ctypes.type :=
-match t with
-| Ptype t => match t with  
-             | Tunit => ret Ctypes.Tvoid (* Fix me *)
-             | Tbool => ret (Ctypes.Tint I8 Unsigned noattr)
-             | Tint sz s a => ret (Ctypes.Tint sz s a)
-             | Tlong s a => ret (Ctypes.Tlong s a)
-             end
-| Reftype h bt a => match bt with 
-                    | Bprim Tunit => ret (Ctypes.Tpointer Ctypes.Tvoid a)
-                    | Bprim Tbool => ret (Ctypes.Tint I8 Unsigned noattr)
-                    | Bprim (Tint sz s a') => ret (Ctypes.Tpointer (Ctypes.Tint sz s a') a)
-                    | Bprim (Tlong s a') => ret (Ctypes.Tpointer (Ctypes.Tlong s a') a)
-                    end
-| BeeTypes.Ftype ts ef t => do ats <- (transBeePL_types transBeePL_type ts);
-                            do rt <- (transBeePL_type t);
-                            ret (Tfunction ats rt {| cc_vararg := Some (Z.of_nat(length(ts))); 
-                                                     cc_unproto := false; cc_structret := false |}) (* Fix me *) 
-end.
-
-
-Lemma transBeePL_type_ind :
-forall (P : BeeTypes.type -> Prop),
- (forall (t : primitive_type), P (Ptype t)) ->
- (forall (h : ident) (bt : basic_type) (a : attr), P (Reftype h bt a)) ->
- (forall (ts : list BeeTypes.type) (ef : effect) (t : BeeTypes.type),
-  Forall P ts -> P t -> P (Ftype ts ef t)) ->
-forall t : BeeTypes.type, P t.
-Proof.
-intros P Hprim Href Hfun.
-fix IH 1.
-intros t.
-destruct t as [p | h bt a | ts ef t].
-- apply Hprim.
-- apply Href.
-- apply Hfun.
-+ induction ts as [| t' ts' IHts]; constructor; auto.
-+ apply IH.
-Qed.
 
 (* Typing context *)
 Definition ty_context := PTree.t type.

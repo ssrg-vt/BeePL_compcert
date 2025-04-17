@@ -157,6 +157,7 @@ match e with
 | Addr l ofs t => [::]
 | Eapp ef ts es t => flatten (map gen_safe_cond_expr es)
 | Hexpr h e t => [::] (* fix me *)
+| Sfield x a t => [::] 
 end.
 
 (* Defines the interpretation of safety condition *) 
@@ -187,9 +188,9 @@ Proof.
 Admitted.
 
 (* A well-typed uop always has a semantics that leads to a value. *)
-Lemma well_typed_safe_uop : forall Gamma Sigma bge vm v ef t uop m ct g i,
+Lemma well_typed_safe_uop : forall Gamma Sigma bge vm v ef t uop m ct,
 type_expr Gamma Sigma (Prim (Uop uop) ((Val v t) :: nil) t) ef t ->
-transBeePL_type t g = Res ct g i ->
+transBeePL_type t = ct ->
 interp_safe_conds (gen_safe_cond_expr (Val v t)) Sigma bge vm m ->
 exists v', Cop.sem_unary_operation uop (transBeePL_value_cvalue v) ct m = Some v'.
 Proof.

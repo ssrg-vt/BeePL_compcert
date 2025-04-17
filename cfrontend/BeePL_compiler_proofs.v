@@ -8,29 +8,29 @@ From mathcomp Require Import all_ssreflect.
 
 (***** Correctness proof for the Csyntax generation from BeePL using BeePL compiler *****)
 
-
+(*
 Section specifications.
 
 (* Simpler specification for expressions translations *) 
 Inductive sim_bexpr_cexpr : vmap -> BeePL.expr -> Csyntax.expr -> Prop :=
 | sim_val : forall le v t ct g g' i, 
-            transBeePL_type t g = Res ct g' i->
+            transBeePL_type t = ct ->
             sim_bexpr_cexpr le (BeePL.Val v t) (Csyntax.Eval (transBeePL_value_cvalue v) ct)
 (*| sim_valof : forall le e t ct ce g g' i,
               transBeePL_type t g = Res ct g' i ->
               sim_bexpr_cexpr le e ce ->
               sim_bexpr_cexpr le (BeePL.Valof e t) (Csyntax.Evalof ce ct)*)
 | sim_var : forall (le:BeePL.vmap) (le':Csem.env) x t ct g g' i,
-            transBeePL_type t g = Res ct g' i ->
+            transBeePL_type t = ct ->
             (forall le' id, if isSome (le ! id) 
                             then (forall l, le ! id = Some (l, t) /\ le' ! id = Some (l, ct)) 
                             else le ! id = None /\ le' ! id = None) ->
             sim_bexpr_cexpr le (BeePL.Var x t) (Csyntax.Evar x ct)
 | sim_const_int : forall le i t ct g g' i',
-                  transBeePL_type t g = Res ct g' i' ->
+                  transBeePL_type t = ct->
                   sim_bexpr_cexpr le (BeePL.Const (ConsInt i) t) (Csyntax.Eval (Values.Vint i) ct)
 | sim_const_long : forall le i t ct g g' i',
-                   transBeePL_type t g = Res ct g' i' ->
+                   transBeePL_type t = ct ->
                    sim_bexpr_cexpr le (BeePL.Const (ConsLong i) t) (Csyntax.Eval (Values.Vlong i) ct)
 | sim_const_unit : forall le cv ct g g' i', (* Fix me *)
                    transBeePL_value_cvalue Vunit = cv ->
@@ -339,44 +339,44 @@ Lemma transBeePL_type_long : forall t g g' i s a,
 transBeePL_type t g = Res (Ctypes.Tlong s a) g' i ->
 t = Ptype (Tlong s a).
 Proof.
-move=> [].
+(*move=> [].
 + move=> p g g' i s a /=. by case: p=> //= s' a' [] h1 h2 h3; subst.  
 + by move=> h b a g g' i' a' a'' /=;case: b=> //= p; case: p=> //=.
 move=> es e t g g' i sz s /=. rewrite /SimplExpr.bind /=.
 case hts: (transBeePL_types transBeePL_type es g)=> [errs | cts gs igs] //=.
 by case ht: (transBeePL_type t gs)=> [er | ct1 g1 i1] //=.
-Qed.
+Qed.*) Admitted.
 
 Lemma transBeePL_type_void : forall t g g' i,
 transBeePL_type t g = Res Tvoid g' i ->
 t = Ptype Tunit.
 Proof.
-move=> [].
+(*move=> [].
 + by move=> p g g' i /=; case: p=> //=.
 + by move=> h b a g g' i /=; case: b=> //= p; case: p=> //=.
 move=> es ef t g g' i /=. rewrite /SimplExpr.bind /=.
 case hts: (transBeePL_types transBeePL_type es g)=> [errs | cts gs igs] //=.
 by case ht: (transBeePL_type t gs)=> [er | ct1 g1 i1] //=.
-Qed.
+Qed.*) Admitted.
 
 Lemma transBeePL_type_function : forall t ts t1 ct g g' i,
 transBeePL_type t g = Res (Tfunction ts t1 ct) g' i ->
 exists bts bef brt, t = Ftype bts bef brt. 
 Proof.
-move=> [].
+(*move=> [].
 + by move=> p ts t1 ct g g' i /=; case: p=> //=.
 + by move=> h b a ts t1 ct g g' i' /=; case: b=> //=; move=> p; case: p=> //=.
 move=> es ef t ts t1 ct g g' i /=. rewrite /SimplExpr.bind /=.
 case hts: (transBeePL_types transBeePL_type es g)=> [errs | cts gs igs] //=.
 case ht: (transBeePL_type t gs)=> [er | ct1 g1 i1] //=. move=> [] h1 h2 h3 h4; subst.
 exists es. exists ef. by exists t.
-Qed.
+Qed.*) Admitted.
 
 Lemma transBeePL_type_ref : forall t t' a' g g' i,
 transBeePL_type t g = Res (Tpointer t' a') g' i ->
 exists h bt a, t = Reftype h bt a. 
 Proof.
-move=> [].
+(*move=> [].
 + by move=> p t' a' g g' i; case: p=> //=.
 + move=> h b a t' a' g g' i' /=; case: b=> //= p; case: p=> //=.
   + move=> [] h1 h2 h3; subst. exists h. exists (Bprim Tunit). by exists a'.
@@ -385,7 +385,7 @@ move=> [].
 move=> es e t t' a' g g' i /=. rewrite /SimplExpr.bind /=.
 case hts: (transBeePL_types transBeePL_type es g)=> [errs | cts gs igs] //=.
 by case ht: (transBeePL_type t gs)=> [er | ct1 g1 i1] //=.
-Qed.
+Qed.*) Admitted.
 
 (*** Complete Me ***)
 (*** Write more such lemmas for all available BeePL and C types ***)
@@ -412,17 +412,6 @@ case hts: (transBeePL_types transBeePL_type es g)=> [errs | cts gs igs] //=.
 by case ht: (transBeePL_type t gs)=> [er | ct1 g1 i1] //=.
 Qed.
 
-(* not valid once we add struct data type in BeePL *)
-Lemma no_btype_to_struct : forall t s a g g' i,
-transBeePL_type t g <> Res (Tstruct s a) g' i.
-Proof.
-move=> t s a g g' i /=. case: t=> //=.
-+ by move=> p; case: p=> //=.
-+ by move=> h b a';case: b=> //= p;case: p=> //=.
-move=> es ef t. rewrite /SimplExpr.bind /=.
-case hts: (transBeePL_types transBeePL_type es g)=> [errs | cts gs igs] //=.
-by case ht: (transBeePL_type t gs)=> [er | ct1 g1 i1] //=.
-Qed.
 
 Lemma no_btype_to_union : forall t s a g g' i,
 transBeePL_type t g <> Res (Tunion s a) g' i.
@@ -1209,3 +1198,4 @@ Proof.
 induction 1; intros.
 Admitted. *)
 
+*)

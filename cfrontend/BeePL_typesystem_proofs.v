@@ -46,9 +46,9 @@ Definition store_well_typed (Sigma : store_context)
      v != loc. ***)
 
 (* A well-typed uop always has a semantics that leads to a value. *)
-Lemma well_formed_uop : forall Gamma Sigma bge vm v ef t uop m ct g i,
+Lemma well_formed_uop : forall Gamma Sigma bge vm v ef t uop m ct,
 type_expr Gamma Sigma (Prim (Uop uop) ((Val v t) :: nil) t) ef t ->
-transBeePL_type t g = Res ct g i ->
+transBeePL_type t = ct ->
 store_well_typed Sigma bge vm m ->
 exists v', Cop.sem_unary_operation uop (transBeePL_value_cvalue v) ct m = Some v'.
 Proof.
@@ -116,9 +116,9 @@ by have [h [] bt [] a [] h11 [] h12 hs]:= type_infer_loc Gamma Sigma p ofs ef' t
 Qed.*)
 
 (* Complete Me : Easy *)
-Lemma trans_value_uop_success : forall Gamma Sigma ef t uop v ct g g' i m v', 
+Lemma trans_value_uop_success : forall Gamma Sigma ef t uop v ct m v', 
 type_expr Gamma Sigma (Val v t) ef t ->
-transBeePL_type t g = Res ct g' i ->
+transBeePL_type t = ct ->
 Cop.sem_unary_operation uop (transBeePL_value_cvalue v) ct m = Some v' ->
 exists v'', transC_val_bplvalue v' = OK v''.
 Proof.
@@ -140,9 +140,9 @@ Admitted.
 (* Complete Me : Medium *) (* Hint : Follow similar proof style like well_typed_uop *)
 (* A well-typed bop always has a semantics that leads to a value. *)
 (* ADD safety requirement in the semantics of div/mod/shift so that it never reaches overflow or division by zero *)
-Lemma well_formed_bop : forall Gamma Sigma bge vm bcmp v1 v2 ef t bop m ct g i,
+Lemma well_formed_bop : forall Gamma Sigma bge vm bcmp v1 v2 ef t bop m ct,
 type_expr Gamma Sigma (Prim (Bop bop) ((Val v1 t) :: (Val v2 t) :: nil) t) ef t ->
-transBeePL_type t g = Res ct g i ->
+transBeePL_type t = ct ->
 store_well_typed Sigma bge vm m ->
 exists v', Cop.sem_binary_operation bcmp bop (transBeePL_value_cvalue v1) ct 
                                              (transBeePL_value_cvalue v2) ct m = Some v'.
@@ -150,9 +150,9 @@ Proof.
 Admitted.
 
 (* Complete Me : Medium *)
-Lemma trans_value_bop_success : forall Gamma Sigma bge bcmp vm bop v1 v2 ef t ct g i m v', 
+Lemma trans_value_bop_success : forall Gamma Sigma bge bcmp vm bop v1 v2 ef t ct m v', 
 type_expr Gamma Sigma (Prim (Bop bop) (Val v1 t:: Val v2 t :: nil) t) ef t ->
-transBeePL_type t g = Res ct g i ->
+transBeePL_type t = ct ->
 store_well_typed Sigma bge vm m ->
 Cop.sem_binary_operation bcmp bop (transBeePL_value_cvalue v1) ct 
                                   (transBeePL_value_cvalue v2) ct m = Some v' ->
@@ -180,9 +180,9 @@ Proof.
 Qed.*) Admitted.
 
 (* Complete Me : Medium  *)
-Lemma val_uop_type_preserve : forall Gamma Sigma ef t uop v ct g g' i m v' v'', 
+Lemma val_uop_type_preserve : forall Gamma Sigma ef t uop v ct m v' v'', 
 type_expr Gamma Sigma (Val v t) ef t ->
-transBeePL_type t g = Res ct g' i ->
+transBeePL_type t = ct ->
 Cop.sem_unary_operation uop (transBeePL_value_cvalue v) ct m = Some v' ->
 transC_val_bplvalue v' = OK v'' ->
 type_expr Gamma Sigma (Val v'' t) ef t.
@@ -190,9 +190,9 @@ Proof.
 Admitted.
 
 (* Complete Me : Medium *)
-Lemma val_bop_type_preserve : forall Gamma Sigma bcmp bop v1 v2 ef t ct g g' i m v' v'', 
+Lemma val_bop_type_preserve : forall Gamma Sigma bcmp bop v1 v2 ef t ct m v' v'', 
 type_expr Gamma Sigma (Prim (Bop bop) (Val v1 t:: Val v2 t :: nil) t) ef t ->
-transBeePL_type t g = Res ct g' i ->
+transBeePL_type t = ct ->
 Cop.sem_binary_operation bcmp bop (transBeePL_value_cvalue v1) ct 
                                   (transBeePL_value_cvalue v2) ct m = Some v' ->
 transC_val_bplvalue v' = OK v'' ->
@@ -603,10 +603,10 @@ Proof.
 Admitted.
 
 (* Generalize it to take into account all cases in one lemma *)
-Lemma exf_ret_extract_int : forall g bt ct g' i,
+Lemma exf_ret_extract_int : forall bt ct,
 bt <> Ptype Tunit ->
 is_funtype bt = false -> 
-transBeePL_type bt g = Res ct g' i ->
+transBeePL_type bt = ct ->
 rettype_of_type ct = AST.Tint ->
 exists sz s a, bt = Ptype (Tint sz s a).
 Proof.
@@ -623,10 +623,10 @@ case: p hut =>//=.  + move=> hut _ [] h1 h2; subst. by rewrite /proj_rettype /= 
 move=> s a' hut _ [] h1 h2; subst. by rewrite /proj_rettype /= in hp.
 Qed.*) Admitted.
 
-Lemma exf_ret_extract_long_ref : forall g bt ct g' i,
+Lemma exf_ret_extract_long_ref : forall bt ct,
 bt <> Ptype Tunit ->
 is_funtype bt = false -> 
-transBeePL_type bt g = Res ct g' i ->
+transBeePL_type bt = ct ->
 rettype_of_type ct = AST.Tlong ->
 if Ctypes.is_pointer ct
 then (exists h t a, bt = Reftype h t a)
@@ -656,10 +656,10 @@ exists h. exists (Bprim (Tlong s a')). by exists a.
 Qed.*) Admitted.
 
 (**** External call result has the same type as present in the signature *)
-Lemma well_typed_res_ext : forall Gamma Sigma bge bge' exf g cef g' i' vm m m' vs vres bv ef t,
+Lemma well_typed_res_ext : forall Gamma Sigma bge bge' exf cef vm m m' vs vres bv ef t,
 (get_rt_eapp exf) <> Ptype Tunit ->
 is_funtype (get_rt_eapp exf) = false ->
-befunction_to_cefunction exf g = Res cef g' i' ->
+befunction_to_cefunction exf = cef ->
 Events.external_call cef bge vs m t vres m' ->
 transC_val_bplvalue vres = OK bv ->
 type_expr Gamma Sigma (Val bv (get_rt_eapp exf)) (get_ef_eapp exf ++ ef) (get_rt_eapp exf) /\

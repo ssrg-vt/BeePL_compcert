@@ -26,10 +26,10 @@ Inductive builtin : Type :=
 
 Record bsignature := { bsig_args : list type; bsig_ef : effect; bsig_res : type; bsig_cc : calling_convention }. 
 
-Definition bsig_to_csig (bsig : bsignature) : mon AST.signature :=
-do cts <- (transBeePL_types transBeePL_type bsig.(bsig_args));
-do ct <- (transBeePL_type bsig.(bsig_res));
-ret {| sig_args :=  (map typ_of_type (from_typelist cts)); sig_res := (rettype_of_type ct); sig_cc := bsig.(bsig_cc) |}.
+Definition bsig_to_csig (bsig : bsignature) : AST.signature :=
+{| sig_args :=  (map typ_of_type (from_typelist (transBeePL_types transBeePL_type bsig.(bsig_args)))); 
+       sig_res := (rettype_of_type (transBeePL_type bsig.(bsig_res))); 
+       sig_cc := bsig.(bsig_cc) |}.
 
 Inductive external_function : Set :=
 | EF_external : string -> bsignature -> external_function.
@@ -49,10 +49,9 @@ match ef with
 | EF_external n sig => sig.(bsig_args)
 end.
 
-Definition befunction_to_cefunction (bef : external_function) : mon AST.external_function :=
+Definition befunction_to_cefunction (bef : external_function) : AST.external_function :=
 match bef with 
-| EF_external n bsig => do aef <- bsig_to_csig bsig;
-                        ret (AST.EF_external n aef)
+| EF_external n bsig => (AST.EF_external n (bsig_to_csig bsig))
 end. 
 
 (* The source language never exposes the heap binding construct hpφ.e directly to the user 
@@ -70,7 +69,8 @@ Inductive expr : Type :=
    Only should play role in operational semantics *)
 | Addr : linfo -> ptrofs -> type -> expr                                (* address *)
 | Hexpr : Memory.mem -> expr -> type -> expr                            (* heap effect *)
-| Eapp : external_function -> list type -> list expr -> type -> expr    (* external function *).
+| Eapp : external_function -> list type -> list expr -> type -> expr    (* external function *)
+| Sfield : expr -> ident -> type -> expr                                (* access to a member of struct *).
 
 (*
       e0 --> None (expr)
@@ -115,6 +115,7 @@ match e with
 | Addr l p t => false
 | Hexpr h e t => false
 | Eapp ef ts es t => is_zero_exprs is_zero_expr es
+| Sfield e i t => false
 end.
 
 Section Is_exprs_min_signed.
@@ -142,6 +143,7 @@ match e with
 | Addr l p t => false
 | Hexpr h e t => false
 | Eapp ef ts es t => is_exprs_min_signed is_expr_min_signed es
+| Sfield e x t => false
 end.
 
 Section Is_exprs_mone.
@@ -169,6 +171,7 @@ match e with
 | Addr l p t => false
 | Hexpr h e t => false
 | Eapp ef ts es t => is_exprs_mone is_expr_mone es
+| Sfield e x t => false
 end.
 
 Section Is_exprs_shift.
@@ -196,6 +199,7 @@ match e with
 | Addr l p t => false
 | Hexpr h e t => false
 | Eapp ef ts es t => is_exprs_shift is_expr_shift es
+| Sfield e x t => false
 end.
 
 Definition is_pointer (e : expr) : bool :=
@@ -221,6 +225,7 @@ match e with
 | Addr l p t => t
 | Hexpr h e t => t
 | Eapp ef ts es t => t
+| Sfield e x t => t
 end.
 
 Fixpoint typeof_exprs (e : list expr) : list BeeTypes.type :=
@@ -322,19 +327,48 @@ Definition globvar (V : Type) := AST.globvar V.
 
 Definition globdef (F V : Type) := AST.globdef F V.
 
+
 Record program  : Type := mkprogam { prog_defs : list (ident * globdef fundef type);
                                      prog_public : list ident;
                                      prog_main : ident;
-                                     prog_types : list composite_definition;
-                                     prog_comp_env : composite_env;
-                                     prog_comp_env_eq : build_composite_env prog_types = OK prog_comp_env }.
+                                     prog_types : list bcomposite_definition;
+                                     prog_comp_env : bcomposite_env;
+                                     prog_comp_env_eq : build_bcomposite_env prog_types = OK prog_comp_env }.
+
+Program Definition make_bprogram (types: list bcomposite_definition)
+                                 (defs: list (ident * globdef fundef type))
+                                 (public: list ident)
+                                 (main: ident) : res program :=
+  match build_bcomposite_env types with
+  | Error e => Error e
+  | OK ce =>
+      OK {| prog_defs := defs;
+            prog_public := public;
+            prog_main := main;
+            prog_types := types;
+            prog_comp_env := ce;
+            prog_comp_env_eq := _ |}
+  end.
+
+Definition mkbprogram (types: list bcomposite_definition)
+                     (defs: list (ident * globdef fundef type))
+                     (public: list ident)
+                     (main: ident)
+                     (WF: wf_bcomposites types) : BeePL.program :=
+  let (ce, EQ) := build_bcomposite_env' types WF in
+  {| prog_defs := defs;
+     prog_public := public;
+     prog_main := main;
+     prog_types := types;
+     prog_comp_env := ce;
+     prog_comp_env_eq := EQ |}.
 
 (************************** Operation Semantics **************************************)
 (* Global environments are a component of the dynamic semantics of
    BeePL language.  A global environment maps symbol names 
    (names of functions and of global variables)
    to the corresponding function declarations. *) 
-Record genv := { genv_genv :> Genv.t fundef type; genv_cenv :> composite_env }. 
+Record genv := { genv_genv :> Genv.t fundef type; genv_cenv :> bcomposite_env }. 
 
 Definition trans_program_astprog (p : program) : AST.program fundef type :=
 @mkprogram fundef type
@@ -441,25 +475,19 @@ Inductive deref_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : p
   deref_addr ty m addr ofs Full v'
 | deref_addr_reference:
   access_mode ty = By_reference ->
-  deref_addr ty m addr ofs Full (Vloc addr ofs). 
+  deref_addr ty m addr ofs Full (Vloc addr ofs) 
+| deref_addr_copy:
+  access_mode ty = By_copy ->
+  deref_addr ty m addr ofs Full (Vloc addr ofs)
+| deref_addr_bitfield: forall sz sg pos width v v' cty,
+  transBeePL_type ty = cty ->
+  load_bitfield cty sz sg pos width m (Values.Vptr addr ofs) v ->
+  transC_val_bplvalue v = OK v' ->
+  deref_addr ty m addr ofs (Bits sz sg pos width) v'.
 
-(* Executable definition for deref_addr 
-Fixpoint deref_addr (t : type) (m : Memory.mem) (addr : Values.block) (ofs : ptrofs) : mon (bitfield * value) :=
-match access_mode ty with 
-| By_value (transl_bchunk_cchunk chunk) => if (type_is_volatile ty) 
-                                           then  
-                             
-if (type_is_volatile ty) && (access_mode ty == By_value (transl_bchunk_cchunk chunk)) 
-then match Mem.loadv (transl_bchunk_cchunk chunk) m (transBeePL_value_cvalue (Vloc addr ofs)) with 
-     | Some v => match (transC_val_bplvalue v) with 
-                 | Res v' g i => OK (Full, v')
-                 | None => Error msg 
-     | None => Error msg 
-else if deref_addr t m addr ofs
-else *)
 
 (* [assign_addr ty m addr ofs v] returns the updated memory after storing the value v at address [addr] and offset 
-   [ofs] *)
+   [ofs] *) 
 Inductive assign_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : ptrofs) : bitfield -> value -> Memory.mem -> value -> Prop :=
 | assign_addr_value : forall v chunk m' v',
   access_mode ty = By_value (transl_bchunk_cchunk chunk) ->
@@ -471,7 +499,22 @@ Inductive assign_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : 
   access_mode ty = By_value (transl_bchunk_cchunk chunk) -> type_is_volatile ty = true ->
   volatile_store ge (transl_bchunk_cchunk chunk) m addr ofs v tr m' ->
   transC_val_bplvalue v = OK v' ->
-  assign_addr ty m addr ofs Full v' m' v'. 
+  assign_addr ty m addr ofs Full v' m' v'
+| assign_addr_copy: forall b' ofs' bytes m',
+  access_mode ty = By_copy ->
+  (alignof_blockcopy (bcomposite_composite_env (genv_cenv ge)) (transBeePL_type ty) | Ptrofs.unsigned ofs') ->
+  (alignof_blockcopy (bcomposite_composite_env (genv_cenv ge)) (transBeePL_type ty) | Ptrofs.unsigned ofs) ->
+      b' <> addr \/ Ptrofs.unsigned ofs' = Ptrofs.unsigned ofs
+              \/ Ptrofs.unsigned ofs' + sizeof (bcomposite_composite_env (genv_cenv ge)) (transBeePL_type ty) <= Ptrofs.unsigned ofs
+              \/ Ptrofs.unsigned ofs + sizeof (bcomposite_composite_env (genv_cenv ge)) (transBeePL_type ty) <= Ptrofs.unsigned ofs' ->
+   Mem.loadbytes m b' (Ptrofs.unsigned ofs') (sizeof (bcomposite_composite_env (genv_cenv ge)) (transBeePL_type ty)) = Some bytes ->
+   Mem.storebytes m addr (Ptrofs.unsigned ofs) bytes = Some m' ->
+   assign_addr ty m addr ofs Full (Vloc b' ofs') m' (Vloc b' ofs')
+| assign_addr_bitfield: forall sz sg pos width v m' v' bv bv',
+  store_bitfield (transBeePL_type ty) sz sg pos width m (Values.Vptr addr ofs) v m' v' ->
+  transC_val_bplvalue v = OK bv ->
+  transC_val_bplvalue v' = OK bv' -> 
+  assign_addr ty m addr ofs (Bits sz sg pos width) bv m' bv'. 
 
 (* Allocation of function local variables *)
 (* [alloc_variables vm1 m1 vars vm2 m2] allocates one memory block for each variable
@@ -482,7 +525,7 @@ Inductive alloc_variables : vmap -> Memory.mem -> list (ident * type) -> vmap ->
 | alloc_variables_nil : forall vm hm, 
   alloc_variables vm hm nil vm hm
 | alloc_variables_con : forall e m id ty vars m1 l1 m2 e2,
-  Mem.alloc m 0 (sizeof_type ty) = (m1, l1) ->
+  Mem.alloc m 0 (sizeof_type (genv_cenv ge) ty) = (m1, l1) ->
   alloc_variables (PTree.set id (l1, ty) e) m1 vars e2 m2 ->
   alloc_variables e m ((id, ty) :: vars) e2 m2.
 
@@ -502,7 +545,7 @@ Inductive bind_variables  (e: vmap): Memory.mem -> list (ident * type) -> list v
 (** Return the list of blocks in the codomain of [benv], with low and high bounds. **)
 
 Definition block_of_binding (id_b_ty: ident * (positive * BeeTypes.type)) :=
-  match id_b_ty with (id, (b, ty)) => (b, 0, sizeof_type ty) end.
+  match id_b_ty with (id, (b, ty)) => (b, 0, sizeof_type (genv_cenv ge) ty) end.
 
 Definition blocks_of_env (e: vmap) : list (ident * Z * Z) :=
   List.map block_of_binding (PTree.elements e).
@@ -523,41 +566,7 @@ match e with
 | Addr l p t => Addr l p t
 | Hexpr h e t => Hexpr h (subst x se e) t
 | Eapp ef ts es t => Eapp ef ts (map (subst x se) es) t
-end.
-
-
-Fixpoint is_simple_expr (e : expr) : bool :=
-match e with 
-| Val v t => true 
-| Var v t => true 
-| Const c t => true
-| App e es t => false 
-| Prim o es t => match o with 
-                 | Ref => match es with 
-                          | [:: e] => is_simple_expr e
-                          | _ => false
-                          end
-                 | Deref => match es with 
-                            | [:: e] => is_simple_expr e
-                            | _ => false
-                            end
-                 | Massgn => false
-                 | Uop o => match es with 
-                            | [:: e] => is_simple_expr e
-                            |  _ => false
-                            end
-                 | Bop o => match es with 
-                            | [:: e1; e2] => is_simple_expr e1 && is_simple_expr e2
-                            | _ => false
-                            end
-                 | Run h => false 
-                 end
-| Bind x t e e' t' => false
-| Cond e1 e2 e3 t => false 
-| Unit t => true 
-| Addr l ofs t => true 
-| Hexpr m e t => false
-| Eapp ef ts es t => false
+| Sfield e x t => Sfield (subst x se e) x t
 end.
 
 Inductive well_formed_value : value -> type -> Prop :=
