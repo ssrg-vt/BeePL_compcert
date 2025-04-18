@@ -3,7 +3,7 @@ Require Import AST Maps Ctypes.
 Require Import BeePL BeeTypes Errors BeePL_typechecker Csyntaxdefs. 
 From Coq Require Import String.
 
-Require Import BeePL_add BeePL_cond BeePL_app BeePL_div_zero BeePL_struct_ex1.
+Require Import BeePL_add BeePL_cond BeePL_app BeePL_div_zero BeePL_struct_ex1 BeePL_struct_ex2 BeePL_struct_ex3 BeePL_struct_ex4.
 
 (* In this file you will see two definitions. One for example1 and the other for
    example1_atom_of_string. Those two definitions are extracted to OCaml by 
@@ -30,17 +30,18 @@ Proof.
   unfold wf_bcomposites.
   unfold build_bcomposite_env; simpl; reflexivity.
 Qed.
-*Definition example1 : BeePL.program := @mkbprogram bcomposites 
+
+(*Definition example1 : BeePL.program := @mkbprogram bcomposites 
                                                    BeePL_add.global_definitions 
                                                    BeePL_add.public_idents 
                                                    BeePL_add._main 
-                                                   bcomposite_default.
+                                                   bcomposite_default.*)
 
-(*Definition example1 : BeePL.program := @mkbprogram BeePL_struct_ex1.bcomposites 
+Definition example1 : BeePL.program := @mkbprogram BeePL_struct_ex1.bcomposites 
                                                    BeePL_struct_ex1.global_definitions 
                                                    BeePL_struct_ex1.public_idents 
                                                    BeePL_struct_ex1._main 
-                                                   BeePL_struct_ex1.bcomposite_correct.*)
+                                                   BeePL_struct_ex1.bcomposite_correct.
 
 (*Definition example1 : BeePL.program := {| prog_defs := BeePL_add.global_definitions; (* <-- MODIFY *)
                                           prog_public := BeePL_add.public_idents;    (* <-- MODIFY *)

@@ -104,7 +104,7 @@ VLIB=Axioms.v Coqlib.v Intv.v Maps.v Heaps.v Lattice.v Ordered.v \
 # compiled with the rest of CompCert
 
 BEEPL_TESTS=\
-  BeePL_progs.v BeePL_add.v BeePL_cond.v BeePL_app.v BeePL_div_zero.v BeePL_struct_ex1.v
+  BeePL_progs.v BeePL_add.v BeePL_cond.v BeePL_app.v BeePL_div_zero.v BeePL_struct_ex1.v BeePL_struct_ex2.v BeePL_struct_ex3.v BeePL_struct_ex4.v
 
 # Parts common to BeePL
 

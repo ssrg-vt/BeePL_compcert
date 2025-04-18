@@ -112,7 +112,7 @@ match e with
                      ret (Ebuiltin cef cts ces ct)
 | Sfield e x t => do ce <- transBeePL_expr_expr e;
                   let ct := transBeePL_type t in
-                  ret (Efield ce x ct)
+                  ret (Efield (Evalof ce (transBeePL_type (typeof_expr e))) x ct)
 end.
 
 Definition check_var_const (e : BeePL.expr) : bool :=
@@ -177,27 +177,15 @@ match e with
                                      (hd default_expr (tl (exprlist_list_expr ces)))
                                      ct))
                  end 
-| Bind x t e e' t' => match e' with 
-                      (* no side-effect case *)
-                      | Var x' t' => do ce <- (transBeePL_expr_expr e);
-                                     do ce' <- (transBeePL_expr_st e'); 
-                                     let ct := (transBeePL_type t) in
-                                     let ct' := (transBeePL_type t') in
-                                     let rt := (transBeePL_type (BeePL.typeof_expr (e'))) in
-                                     ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid))
-                                                    (ce'))
-                      | Const c t => let ct := (transBeePL_type t) in 
-                                     do ce <- (transBeePL_expr_expr e);
-                                     do ce' <- (transBeePL_expr_st e');
-                                     ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
-                                                    ce')
-                      (* can produce side-effects *)
-                      | _ => let ct := (transBeePL_type t) in
-                             do ce <- (transBeePL_expr_expr e);
-                             do ce' <- (transBeePL_expr_st e');
-                             ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
+| Bind x t e e' t' => let ct := (transBeePL_type t) in
+                      do ce <- (transBeePL_expr_expr e);
+                      do ce' <- (transBeePL_expr_st e');
+                      match e with 
+                      | Prim Massgn es t => ret (Ssequence (Sdo ce) ce') 
+                                            
+                      | _ => ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
                                             (ce'))
-                    end
+                      end
 | Cond e e' e'' t' => do ce <- (transBeePL_expr_expr e);
                       do ce' <- (transBeePL_expr_st e');
                       do ce'' <- (transBeePL_expr_st e'');
@@ -220,7 +208,7 @@ match e with
                      ret (Sdo (Ebuiltin cef cts ces ct))
 | Sfield e x t => do ce <- transBeePL_expr_expr e;
                   let ct := transBeePL_type t in
-                  ret (Sdo (Efield ce x ct))
+                  ret (Sdo (Evalof (Efield (Evalof ce (transBeePL_type (typeof_expr e))) x ct) ct))
 end.
 
 (* Translates the BeePL function declaration to C function *) 

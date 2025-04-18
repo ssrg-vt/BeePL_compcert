@@ -15,57 +15,48 @@ struct Point {
 
 int main() {
     struct Point p1;       // Declare a variable of type struct Point
-    p1.x = 10;             // Assign values to fields
-    p1.y = 20;
-    return p1.x;
+    p1.x = 10;
+    return r;
 }*)
 
+(* let p1 = (p1.x := 10) in p1.x *)
 (* attr_alignas is optional *)
 Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
 Definition _Point : ident := $"Point".
 Definition _p1 : ident := $"p1".
 Definition _x : ident := $"x".
 Definition _y : ident := $"y".
-Definition _x1 : ident := $"x1".
-Definition _y1 : ident := $"y1".
+Definition _t : ident := $"t".
 Definition _r : ident := $"r".
 Definition _main : ident := $"main".
 
 Definition atom_of_string : list (ident * string) := ((_Point, "Point") ::
                                                       (_p1, "p1") ::
                                                       (_x, "x") :: 
-                                                      (_y, "y") :: 
-                                                      (_x1, "x1") ::
-                                                      (_y1, "y1") :: 
+                                                      (_y, "y") ::
+                                                      (_t, "t") ::
                                                       (_r, "r") ::
                                                       (_main, "main") :: nil).
-
 Definition f_struct : BeePL.function := {| 
                                    fn_return := (Ptype (BeeTypes.Tint I32 Unsigned dattr));
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
                                    fn_args := nil;
                                    fn_vars := ((_p1, BeeTypes.Stype _Point dattr) :: 
-                                               (_x1, (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr))) ::
-                                               (_y1, (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr))) ::
+                                               (_t, (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr))) ::
                                                (_r, (Ptype (BeeTypes.Tint I32 Signed dattr))) :: nil);
-                                   fn_body := Bind _x1 (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr))
+                                   fn_body := Bind _t (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr))
                                                 (Prim Massgn ((Sfield (Var _p1 (BeeTypes.Stype _Point dattr)) _x 
-                                                              (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr))) ::
-                                                              (Const (ConsInt (Int.repr 10)) (Ptype (BeeTypes.Tint I32 Signed dattr))) :: nil)
-                                                              (Ptype Tunit))
-                                                (Bind _y1 (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr))
-                                                      (Prim Massgn ((Sfield (Var _p1 (BeeTypes.Stype _Point dattr)) _y 
-                                                                    (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr))) ::
-                                                                    (Const (ConsInt (Int.repr 20)) (Ptype (BeeTypes.Tint I32 Signed dattr))) :: nil)
-                                                      (Ptype Tunit))
-                                                 (Bind _r (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr))
+                                                (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr))) ::
+                                                (Const (ConsInt (Int.repr 10)) (Ptype (BeeTypes.Tint I32 Signed dattr))) :: nil)
+                                                (Ptype Tunit))
+                                               (Bind _r (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr))
                                                   (Sfield (Var _p1 (BeeTypes.Stype _Point dattr)) _x 
-                                                  (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)))
+                                                 (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)))
                                                   (Var _r (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)))
-                                                  (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)))
-                                                (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)))
-                                              (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)) |}.
+                                               (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)))
+                                               (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr))
+                                                |}.
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
    := (_main, AST.Gfun(BeePL.Internal (f_struct))) :: nil.
@@ -85,9 +76,7 @@ Proof.
   unfold build_bcomposite_env; simpl; constructor. 
 Qed.
 
-(*Definition example1 : BeePL.program := @mkbprogram bcomposites global_definitions public_idents _main bcomposite_correct.
+Definition example1 : BeePL.program := @mkbprogram bcomposites global_definitions public_idents _main bcomposite_correct.
 
-Compute (type_check_program example1). (* debug why typecheck fails *)
-
-Compute (BeePL_Csyntax.BeePL_compcert example1).*)
+Compute (BeePL_Csyntax.BeePL_compcert example1).
 
