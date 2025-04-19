@@ -53,5 +53,5 @@ Definition example1 : BeePL.program := @mkbprogram BeePL_struct_ex1.bcomposites
 
 Definition example1_atom_of_string : list (ident * string) := BeePL_struct_ex1.atom_of_string. (* <-- MODIFY *)
 
-Compute (type_check_program example1).
+(*Compute (type_check_program example1).*)
 

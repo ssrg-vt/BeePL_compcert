@@ -24,6 +24,12 @@ Inductive builtin : Type :=
                                                reduces to e captures the essence of state isolation 
                                                and reduces to a value discarding the heap *).
 
+(* Patterns *)
+(* Used in pattern matching in the match constructor *)
+Inductive pattern : Type :=
+| Pnone : pattern
+| Psome : ident -> pattern.
+
 Record bsignature := { bsig_args : list type; bsig_ef : effect; bsig_res : type; bsig_cc : calling_convention }. 
 
 Definition bsig_to_csig (bsig : bsignature) : AST.signature :=
@@ -59,7 +65,7 @@ end.
 Inductive expr : Type :=
 | Val : value -> type -> expr                                           (* value *) (* rvalue *)
 | Var : ident -> type -> expr                                           (* variable *) (* lvalue *)
-| Const : BeePL_values.constant -> type -> expr                                      (* constant *) (* rvalue *)
+| Const : BeePL_values.constant -> type -> expr                         (* constant *) (* rvalue *)
 | App : expr -> list expr -> type -> expr                               (* function application *) (* rvalue *)
 | Prim : builtin -> list expr -> type -> expr                           (* primitive operations *)
 | Bind : ident -> type -> expr -> expr -> type -> expr                  (* let binding: type of continuation *)
@@ -70,7 +76,10 @@ Inductive expr : Type :=
 | Addr : linfo -> ptrofs -> type -> expr                                (* address *)
 | Hexpr : Memory.mem -> expr -> type -> expr                            (* heap effect *)
 | Eapp : external_function -> list type -> list expr -> type -> expr    (* external function *)
-| Sfield : expr -> ident -> type -> expr                                (* access to a member of struct *).
+| Sfield : expr -> ident -> type -> expr                                (* access to a member of struct *)
+| Enone : type -> expr                                                  (* none: option *)
+| Esome : expr -> type -> expr                                          (* some: option *)
+| Match : expr -> list (pattern * expr) -> type -> expr                 (* pattern matching *).
 
 (*
       e0 --> None (expr)
@@ -102,8 +111,8 @@ end.
 
 End Is_zero_exprs.
 
-Fixpoint is_zero_expr (e : expr) : bool :=
-match e with 
+Fixpoint is_zero_expr (e : expr) {struct e} : bool :=
+match e return bool with 
 | Val v t => is_zero_val v
 | Var x t => false 
 | Const c t => is_zero_constant c
@@ -116,6 +125,9 @@ match e with
 | Hexpr h e t => false
 | Eapp ef ts es t => is_zero_exprs is_zero_expr es
 | Sfield e i t => false
+| Enone t => false
+| Esome e t => is_zero_expr e
+| Match e pes t => is_zero_expr e (* FIX ME: && is_zero_exprs is_zero_expr (unzip2 pes)*)
 end.
 
 Section Is_exprs_min_signed.
@@ -144,6 +156,9 @@ match e with
 | Hexpr h e t => false
 | Eapp ef ts es t => is_exprs_min_signed is_expr_min_signed es
 | Sfield e x t => false
+| Enone t => false
+| Esome e t => is_expr_min_signed e
+| Match e pes t => is_expr_min_signed e (* Fix ME: && is_exprs_min_signed is_expr_min_signed (unzip2 pes)*)
 end.
 
 Section Is_exprs_mone.
@@ -172,6 +187,9 @@ match e with
 | Hexpr h e t => false
 | Eapp ef ts es t => is_exprs_mone is_expr_mone es
 | Sfield e x t => false
+| Enone t => false
+| Esome e t => is_expr_mone e
+| Match e pes t => is_expr_mone e (* Fix ME: && is_exprs_mone is_expr_mone (unzip2 pes)*)
 end.
 
 Section Is_exprs_shift.
@@ -200,6 +218,9 @@ match e with
 | Hexpr h e t => false
 | Eapp ef ts es t => is_exprs_shift is_expr_shift es
 | Sfield e x t => false
+| Enone t => false
+| Esome e t => is_expr_shift e
+| Match e pes t => is_expr_shift e (* Fix ME: && is_exprs_shift is_expr_shift (unzip2 pes)*)
 end.
 
 Definition is_pointer (e : expr) : bool :=
@@ -226,6 +247,9 @@ match e with
 | Hexpr h e t => t
 | Eapp ef ts es t => t
 | Sfield e x t => t
+| Enone t => t
+| Esome e t => t
+| Match e pes t => t
 end.
 
 Fixpoint typeof_exprs (e : list expr) : list BeeTypes.type :=
@@ -567,6 +591,12 @@ match e with
 | Hexpr h e t => Hexpr h (subst x se e) t
 | Eapp ef ts es t => Eapp ef ts (map (subst x se) es) t
 | Sfield e x t => Sfield (subst x se e) x t
+| Enone t => Enone t 
+| Esome e t => Esome (subst x se e) t
+| Match e pes t => let ps := unzip1 pes in 
+                   let es := unzip2 pes in 
+                   let ses := map (subst x se) es in
+                   Match (subst x se e) pes (*(zip ps ses)*) t
 end.
 
 Inductive well_formed_value : value -> type -> Prop :=

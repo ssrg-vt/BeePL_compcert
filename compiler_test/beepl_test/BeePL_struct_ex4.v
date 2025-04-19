@@ -78,5 +78,5 @@ Qed.
 
 Definition example1 : BeePL.program := @mkbprogram bcomposites global_definitions public_idents _main bcomposite_correct.
 
-Compute (BeePL_Csyntax.BeePL_compcert example1).
+(*Compute (BeePL_Csyntax.BeePL_compcert example1).*)
 

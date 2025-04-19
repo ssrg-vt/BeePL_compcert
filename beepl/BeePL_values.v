@@ -209,4 +209,5 @@ match t with
 | Reftype h b a => error (msg "Tpointer not allowed")
 | Ftype ts e t => error (msg "Tfunction not allowed")
 | Stype x a => error (msg "Struct not allowed")
+| Otype t => error (msg "Option not allowed")
 end.

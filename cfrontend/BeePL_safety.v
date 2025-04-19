@@ -157,7 +157,10 @@ match e with
 | Addr l ofs t => [::]
 | Eapp ef ts es t => flatten (map gen_safe_cond_expr es)
 | Hexpr h e t => [::] (* fix me *)
-| Sfield x a t => [::] 
+| Sfield x a t => [::]
+| Enone t => [::]
+| Esome e t => [::]
+| Match e pes t => [::]
 end.
 
 (* Defines the interpretation of safety condition *) 

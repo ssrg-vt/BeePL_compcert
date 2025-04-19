@@ -2,9 +2,12 @@ Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL PeanoNat Coq.NArith.BinNat Ctypes Errors Ctypes Coq.ZArith.Znumtheory.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps SimplExpr Coq.Strings.BinaryString.
 From mathcomp Require Import all_ssreflect. 
+From compcert Require Import Csyntaxdefs. 
+Import Csyntaxdefs.CsyntaxNotations.
 
 Local Open Scope string_scope.
 Local Open Scope error_monad_scope.
+Local Open Scope csyntax_scope.
 
 Inductive effect_label : Type :=
 | Panic : effect_label               (* exception effect *)
@@ -45,7 +48,8 @@ Inductive type : Type :=
 | Ptype : primitive_type -> type                          (* primitive types *)
 | Reftype : ident -> basic_type -> attr -> type           (* reference type ref<h,int> *)
 | Ftype : list type -> effect -> type -> type             (* function/arrow type *)
-| Stype : ident -> attr -> type                           (* struct type *).
+| Stype : ident -> attr -> type                           (* struct type *)
+| Otype : type -> type.                                   (* option type *)
 
 Inductive wtype : Type :=
 | Twunit : wtype
@@ -54,7 +58,25 @@ Inductive wtype : Type :=
 | Twlong : wtype
 | Twref : wtype
 | Twfun : wtype
-| Twst : wtype.
+| Twst : wtype
+| Twot : wtype.
+
+Definition attr_of_primitive_type (t : primitive_type) : attr :=
+match t with 
+| Tunit => noattr 
+| Tbool => noattr
+| Tint sz s a => a
+| Tlong s a => a
+end.
+
+Fixpoint attr_of_type (t : type) : attr :=
+match t with 
+| Ptype t => attr_of_primitive_type t
+| Reftype h t a => a
+| Ftype ts ef t => noattr
+| Stype x a => a
+| Otype t => attr_of_type t
+end.
 
 (****** Translation from BeePL types to Csyntax types ******)
 
@@ -70,6 +92,27 @@ match  ts with
 | t :: ts => Tcons t (to_typelist ts)
 end.
 
+(* Definitions related to bcomposites (struct) *)
+Inductive bmember : Type :=
+| Member_plain : ident -> BeeTypes.type -> bmember
+| Member_bitfield : ident -> intsize -> signedness -> attr -> Z -> bool -> bmember.
+
+Open Scope Z_scope.
+
+Record bcomposite : Type := Build_bcomposite
+  { co_su : struct_or_union;
+    co_members : list bmember;
+    co_attr : attr;
+    co_sizeof : Z;
+    co_alignof : Z;
+    co_rank : nat;
+    co_sizeof_pos : (co_sizeof >= 0)%Z;
+    co_alignof_two_p : exists n : nat, co_alignof = two_power_nat n;
+    co_sizeof_alignof : (co_alignof | co_sizeof) }.
+
+Definition _option_tag : ident := $"option_tag".
+Definition _option_val : ident := $"option_val".                     
+
 Section translate_types.
 
 Variable transBeePL_type : BeeTypes.type -> Ctypes.type.
@@ -82,6 +125,20 @@ match ts with
 end.
 
 End translate_types.
+
+Definition create_ident_type (t : type) : ident :=
+match t with 
+| Ptype t => match t with 
+             | Tunit => $"option_tunit"
+             | Tbool => $"option_tbool"
+             | Tint sz s a => $"option_tint"
+             | Tlong s a => $"option_tlong"
+             end
+| Reftype h bt a => $"option_ref"
+| Ftype ts ef t => $"option_fun"
+| Stype x a => $"option_struct"
+| Otype t => $"option_t"
+end.
 
 Fixpoint transBeePL_type (t : BeeTypes.type) : Ctypes.type :=
 match t with
@@ -101,35 +158,11 @@ match t with
                                        {| cc_vararg := Some (Z.of_nat(length(ts))); 
                                        cc_unproto := false; cc_structret := false |}) (* Fix me *) 
 | BeeTypes.Stype x a => (Tstruct x a)
+| BeeTypes.Otype t => Tstruct (create_ident_type t) (attr_of_type t) 
 end.
 
 
-Lemma transBeePL_type_ind :
-forall (P : BeeTypes.type -> Prop),
- (forall (t : primitive_type), P (Ptype t)) ->
- (forall (h : ident) (bt : basic_type) (a : attr), P (Reftype h bt a)) ->
- (forall (ts : list BeeTypes.type) (ef : effect) (t : BeeTypes.type),
-  Forall P ts -> P t -> P (Ftype ts ef t)) ->
- (forall (h : ident) (a : attr), P (Stype h a)) ->
-forall t : BeeTypes.type, P t.
-Proof.
-intros P Hprim Href Hfun Hs.
-fix IH 1.
-intros t.
-destruct t as [p | h bt a | ts ef t | h a].
-- apply Hprim.
-- apply Href.
-- apply Hfun.
-+ induction ts as [| t' ts' IHts]; constructor; auto.
-+ apply IH.
-- apply Hs.
-Qed.
-
-(*** Composite Definition for BeePL ***)
-Inductive bmember : Type :=
-| Member_plain : ident -> BeeTypes.type -> bmember
-| Member_bitfield : ident -> intsize -> signedness -> attr -> Z -> bool -> bmember.
-
+(*** Composite Definitions related to BeePL ***)
 Definition bmember_cmember (b : bmember) : member :=
 match b with 
 | Member_plain h t => Ctypes.Member_plain h (transBeePL_type t)
@@ -156,19 +189,6 @@ Definition bcomposite_ccomposite_definition (bd : bcomposite_definition) : compo
 match bd with 
 | Bcomposite h s bs a => (Composite h s (bmembers_cmembers bs) a)
 end.
-
-Open Scope Z_scope.
-
-Record bcomposite : Type := Build_bcomposite
-  { co_su : struct_or_union;
-    co_members : list bmember;
-    co_attr : attr;
-    co_sizeof : Z;
-    co_alignof : Z;
-    co_rank : nat;
-    co_sizeof_pos : (co_sizeof >= 0)%Z;
-    co_alignof_two_p : exists n : nat, co_alignof = two_power_nat n;
-    co_sizeof_alignof : (co_alignof | co_sizeof) }.
 
 Definition bcomposite_ccomposite (b : bcomposite) : Ctypes.composite :=
 {| Ctypes.co_su := b.(co_su);
@@ -261,7 +281,8 @@ Inductive rettype : Type :=
 | Tint16signed        (**r 16-bit signed integer *)
 | Tint16unsigned      (**r 16-bit unsigned integer *)
 | Teunit              (**r no value returned *)
-| Testype             (**r struct type **).
+| Testype             (**r struct type **)
+| To                  (**r option type **).
 
 Definition is_reftype (t : type) : bool :=
 match t with 
@@ -269,6 +290,16 @@ match t with
 | Reftype h bt a => true 
 | Ftype es ef t => false
 | Stype x a => false
+| Otype t => false
+end. 
+
+Definition is_optiontype (t : type) : bool :=
+match t with 
+| Ptype p => false
+| Reftype h bt a => false 
+| Ftype es ef t => false
+| Stype x a => false
+| Otype t => true
 end. 
 
 Definition is_stype (t : type) : bool :=
@@ -277,6 +308,7 @@ match t with
 | Reftype h bt a => false
 | Ftype es ef t => false
 | Stype x a => true
+| Otype t => false
 end. 
 
 Definition is_unittype (t : type) : bool :=
@@ -372,6 +404,7 @@ match t with
 | Reftype _ _ _ => Twref 
 | Ftype _ _ _ => Twfun
 | Stype _ _ => Twst
+| Otype _ => Twot
 end.
 
 Fixpoint wtypes_of_types (t : list type) : list wtype :=
@@ -505,22 +538,7 @@ match t with
 | Reftype h t _ => By_value Mptr
 | Ftype ts ef t => By_reference
 | Stype x a => By_copy
-end.
-
-Definition attr_of_primitive_type (t : primitive_type) : attr :=
-match t with 
-| Tunit => noattr 
-| Tbool => noattr
-| Tint sz s a => a
-| Tlong s a => a
-end.
-
-Definition attr_of_type (t : type) : attr :=
-match t with 
-| Ptype t => attr_of_primitive_type t
-| Reftype h t a => a
-| Ftype ts ef t => noattr
-| Stype x a => a
+| Otype t => By_copy
 end.
 
 
@@ -624,12 +642,13 @@ match t with
 | Bprim t => sizeof_ptype t 
 end. 
 
-Definition sizeof_type (env : bcomposite_env) (t : type) : Z :=
+Fixpoint sizeof_type (env : bcomposite_env) (t : type) : Z :=
 match t with 
 | Ptype t => sizeof_ptype t 
 | Reftype h t _ => sizeof_btype t
 | Ftype ts e t => 1
 | Stype x a => match env!x with Some co => co_sizeof co | None => 0 end
+| Otype t => sizeof_type env t (* fix me *)
 end.
 
 (* Typing context *)

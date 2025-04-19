@@ -34,6 +34,9 @@ match e with
 | Hexpr m e t => false (* fix me *)
 | BeePL.Eapp ef ts es t => true 
 | Sfield _ _ _ => false
+| Enone t => false
+| Esome e t => false
+| Match e pes t => false
 end.
 
 Fixpoint is_stateful_exprs (es : list BeePL.expr) : bool :=

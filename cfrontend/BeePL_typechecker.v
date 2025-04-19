@@ -318,6 +318,9 @@ match e with
                                   end
                   | _ => Error (msg "Should be a struct type")
                   end
+| Enone t => Error (msg "Enone type checking not supported yet")
+| Esome e t => Error (msg "Esome type checking not supported yet")
+| Match e pes t => Error (msg "Match type checking not supported yet")
 end.
 
 Open Scope string_scope.

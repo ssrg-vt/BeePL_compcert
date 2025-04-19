@@ -113,7 +113,15 @@ match e with
 | Sfield e x t => do ce <- transBeePL_expr_expr e;
                   let ct := transBeePL_type t in
                   ret (Efield (Evalof ce (transBeePL_type (typeof_expr e))) x ct)
+| Enone t => let ct := transBeePL_type t in 
+             error (msg "Enone translation not supported yet")
+| Esome e t => let ct := transBeePL_type t in
+               do ce <- transBeePL_expr_expr e;
+               error (msg "Esome translation not supported yet")
+| Match e pes t => do ce <- transBeePL_expr_expr e;
+                   error (msg "Match translation not supported yet")
 end.
+
 
 Definition check_var_const (e : BeePL.expr) : bool :=
 match e with 
@@ -209,6 +217,13 @@ match e with
 | Sfield e x t => do ce <- transBeePL_expr_expr e;
                   let ct := transBeePL_type t in
                   ret (Sdo (Evalof (Efield (Evalof ce (transBeePL_type (typeof_expr e))) x ct) ct))
+| Enone t => let ct := transBeePL_type t in 
+             error (msg "Enone translation not supported yet")
+| Esome e t => let ct := transBeePL_type t in
+               do ce <- transBeePL_expr_expr e;
+               error (msg "Esome translation not supported yet")
+| Match e pes t => do ce <- transBeePL_expr_expr e;
+                   error (msg "Match translation not supported yet")
 end.
 
 (* Translates the BeePL function declaration to C function *) 
