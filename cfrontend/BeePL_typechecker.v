@@ -318,7 +318,17 @@ match e with
                                   end
                   | _ => Error (msg "Should be a struct type")
                   end
-| For x e1 e2 d e t => Error (msg "For type checking not supported yet")
+| For x e1 e2 d e t => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
+                       do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
+                       do (te, ef) <- type_check_expr cenv Gamma Sigma e;
+                       if (eq_type te1 te2 
+                           && eq_effect ef1 nil 
+                           && eq_effect ef2 nil 
+                           && is_primunsigned_int_long te1 te2
+                           && eq_type te t)
+                       then OK(te, ef)
+                       else Error (msg "The range type should be unsigned int or long and the inferred type does not match")
+                                                          
 | Enone t => Error (msg "Enone type checking not supported yet")
 | Esome e t => Error (msg "Esome type checking not supported yet")
 | Match e pes t => Error (msg "Match type checking not supported yet")
