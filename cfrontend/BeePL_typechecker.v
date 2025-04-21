@@ -318,6 +318,7 @@ match e with
                                   end
                   | _ => Error (msg "Should be a struct type")
                   end
+| For x e1 e2 d e t => Error (msg "For type checking not supported yet")
 | Enone t => Error (msg "Enone type checking not supported yet")
 | Esome e t => Error (msg "Esome type checking not supported yet")
 | Match e pes t => Error (msg "Match type checking not supported yet")

@@ -55,6 +55,36 @@ match c with
 | _ => false
 end.
 
+(* Direction for loop range to go up or down *)
+Inductive dir : Type :=
+| Up : dir
+| Down : dir.
+
+Definition is_up (d : dir) : bool :=
+match d with 
+| Up => true 
+| Down => false
+end.
+
+Definition is_down (d : dir) : bool :=
+match d with 
+| Up => false
+| Down => true 
+end.
+
+Definition check_range_const (v1 v2 : constant) (d : dir) : bool :=
+match v1, v2 with 
+| ConsInt i, ConsInt i' => match d with 
+                           | Up => if Int.intval (Int.sub i' i) >=? 8388608 then true else false
+                           | Down => if Int.intval (Int.sub i i') >=? 8388608 then true else false
+                           end                                                                
+| ConsLong i, ConsLong i' => match d with 
+                            | Up => if Int64.intval(Int64.sub i' i) >=? 8388608 then true else false
+                            | Down => if Int64.intval(Int64.sub i i') >=? 8388608 then true else false  
+                            end                                                 
+| _, _ => false
+end.
+
 (*Record vinfo : Type := mkvar { vname : ident; vtype : BeeTypes.basic_type }.*)
 Record linfo : Type := mkloc { lname : ident; (*ltype : BeeTypes.basic_type;*) lbitfield : bitfield }.
 
@@ -81,6 +111,21 @@ match v with
 | Vint i => if Int.eq i Int.zero then true else false
 | Vint64 i => if Int64.eq i Int64.zero then true else false
 | Vloc p ofs => false
+end.
+
+Definition check_range_val (v1 v2 : value) (d : dir) : bool :=
+match v1, v2 with 
+| Vunit, Vunit => false
+| Vbool b, Vbool b' => false
+| Vint i, Vint i' => match d with 
+                     | Up => if Int.intval (Int.sub i' i) >=? 8388608 then true else false
+                     | Down => if Int.intval (Int.sub i i') >=? 8388608 then true else false
+                     end
+| Vint64 i, Vint64 i' => match d with
+                         | Up => if Int64.intval(Int64.sub i' i) >=? 8388608 then true else false
+                         | Down => if Int64.intval (Int64.sub i i') >=? 8388608 then true else false                                                             end      
+| Vloc p' ofs', Vloc p'' ofs'' => false
+| _, _ => false
 end.
 
 Definition is_overflow_vals (v1 v2 : value) : bool :=

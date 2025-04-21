@@ -40,9 +40,32 @@ match t with
 | Tunion h a => error (msg "Tunion not allowed")
 end.
 
-
 Definition default_expr := (Eval (Values.Vundef) Tvoid).
 
+(*Fixpoint repeat_expr_up (x : ident) (er : Csyntax.expr) (e : Csyntax.expr) (fuel : nat) {struct fuel} : Csyntax.expr :=
+match fuel with
+| O => Eval (Values.Vint (Int.repr 0)) (Ctypes.Tint I32 Unsigned noattr)
+| S n => Econdition (Ebinop Cop.Ole (Evar x (Ctypes.Tint I32 Unsigned noattr)) er (Ctypes.Tint I32 Unsigned noattr))
+           (Ecomma e (Ecomma 
+                        (Ebinop Cop.Oadd 
+                           (Evar x (Ctypes.Tint I32 Unsigned noattr)) 
+                           (Eval (Values.Vint (Int.repr 1)) (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr))
+                        (repeat_expr_up x er e n) (typeof e)) (typeof e))
+           (Evar x (Ctypes.Tint I32 Unsigned noattr)) (typeof e)
+end.
+
+Fixpoint repeat_expr_down (x : ident) (er : Csyntax.expr) (e : Csyntax.expr) (fuel : nat) {struct fuel} : Csyntax.expr :=
+match fuel with
+| O => Eval (Values.Vint (Int.repr 0)) (Ctypes.Tint I32 Unsigned noattr)
+| S n => Econdition (Ebinop Cop.Oge (Evar x (Ctypes.Tint I32 Unsigned noattr)) er (Ctypes.Tint I32 Unsigned noattr))
+           (Ecomma e (Ecomma 
+                        (Ebinop Cop.Osub 
+                           (Evar x (Ctypes.Tint I32 Unsigned noattr)) 
+                           (Eval (Values.Vint (Int.repr 1)) (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr))
+                        (repeat_expr_up x er e n) (typeof e)) (typeof e))
+           (Evar x (Ctypes.Tint I32 Unsigned noattr)) (typeof e)
+end.*)
+      
 Fixpoint transBeePL_expr_expr (e : BeePL.expr) : mon Csyntax.expr := 
 match e with 
 | Val v t => ret (Eval (transBeePL_value_cvalue v) (transBeePL_type t)) 
@@ -113,6 +136,7 @@ match e with
 | Sfield e x t => do ce <- transBeePL_expr_expr e;
                   let ct := transBeePL_type t in
                   ret (Efield (Evalof ce (transBeePL_type (typeof_expr e))) x ct)
+| For x e1 e2 d e t => error (msg "For loop cannot be translated to another C expr")
 | Enone t => let ct := transBeePL_type t in 
              error (msg "Enone translation not supported yet")
 | Esome e t => let ct := transBeePL_type t in
@@ -186,12 +210,12 @@ match e with
                                      ct))
                  end 
 | Bind x t e e' t' => let ct := (transBeePL_type t) in
-                      do ce <- (transBeePL_expr_expr e);
                       do ce' <- (transBeePL_expr_st e');
                       match e with 
-                      | Prim Massgn es t => ret (Ssequence (Sdo ce) ce') 
-                                            
-                      | _ => ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
+                      | Prim Massgn es t => do ce <- (transBeePL_expr_expr e); ret (Ssequence (Sdo ce) ce') 
+                      | For x e1 e2 d e3 t => do cs <- (transBeePL_expr_st e); ret (Ssequence cs ce')                 
+                      | _ => do ce <- (transBeePL_expr_expr e);
+                             ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
                                             (ce'))
                       end
 | Cond e e' e'' t' => do ce <- (transBeePL_expr_expr e);
@@ -205,7 +229,7 @@ match e with
                                                    else if (check_var_const e'') 
                                                         then ret (Sifthenelse ce ce' (Sreturn (Some (Evalof ce'' ct'))))
                                                         else ret (Sifthenelse ce ce' (Sdo ce''))*)
-| Unit t=> ret (Sreturn (Some (Eval (Values.Vint (Int.repr 0)) (Ctypes.Tint I32 Unsigned noattr)))) (* In case of unit, we return 0 *)
+| Unit t=> ret Sskip (*Sreturn (Some (Eval (Values.Vint (Int.repr 0)) (Ctypes.Tint I32 Unsigned noattr)))*) (* In case of unit, we return 0 *)
 | Addr l ofs t => let ct := (transBeePL_type t) in
                   ret (Sdo (Eloc l.(lname) ofs l.(lbitfield) ct))                    
 | Hexpr h e t => ret (Sdo (Eval (Values.Vundef) Tvoid)) (* FIX ME *)
@@ -217,6 +241,25 @@ match e with
 | Sfield e x t => do ce <- transBeePL_expr_expr e;
                   let ct := transBeePL_type t in
                   ret (Sdo (Evalof (Efield (Evalof ce (transBeePL_type (typeof_expr e))) x ct) ct))
+| For x e1 e2 d e t => do ce1 <- transBeePL_expr_expr e1;
+                       do ce2 <- transBeePL_expr_expr e2;
+                       do ce3 <- transBeePL_expr_st e;
+                       if negb (is_primunsigned_int_long (typeof_expr e1) (typeof_expr e2))
+                       then error (msg "The type of range expr should be always unsigned int or long")
+                       else if check_range_expr e1 e2 d 
+                            then error (msg "The loop has crossed the limit of 8 * 1024 * 1024")
+                            else match d with
+                                 | Up => ret (Sfor (Sdo (Eassign (Evar x (Ctypes.Tint I32 Unsigned noattr)) ce1 (Ctypes.Tint I32 Unsigned noattr)))
+                                                   (Ebinop Cop.Ole (Evalof (Evar x (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr))
+                                                    ce2 (Ctypes.Tint I32 Unsigned noattr))
+                                                   (Sdo (Epostincr Cop.Incr (Evar x (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr)))
+                                                   ce3)
+                                 | Down => ret (Sfor (Sdo (Eassign (Evar x (Ctypes.Tint I32 Unsigned noattr)) ce1 (Ctypes.Tint I32 Unsigned noattr)))
+                                                  (Ebinop Cop.Oge (Evalof (Evar x (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr))
+                                                     ce2 (Ctypes.Tint I32 Unsigned noattr))
+                                                  (Sdo (Epostincr Cop.Decr (Evar x (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr)))
+                                                  ce3)
+                                end  
 | Enone t => let ct := transBeePL_type t in 
              error (msg "Enone translation not supported yet")
 | Esome e t => let ct := transBeePL_type t in

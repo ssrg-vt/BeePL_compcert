@@ -343,6 +343,25 @@ match t with
 | _ => false
 end.
 
+Definition is_primunsigned_int_long (t1 t2 : type) : bool :=
+match t1, t2 with 
+| Ptype p1, Ptype p2 => match p1, p2 with 
+                        | Tunit, Tunit => false
+                        | Tbool, Tbool => false
+                        | Tint sz1 s1 a1, Tint sz2 s2 a2 => if intsize_eq sz1 sz2 
+                                                               && signedness_eq s1 s2 
+                                                               && signedness_eq s1 Unsigned 
+                                                               && attr_eq a1 a2 
+                                                            then true else false
+                        | Tlong s1 a1, Tlong s2 a2 => if signedness_eq s1 s2 
+                                                         && signedness_eq s1 Unsigned 
+                                                         && attr_eq a1 a2
+                                                      then true else false
+                        | _, _ => false
+                        end
+| _, _ => false
+end.
+
 Definition is_primlong (t : type) : bool :=
 match t with 
 | Ptype p => match p with 

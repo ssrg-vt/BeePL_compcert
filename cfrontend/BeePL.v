@@ -34,8 +34,8 @@ Record bsignature := { bsig_args : list type; bsig_ef : effect; bsig_res : type;
 
 Definition bsig_to_csig (bsig : bsignature) : AST.signature :=
 {| sig_args :=  (map typ_of_type (from_typelist (transBeePL_types transBeePL_type bsig.(bsig_args)))); 
-       sig_res := (rettype_of_type (transBeePL_type bsig.(bsig_res))); 
-       sig_cc := bsig.(bsig_cc) |}.
+   sig_res := (rettype_of_type (transBeePL_type bsig.(bsig_res))); 
+   sig_cc := bsig.(bsig_cc) |}.
 
 Inductive external_function : Set :=
 | EF_external : string -> bsignature -> external_function.
@@ -71,16 +71,18 @@ Inductive expr : Type :=
 | Bind : ident -> type -> expr -> expr -> type -> expr                  (* let binding: type of continuation *)
 | Cond : expr -> expr -> expr -> type -> expr                           (* if e then e else e *) 
 | Unit : type -> expr                                                   (* unit *)
-(* not intended to be written by programmers:
+(* Addr: not intended to be written by programmers:
    Only should play role in operational semantics *)
 | Addr : linfo -> ptrofs -> type -> expr                                (* address *)
 | Hexpr : Memory.mem -> expr -> type -> expr                            (* heap effect *)
 | Eapp : external_function -> list type -> list expr -> type -> expr    (* external function *)
 | Sfield : expr -> ident -> type -> expr                                (* access to a member of struct *)
+| For : ident -> expr -> expr -> dir -> expr -> type -> expr            (* for loop - constant bound *)
 | Enone : type -> expr                                                  (* none: option *)
 | Esome : expr -> type -> expr                                          (* some: option *)
 | Match : expr -> list (pattern * expr) -> type -> expr                 (* pattern matching *).
 
+(* for i = 1 to 5 Upto e *)
 (*
       e0 --> None (expr)
       e1 --> v1  
@@ -125,6 +127,7 @@ match e return bool with
 | Hexpr h e t => false
 | Eapp ef ts es t => is_zero_exprs is_zero_expr es
 | Sfield e i t => false
+| For i e1 e2 d e t => is_zero_expr e 
 | Enone t => false
 | Esome e t => is_zero_expr e
 | Match e pes t => is_zero_expr e (* FIX ME: && is_zero_exprs is_zero_expr (unzip2 pes)*)
@@ -156,6 +159,7 @@ match e with
 | Hexpr h e t => false
 | Eapp ef ts es t => is_exprs_min_signed is_expr_min_signed es
 | Sfield e x t => false
+| For x e1 e2 d e t => is_expr_min_signed e 
 | Enone t => false
 | Esome e t => is_expr_min_signed e
 | Match e pes t => is_expr_min_signed e (* Fix ME: && is_exprs_min_signed is_expr_min_signed (unzip2 pes)*)
@@ -187,6 +191,7 @@ match e with
 | Hexpr h e t => false
 | Eapp ef ts es t => is_exprs_mone is_expr_mone es
 | Sfield e x t => false
+| For x e1 e2 d e t => is_expr_mone e
 | Enone t => false
 | Esome e t => is_expr_mone e
 | Match e pes t => is_expr_mone e (* Fix ME: && is_exprs_mone is_expr_mone (unzip2 pes)*)
@@ -218,9 +223,18 @@ match e with
 | Hexpr h e t => false
 | Eapp ef ts es t => is_exprs_shift is_expr_shift es
 | Sfield e x t => false
+| For x e1 e2 d e t => is_expr_shift e 
 | Enone t => false
 | Esome e t => is_expr_shift e
 | Match e pes t => is_expr_shift e (* Fix ME: && is_exprs_shift is_expr_shift (unzip2 pes)*)
+end.
+
+(* Check for the range of the for-loop to always keep them within the BPF limit 8 * 1024 * 1024= 8388608 *)
+Definition check_range_expr (e1 e2 : expr) (d : dir) : bool :=
+match e1, e2 with 
+| Val v1 t1, Val v2 t2 => check_range_val v1 v2 d
+| Const c1 t1, Const c2 t2 => check_range_const c1 c2 d
+| _, _ => false
 end.
 
 Definition is_pointer (e : expr) : bool :=
@@ -247,6 +261,7 @@ match e with
 | Hexpr h e t => t
 | Eapp ef ts es t => t
 | Sfield e x t => t
+| For x e1 e2 d e t => t
 | Enone t => t
 | Esome e t => t
 | Match e pes t => t
@@ -576,28 +591,35 @@ Definition blocks_of_env (e: vmap) : list (ident * Z * Z) :=
 
 (* Substitution *)
 Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
-match e with 
-| Val v t => e
-| Var y t => if (x =? y)%positive then se else Var y t
-| Const c t => e 
-| App e es t => App (subst x se e) (map (subst x se) es) t
-| Prim b es t => Prim b (map (subst x se) es) t
-| Bind y t e1 e2 t' => if (x =? y)%positive 
-                       then Bind y t (subst x se e1) e2 t'
-                       else Bind y t (subst x se e1) (subst x se e2) t'
-| Cond e1 e2 e3 t => Cond (subst x se e1) (subst x se e2) (subst x se e3) t
-| Unit t => Unit t 
-| Addr l p t => Addr l p t
-| Hexpr h e t => Hexpr h (subst x se e) t
-| Eapp ef ts es t => Eapp ef ts (map (subst x se) es) t
-| Sfield e x t => Sfield (subst x se e) x t
-| Enone t => Enone t 
-| Esome e t => Esome (subst x se e) t
-| Match e pes t => let ps := unzip1 pes in 
-                   let es := unzip2 pes in 
-                   let ses := map (subst x se) es in
-                   Match (subst x se e) pes (*(zip ps ses)*) t
-end.
+  match e with 
+  | Val v t => e
+  | Var y t => if (x =? y)%positive then se else Var y t
+  | Const c t => e 
+  | App e es t => App (subst x se e) (map (subst x se) es) t
+  | Prim b es t => Prim b (map (subst x se) es) t
+  | Bind y t e1 e2 t' =>
+      if (x =? y)%positive 
+      then Bind y t (subst x se e1) e2 t'
+      else Bind y t (subst x se e1) (subst x se e2) t'
+  | Cond e1 e2 e3 t => Cond (subst x se e1) (subst x se e2) (subst x se e3) t
+  | Unit t => Unit t 
+  | Addr l p t => Addr l p t
+  | Hexpr h e t => Hexpr h (subst x se e) t
+  | Eapp ef ts es t => Eapp ef ts (map (subst x se) es) t
+  | Sfield e fld t => Sfield (subst x se e) fld t
+  | For y e1 e2 d e' t =>
+      if (x =? y)%positive
+      then For y (subst x se e1) (subst x se e2) d e' t
+      else For y (subst x se e1) (subst x se e2) d (subst x se e') t
+  | Enone t => Enone t 
+  | Esome e t => Esome (subst x se e) t
+  | Match e pes t =>
+      let ps := unzip1 pes in 
+      let es := unzip2 pes in 
+      let ses := map (subst x se) es in
+      Match (subst x se e) pes (*FIX ME : (zip ps ses)*) t
+  end.
+
 
 Inductive well_formed_value : value -> type -> Prop :=
 | wf_vunit : well_formed_value Vunit (Ptype Tunit)

@@ -13,12 +13,12 @@ heap_koka : ((h1, (l1 -> v1; l2 -> v2; .... ln -> vn);
         ..
 !(h, e)*) 
 
-Definition is_stateful_expr (e : BeePL.expr) : bool :=
+Fixpoint is_stateful_expr (e : BeePL.expr) : bool :=
 match e with 
 | Val e t => true 
 | Var x t => false
 | Const c t => false
-| App e es t => true
+| App e es t => true (* fix me *)
 | Prim b es t => match b with 
                  | Ref => true 
                  | Deref => true 
@@ -27,16 +27,17 @@ match e with
                  | Bop o => true
                  | Run _ => false (* fix me *)
                  end
-| Bind x tx e e' t => true 
-| Cond e1 e2 e3 t => true 
+| Bind x tx e e' t => is_stateful_expr e || is_stateful_expr e' 
+| Cond e1 e2 e3 t => is_stateful_expr e1 || is_stateful_expr e2 || is_stateful_expr e3   
 | Unit t => false
 | Addr l ofs t => false
 | Hexpr m e t => false (* fix me *)
-| BeePL.Eapp ef ts es t => true 
+| BeePL.Eapp ef ts es t => true (* fix me *)
 | Sfield _ _ _ => false
+| For x e1 e2 d e t => is_stateful_expr e 
 | Enone t => false
-| Esome e t => false
-| Match e pes t => false
+| Esome e t => is_stateful_expr e
+| Match e pes t => false (* fix me *)
 end.
 
 Fixpoint is_stateful_exprs (es : list BeePL.expr) : bool :=
