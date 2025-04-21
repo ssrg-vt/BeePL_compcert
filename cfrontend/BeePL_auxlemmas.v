@@ -28,8 +28,8 @@ Proof.
 Admitted.
 
 Lemma bv_cv_reflex : forall v' v,
-transC_val_bplvalue v' = OK v ->
-transBeePL_value_cvalue v = v'.
+trans_cvalue_bvalue v' = OK v ->
+trans_bvalue_cvalue v = v'.
 Proof.
 Admitted.
 

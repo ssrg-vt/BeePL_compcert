@@ -243,7 +243,7 @@ if (v1.(vname) =? v2.(vname))%positive && (eq_basic_type (vtype v1) (vtype v2)) 
 Definition eq_linfo (v1 : linfo) (v2 : linfo) : bool :=
 if (v1.(lname) =? v2.(lname))%positive then true else false.
 
-Definition return_bzero (t : type) : mon value :=
+Fixpoint return_bzero (t : type) : mon value :=
 match t with 
 | Ptype p => match p with   
              | Tunit => error (msg "Tunit not allowed")
@@ -254,5 +254,5 @@ match t with
 | Reftype h b a => error (msg "Tpointer not allowed")
 | Ftype ts e t => error (msg "Tfunction not allowed")
 | Stype x a => error (msg "Struct not allowed")
-| Otype t => error (msg "Option not allowed")
+| Otype t => return_bzero t
 end.

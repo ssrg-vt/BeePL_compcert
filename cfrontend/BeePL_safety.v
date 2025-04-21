@@ -196,7 +196,7 @@ Lemma well_typed_safe_uop : forall Gamma Sigma bge vm v ef t uop m ct,
 type_expr Gamma Sigma (Prim (Uop uop) ((Val v t) :: nil) t) ef t ->
 transBeePL_type t = ct ->
 interp_safe_conds (gen_safe_cond_expr (Val v t)) Sigma bge vm m ->
-exists v', Cop.sem_unary_operation uop (transBeePL_value_cvalue v) ct m = Some v'.
+exists v', Cop.sem_unary_operation uop (trans_bvalue_cvalue v) ct m = Some v'.
 Proof.
 (*move=> Gamma Sigma bge vm v ef t uop m ct g i htv. case: v htv=> //=. 
 (* unit *)

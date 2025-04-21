@@ -434,7 +434,7 @@ match b with
 end.
 
 (* Convets BeePL value to C value *) 
-Definition transBeePL_value_cvalue (v : value) : Values.val :=
+Definition trans_bvalue_cvalue (v : value) : Values.val :=
 match v with 
 | Vunit => Values.Vint (Int.repr 0) (* Fix me *)
 | Vbool b => if eqb b true then Values.Vint (Int.repr 1) else Values.Vint (Int.repr 0)
@@ -444,10 +444,10 @@ match v with
 end.
 
 (* Converts list of BeePL value to list of C value *)
-Fixpoint transBeePL_values_cvalues (vs : list value) : list Values.val :=
+Fixpoint trans_bvalues_cvalues (vs : list value) : list Values.val :=
 match vs with 
 | nil => nil
-| v :: vs => transBeePL_value_cvalue v :: transBeePL_values_cvalues vs
+| v :: vs => trans_bvalue_cvalue v :: trans_bvalues_cvalues vs
 end.
 
 (* Converts C value to BeePL value *) 
@@ -455,7 +455,7 @@ end.
 (* Reading uninitialized memory is not allowed in eBPF as it might leak sensitive information *)
 (* A function stores secret data in stack and later it is not cleared and then other function 
    is called, the secret data from older function can be leaked *)
-Definition transC_val_bplvalue (v : Values.val) : res value :=
+Definition trans_cvalue_bvalue (v : Values.val) : res value :=
 match v with 
 | Values.Vundef => Error (MSG "Undef values are not allowed" :: nil)
 | Values.Vint i => OK (Vint i)
@@ -503,14 +503,14 @@ Inductive deref_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : p
 | deref_addr_value : forall chunk v v',
   access_mode ty = By_value (transl_bchunk_cchunk chunk) ->
   type_is_volatile ty = false ->
-  Mem.loadv (transl_bchunk_cchunk chunk) m (transBeePL_value_cvalue (Vloc addr ofs)) = Some v ->
-  transC_val_bplvalue v = OK v' ->
+  Mem.loadv (transl_bchunk_cchunk chunk) m (trans_bvalue_cvalue (Vloc addr ofs)) = Some v ->
+  trans_cvalue_bvalue v = OK v' ->
   deref_addr ty m addr ofs Full v'
 | deref_loc_volatile: forall chunk tr v v',
   access_mode ty = By_value (transl_bchunk_cchunk chunk) -> 
   type_is_volatile ty = true ->
   volatile_load ge (transl_bchunk_cchunk chunk) m addr ofs tr v ->
-  transC_val_bplvalue v = OK v' ->
+  trans_cvalue_bvalue v = OK v' ->
   deref_addr ty m addr ofs Full v'
 | deref_addr_reference:
   access_mode ty = By_reference ->
@@ -521,7 +521,7 @@ Inductive deref_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : p
 | deref_addr_bitfield: forall sz sg pos width v v' cty,
   transBeePL_type ty = cty ->
   load_bitfield cty sz sg pos width m (Values.Vptr addr ofs) v ->
-  transC_val_bplvalue v = OK v' ->
+  trans_cvalue_bvalue v = OK v' ->
   deref_addr ty m addr ofs (Bits sz sg pos width) v'.
 
 
@@ -531,13 +531,13 @@ Inductive assign_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : 
 | assign_addr_value : forall v chunk m' v',
   access_mode ty = By_value (transl_bchunk_cchunk chunk) ->
   type_is_volatile ty = false ->
-  Mem.storev (transl_bchunk_cchunk chunk) m (transBeePL_value_cvalue (Vloc addr ofs)) v = Some m' ->
-  transC_val_bplvalue v = OK v' ->
+  Mem.storev (transl_bchunk_cchunk chunk) m (trans_bvalue_cvalue (Vloc addr ofs)) v = Some m' ->
+  trans_cvalue_bvalue v = OK v' ->
   assign_addr ty m addr ofs Full v' m' v'
 | assign_loc_volatile: forall v chunk tr m' v',
   access_mode ty = By_value (transl_bchunk_cchunk chunk) -> type_is_volatile ty = true ->
   volatile_store ge (transl_bchunk_cchunk chunk) m addr ofs v tr m' ->
-  transC_val_bplvalue v = OK v' ->
+  trans_cvalue_bvalue v = OK v' ->
   assign_addr ty m addr ofs Full v' m' v'
 | assign_addr_copy: forall b' ofs' bytes m',
   access_mode ty = By_copy ->
@@ -551,8 +551,8 @@ Inductive assign_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : 
    assign_addr ty m addr ofs Full (Vloc b' ofs') m' (Vloc b' ofs')
 | assign_addr_bitfield: forall sz sg pos width v m' v' bv bv',
   store_bitfield (transBeePL_type ty) sz sg pos width m (Values.Vptr addr ofs) v m' v' ->
-  transC_val_bplvalue v = OK bv ->
-  transC_val_bplvalue v' = OK bv' -> 
+  trans_cvalue_bvalue v = OK bv ->
+  trans_cvalue_bvalue v' = OK bv' -> 
   assign_addr ty m addr ofs (Bits sz sg pos width) bv m' bv'. 
 
 (* Allocation of function local variables *)

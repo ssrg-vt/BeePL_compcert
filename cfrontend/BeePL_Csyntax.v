@@ -68,7 +68,7 @@ end.*)
       
 Fixpoint transBeePL_expr_expr (e : BeePL.expr) : mon Csyntax.expr := 
 match e with 
-| Val v t => ret (Eval (transBeePL_value_cvalue v) (transBeePL_type t)) 
+| Val v t => ret (Eval (trans_bvalue_cvalue v) (transBeePL_type t)) 
 | Var x t => ret (Evar x (transBeePL_type t))
 | Const c t => match c with 
                | ConsInt i => ret (Eval (Values.Vint i) (transBeePL_type t))
@@ -124,7 +124,7 @@ match e with
                      let ct := (transBeePL_type t) in
                      ret (Econdition ce ce' ce'' ct)  
 | Unit t=> let ct := (transBeePL_type t) in
-           ret (Eval (transBeePL_value_cvalue Vunit) ct) (* Fix me *)
+           ret (Eval (trans_bvalue_cvalue Vunit) ct) (* Fix me *)
 | Addr l ofs t => let ct := transBeePL_type t in
                   ret (Eloc l.(lname) ofs l.(lbitfield) ct)
 | Hexpr h e t => ret (Eval (Values.Vundef) Tvoid) (* FIX ME *)
@@ -157,7 +157,7 @@ end.
 Fixpoint transBeePL_expr_st (e : BeePL.expr) : mon Csyntax.statement :=
 match e with 
 | Val v t => let vt := (transBeePL_type t) in
-             ret (Sreturn (Some (Eval (transBeePL_value_cvalue v) vt))) 
+             ret (Sreturn (Some (Eval (trans_bvalue_cvalue v) vt))) 
 (*| Valof e t => do ct <- (transBeePL_type t);
                do ce <- (transBeePL_expr_expr e);
                ret (Sreturn (Some (Evalof ce ct)))*)

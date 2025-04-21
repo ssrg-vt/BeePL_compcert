@@ -50,7 +50,7 @@ Lemma well_formed_uop : forall Gamma Sigma bge vm v ef t uop m ct,
 type_expr Gamma Sigma (Prim (Uop uop) ((Val v t) :: nil) t) ef t ->
 transBeePL_type t = ct ->
 store_well_typed Sigma bge vm m ->
-exists v', Cop.sem_unary_operation uop (transBeePL_value_cvalue v) ct m = Some v'.
+exists v', Cop.sem_unary_operation uop (trans_bvalue_cvalue v) ct m = Some v'.
 Proof.
 Admitted.
 (*move=> Gamma Sigma bge vm v ef t uop m ct g i htv. 
@@ -119,8 +119,8 @@ Qed.*)
 Lemma trans_value_uop_success : forall Gamma Sigma ef t uop v ct m v', 
 type_expr Gamma Sigma (Val v t) ef t ->
 transBeePL_type t = ct ->
-Cop.sem_unary_operation uop (transBeePL_value_cvalue v) ct m = Some v' ->
-exists v'', transC_val_bplvalue v' = OK v''.
+Cop.sem_unary_operation uop (trans_bvalue_cvalue v) ct m = Some v' ->
+exists v'', trans_cvalue_bvalue v' = OK v''.
 Proof.
 (*move=> Gamma Sigma ef t uop v ct g g' i m v' htv hct hop. case: v htv hop=> //=.
 (* int *)
@@ -144,8 +144,8 @@ Lemma well_formed_bop : forall Gamma Sigma bge vm bcmp v1 v2 ef t bop m ct,
 type_expr Gamma Sigma (Prim (Bop bop) ((Val v1 t) :: (Val v2 t) :: nil) t) ef t ->
 transBeePL_type t = ct ->
 store_well_typed Sigma bge vm m ->
-exists v', Cop.sem_binary_operation bcmp bop (transBeePL_value_cvalue v1) ct 
-                                             (transBeePL_value_cvalue v2) ct m = Some v'.
+exists v', Cop.sem_binary_operation bcmp bop (trans_bvalue_cvalue v1) ct 
+                                             (trans_bvalue_cvalue v2) ct m = Some v'.
 Proof.
 Admitted.
 
@@ -154,9 +154,9 @@ Lemma trans_value_bop_success : forall Gamma Sigma bge bcmp vm bop v1 v2 ef t ct
 type_expr Gamma Sigma (Prim (Bop bop) (Val v1 t:: Val v2 t :: nil) t) ef t ->
 transBeePL_type t = ct ->
 store_well_typed Sigma bge vm m ->
-Cop.sem_binary_operation bcmp bop (transBeePL_value_cvalue v1) ct 
-                                  (transBeePL_value_cvalue v2) ct m = Some v' ->
-exists v'', transC_val_bplvalue v' = OK v''.
+Cop.sem_binary_operation bcmp bop (trans_bvalue_cvalue v1) ct 
+                                  (trans_bvalue_cvalue v2) ct m = Some v' ->
+exists v'', trans_cvalue_bvalue v' = OK v''.
 Proof.
 Admitted.
 
@@ -183,8 +183,8 @@ Qed.*) Admitted.
 Lemma val_uop_type_preserve : forall Gamma Sigma ef t uop v ct m v' v'', 
 type_expr Gamma Sigma (Val v t) ef t ->
 transBeePL_type t = ct ->
-Cop.sem_unary_operation uop (transBeePL_value_cvalue v) ct m = Some v' ->
-transC_val_bplvalue v' = OK v'' ->
+Cop.sem_unary_operation uop (trans_bvalue_cvalue v) ct m = Some v' ->
+trans_cvalue_bvalue v' = OK v'' ->
 type_expr Gamma Sigma (Val v'' t) ef t.
 Proof.
 Admitted.
@@ -193,16 +193,16 @@ Admitted.
 Lemma val_bop_type_preserve : forall Gamma Sigma bcmp bop v1 v2 ef t ct m v' v'', 
 type_expr Gamma Sigma (Prim (Bop bop) (Val v1 t:: Val v2 t :: nil) t) ef t ->
 transBeePL_type t = ct ->
-Cop.sem_binary_operation bcmp bop (transBeePL_value_cvalue v1) ct 
-                                  (transBeePL_value_cvalue v2) ct m = Some v' ->
-transC_val_bplvalue v' = OK v'' ->
+Cop.sem_binary_operation bcmp bop (trans_bvalue_cvalue v1) ct 
+                                  (trans_bvalue_cvalue v2) ct m = Some v' ->
+trans_cvalue_bvalue v' = OK v'' ->
 type_expr Gamma Sigma (Val v'' t) ef t .
 Proof.
 Admitted.
 
 Lemma type_bool_val : forall Gamma Sigma v t ef ct m b,
 type_expr Gamma Sigma (Val v t) ef (Ptype Tbool) ->
-Cop.bool_val (transBeePL_value_cvalue v) ct m = Some b.
+Cop.bool_val (trans_bvalue_cvalue v) ct m = Some b.
 Proof.
 move=> Gamma Sigma v t ef ct m b hte.
 Admitted.
@@ -473,11 +473,11 @@ exists m'. exists vm'. exists (e' :: es). split=> //=. by apply ssem_cons1.*)
 Admitted.
 
 Lemma not_ptr_cval : forall cv bv, 
-transC_val_bplvalue cv = OK bv ->
+trans_cvalue_bvalue cv = OK bv ->
 is_vloc bv = false -> 
 Values.is_vptr cv = false.
 Proof.
-move=> cv bv. rewrite /transC_val_bplvalue /=.
+move=> cv bv. rewrite /trans_cvalue_bvalue /=.
 case: cv=> //=.
 by move=> b p [] h; subst.
 Qed.
@@ -661,7 +661,7 @@ Lemma well_typed_res_ext : forall Gamma Sigma bge bge' exf cef vm m m' vs vres b
 is_funtype (get_rt_eapp exf) = false ->
 befunction_to_cefunction exf = cef ->
 Events.external_call cef bge vs m t vres m' ->
-transC_val_bplvalue vres = OK bv ->
+trans_cvalue_bvalue vres = OK bv ->
 type_expr Gamma Sigma (Val bv (get_rt_eapp exf)) (get_ef_eapp exf ++ ef) (get_rt_eapp exf) /\
 store_well_typed Sigma bge' vm m'.
 Proof. 
