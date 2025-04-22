@@ -7,9 +7,6 @@ From mathcomp Require Import all_ssreflect.
 
 Definition empty_effect : effect := nil. 
 
-Definition type_bool (t : type) : Prop :=
-classify_bool t <> bool_default.
-
 Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> Prop :=
 (*For all value expression, we can assume any effect type, including the empty effect *)
 | ty_valu : forall Gamma Sigma,
@@ -46,24 +43,103 @@ Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> P
               type_expr Gamma Sigma e ef (Reftype h (Bprim bt) a) ->
               type_expr Gamma Sigma e' ef' (Ptype bt) ->
               type_expr Gamma Sigma (Prim Massgn (e::e'::nil) (Ptype Tunit)) (ef ++ ef' ++ (Write h :: nil)) (Ptype Tunit)
-| ty_uop : forall Gamma Sigma op e ef t,
-           is_reftype t = false ->
-           is_unittype t = false ->
+| ty_notbool : forall Gamma Sigma e ef,
+               type_expr Gamma Sigma e ef (Ptype Tbool) ->
+               type_expr Gamma Sigma (Prim (Uop Cop.Onotbool) (e::nil) (Ptype Tbool)) ef (Ptype Tbool)
+| ty_notint : forall Gamma Sigma e ef t,
+              is_primint t || is_primlong t ->
+              type_expr Gamma Sigma e ef t ->
+              type_expr Gamma Sigma (Prim (Uop Cop.Onotint) (e::nil) t) ef t
+| ty_neg : forall Gamma Sigma e ef t,
+           is_primint t || is_primlong t ->
            type_expr Gamma Sigma e ef t ->
-           type_expr Gamma Sigma (Prim (Uop op) (e::nil) t) ef t
-| ty_bop : forall Gamma Sigma op e ef t e',
-           is_reftype t = false ->
-           is_unittype t = false ->
+           type_expr Gamma Sigma (Prim (Uop Cop.Oneg) (e::nil) t) ef t
+| ty_add : forall Gamma Sigma e ef t e',
+           is_primint t || is_primlong t ->
            type_expr Gamma Sigma e ef t ->
            type_expr Gamma Sigma e' ef t ->
-           type_expr Gamma Sigma (Prim (Bop op) (e::e'::nil) t) ef t 
+           type_expr Gamma Sigma (Prim (Bop Cop.Oadd) (e::e'::nil) t) ef t 
+| ty_sub : forall Gamma Sigma e ef t e',
+           is_primint t || is_primlong t ->
+           type_expr Gamma Sigma e ef t ->
+           type_expr Gamma Sigma e' ef t ->
+           type_expr Gamma Sigma (Prim (Bop Cop.Osub) (e::e'::nil) t) ef t
+| ty_mul : forall Gamma Sigma e ef t e',
+           is_primint t || is_primlong t ->
+           type_expr Gamma Sigma e ef t ->
+           type_expr Gamma Sigma e' ef t ->
+           type_expr Gamma Sigma (Prim (Bop Cop.Omul) (e::e'::nil) t) ef t 
+| ty_div : forall Gamma Sigma e ef t e',
+           is_primint t || is_primlong t ->
+           type_expr Gamma Sigma e ef t ->
+           type_expr Gamma Sigma e' ef t ->
+           type_expr Gamma Sigma (Prim (Bop Cop.Odiv) (e::e'::nil) t) ef t
+| ty_mod : forall Gamma Sigma e ef t e',
+           is_primint t || is_primlong t ->
+           type_expr Gamma Sigma e ef t ->
+           type_expr Gamma Sigma e' ef t ->
+           type_expr Gamma Sigma (Prim (Bop Cop.Omod) (e::e'::nil) t) ef t
+| ty_and : forall Gamma Sigma e ef t e',
+           is_primint t || is_primlong t ->
+           type_expr Gamma Sigma e ef t ->
+           type_expr Gamma Sigma e' ef t ->
+           type_expr Gamma Sigma (Prim (Bop Cop.Oand) (e::e'::nil) t) ef t
+| ty_or : forall Gamma Sigma e ef t e',
+           is_primint t || is_primlong t ->
+           type_expr Gamma Sigma e ef t ->
+           type_expr Gamma Sigma e' ef t ->
+           type_expr Gamma Sigma (Prim (Bop Cop.Oor) (e::e'::nil) t) ef t
+| ty_xor : forall Gamma Sigma e ef t e',
+           is_primint t || is_primlong t ->
+           type_expr Gamma Sigma e ef t ->
+           type_expr Gamma Sigma e' ef t ->
+           type_expr Gamma Sigma (Prim (Bop Cop.Oxor) (e::e'::nil) t) ef t
+| ty_shl : forall Gamma Sigma e ef t e',
+           is_primint t || is_primlong t ->
+           type_expr Gamma Sigma e ef t ->
+           type_expr Gamma Sigma e' ef t ->
+           type_expr Gamma Sigma (Prim (Bop Cop.Oshl) (e::e'::nil) t) ef t
+| ty_shr : forall Gamma Sigma e ef t e',
+           is_primint t || is_primlong t ->
+           type_expr Gamma Sigma e ef t ->
+           type_expr Gamma Sigma e' ef t ->
+           type_expr Gamma Sigma (Prim (Bop Cop.Oshr) (e::e'::nil) t) ef t
+| ty_eq : forall Gamma Sigma e ef t e',
+           is_primint t || is_primlong t || is_primbool t ->
+           type_expr Gamma Sigma e ef t ->
+           type_expr Gamma Sigma e' ef t ->
+           type_expr Gamma Sigma (Prim (Bop Cop.Oeq) (e::e'::nil) (Ptype Tbool)) ef (Ptype Tbool)
+| ty_ne : forall Gamma Sigma e ef t e',
+           is_primint t || is_primlong t || is_primbool t ->
+           type_expr Gamma Sigma e ef t ->
+           type_expr Gamma Sigma e' ef t ->
+           type_expr Gamma Sigma (Prim (Bop Cop.One) (e::e'::nil) (Ptype Tbool)) ef (Ptype Tbool)
+| ty_lt : forall Gamma Sigma e ef t e',
+           is_primint t || is_primlong t ->
+           type_expr Gamma Sigma e ef t ->
+           type_expr Gamma Sigma e' ef t ->
+           type_expr Gamma Sigma (Prim (Bop Cop.Olt) (e::e'::nil) (Ptype Tbool)) ef (Ptype Tbool)
+| ty_gt : forall Gamma Sigma e ef t e',
+           is_primint t || is_primlong t ->
+           type_expr Gamma Sigma e ef t ->
+           type_expr Gamma Sigma e' ef t ->
+           type_expr Gamma Sigma (Prim (Bop Cop.Ogt) (e::e'::nil) (Ptype Tbool)) ef (Ptype Tbool)
+| ty_le : forall Gamma Sigma e ef t e',
+           is_primint t || is_primlong t  ->
+           type_expr Gamma Sigma e ef t ->
+           type_expr Gamma Sigma e' ef t ->
+           type_expr Gamma Sigma (Prim (Bop Cop.Ole) (e::e'::nil) (Ptype Tbool)) ef (Ptype Tbool)
+| ty_ge : forall Gamma Sigma e ef t e',
+           is_primint t || is_primlong t ->
+           type_expr Gamma Sigma e ef t ->
+           type_expr Gamma Sigma e' ef t ->
+           type_expr Gamma Sigma (Prim (Bop Cop.Oge) (e::e'::nil) (Ptype Tbool)) ef (Ptype Tbool)
 | ty_bind : forall Gamma Sigma x t e e' t' ef ef',
             type_expr Gamma Sigma e ef t ->
             type_expr (extend_context Gamma x t) Sigma e' ef' t' ->
             type_expr Gamma Sigma (Bind x t e e' t') (ef ++ ef') t'
-| ty_cond : forall Gamma Sigma e1 e2 e3 tb t ef1 ef2, 
-            type_expr Gamma Sigma e1 ef1 tb ->
-            type_bool tb ->
+| ty_cond : forall Gamma Sigma e1 e2 e3 t ef1 ef2, 
+            type_expr Gamma Sigma e1 ef1 (Ptype Tbool) ->
             type_expr Gamma Sigma e2 ef2 t ->
             type_expr Gamma Sigma e3 ef2 t ->
             type_expr Gamma Sigma (Cond e1 e2 e3 t) (ef1 ++ ef2) t
@@ -81,7 +157,7 @@ Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> P
            ts = get_at_eapp exf ->
            type_exprs Gamma Sigma es ef ts ->
            type_expr Gamma Sigma (Eapp exf ts es rt) ((get_ef_eapp exf) ++ ef) rt
-| ty_sub : forall Gamma Sigma e ef t ef', 
+| ty_subt : forall Gamma Sigma e ef t ef', 
            type_expr Gamma Sigma e ef t ->
            sub_effect ef ef' ->
            type_expr Gamma Sigma e ef' t
@@ -124,6 +200,14 @@ Proof.
 move=> Gamma Sigma ef t t'. 
 move eq : (Val Vunit t)=> v ht. elim: ht eq=>//=.
 by move=> Gamma' Sigma' [] h; subst.
+Qed.
+
+Lemma type_infer_vbool: forall Gamma Sigma ef b t t', 
+type_expr Gamma Sigma (Val (Vbool b) t) ef t' ->
+t = Ptype Tbool /\ t' = Ptype Tbool.
+Proof.
+move=> Gamma Sigma ef b t t'. 
+move eq : (Val (Vbool b) t)=> v ht. elim: ht eq=>//=.
 Qed.
 
 Lemma type_infer_int: forall Gamma Sigma i ef t t', 
@@ -245,19 +329,20 @@ move=> Gamma' Sigma' e1 e2 h bt ef1 a ef2 ht hin ht' hin2 [] h1 h2 h3; subst; sp
 split=> //=. by exists h, bt, a, ef1, ef2.
 Qed.
 
-Lemma type_infer_uop: forall Gamma Sigma e uop t ef t',
+(*Lemma type_infer_uop: forall Gamma Sigma e uop t ef t',
 type_expr Gamma Sigma (Prim (Uop uop) [:: e] t) ef t' ->
 t' = t /\ 
 is_reftype t = false /\
 is_unittype t = false /\
 exists ef', type_expr Gamma Sigma e ef' t.
 Proof.
-move=> Gamma Sigma e uop t ef t'.
+Admitted.
+(*move=> Gamma Sigma e uop t ef t'.
 move eq: (Prim (Uop uop) [:: e] t)=> rv ht.
 elim: ht eq=> //=.
 move=> Gamma' Sigma' op e' ef' t'' hrt hut hte' hin [] h1 h2 h3; subst; split=> //=.
 split=> //=; split=> //=. by exists ef'. 
-Qed.
+Qed.*)
 
 Lemma type_infer_bop: forall Gamma Sigma e e' t bop ef t',
 type_expr Gamma Sigma (Prim (Bop bop) [:: e; e'] t) ef t' ->
@@ -517,4 +602,9 @@ Lemma well_typed_success:
                             exists ct g i, transBeePL_type t g = Res ct g i).
 Proof.
 apply type_exprs_type_expr_ind_mut=> //=.
+<<<<<<< HEAD
 Admitted.
+=======
+Admitted.*)
+
+>>>>>>> bwip

@@ -24,12 +24,18 @@ Inductive builtin : Type :=
                                                reduces to e captures the essence of state isolation 
                                                and reduces to a value discarding the heap *).
 
+(* Patterns *)
+(* Used in pattern matching in the match constructor *)
+Inductive pattern : Type :=
+| Pnone : pattern
+| Psome : ident -> pattern.
+
 Record bsignature := { bsig_args : list type; bsig_ef : effect; bsig_res : type; bsig_cc : calling_convention }. 
 
-Definition bsig_to_csig (bsig : bsignature) : mon AST.signature :=
-do cts <- (transBeePL_types transBeePL_type bsig.(bsig_args));
-do ct <- (transBeePL_type bsig.(bsig_res));
-ret {| sig_args :=  (map typ_of_type (from_typelist cts)); sig_res := (rettype_of_type ct); sig_cc := bsig.(bsig_cc) |}.
+Definition bsig_to_csig (bsig : bsignature) : AST.signature :=
+{| sig_args :=  (map typ_of_type (from_typelist (transBeePL_types transBeePL_type bsig.(bsig_args)))); 
+   sig_res := (rettype_of_type (transBeePL_type bsig.(bsig_res))); 
+   sig_cc := bsig.(bsig_cc) |}.
 
 Inductive external_function : Set :=
 | EF_external : string -> bsignature -> external_function.
@@ -49,10 +55,9 @@ match ef with
 | EF_external n sig => sig.(bsig_args)
 end.
 
-Definition befunction_to_cefunction (bef : external_function) : mon AST.external_function :=
+Definition befunction_to_cefunction (bef : external_function) : AST.external_function :=
 match bef with 
-| EF_external n bsig => do aef <- bsig_to_csig bsig;
-                        ret (AST.EF_external n aef)
+| EF_external n bsig => (AST.EF_external n (bsig_to_csig bsig))
 end. 
 
 (* The source language never exposes the heap binding construct hpφ.e directly to the user 
@@ -60,18 +65,24 @@ end.
 Inductive expr : Type :=
 | Val : value -> type -> expr                                           (* value *) (* rvalue *)
 | Var : ident -> type -> expr                                           (* variable *) (* lvalue *)
-| Const : BeePL_values.constant -> type -> expr                                      (* constant *) (* rvalue *)
+| Const : BeePL_values.constant -> type -> expr                         (* constant *) (* rvalue *)
 | App : expr -> list expr -> type -> expr                               (* function application *) (* rvalue *)
 | Prim : builtin -> list expr -> type -> expr                           (* primitive operations *)
 | Bind : ident -> type -> expr -> expr -> type -> expr                  (* let binding: type of continuation *)
 | Cond : expr -> expr -> expr -> type -> expr                           (* if e then e else e *) 
 | Unit : type -> expr                                                   (* unit *)
-(* not intended to be written by programmers:
+(* Addr: not intended to be written by programmers:
    Only should play role in operational semantics *)
 | Addr : linfo -> ptrofs -> type -> expr                                (* address *)
 | Hexpr : Memory.mem -> expr -> type -> expr                            (* heap effect *)
-| Eapp : external_function -> list type -> list expr -> type -> expr    (* external function *).
+| Eapp : external_function -> list type -> list expr -> type -> expr    (* external function *)
+| Sfield : expr -> ident -> type -> expr                                (* access to a member of struct *)
+| For : ident -> expr -> expr -> dir -> expr -> type -> expr            (* for loop - constant bound *)
+| Enone : type -> expr                                                  (* none: option *)
+| Esome : expr -> type -> expr                                          (* some: option *)
+| Match : expr -> list (pattern * expr) -> type -> expr                 (* pattern matching *).
 
+(* for i = 1 to 5 Upto e *)
 (*
       e0 --> None (expr)
       e1 --> v1  
@@ -178,8 +189,8 @@ end.
 
 End Is_zero_exprs.
 
-Fixpoint is_zero_expr (e : expr) : bool :=
-match e with 
+Fixpoint is_zero_expr (e : expr) {struct e} : bool :=
+match e return bool with 
 | Val v t => is_zero_val v
 | Var x t => false 
 | Const c t => is_zero_constant c
@@ -191,6 +202,11 @@ match e with
 | Addr l p t => false
 | Hexpr h e t => false
 | Eapp ef ts es t => is_zero_exprs is_zero_expr es
+| Sfield e i t => false
+| For i e1 e2 d e t => is_zero_expr e 
+| Enone t => false
+| Esome e t => is_zero_expr e
+| Match e pes t => is_zero_expr e (* FIX ME: && is_zero_exprs is_zero_expr (unzip2 pes)*)
 end.
 
 Section Is_exprs_min_signed.
@@ -218,6 +234,11 @@ match e with
 | Addr l p t => false
 | Hexpr h e t => false
 | Eapp ef ts es t => is_exprs_min_signed is_expr_min_signed es
+| Sfield e x t => false
+| For x e1 e2 d e t => is_expr_min_signed e 
+| Enone t => false
+| Esome e t => is_expr_min_signed e
+| Match e pes t => is_expr_min_signed e (* Fix ME: && is_exprs_min_signed is_expr_min_signed (unzip2 pes)*)
 end.
 
 Section Is_exprs_mone.
@@ -245,6 +266,11 @@ match e with
 | Addr l p t => false
 | Hexpr h e t => false
 | Eapp ef ts es t => is_exprs_mone is_expr_mone es
+| Sfield e x t => false
+| For x e1 e2 d e t => is_expr_mone e
+| Enone t => false
+| Esome e t => is_expr_mone e
+| Match e pes t => is_expr_mone e (* Fix ME: && is_exprs_mone is_expr_mone (unzip2 pes)*)
 end.
 
 Section Is_exprs_shift.
@@ -272,6 +298,19 @@ match e with
 | Addr l p t => false
 | Hexpr h e t => false
 | Eapp ef ts es t => is_exprs_shift is_expr_shift es
+| Sfield e x t => false
+| For x e1 e2 d e t => is_expr_shift e 
+| Enone t => false
+| Esome e t => is_expr_shift e
+| Match e pes t => is_expr_shift e (* Fix ME: && is_exprs_shift is_expr_shift (unzip2 pes)*)
+end.
+
+(* Check for the range of the for-loop to always keep them within the BPF limit 8 * 1024 * 1024= 8388608 *)
+Definition check_range_expr (e1 e2 : expr) (d : dir) : bool :=
+match e1, e2 with 
+| Val v1 t1, Val v2 t2 => check_range_val v1 v2 d
+| Const c1 t1, Const c2 t2 => check_range_const c1 c2 d
+| _, _ => false
 end.
 
 Definition is_pointer (e : expr) : bool :=
@@ -297,6 +336,11 @@ match e with
 | Addr l p t => t
 | Hexpr h e t => t
 | Eapp ef ts es t => t
+| Sfield e x t => t
+| For x e1 e2 d e t => t
+| Enone t => t
+| Esome e t => t
+| Match e pes t => t
 end.
 
 Fixpoint typeof_exprs (e : list expr) : list BeeTypes.type :=
@@ -398,19 +442,48 @@ Definition globvar (V : Type) := AST.globvar V.
 
 Definition globdef (F V : Type) := AST.globdef F V.
 
+
 Record program  : Type := mkprogam { prog_defs : list (ident * globdef fundef type);
                                      prog_public : list ident;
                                      prog_main : ident;
-                                     prog_types : list composite_definition;
-                                     prog_comp_env : composite_env;
-                                     prog_comp_env_eq : build_composite_env prog_types = OK prog_comp_env }.
+                                     prog_types : list bcomposite_definition;
+                                     prog_comp_env : bcomposite_env;
+                                     prog_comp_env_eq : build_bcomposite_env prog_types = OK prog_comp_env }.
+
+Program Definition make_bprogram (types: list bcomposite_definition)
+                                 (defs: list (ident * globdef fundef type))
+                                 (public: list ident)
+                                 (main: ident) : res program :=
+  match build_bcomposite_env types with
+  | Error e => Error e
+  | OK ce =>
+      OK {| prog_defs := defs;
+            prog_public := public;
+            prog_main := main;
+            prog_types := types;
+            prog_comp_env := ce;
+            prog_comp_env_eq := _ |}
+  end.
+
+Definition mkbprogram (types: list bcomposite_definition)
+                     (defs: list (ident * globdef fundef type))
+                     (public: list ident)
+                     (main: ident)
+                     (WF: wf_bcomposites types) : BeePL.program :=
+  let (ce, EQ) := build_bcomposite_env' types WF in
+  {| prog_defs := defs;
+     prog_public := public;
+     prog_main := main;
+     prog_types := types;
+     prog_comp_env := ce;
+     prog_comp_env_eq := EQ |}.
 
 (************************** Operation Semantics **************************************)
 (* Global environments are a component of the dynamic semantics of
    BeePL language.  A global environment maps symbol names 
    (names of functions and of global variables)
    to the corresponding function declarations. *) 
-Record genv := { genv_genv :> Genv.t fundef type; genv_cenv :> composite_env }. 
+Record genv := { genv_genv :> Genv.t fundef type; genv_cenv :> bcomposite_env }. 
 
 Definition trans_program_astprog (p : program) : AST.program fundef type :=
 @mkprogram fundef type
@@ -437,19 +510,20 @@ match b with
 end.
 
 (* Convets BeePL value to C value *) 
-Definition transBeePL_value_cvalue (v : value) : Values.val :=
+Definition trans_bvalue_cvalue (v : value) : Values.val :=
 match v with 
 | Vunit => Values.Vint (Int.repr 0) (* Fix me *)
+| Vbool b => if eqb b true then Values.Vint (Int.repr 1) else Values.Vint (Int.repr 0)
 | Vint i => Values.Vint i
 | Vint64 i => Values.Vlong i 
 | Vloc p ofs => Values.Vptr p ofs
 end.
 
 (* Converts list of BeePL value to list of C value *)
-Fixpoint transBeePL_values_cvalues (vs : list value) : list Values.val :=
+Fixpoint trans_bvalues_cvalues (vs : list value) : list Values.val :=
 match vs with 
 | nil => nil
-| v :: vs => transBeePL_value_cvalue v :: transBeePL_values_cvalues vs
+| v :: vs => trans_bvalue_cvalue v :: trans_bvalues_cvalues vs
 end.
 
 (* Converts C value to BeePL value *) 
@@ -457,7 +531,7 @@ end.
 (* Reading uninitialized memory is not allowed in eBPF as it might leak sensitive information *)
 (* A function stores secret data in stack and later it is not cleared and then other function 
    is called, the secret data from older function can be leaked *)
-Definition transC_val_bplvalue (v : Values.val) : res value :=
+Definition trans_cvalue_bvalue (v : Values.val) : res value :=
 match v with 
 | Values.Vundef => Error (MSG "Undef values are not allowed" :: nil)
 | Values.Vint i => OK (Vint i)
@@ -505,48 +579,57 @@ Inductive deref_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : p
 | deref_addr_value : forall chunk v v',
   access_mode ty = By_value (transl_bchunk_cchunk chunk) ->
   type_is_volatile ty = false ->
-  Mem.loadv (transl_bchunk_cchunk chunk) m (transBeePL_value_cvalue (Vloc addr ofs)) = Some v ->
-  transC_val_bplvalue v = OK v' ->
+  Mem.loadv (transl_bchunk_cchunk chunk) m (trans_bvalue_cvalue (Vloc addr ofs)) = Some v ->
+  trans_cvalue_bvalue v = OK v' ->
   deref_addr ty m addr ofs Full v'
 | deref_loc_volatile: forall chunk tr v v',
   access_mode ty = By_value (transl_bchunk_cchunk chunk) -> 
   type_is_volatile ty = true ->
   volatile_load ge (transl_bchunk_cchunk chunk) m addr ofs tr v ->
-  transC_val_bplvalue v = OK v' ->
+  trans_cvalue_bvalue v = OK v' ->
   deref_addr ty m addr ofs Full v'
 | deref_addr_reference:
   access_mode ty = By_reference ->
-  deref_addr ty m addr ofs Full (Vloc addr ofs). 
+  deref_addr ty m addr ofs Full (Vloc addr ofs) 
+| deref_addr_copy:
+  access_mode ty = By_copy ->
+  deref_addr ty m addr ofs Full (Vloc addr ofs)
+| deref_addr_bitfield: forall sz sg pos width v v' cty,
+  transBeePL_type ty = cty ->
+  load_bitfield cty sz sg pos width m (Values.Vptr addr ofs) v ->
+  trans_cvalue_bvalue v = OK v' ->
+  deref_addr ty m addr ofs (Bits sz sg pos width) v'.
 
-(* Executable definition for deref_addr 
-Fixpoint deref_addr (t : type) (m : Memory.mem) (addr : Values.block) (ofs : ptrofs) : mon (bitfield * value) :=
-match access_mode ty with 
-| By_value (transl_bchunk_cchunk chunk) => if (type_is_volatile ty) 
-                                           then  
-                             
-if (type_is_volatile ty) && (access_mode ty == By_value (transl_bchunk_cchunk chunk)) 
-then match Mem.loadv (transl_bchunk_cchunk chunk) m (transBeePL_value_cvalue (Vloc addr ofs)) with 
-     | Some v => match (transC_val_bplvalue v) with 
-                 | Res v' g i => OK (Full, v')
-                 | None => Error msg 
-     | None => Error msg 
-else if deref_addr t m addr ofs
-else *)
 
 (* [assign_addr ty m addr ofs v] returns the updated memory after storing the value v at address [addr] and offset 
-   [ofs] *)
+   [ofs] *) 
 Inductive assign_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : ptrofs) : bitfield -> value -> Memory.mem -> value -> Prop :=
 | assign_addr_value : forall v chunk m' v',
   access_mode ty = By_value (transl_bchunk_cchunk chunk) ->
   type_is_volatile ty = false ->
-  Mem.storev (transl_bchunk_cchunk chunk) m (transBeePL_value_cvalue (Vloc addr ofs)) v = Some m' ->
-  transC_val_bplvalue v = OK v' ->
+  Mem.storev (transl_bchunk_cchunk chunk) m (trans_bvalue_cvalue (Vloc addr ofs)) v = Some m' ->
+  trans_cvalue_bvalue v = OK v' ->
   assign_addr ty m addr ofs Full v' m' v'
 | assign_loc_volatile: forall v chunk tr m' v',
   access_mode ty = By_value (transl_bchunk_cchunk chunk) -> type_is_volatile ty = true ->
   volatile_store ge (transl_bchunk_cchunk chunk) m addr ofs v tr m' ->
-  transC_val_bplvalue v = OK v' ->
-  assign_addr ty m addr ofs Full v' m' v'. 
+  trans_cvalue_bvalue v = OK v' ->
+  assign_addr ty m addr ofs Full v' m' v'
+| assign_addr_copy: forall b' ofs' bytes m',
+  access_mode ty = By_copy ->
+  (alignof_blockcopy (bcomposite_composite_env (genv_cenv ge)) (transBeePL_type ty) | Ptrofs.unsigned ofs') ->
+  (alignof_blockcopy (bcomposite_composite_env (genv_cenv ge)) (transBeePL_type ty) | Ptrofs.unsigned ofs) ->
+      b' <> addr \/ Ptrofs.unsigned ofs' = Ptrofs.unsigned ofs
+              \/ Ptrofs.unsigned ofs' + sizeof (bcomposite_composite_env (genv_cenv ge)) (transBeePL_type ty) <= Ptrofs.unsigned ofs
+              \/ Ptrofs.unsigned ofs + sizeof (bcomposite_composite_env (genv_cenv ge)) (transBeePL_type ty) <= Ptrofs.unsigned ofs' ->
+   Mem.loadbytes m b' (Ptrofs.unsigned ofs') (sizeof (bcomposite_composite_env (genv_cenv ge)) (transBeePL_type ty)) = Some bytes ->
+   Mem.storebytes m addr (Ptrofs.unsigned ofs) bytes = Some m' ->
+   assign_addr ty m addr ofs Full (Vloc b' ofs') m' (Vloc b' ofs')
+| assign_addr_bitfield: forall sz sg pos width v m' v' bv bv',
+  store_bitfield (transBeePL_type ty) sz sg pos width m (Values.Vptr addr ofs) v m' v' ->
+  trans_cvalue_bvalue v = OK bv ->
+  trans_cvalue_bvalue v' = OK bv' -> 
+  assign_addr ty m addr ofs (Bits sz sg pos width) bv m' bv'. 
 
 (* Allocation of function local variables *)
 (* [alloc_variables vm1 m1 vars vm2 m2] allocates one memory block for each variable
@@ -557,7 +640,7 @@ Inductive alloc_variables : vmap -> Memory.mem -> list (ident * type) -> vmap ->
 | alloc_variables_nil : forall vm hm, 
   alloc_variables vm hm nil vm hm
 | alloc_variables_con : forall e m id ty vars m1 l1 m2 e2,
-  Mem.alloc m 0 (sizeof_type ty) = (m1, l1) ->
+  Mem.alloc m 0 (sizeof_type (genv_cenv ge) ty) = (m1, l1) ->
   alloc_variables (PTree.set id (l1, ty) e) m1 vars e2 m2 ->
   alloc_variables e m ((id, ty) :: vars) e2 m2.
 
@@ -577,63 +660,42 @@ Inductive bind_variables  (e: vmap): Memory.mem -> list (ident * type) -> list v
 (** Return the list of blocks in the codomain of [benv], with low and high bounds. **)
 
 Definition block_of_binding (id_b_ty: ident * (positive * BeeTypes.type)) :=
-  match id_b_ty with (id, (b, ty)) => (b, 0, sizeof_type ty) end.
+  match id_b_ty with (id, (b, ty)) => (b, 0, sizeof_type (genv_cenv ge) ty) end.
 
 Definition blocks_of_env (e: vmap) : list (ident * Z * Z) :=
   List.map block_of_binding (PTree.elements e).
 
 (* Substitution *)
 Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
-match e with 
-| Val v t => e
-| Var y t => if (x =? y)%positive then se else Var y t
-| Const c t => e 
-| App e es t => App (subst x se e) (map (subst x se) es) t
-| Prim b es t => Prim b (map (subst x se) es) t
-| Bind y t e1 e2 t' => if (x =? y)%positive 
-                       then Bind y t (subst x se e1) e2 t'
-                       else Bind y t (subst x se e1) (subst x se e2) t'
-| Cond e1 e2 e3 t => Cond (subst x se e1) (subst x se e2) (subst x se e3) t
-| Unit t => Unit t 
-| Addr l p t => Addr l p t
-| Hexpr h e t => Hexpr h (subst x se e) t
-| Eapp ef ts es t => Eapp ef ts (map (subst x se) es) t
-end.
+  match e with 
+  | Val v t => e
+  | Var y t => if (x =? y)%positive then se else Var y t
+  | Const c t => e 
+  | App e es t => App (subst x se e) (map (subst x se) es) t
+  | Prim b es t => Prim b (map (subst x se) es) t
+  | Bind y t e1 e2 t' =>
+      if (x =? y)%positive 
+      then Bind y t (subst x se e1) e2 t'
+      else Bind y t (subst x se e1) (subst x se e2) t'
+  | Cond e1 e2 e3 t => Cond (subst x se e1) (subst x se e2) (subst x se e3) t
+  | Unit t => Unit t 
+  | Addr l p t => Addr l p t
+  | Hexpr h e t => Hexpr h (subst x se e) t
+  | Eapp ef ts es t => Eapp ef ts (map (subst x se) es) t
+  | Sfield e fld t => Sfield (subst x se e) fld t
+  | For y e1 e2 d e' t =>
+      if (x =? y)%positive
+      then For y (subst x se e1) (subst x se e2) d e' t
+      else For y (subst x se e1) (subst x se e2) d (subst x se e') t
+  | Enone t => Enone t 
+  | Esome e t => Esome (subst x se e) t
+  | Match e pes t =>
+      let ps := unzip1 pes in 
+      let es := unzip2 pes in 
+      let ses := map (subst x se) es in
+      Match (subst x se e) pes (*FIX ME : (zip ps ses)*) t
+  end.
 
-
-Fixpoint is_simple_expr (e : expr) : bool :=
-match e with 
-| Val v t => true 
-| Var v t => true 
-| Const c t => true
-| App e es t => false 
-| Prim o es t => match o with 
-                 | Ref => match es with 
-                          | [:: e] => is_simple_expr e
-                          | _ => false
-                          end
-                 | Deref => match es with 
-                            | [:: e] => is_simple_expr e
-                            | _ => false
-                            end
-                 | Massgn => false
-                 | Uop o => match es with 
-                            | [:: e] => is_simple_expr e
-                            |  _ => false
-                            end
-                 | Bop o => match es with 
-                            | [:: e1; e2] => is_simple_expr e1 && is_simple_expr e2
-                            | _ => false
-                            end
-                 | Run h => false 
-                 end
-| Bind x t e e' t' => false
-| Cond e1 e2 e3 t => false 
-| Unit t => true 
-| Addr l ofs t => true 
-| Hexpr m e t => false
-| Eapp ef ts es t => false
-end.
 
 Inductive well_formed_value : value -> type -> Prop :=
 | wf_vunit : well_formed_value Vunit (Ptype Tunit)

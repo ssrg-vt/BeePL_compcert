@@ -6,9 +6,9 @@ Require Import compcert.common.Errors Initializersproof Cstrategy compcert.lib.C
 
 From mathcomp Require Import all_ssreflect. 
 
-Lemma access_mode_preserved : forall ty cty md g g' i, 
+Lemma access_mode_preserved : forall ty cty md, 
 access_mode ty = md ->
-transBeePL_type ty g =  Res cty g' i ->
+transBeePL_type ty =  cty ->
 Ctypes.access_mode cty = md.
 Proof.
   intros ty cty md g g' i HACCESS HTRANS.
@@ -34,9 +34,9 @@ Proof.
     reflexivity.
 Qed.
 
-Lemma non_volatile_type_preserved : forall ty cty g g' i' b,
+Lemma non_volatile_type_preserved : forall ty cty b,
 type_is_volatile ty = b ->
-transBeePL_type ty g = Res cty g' i' ->
+transBeePL_type ty = cty ->
 Ctypes.type_is_volatile cty = b.
 Proof.
   intros ty cty g g' i' b HVOL HTRANS.
@@ -62,8 +62,8 @@ Proof.
     reflexivity.
 Qed.
 
-Lemma typec_expr : forall e ct ce g g' g'' i i',
-transBeePL_type (typeof_expr e) g = Res ct g' i ->
+Lemma typec_expr : forall e ct ce g' g'' i',
+transBeePL_type (typeof_expr e) = ct ->
 transBeePL_expr_expr e  g' = Res ce g'' i' ->
 ct = Csyntax.typeof ce.
 Proof.
@@ -84,8 +84,8 @@ Proof.
 Admitted.
 
 Lemma bv_cv_reflex : forall v' v,
-transC_val_bplvalue v' = OK v ->
-transBeePL_value_cvalue v = v'.
+trans_cvalue_bvalue v' = OK v ->
+trans_bvalue_cvalue v = v'.
 Proof.
   intros v' v H.
   destruct v' eqn:?; simpl in *; try discriminate;
@@ -95,11 +95,9 @@ Qed.
 (* Since translation of types does not depend on the generator, it 
    should produce the same result irrespective of them *)
 (* Coqlib.v has lot of lemmas related to Ple *)
-Lemma type_preserved_generator : forall t r r' g1 g2 g3 g4 i1 i2,
-Ple (gen_next g1) (gen_next g2) ->
-Ple (gen_next g3) (gen_next g4) ->
-transBeePL_type t g1 = Res r g2 i1 ->
-transBeePL_type t g3 = Res r' g4 i2 ->
+Lemma type_preserved_generator : forall t r r' ,
+transBeePL_type t = r ->
+transBeePL_type t = r'->
 r = r'.
 Proof. (* use inductive principle proved in BeeTypes.v *)
   intro t.
@@ -123,7 +121,7 @@ Admitted.
 
 Lemma transBeePL_expr_expr_type_equiv : forall e ce g g' i,
 transBeePL_expr_expr e g = Res ce g' i ->
-transBeePL_type (typeof_expr e) g = Res (Csyntax.typeof ce) g' i.
+transBeePL_type (typeof_expr e) = (Csyntax.typeof ce).
 Proof.
   induction e; intros; simpl in *; unfold SimplExpr.bind in H.
   - destruct (transBeePL_type t g) eqn:Htype; try discriminate.

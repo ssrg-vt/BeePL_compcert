@@ -1,11 +1,13 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
-Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL PeanoNat Coq.NArith.BinNat Ctypes Errors.
+Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL PeanoNat Coq.NArith.BinNat Ctypes Errors Ctypes Coq.ZArith.Znumtheory.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps SimplExpr Coq.Strings.BinaryString.
 From mathcomp Require Import all_ssreflect. 
+From compcert Require Import Csyntaxdefs. 
+Import Csyntaxdefs.CsyntaxNotations.
 
 Local Open Scope string_scope.
 Local Open Scope error_monad_scope.
-Local Open Scope gensym_monad_scope.
+Local Open Scope csyntax_scope.
 
 Inductive effect_label : Type :=
 | Panic : effect_label               (* exception effect *)
@@ -35,6 +37,7 @@ end.
 
 Inductive primitive_type : Type :=
 | Tunit : primitive_type
+| Tbool : primitive_type
 | Tint : intsize -> signedness -> attr -> primitive_type
 | Tlong : signedness -> attr -> primitive_type.
 
@@ -44,32 +47,268 @@ Inductive basic_type : Type :=
 Inductive type : Type :=
 | Ptype : primitive_type -> type                          (* primitive types *)
 | Reftype : ident -> basic_type -> attr -> type           (* reference type ref<h,int> *)
-| Ftype : list type -> effect -> type -> type             (* function/arrow type *).
+| Ftype : list type -> effect -> type -> type             (* function/arrow type *)
+| Stype : ident -> attr -> type                           (* struct type *)
+| Otype : type -> type.                                   (* option type *)
 
 Inductive wtype : Type :=
 | Twunit : wtype
+| Twbool : wtype
 | Twint : wtype
 | Twlong : wtype
 | Twref : wtype
-| Twfun : wtype.
+| Twfun : wtype
+| Twst : wtype
+| Twot : wtype.
+
+Definition attr_of_primitive_type (t : primitive_type) : attr :=
+match t with 
+| Tunit => noattr 
+| Tbool => noattr
+| Tint sz s a => a
+| Tlong s a => a
+end.
+
+Fixpoint attr_of_type (t : type) : attr :=
+match t with 
+| Ptype t => attr_of_primitive_type t
+| Reftype h t a => a
+| Ftype ts ef t => noattr
+| Stype x a => a
+| Otype t => attr_of_type t
+end.
+
+(****** Translation from BeePL types to Csyntax types ******)
+
+Fixpoint from_typelist (ts : Ctypes.typelist) : list Ctypes.type :=
+match ts with
+| Tnil => nil
+| Tcons t ts => t :: from_typelist ts
+end. 
+
+Fixpoint to_typelist (ts : list Ctypes.type) : Ctypes.typelist :=
+match  ts with 
+| nil => Tnil
+| t :: ts => Tcons t (to_typelist ts)
+end.
+
+(* Definitions related to bcomposites (struct) *)
+Inductive bmember : Type :=
+| Member_plain : ident -> BeeTypes.type -> bmember
+| Member_bitfield : ident -> intsize -> signedness -> attr -> Z -> bool -> bmember.
+
+Open Scope Z_scope.
+
+Record bcomposite : Type := Build_bcomposite
+  { co_su : struct_or_union;
+    co_members : list bmember;
+    co_attr : attr;
+    co_sizeof : Z;
+    co_alignof : Z;
+    co_rank : nat;
+    co_sizeof_pos : (co_sizeof >= 0)%Z;
+    co_alignof_two_p : exists n : nat, co_alignof = two_power_nat n;
+    co_sizeof_alignof : (co_alignof | co_sizeof) }.
+
+Definition _option_tag : ident := $"option_tag".
+Definition _option_val : ident := $"option_val".                     
+
+Section translate_types.
+
+Variable transBeePL_type : BeeTypes.type -> Ctypes.type.
+
+(* Translates a list of BeePL types to list of Clight types *) 
+Fixpoint transBeePL_types (ts : list BeeTypes.type) : Ctypes.typelist :=
+match ts with 
+| nil => Tnil
+| t :: ts => (Tcons (transBeePL_type t) (transBeePL_types ts))
+end.
+
+End translate_types.
+
+Definition create_ident_type (t : type) : ident :=
+match t with 
+| Ptype t => match t with 
+             | Tunit => $"option_tunit"
+             | Tbool => $"option_tbool"
+             | Tint sz s a => $"option_tint"
+             | Tlong s a => $"option_tlong"
+             end
+| Reftype h bt a => $"option_ref"
+| Ftype ts ef t => $"option_fun"
+| Stype x a => $"option_struct"
+| Otype t => $"option_t"
+end.
+
+Fixpoint transBeePL_type (t : BeeTypes.type) : Ctypes.type :=
+match t with
+| Ptype t => match t with  
+             | Tunit => Ctypes.Tvoid (* Fix me *)
+             | Tbool => (Ctypes.Tint I8 Unsigned noattr)
+             | Tint sz s a => (Ctypes.Tint sz s a)
+             | Tlong s a => (Ctypes.Tlong s a)
+             end
+| Reftype h bt a => match bt with 
+                    | Bprim Tunit => (Ctypes.Tpointer Ctypes.Tvoid a)
+                    | Bprim Tbool => (Ctypes.Tint I8 Unsigned noattr)
+                    | Bprim (Tint sz s a') => (Ctypes.Tpointer (Ctypes.Tint sz s a') a)
+                    | Bprim (Tlong s a') => (Ctypes.Tpointer (Ctypes.Tlong s a') a)
+                    end
+| BeeTypes.Ftype ts ef t => (Tfunction (transBeePL_types transBeePL_type ts) (transBeePL_type t) 
+                                       {| cc_vararg := Some (Z.of_nat(length(ts))); 
+                                       cc_unproto := false; cc_structret := false |}) (* Fix me *) 
+| BeeTypes.Stype x a => (Tstruct x a)
+| BeeTypes.Otype t => Tstruct (create_ident_type t) (attr_of_type t) 
+end.
+
+
+(*** Composite Definitions related to BeePL ***)
+Definition bmember_cmember (b : bmember) : member :=
+match b with 
+| Member_plain h t => Ctypes.Member_plain h (transBeePL_type t)
+| Member_bitfield h sz s a z b => Ctypes.Member_bitfield h sz s a z b
+end. 
+
+Fixpoint bmembers_cmembers (bs : list bmember) : members :=
+match bs with 
+| nil => nil
+| b :: bs => bmember_cmember b :: bmembers_cmembers bs
+end.
+
+
+Definition member_is_padding (m: bmember) : bool :=
+  match m with
+  | Member_plain _ _ => false
+  | Member_bitfield _ _ _ _ _ p => p
+  end.
+
+Inductive bcomposite_definition : Type :=  
+| Bcomposite : ident -> struct_or_union -> list bmember -> attr -> bcomposite_definition.
+
+Definition bcomposite_ccomposite_definition (bd : bcomposite_definition) : composite_definition :=
+match bd with 
+| Bcomposite h s bs a => (Composite h s (bmembers_cmembers bs) a)
+end.
+
+Definition bcomposite_ccomposite (b : bcomposite) : Ctypes.composite :=
+{| Ctypes.co_su := b.(co_su);
+   Ctypes.co_members := bmembers_cmembers b.(co_members);
+   Ctypes.co_attr :=  b.(co_attr);
+   Ctypes.co_sizeof := b.(co_sizeof);
+   Ctypes.co_alignof := b.(co_alignof); 
+   Ctypes.co_rank := b.(co_rank);
+   Ctypes.co_sizeof_pos := b.(@co_sizeof_pos);
+   Ctypes.co_alignof_two_p := b.(co_alignof_two_p);
+   Ctypes.co_sizeof_alignof := b.(co_sizeof_alignof)|}.
+
+Definition bcomposite_env := PTree.t bcomposite.
+
+Definition bcomposite_composite_env (benv : bcomposite_env) : composite_env :=
+  PTree.fold
+    (fun (acc : composite_env) id (b : bcomposite) =>
+       PTree.set id (bcomposite_ccomposite b) acc)
+    benv
+    (PTree.empty composite).
+
+Program Definition bcomposite_of_def
+     (env: bcomposite_env) (id: ident) (su: struct_or_union) (m: list bmember) (a: attr)
+     : res bcomposite :=
+  match env!id, complete_members (bcomposite_composite_env env) (bmembers_cmembers m) return _ with
+  | Some _, _ =>
+      Error (MSG "Multiple definitions of struct or union " :: CTX id :: nil)
+  | None, false =>
+      Error (MSG "Incomplete struct or union " :: CTX id :: nil)
+  | None, true =>
+      let al := align_attr a (alignof_composite (bcomposite_composite_env env) (bmembers_cmembers m)) in
+      OK {| co_su := su;
+            co_members := m;
+            co_attr := a;
+            co_sizeof := Coqlib.align (sizeof_composite (bcomposite_composite_env env) su (bmembers_cmembers m)) al;
+            co_alignof := al;
+            co_rank := rank_members (bcomposite_composite_env env) (bmembers_cmembers m);
+            co_sizeof_pos := _;
+            co_alignof_two_p := _;
+            co_sizeof_alignof := _ |}
+  end.
+Next Obligation.
+  apply Z.le_ge. eapply Z.le_trans. eapply sizeof_composite_pos.
+  apply Coqlib.align_le; apply alignof_composite_pos.
+Defined.
+Next Obligation.
+  apply align_attr_two_p. apply alignof_composite_two_p.
+Defined.
+Next Obligation.
+  apply Coqlib.align_divides. apply alignof_composite_pos.
+Defined.
+
+(** The composite environment for a program is obtained by entering
+  its composite definitions in sequence.  The definitions are assumed
+  to be listed in dependency order: the definition of a composite
+  must precede all uses of this composite, unless the use is under
+  a pointer or function type. *)
+Fixpoint add_bcomposite_definitions (env: bcomposite_env) (defs: list bcomposite_definition) : res bcomposite_env :=
+  match defs with
+  | nil => OK env
+  | Bcomposite id su m a :: defs =>
+      do co <- bcomposite_of_def env id su m a;
+      add_bcomposite_definitions (PTree.set id co env) defs
+  end.
+
+Definition build_bcomposite_env (defs: list bcomposite_definition) :=
+  add_bcomposite_definitions (PTree.empty _) defs.
+
+
+Definition wf_bcomposites (types: list bcomposite_definition) : Prop :=
+  match build_bcomposite_env types with OK _ => True | Error _ => False end.
+
+Definition build_bcomposite_env' (types: list bcomposite_definition)
+                                (WF: wf_bcomposites types)
+                             : { ce | build_bcomposite_env types  = OK ce }.
+Proof.
+  revert WF. unfold wf_bcomposites. case (build_bcomposite_env types); intros.
+- exists b; reflexivity.
+- contradiction.
+Defined.
 
 (** To describe the values returned by functions, we use the more precise
     types below. *)
 
 Inductive rettype : Type :=
 | Tret (t: type)      (**r like type [t] *)
-| Tbool               (**r Boolean value (0 or 1) *)
+| Trbool               (**r Boolean value (0 or 1) *)
 | Tint8signed         (**r 8-bit signed integer *)
 | Tint8unsigned       (**r 8-bit unsigned integer *)
 | Tint16signed        (**r 16-bit signed integer *)
 | Tint16unsigned      (**r 16-bit unsigned integer *)
-| Teunit              (**r no value returned *).
+| Teunit              (**r no value returned *)
+| Testype             (**r struct type **)
+| To                  (**r option type **).
 
 Definition is_reftype (t : type) : bool :=
 match t with 
 | Ptype p => false
 | Reftype h bt a => true 
 | Ftype es ef t => false
+| Stype x a => false
+| Otype t => false
+end. 
+
+Definition is_optiontype (t : type) : bool :=
+match t with 
+| Ptype p => false
+| Reftype h bt a => false 
+| Ftype es ef t => false
+| Stype x a => false
+| Otype t => true
+end. 
+
+Definition is_stype (t : type) : bool :=
+match t with 
+| Ptype p => false
+| Reftype h bt a => false
+| Ftype es ef t => false
+| Stype x a => true
+| Otype t => false
 end. 
 
 Definition is_unittype (t : type) : bool :=
@@ -97,16 +336,37 @@ Definition is_primint (t : type) : bool :=
 match t with 
 | Ptype p => match p with 
              | Tunit => false
+             | Tbool => false
              | Tint _ _ _ => true 
              | Tlong _ _ => false
              end
 | _ => false
 end.
 
+Definition is_primunsigned_int_long (t1 t2 : type) : bool :=
+match t1, t2 with 
+| Ptype p1, Ptype p2 => match p1, p2 with 
+                        | Tunit, Tunit => false
+                        | Tbool, Tbool => false
+                        | Tint sz1 s1 a1, Tint sz2 s2 a2 => if intsize_eq sz1 sz2 
+                                                               && signedness_eq s1 s2 
+                                                               && signedness_eq s1 Unsigned 
+                                                               && attr_eq a1 a2 
+                                                            then true else false
+                        | Tlong s1 a1, Tlong s2 a2 => if signedness_eq s1 s2 
+                                                         && signedness_eq s1 Unsigned 
+                                                         && attr_eq a1 a2
+                                                      then true else false
+                        | _, _ => false
+                        end
+| _, _ => false
+end.
+
 Definition is_primlong (t : type) : bool :=
 match t with 
 | Ptype p => match p with 
              | Tunit => false
+             | Tbool => false
              | Tint _ _ _ => false 
              | Tlong _ _ => true
              end
@@ -122,6 +382,15 @@ match t with
 | _ => false
 end.
 
+Definition is_primbool (t : type) : bool :=
+match t with 
+| Ptype p => match p with 
+             | Tbool => true 
+             | _ => false
+             end
+| _ => false
+end.
+
 Definition is_primtype_notunit (t : type) : Prop :=
 is_primtype t /\ (not (is_unittype t)).
 
@@ -129,30 +398,11 @@ Definition extract_signedness_type (t : type) : option signedness :=
 match t with 
 | Ptype p => match p with 
              | Tunit => None
+             | Tbool => None
              | Tint sz s a => Some s
              | Tlong s a => Some s
              end
 | _ => None 
-end.
-
-(** The following describes types that can be interpreted as a boolean:
-  integers, pointers.  It is used for the semantics of
-  the [!] and [?] operators, as well as the [cond] expression *)
-
-Inductive classify_bool_cases : Type :=
-| bool_case_i     (**r integer *)
-| bool_case_l     (**r long *)
-| bool_default    (** default case to check if it does not have right type to represent bool *).
-
-Definition classify_bool (t : type) : classify_bool_cases :=
-match t with 
-| Ptype t => match t with 
-             | Tunit => bool_default
-             | Tint _ _ _ => bool_case_i
-             | Tlong _ _ => bool_case_l
-             end
-| Reftype _ _ _ => if Archi.ptr64 then bool_case_l else bool_case_i
-| _ => bool_default
 end.
 
 Definition basic_to_type (b : basic_type) : type :=
@@ -164,13 +414,16 @@ Definition Twptr := if Archi.ptr64 then Twlong else Twint.
 
 Definition wtype_of_type (t : type) : wtype :=
 match t with 
-| Ptype p => match p with 
+| Ptype p => match p with
              | Tunit => Twunit 
+             | Tbool => Twbool
              | Tint _ _ _ => Twint 
              | Tlong _ _ => Twlong 
              end
 | Reftype _ _ _ => Twref 
 | Ftype _ _ _ => Twfun
+| Stype _ _ => Twst
+| Otype _ => Twot
 end.
 
 Fixpoint wtypes_of_types (t : list type) : list wtype :=
@@ -212,13 +465,6 @@ then if s2 is y :: s2'
      else false
 else true.
 
-
-(*Fixpoint sub_effect (efs1 efs2 : effect) : bool :=
-match efs1 with
-| nil => true
-| ef1 :: efs1 => if in_effect ef1 efs2 then sub_effect efs1 efs2  else false
-end.*)
-
 Fixpoint no_divergence (ef : effect) : bool :=
 match ef with 
 | nil => true 
@@ -228,6 +474,7 @@ end.
 Definition eq_primitive_type (p1 p2 : primitive_type) : bool :=
 match p1, p2 with 
 | Tunit, Tunit => true 
+| Tbool, Tbool => true
 | Tint sz s a, Tint sz' s' a'=> if intsize_eq sz sz' 
                                 then if signedness_eq s s'
                                      then if attr_eq a a'
@@ -265,7 +512,7 @@ end.
 
 Definition wtypeof_chunk (c : bmemory_chunk) : wtype :=
 match c with 
-| BMbool => Twint 
+| BMbool => Twbool 
 | BMint8signed => Twint 
 | BMint8unsigned => Twint 
 | BMint16signed => Twint 
@@ -289,6 +536,7 @@ type must be accessed:
 Definition access_mode_prim (t : primitive_type) : mode :=
 match t with 
 | Tunit =>  By_nothing (* Fix me *)
+| Tbool => By_value Mint8signed
 | Tint I8 Signed _ => By_value Mint8signed
 | Tint I8 Unsigned _ => By_value Mint8unsigned
 | Tint I16 Signed _ => By_value Mint16signed
@@ -308,20 +556,8 @@ match t with
 | Ptype t => access_mode_prim t
 | Reftype h t _ => By_value Mptr
 | Ftype ts ef t => By_reference
-end.
-
-Definition attr_of_primitive_type (t : primitive_type) : attr :=
-match t with 
-| Tunit => noattr 
-| Tint sz s a => a
-| Tlong s a => a
-end.
-
-Definition attr_of_type (t : type) : attr :=
-match t with 
-| Ptype t => attr_of_primitive_type t
-| Reftype h t a => a
-| Ftype ts ef t => noattr
+| Stype x a => By_copy
+| Otype t => By_copy
 end.
 
 
@@ -412,6 +648,7 @@ end.
 Definition sizeof_ptype (t : primitive_type) : Z :=
 match t with 
 | Tunit => 1
+| Tbool => 1
 | Tint I8 _ _ => 1
 | Tint I16 _ _ => 2
 | Tint I32 _ _ => 4
@@ -424,11 +661,13 @@ match t with
 | Bprim t => sizeof_ptype t 
 end. 
 
-Definition sizeof_type (t : type) : Z :=
+Fixpoint sizeof_type (env : bcomposite_env) (t : type) : Z :=
 match t with 
 | Ptype t => sizeof_ptype t 
 | Reftype h t _ => sizeof_btype t
 | Ftype ts e t => 1
+| Stype x a => match env!x with Some co => co_sizeof co | None => 0 end
+| Otype t => sizeof_type env t (* fix me *)
 end.
 
 (****** Translation from BeePL types to Csyntax types ******)
