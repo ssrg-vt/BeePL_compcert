@@ -20,7 +20,6 @@ int main() {
     return p1.x;
 }*)
 
-(* attr_alignas is optional *)
 Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
 Definition _Point : ident := $"Point".
 Definition _p1 : ident := $"p1".
@@ -31,7 +30,7 @@ Definition _y1 : ident := $"y1".
 Definition _r : ident := $"r".
 Definition _main : ident := $"main".
 
-Definition atom_of_string : list (ident * string) := ((_Point, "Point") ::
+Definition ident_to_string : list (ident * string) := ((_Point, "Point") ::
                                                       (_p1, "p1") ::
                                                       (_x, "x") :: 
                                                       (_y, "y") :: 

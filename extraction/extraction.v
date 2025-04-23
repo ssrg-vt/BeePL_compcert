@@ -156,8 +156,8 @@ Set Extraction AccessOpaque.
 Cd "extraction".
 
 Separate Extraction
-   BeePL_progs.example1 BeePL_progs.example1_atom_of_string
-   Compiler.transf_beepl_program Compiler.transf_c_program Compiler.transf_cminor_program
+   BeePL_progs.example1 
+   Compiler.transf_beepl_program_csyntax Compiler.transf_c_program Compiler.transf_cminor_program
    Cexec.do_initial_state Cexec.do_step Cexec.at_final_state
    Ctypes.merge_attributes Ctypes.remove_attributes 
    Ctypes.build_composite_env Ctypes.layout_struct

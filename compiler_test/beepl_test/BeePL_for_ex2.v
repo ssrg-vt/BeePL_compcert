@@ -15,14 +15,13 @@ int main() {
 }
 *)
 
-(* attr_alignas is optional *)
 Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
 Definition _x : ident := $"x".
 Definition _i : ident := $"i".
 Definition _t : ident := $"t".
 Definition _main : ident := $"main".
 
-Definition atom_of_string : list (ident * string) := ((_x, "x") :: 
+Definition ident_to_string : list (ident * string) := ((_x, "x") :: 
                                                       (_i, "i") :: 
                                                       (_t, "t") ::
                                                       (_main, "main") :: nil).

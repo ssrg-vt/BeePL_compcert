@@ -19,7 +19,6 @@ int main() {
 }*)
 
 (* let p1 = (p1.x := 10) in p1.x *)
-(* attr_alignas is optional *)
 Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
 Definition _Point : ident := $"Point".
 Definition _p1 : ident := $"p1".
@@ -28,7 +27,7 @@ Definition _y : ident := $"y".
 Definition _t : ident := $"t".
 Definition _main : ident := $"main".
 
-Definition atom_of_string : list (ident * string) := ((_Point, "Point") ::
+Definition ident_to_string : list (ident * string) := ((_Point, "Point") ::
                                                       (_p1, "p1") ::
                                                       (_x, "x") :: 
                                                       (_y, "y") ::
@@ -68,7 +67,7 @@ Proof.
   unfold build_bcomposite_env; simpl; constructor. 
 Qed.
 
-Definition example1 : BeePL.program := @mkbprogram bcomposites global_definitions public_idents _main bcomposite_correct.
+Definition example1 : BeePL.program := @mkbprogram bcomposites global_definitions public_idents _main bcomposite_correct ident_to_string.
 
 (*Compute (type_check_program example1). 
 
