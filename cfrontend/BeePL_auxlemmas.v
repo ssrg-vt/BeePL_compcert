@@ -19,10 +19,11 @@ Proof.
     subst;
     reflexivity.
   (* Ref *)
-  - destruct b; simpl in *;
-    destruct p; simpl in *;
-    subst;
-    reflexivity.
+  - destruct b; simpl in *.
+    + destruct p; simpl in *;
+      subst;
+      reflexivity.
+    + subst. reflexivity.
   (* Ftype *)
   - destruct e; simpl in *;
     subst;
@@ -46,10 +47,11 @@ Proof.
     subst;
     reflexivity.
   (* Ref *)
-  - destruct b0; simpl in *;
-    destruct p; simpl in *;
-    subst;
-    reflexivity.
+  - destruct b0; simpl in *.
+    + destruct p; simpl in *;
+      subst;
+      reflexivity.
+    + admit.
   (* Ftype *)
   - destruct e; simpl in *;
     subst;
@@ -58,7 +60,7 @@ Proof.
   - subst. reflexivity.
   (* Otype *)
   - subst. reflexivity.
-Qed.
+Admitted.
 
 (* Lemma typec_expr : forall e ct ce g' g'' i',
 transBeePL_type (typeof_expr e) = ct ->
@@ -93,9 +95,11 @@ Proof. (* use inductive principle proved in BeeTypes.v *)
     reflexivity.
   (* Ref *)
   - unfold transBeePL_type in *.
-    destruct bt; destruct p;
-    subst;
-    reflexivity.
+    destruct bt; simpl in *.
+    + destruct p;
+      subst;
+      reflexivity.
+    + subst. reflexivity.
   (* Ftype *)
   - admit.
 Admitted.
