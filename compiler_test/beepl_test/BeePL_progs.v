@@ -4,7 +4,7 @@ Require Import BeePL BeeTypes Errors BeePL_typechecker Csyntaxdefs.
 From Coq Require Import String.
 
 Require Import BeePL_add BeePL_cond BeePL_app BeePL_div_zero BeePL_div_zero1 BeePL_external_call BeePL_ref.
-Require Import BeePL_struct_ex1 BeePL_struct_ex2 BeePL_struct_ex3 BeePL_struct_ex4 BeePL_for_ex1 BeePL_for_ex2.
+Require Import BeePL_struct_ex1 BeePL_struct_ex2 BeePL_struct_ex3 BeePL_struct_ex4 BeePL_for_ex1 BeePL_for_ex2 BeePL_bpf_get_prandom.
 
 (* In this file you will see two definitions. One for example1 and the other for
    example1_atom_of_string. Those two definitions are extracted to OCaml by 
@@ -32,9 +32,9 @@ Proof.
   unfold build_bcomposite_env; simpl; reflexivity.
 Qed.
 
-Definition example1 : BeePL.program := @mkbprogram bcomposites 
-                                                   BeePL_external_call.global_definitions 
-                                                   BeePL_external_call.public_idents 
-                                                   BeePL_external_call._main 
+Definition example1 : BeePL.program := @mkbprogram BeePL_bpf_get_prandom.bcomposites 
+                                                   BeePL_bpf_get_prandom.global_definitions 
+                                                   BeePL_bpf_get_prandom.public_idents 
+                                                   BeePL_bpf_get_prandom._main 
                                                    bcomposite_correct
-                                                   BeePL_external_call.ident_to_string.
+                                                   BeePL_bpf_get_prandom.ident_to_string.

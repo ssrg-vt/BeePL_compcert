@@ -43,13 +43,14 @@ Inductive primitive_type : Type :=
 
 (* In the future basic_type will include arrays, structs, etc. *)
 Inductive basic_type : Type :=  
-| Bprim : primitive_type -> basic_type.
+| Bprim : primitive_type -> basic_type
+| Bstruct : ident -> attr -> basic_type                           (* struct type *).
 
 Inductive type : Type :=
 | Ptype : primitive_type -> type                          (* primitive types *)
 | Reftype : ident -> basic_type -> attr -> type           (* reference type ref<h,int> *)
 | Ftype : list type -> effect -> type -> type             (* function/arrow type *)
-| Stype : ident -> attr -> type                           (* struct type *)
+| Stype : ident -> attr -> type                           (* struct *)
 | Otype : type -> type.                                   (* option type *)
 
 Inductive wtype : Type :=
@@ -154,6 +155,7 @@ match t with
                     | Bprim Tbool => (Ctypes.Tint I8 Unsigned noattr)
                     | Bprim (Tint sz s a') => (Ctypes.Tpointer (Ctypes.Tint sz s a') a)
                     | Bprim (Tlong s a') => (Ctypes.Tpointer (Ctypes.Tlong s a') a)
+                    | Bstruct x a => (Ctypes.Tpointer (Tstruct x a) a)
                     end
 | BeeTypes.Ftype ts ef t => (Tfunction (transBeePL_types transBeePL_type ts) (transBeePL_type t) 
                                        {| cc_vararg := Some (Z.of_nat(length(ts))); 
@@ -406,9 +408,10 @@ match t with
 | _ => None 
 end.
 
-Definition basic_to_type (b : basic_type) : type :=
+Definition basic_to_type (b : basic_type) : mon type :=
 match b with 
-| Bprim p => Ptype p
+| Bprim p => ret (Ptype p)
+| Bstruct x a => error (msg "Struct is not a primitive type")
 end.
 
 Definition Twptr := if Archi.ptr64 then Twlong else Twint. 
@@ -550,6 +553,7 @@ end.
 Definition access_mode_basic (t : basic_type) : mode :=
 match t with 
 | Bprim t => access_mode_prim t
+| Bstruct x a => By_copy
 end.
 
 Definition access_mode (t : type) : mode :=
@@ -612,6 +616,8 @@ End Eq_basic_types.
 Definition eq_basic_type (b1 b2 : basic_type) : bool :=
 match b1, b2 with 
 | Bprim p1, Bprim p2 => eq_primitive_type p1 p2
+| Bstruct x1 a1, Bstruct x2 a2 => (x1 =? x2)%positive && attr_eq a1 a2
+| _, _ => false
 end.
 
 Section Eq_types.
@@ -657,15 +663,16 @@ match t with
 | Tlong _ _ => 4
 end.
 
-Definition sizeof_btype (t : basic_type) : Z :=
+Definition sizeof_btype (env : bcomposite_env) (t : basic_type) : Z :=
 match t with 
 | Bprim t => sizeof_ptype t 
+| Bstruct x a => match env!x with Some co => co_sizeof co | None => 0 end
 end. 
 
 Fixpoint sizeof_type (env : bcomposite_env) (t : type) : Z :=
 match t with 
 | Ptype t => sizeof_ptype t 
-| Reftype h t _ => sizeof_btype t
+| Reftype h t _ => sizeof_btype env t
 | Ftype ts e t => 1
 | Stype x a => match env!x with Some co => co_sizeof co | None => 0 end
 | Otype t => sizeof_type env t (* fix me *)
