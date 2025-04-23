@@ -60,12 +60,12 @@ Proof.
   - subst. reflexivity.
 Qed.
 
-Lemma typec_expr : forall e ct ce g' g'' i',
+(* Lemma typec_expr : forall e ct ce g' g'' i',
 transBeePL_type (typeof_expr e) = ct ->
 transBeePL_expr_expr e  g' = Res ce g'' i' ->
 ct = Csyntax.typeof ce.
 Proof.
-Admitted.
+Admitted. *)
 
 Lemma bv_cv_reflex : forall v' v,
 trans_cvalue_bvalue v' = OK v ->
@@ -100,12 +100,11 @@ Proof. (* use inductive principle proved in BeeTypes.v *)
   - admit.
 Admitted.
 
-Lemma transBeePL_expr_expr_type_equiv : forall e ce g g' i,
+(* Lemma transBeePL_expr_expr_type_equiv : forall e ce g g' i,
 transBeePL_expr_expr e g = Res ce g' i ->
 transBeePL_type (typeof_expr e) = (Csyntax.typeof ce).
 Proof.
-Admitted.
-
+Admitted.  *)
 
 (*
 Lemma value_cannot_be_reduced : forall bge benv e m e' m',

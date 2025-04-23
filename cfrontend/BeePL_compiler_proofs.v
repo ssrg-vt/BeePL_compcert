@@ -528,6 +528,7 @@ Qed.
 
 (***** End of Proof for correctness of type transformation *****)
 
+(*
 Lemma transBeePL_expr_expr_spec: forall vm,
 (forall e ce g g' i,
   transBeePL_expr_expr e g = Res ce g' i ->
@@ -749,7 +750,7 @@ Proof.
     inv H.
     econstructor; eauto.
 Qed.
-
+ *)
 
 Variable benv : BeePL.vmap.
 
@@ -774,6 +775,7 @@ Inductive match_function : BeePL.function -> Csyntax.function -> Prop :=
   sim_bexpr_cstmt vm (BeePL.fn_body bf) (Csyntax.fn_body cf) ->
   match_function bf cf.
 
+<<<<<<< HEAD
 Lemma transBeePL_function_spec: forall bf cf,
 transBeePL_function_function bf = OK cf ->
 match_function bf cf.
@@ -816,6 +818,13 @@ Proof.
   - eapply transBeePL_expr_stmt_spec.
     eauto.
 Qed.
+=======
+(* Lemma tranBeePL_function_spec: forall bf cf,
+transBeePL_function_function bf = OK cf ->
+match_function bf cf.
+Proof.
+Admitted. *)
+>>>>>>> bwip
 
 (* Relates the fundef of BeePL and Csyntax *)
 (* Fix me: Add external function rel later *) 
@@ -829,7 +838,7 @@ Inductive match_fundef : BeePL.fundef -> Csyntax.fundef -> Prop :=
   befunction_to_cefunction ef gf = Res cef gf' if' ->
   match_fundef (External ef ts t cc) (Ctypes.External cef cts ct cc).
 
-Lemma transBeePL_fundef_spec : forall f cf, 
+(* Lemma transBeePL_fundef_spec : forall f cf, 
 transBeePL_fundef_fundef (Internal f) = OK (Ctypes.Internal cf) ->
 match_fundef (Internal f) (Ctypes.Internal cf).
 Proof.
@@ -844,7 +853,7 @@ move=> [] <- /=.
 apply match_fundef_internal; rewrite /=; auto. 
 apply transBeePL_function_spec; auto.
 by rewrite /transBeePL_function_function /= ht hts hts' hes /=. 
-Qed.
+Qed. *)
 
 (* Relates the global definitions of BeePL and Csyntax *) 
 Inductive match_globdef : BeePL.globdef BeePL.fundef type -> AST.globdef Csyntax.fundef Ctypes.type -> Prop :=
@@ -868,7 +877,7 @@ Definition match_prog (p1: BeePL.program) (p2: Csyntax.program) :=
     match_program_gen p1 p2
  /\ prog_types p1 = Ctypes.prog_types p2. 
 
-Lemma transf_program_match:
+(* Lemma transf_program_match:
 forall p cp, BeePL_compcert p = OK cp -> match_prog p cp.
 Proof.
 rewrite /BeePL_compcert /=. move=> p cp H. monadInv H.
@@ -894,7 +903,7 @@ case: x1=> //= gi' i' r' v'. rewrite /transBeePLglobvar_globvar /=. move=> h.
 move: h. case ht: (transBeePL_type gi (initial_generator tt))=> [er | r1 g1 i1] //=.
 move=> [] h1 h2 h3 h4; subst. apply match_globvar_intro with (initial_generator tt) g1 i1; auto.
 have [h1 h2] := type_translated. by move: (h1 gi gi' (initial_generator tt) g1 i1 ht).
-Qed.
+Qed. *)
 
 (* Relation between BeePL vmap and Csyntax local env *)
 Record match_env (vm : BeePL.vmap) (cvm : env) : Prop :=

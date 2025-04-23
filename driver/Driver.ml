@@ -94,22 +94,22 @@ let compile_b_file sourcename ofile =
    * identifier (refered to as atom). CompCert looks up names in string_of_atom 
    * whenever it needs to. This will look different once the lexer and parser is 
    * implemented but for now define the mapping manually *)
-  List.iter (fun (id, charlist) ->
-    (* Coq extracts string to char list so concatenate chars to recreate string *)
-    let s : string = String.concat "" (List.map (String.make 1) charlist) in
-    Hashtbl.add Camlcoq.string_of_atom id s;
-    Hashtbl.add Camlcoq.atom_of_string s id;
-  ) BeePL_progs.example1_atom_of_string;
 
   (* Parse BeePL AST *)
   let beepl_csyntax = Compiler.transf_beepl_program_csyntax BeePL_progs.example1 in
-  let csyntax =
+  let (csyntax, prog_ident_to_string) =
     match beepl_csyntax with
-    | Errors.OK program -> program
+    | Errors.OK (program, ident_to_string) -> (program, ident_to_string)
     | Errors.Error msg ->
         let loc = file_loc sourcename in
         fatal_error loc "error during transf_beepl_program_csyntax: %a" print_error msg
   in
+  List.iter (fun (id, charlist) ->
+    let s : string = String.concat "" (List.map (String.make 1) charlist) in
+    Hashtbl.add Camlcoq.string_of_atom id s;
+    Hashtbl.add Camlcoq.atom_of_string s id;
+  ) prog_ident_to_string;
+  
   (* The BeePL compiler does not add the helper functions so that must be done here *)
   let gl = C2C.add_helper_functions csyntax.Ctypes.prog_defs in 
   let updated_csyntax = {csyntax with 
