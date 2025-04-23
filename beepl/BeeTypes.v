@@ -150,7 +150,7 @@ match t with
              end
 | Reftype h bt a => match bt with 
                     | Bprim Tunit => (Ctypes.Tpointer Ctypes.Tvoid a)
-                    | Bprim Tbool => (Ctypes.Tint I8 Unsigned noattr)
+                    | Bprim Tbool => (Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) a)
                     | Bprim (Tint sz s a') => (Ctypes.Tpointer (Ctypes.Tint sz s a') a)
                     | Bprim (Tlong s a') => (Ctypes.Tpointer (Ctypes.Tlong s a') a)
                     end
@@ -161,6 +161,70 @@ match t with
 | BeeTypes.Otype t => Tstruct (create_ident_type t) (attr_of_type t) 
 end.
 
+(* Custom induction principles for transBeePL_type *)
+Lemma transBeePL_type_ind :
+forall (P : BeeTypes.type -> Prop),
+  (forall (t : primitive_type), P (Ptype t)) ->
+  (forall (h : ident) (bt : basic_type) (a : attr), P (Reftype h bt a)) ->
+  (forall (ts : list BeeTypes.type) (ef : effect) (t : BeeTypes.type),
+    Forall P ts -> P t -> P (Ftype ts ef t)) ->
+  (forall (h : ident) (a : attr), P (Stype h a)) ->
+  (forall (t : type), P t -> P (Otype t)) ->
+forall t : BeeTypes.type, P t.
+Proof.
+  intros P Hprim Href Hfun Hstruct Hoption.
+  fix IH 1.
+  intros t.
+  destruct t as [p | h bt a | ts ef t | h a | t].
+  - apply Hprim.
+  - apply Href.
+  - apply Hfun.
+    + induction ts as [| t' ts' IHts]; constructor; auto.
+    + apply IH.
+  - apply Hstruct.
+  - apply Hoption. apply IH.
+Qed.
+
+Lemma transBeePL_type_typelist_ind_mut:
+  forall (Pt : BeeTypes.type -> Prop) (Pts : list BeeTypes.type -> Prop),
+    (forall (t : primitive_type), Pt (Ptype t)) ->
+    (forall (h : ident) (bt : basic_type) (a : attr), Pt (Reftype h bt a)) ->
+    (forall (ts : list BeeTypes.type) (ef : effect) (t : BeeTypes.type),
+      Pts ts -> Pt t -> Pt (Ftype ts ef t)) ->
+    (forall (h : ident) (a : attr), Pt (Stype h a)) ->
+    (forall (t : type), Pt t -> Pt (Otype t)) ->
+    (Pts nil) ->
+    (forall (t : BeeTypes.type) (ts : list BeeTypes.type),
+      Pt t -> Pts ts -> Pts (t :: ts)) ->
+    (forall t, Pt t) /\ (forall ts, Pts ts).
+Proof.
+  intros Pt Pts Hprim Href Hfun Hstruct Hoption Hnil Hcons.
+  assert (forall t, Pt t) as Htype.
+  { apply transBeePL_type_ind; auto.
+    intros ts ef t Hforall HPt.
+    apply Hfun; auto.
+    induction ts as [|t' ts' IH].
+    - assumption.
+    - apply Hcons.
+      + apply Forall_inv in Hforall. assumption.
+      + apply IH. apply Forall_inv_tail in Hforall. assumption.
+  }
+  assert (forall ts, Pts ts) as Htypes.
+  { induction ts as [|t ts' IH].
+    - assumption.
+    - apply Hcons; auto.
+  }
+  split; assumption.
+Qed.
+
+Lemma transBeePL_types_length : forall ts cts,
+  transBeePL_types transBeePL_type ts = cts ->
+  length ts = length (from_typelist cts).
+Proof.
+  induction ts; intros.
+  - inversion H. subst. reflexivity.
+  - admit.
+Admitted.
 
 (*** Composite Definitions related to BeePL ***)
 Definition bmember_cmember (b : bmember) : member :=
@@ -536,7 +600,7 @@ type must be accessed:
 Definition access_mode_prim (t : primitive_type) : mode :=
 match t with 
 | Tunit =>  By_nothing (* Fix me *)
-| Tbool => By_value Mint8signed
+| Tbool => By_value Mint8unsigned
 | Tint I8 Signed _ => By_value Mint8signed
 | Tint I8 Unsigned _ => By_value Mint8unsigned
 | Tint I16 Signed _ => By_value Mint16signed
@@ -670,116 +734,6 @@ match t with
 | Otype t => sizeof_type env t (* fix me *)
 end.
 
-(****** Translation from BeePL types to Csyntax types ******)
-
-Fixpoint from_typelist (ts : Ctypes.typelist) : list Ctypes.type :=
-match ts with
-| Tnil => nil
-| Tcons t ts => t :: from_typelist ts
-end. 
-
-Fixpoint to_typelist (ts : list Ctypes.type) : Ctypes.typelist :=
-match  ts with 
-| nil => Tnil
-| t :: ts => Tcons t (to_typelist ts)
-end.
-
-Section translate_types.
-
-Variable transBeePL_type : BeeTypes.type -> mon Ctypes.type.
-
-(* Translates a list of BeePL types to list of Clight types *) 
-Fixpoint transBeePL_types (ts : list BeeTypes.type) : mon Ctypes.typelist :=
-match ts with 
-| nil => ret Tnil
-| t :: ts => do ct <- (transBeePL_type t);
-             do cts <- (transBeePL_types ts);
-             ret (Tcons ct cts)
-end.
-
-End translate_types.
-
-Fixpoint transBeePL_type (t : BeeTypes.type) : mon Ctypes.type :=
-match t with
-| Ptype t => match t with  
-             | Tunit => ret Ctypes.Tvoid (* Fix me *)
-             | Tint sz s a => ret (Ctypes.Tint sz s a)
-             | Tlong s a => ret (Ctypes.Tlong s a)
-             end
-| Reftype h bt a => match bt with 
-                    | Bprim Tunit => ret (Ctypes.Tpointer Ctypes.Tvoid a)
-                    | Bprim (Tint sz s a') => ret (Ctypes.Tpointer (Ctypes.Tint sz s a') a)
-                    | Bprim (Tlong s a') => ret (Ctypes.Tpointer (Ctypes.Tlong s a') a)
-                    end
-| BeeTypes.Ftype ts ef t => do ats <- (transBeePL_types transBeePL_type ts);
-                            do rt <- (transBeePL_type t);
-                            ret (Tfunction ats rt {| cc_vararg := Some (Z.of_nat(length(ts))); 
-                                                     cc_unproto := false; cc_structret := false |}) (* Fix me *) 
-end.
-
-
-Lemma transBeePL_type_ind :
-forall (P : BeeTypes.type -> Prop),
- (forall (t : primitive_type), P (Ptype t)) ->
- (forall (h : ident) (bt : basic_type) (a : attr), P (Reftype h bt a)) ->
- (forall (ts : list BeeTypes.type) (ef : effect) (t : BeeTypes.type),
-  Forall P ts -> P t -> P (Ftype ts ef t)) ->
-forall t : BeeTypes.type, P t.
-Proof.
-intros P Hprim Href Hfun.
-fix IH 1.
-intros t.
-destruct t as [p | h bt a | ts ef t].
-- apply Hprim.
-- apply Href.
-- apply Hfun.
-+ induction ts as [| t' ts' IHts]; constructor; auto.
-+ apply IH.
-Qed.
-
-Lemma transBeePL_type_typelist_ind_mut:
-  forall (Pt : BeeTypes.type -> Prop) (Pts : list BeeTypes.type -> Prop),
-    (forall (t : primitive_type), Pt (Ptype t)) ->
-    (forall (h : ident) (bt : basic_type) (a : attr), Pt (Reftype h bt a)) ->
-    (forall (ts : list BeeTypes.type) (ef : effect) (t : BeeTypes.type),
-      Pts ts -> Pt t -> Pt (Ftype ts ef t)) ->
-    (Pts nil) ->
-    (forall (t : BeeTypes.type) (ts : list BeeTypes.type),
-      Pt t -> Pts ts -> Pts (t :: ts)) ->
-    (forall t, Pt t) /\ (forall ts, Pts ts).
-Proof.
-  intros Pt Pts Hprim Href Hfun Hnil Hcons.
-  assert (forall t, Pt t) as Htype.
-  { apply transBeePL_type_ind; auto.
-    intros ts ef t Hforall HPt.
-    apply Hfun; auto.
-    induction ts as [|t' ts' IH].
-    - assumption.
-    - apply Hcons.
-      + apply Forall_inv in Hforall. assumption.
-      + apply IH. apply Forall_inv_tail in Hforall. assumption.
-  }
-  assert (forall ts, Pts ts) as Htypes.
-  { induction ts as [|t ts' IH].
-    - assumption.
-    - apply Hcons; auto.
-  }
-  split; assumption.
-Qed.
-
-Lemma transBeePL_types_length : forall ts cts g g' i,
-  transBeePL_types transBeePL_type ts g = Res cts g' i ->
-  length ts = length (from_typelist cts).
-Proof.
-  induction ts; intros.
-  - inversion H. subst. reflexivity.
-  - simpl in H. unfold SimplExpr.bind in H.
-    destruct (transBeePL_type a g) as [|ct g1 i1] eqn:Ha; try discriminate.
-    destruct (transBeePL_types transBeePL_type ts g1) as [|cts' g2 i2] eqn:Hts; try discriminate.
-    injection H as H; subst.
-    simpl. f_equal. eapply IHts. apply Hts.
-Qed.
-
 (* Typing context *)
 Definition ty_context := PTree.t type.
 
@@ -795,7 +749,6 @@ Definition extend_context (Gamma : ty_context) (k : ident) (t : type) := PTree.s
 Definition empty_stcontext := (PTree.empty type).
 
 Definition extend_stcontext (Sigma : store_context) (k : ident) (t : type) := PTree.set k t Sigma. 
-
 
 
 (*** Auxillary lemmas related to types and effects ***)

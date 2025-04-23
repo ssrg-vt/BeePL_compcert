@@ -11,27 +11,26 @@ access_mode ty = md ->
 transBeePL_type ty =  cty ->
 Ctypes.access_mode cty = md.
 Proof.
-  intros ty cty md g g' i HACCESS HTRANS.
+  intros ty cty md HACCESS HTRANS.
   destruct ty eqn:Htype.
   (* Prim *)
   - destruct p eqn:Hp;
     simpl in *;
-    injection HTRANS as H1 H2;
     subst;
     reflexivity.
   (* Ref *)
   - destruct b; simpl in *;
     destruct p; simpl in *;
-    injection HTRANS as H1 H2;
     subst;
     reflexivity.
   (* Ftype *)
   - destruct e; simpl in *;
-    unfold SimplExpr.bind in HTRANS;
-    destruct (transBeePL_types transBeePL_type l g) eqn:Htypes; try discriminate;
-    destruct (transBeePL_type t g'0) eqn:Htype'; try discriminate;
-    injection HTRANS as H1 H2; subst;
+    subst;
     reflexivity.
+  (* Stype *)
+  - subst. reflexivity.
+  (* Otype *)
+  - subst. reflexivity.
 Qed.
 
 Lemma non_volatile_type_preserved : forall ty cty b,
@@ -39,27 +38,26 @@ type_is_volatile ty = b ->
 transBeePL_type ty = cty ->
 Ctypes.type_is_volatile cty = b.
 Proof.
-  intros ty cty g g' i' b HVOL HTRANS.
+  intros ty cty b HVOL HTRANS.
   destruct ty eqn:Htype.
   (* Prim *)
   - destruct p eqn:Hp; 
     simpl in *;
-    injection HTRANS as H1 H2;
     subst;
     reflexivity.
   (* Ref *)
   - destruct b0; simpl in *;
     destruct p; simpl in *;
-    injection HTRANS as H1 H2;
     subst;
     reflexivity.
-(* Ftype *)
+  (* Ftype *)
   - destruct e; simpl in *;
-    unfold SimplExpr.bind in HTRANS;
-    destruct (transBeePL_types transBeePL_type l g) eqn:Htypes; try discriminate;
-    destruct (transBeePL_type t g'0) eqn:Htype'; try discriminate;
-    injection HTRANS as H1 H2; subst;
+    subst;
     reflexivity.
+  (* Stype *)
+  - subst. reflexivity.
+  (* Otype *)
+  - subst. reflexivity.
 Qed.
 
 Lemma typec_expr : forall e ct ce g' g'' i',
@@ -67,20 +65,6 @@ transBeePL_type (typeof_expr e) = ct ->
 transBeePL_expr_expr e  g' = Res ce g'' i' ->
 ct = Csyntax.typeof ce.
 Proof.
-  induction e; intros; simpl in *; unfold SimplExpr.bind in H0.
-  (* Val *)
-  - destruct t eqn:?.
-    + destruct p; simpl in *;
-      injection H0 as H1 H2; subst;
-      injection H as H1 H2; subst;
-      reflexivity.
-    + destruct b; simpl in *;
-      destruct p; simpl in *;
-      injection H as H1 H2; subst;
-      injection H0 as H1 H2; subst;
-      reflexivity.
-    + admit.
-  - (* Rest of proofs should be similar *)
 Admitted.
 
 Lemma bv_cv_reflex : forall v' v,
@@ -105,34 +89,21 @@ Proof. (* use inductive principle proved in BeeTypes.v *)
   (* Prim *)
   - unfold transBeePL_type in *.
     destruct t0;
-    injection H1 as H1 H1'; subst;
-    injection H2 as H2 H2'; subst;
+    subst;
     reflexivity.
   (* Ref *)
   - unfold transBeePL_type in *.
     destruct bt; destruct p;
-    injection H1 as H1 H1'; subst;
-    injection H2 as H2 H2'; subst;
+    subst;
     reflexivity.
   (* Ftype *)
   - admit.
-
 Admitted.
 
 Lemma transBeePL_expr_expr_type_equiv : forall e ce g g' i,
 transBeePL_expr_expr e g = Res ce g' i ->
 transBeePL_type (typeof_expr e) = (Csyntax.typeof ce).
 Proof.
-  induction e; intros; simpl in *; unfold SimplExpr.bind in H.
-  - destruct (transBeePL_type t g) eqn:Htype; try discriminate.
-    destruct (ret (Eval (transBeePL_value_cvalue v) t0) g'0) eqn:Hret; try discriminate.
-    inversion Hret. subst.
-    injection H as H1 H2; subst.
-    simpl.
-    unfold transBeePL_type in Htype. 
-    f_equal.
-    (* Need i = p *)
-    (* reflexivity. *)
 Admitted.
 
 

@@ -113,8 +113,8 @@ match e with
                                         (hd default_expr (tl (exprlist_list_expr ces)))
                                         ct)
                  end 
-| Bind x t e e' t' => do ct <- (transBeePL_type t);
-                      do ct' <- (transBeePL_type t');
+| Bind x t e e' t' => let ct := (transBeePL_type t) in
+                      let ct' := (transBeePL_type t') in
                       do ce <- (transBeePL_expr_expr e);
                       do ce' <- (transBeePL_expr_expr e');
                       ret (Ecomma (Eassign (Evar x ct) ce ct) ce' ct') 

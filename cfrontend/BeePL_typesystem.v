@@ -602,9 +602,5 @@ Lemma well_typed_success:
                             exists ct g i, transBeePL_type t g = Res ct g i).
 Proof.
 apply type_exprs_type_expr_ind_mut=> //=.
-<<<<<<< HEAD
 Admitted.
-=======
-Admitted.*)
-
->>>>>>> bwip
+ *)
