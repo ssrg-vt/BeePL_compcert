@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx Coq.Strings.BinaryString.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Coq.Lists.List.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes Coqlib SimplExpr Csyntaxdefs.
-Require Import BeePL_aux BeePL BeeTypes Csyntax Errors SimplExpr BeePL_values DecimalString.
+Require Import BeePL_aux BeePL BeeTypes Csyntax Errors SimplExpr BeePL_values DecimalString BeePL_Option_Struct.
 
 Local Open Scope string_scope.
 Local Open Scope gensym_monad_scope.
@@ -451,6 +451,7 @@ end.
 
 (* Missing compositie information and list of public functions *) 
 Definition BeePL_compcert (p : BeePL.program) : res (Csyntax.program * list (ident * string)) :=
+  let ncs := get_bcs_from_program p in 
   do (pds, is') <- transBeePL_globdefs_globdefs (unzip2 (p.(prog_defs))) (p.(prog_ident_to_string));
-  do cprog <- make_program (map bcomposite_ccomposite_definition (prog_types p)) (zip (unzip1 p.(prog_defs)) pds) (prog_public p) (prog_main p);
+  do cprog <- make_program (map bcomposite_ccomposite_definition ncs) (zip (unzip1 p.(prog_defs)) pds) (prog_public p) (prog_main p);
   OK (cprog, is').

@@ -7,7 +7,7 @@ Local Open Scope csyntax_scope.
 
 (* option_t main() {
      option_t r;
-     return r;
+     return 0;
   }
 *)
 
@@ -24,7 +24,7 @@ Definition f_option1 : BeePL.function := {|
                                    fn_callconv := cc_default;
                                    fn_args := nil;
                                    fn_vars := ((_r, BeeTypes.Otype (Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr))) :: nil);
-                                   fn_body := (Var _r (BeeTypes.Otype (Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)))) |}.
+                                   fn_body := (Const (ConsInt (Int.repr 0)) (Ptype (BeeTypes.Tint I32 Signed dattr))) |}.
 
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
@@ -35,7 +35,7 @@ Definition public_idents : list ident := (_main :: nil).
 
 Definition bcomposites : list bcomposite_definition := nil.
 
-Lemma bcomposite_default :
+Lemma bcomposite_correct :
   wf_bcomposites bcomposites.
 Proof.
   unfold wf_bcomposites.
