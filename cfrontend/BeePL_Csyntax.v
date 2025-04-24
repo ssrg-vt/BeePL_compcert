@@ -133,7 +133,21 @@ Definition ref_to_prim (ty : type) : mon primitive_type :=
   | Reftype _ (Bprim pt) _ => ret pt
   | _ => error (msg "ref_to_prim: expected only reftype")
   end.
-      
+
+(* It will never be used, but we need for None case *)
+Definition get_default_option_val (t : Ctypes.type) : mon Values.val :=
+match t with  
+| Tvoid =>  ret Values.Vundef
+| Ctypes.Tint sz s a => ret (Values.Vint (Int.repr 0)) 
+| Ctypes.Tlong s a => ret (Values.Vlong (Int64.repr 0))
+| Tfloat sz a => error (msg "No default value for float")
+| Tpointer t a => ret (Values.Vlong (Int64.repr 0)) 
+| Tarray _ _ _ => error (msg "No default value for array")
+| Tfunction _ _ _ => error (msg "No default value for function")
+| Tstruct x a => ret (Values.Vlong (Int64.repr 0)) 
+| Tunion _ _ => error (msg "No default value for function")
+end.
+
 Fixpoint transBeePL_expr_expr (e : BeePL.expr) (fn_ctx : list (ident * BeeTypes.type * string)) : mon (Csyntax.expr * (list (ident * BeeTypes.type * string))) := 
 match e with 
 | Val v t => ret (Eval (trans_bvalue_cvalue v) (transBeePL_type t), fn_ctx) 
@@ -181,11 +195,25 @@ match e with
                             let ct := (transBeePL_type t) in
                             ret ((Ederef (hd default_expr (exprlist_list_expr ces)) 
                                 ct), fn_ctx')   
-                 | Massgn => do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx);
-                             let ct := (transBeePL_type t) in
-                             ret ((Eassign (hd default_expr (exprlist_list_expr ces))
-                                    (hd default_expr (tl (exprlist_list_expr ces)))
-                                 ct), fn_ctx')
+                 | Massgn => match es with 
+                             | e1 :: e2 :: nil => 
+                                 match e2 with 
+                                 | Enone t => 
+                                     match t with 
+                                     | Otype t' => do ce1 <- transBeePL_expr_expr e1 fn_ctx;
+                                                   let ct' := transBeePL_type t' in
+                                                    ret ((Eassign (Efield (fst ce1) _option_tag ct')
+                                                              (Eval (Values.Vint (Int.repr 0)) ct') ct'), snd ce1)
+                                     | _ => error (msg "COMPILER ERROR: The type of None should be an option type")
+                                     end
+                                 | _ => do ce1 <- transBeePL_expr_expr e1 fn_ctx;
+                                                 do ce2 <- transBeePL_expr_expr e2 (snd ce1);
+                                                 let ct := (transBeePL_type t) in
+                                                 ret ((Eassign (fst ce1) (fst ce2)
+                                                         ct), snd ce2)
+                                 end 
+                             | _ => error (msg "COMPILER ERROR: Wrong number of arguments to massgn")
+                             end
                  | Run h => ret ((Eval (Values.Vundef) Tvoid), fn_ctx)
                  | Uop o => do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx);
                             let ct := (transBeePL_type t) in
@@ -226,12 +254,9 @@ match e with
 | Sfield e x t => do (ce, fn_ctx') <- transBeePL_expr_expr e fn_ctx;
                   let ct := transBeePL_type t in
                   ret (Efield (Evalof ce (transBeePL_type (typeof_expr e))) x ct, fn_ctx')
-| For x e1 e2 d e t => error (msg "For loop cannot be translated to another C expr")
-| Enone t => let ct := transBeePL_type t in 
-             error (msg "Enone translation not supported yet")
-| Esome e t => let ct := transBeePL_type t in
-               do (ce, fn_ctx') <- transBeePL_expr_expr e fn_ctx;
-               error (msg "Esome translation not supported yet")
+| For x e1 e2 d e t => error (msg "COMPILER ERROR: For loop cannot be translated to another C expr")
+| Enone t => error (msg "COMPILER ERROR: Invalid use of None expression")
+| Esome e t => error (msg "COMPILER ERROR:Invalid use of Some expression")
 | Match e pes t => do (ce, fn_ctx') <- transBeePL_expr_expr e fn_ctx;
                    error (msg "Match translation not supported yet")
 end.
@@ -284,11 +309,25 @@ match e with
                             let ct := (transBeePL_type t) in
                             ret (Sdo (Ederef (hd default_expr (exprlist_list_expr ces)) 
                                      ct), ctx')   
-                 | Massgn => do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx);
-                             let ct := (transBeePL_type t) in
-                             ret (Sdo (Eassign (hd default_expr (exprlist_list_expr ces))
-                                              (hd default_expr (tl (exprlist_list_expr ces)))
-                                      ct), ctx') 
+                 | Massgn => match es with 
+                             | e1 :: e2 :: nil => 
+                                 match e2 with 
+                                 | Enone t => 
+                                     match t with 
+                                     | Otype t' => do ce1 <- transBeePL_expr_expr e1 ctx;
+                                                   let ct' := transBeePL_type t' in
+                                                    ret (Sdo (Eassign (Efield (fst ce1) _option_tag ct')
+                                                              (Eval (Values.Vint (Int.repr 0)) ct') ct'), snd ce1)
+                                     | _ => error (msg "COMPILER ERROR: The type of None should be an option type")
+                                     end
+                                 | _ => do ce1 <- transBeePL_expr_expr e1 ctx;
+                                                 do ce2 <- transBeePL_expr_expr e2 (snd ce1);
+                                                 let ct := (transBeePL_type t) in
+                                                 ret (Sdo (Eassign (fst ce1) (fst ce2)
+                                                         ct), snd ce2)
+                                 end 
+                             | _ => error (msg "COMPILER ERROR: Wrong number of arguments to massgn")
+                             end
                  | Run h => ret (Sdo (Eval (Values.Vundef) Tvoid), ctx)
                  | Uop o => do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx);
                             let ct := (transBeePL_type t) in 
@@ -357,11 +396,8 @@ match e with
                                                   (Sdo (Epostincr Cop.Decr (Evar x (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr)))
                                                   ce3, ctx''')
                                 end  
-| Enone t => let ct := transBeePL_type t in 
-             error (msg "Enone translation not supported yet")
-| Esome e t => let ct := transBeePL_type t in
-               do (ce, ctx') <- transBeePL_expr_expr e ctx;
-               error (msg "Esome translation not supported yet")
+| Enone t => error (msg "COMPILER ERROR:Invalid use of None expression")
+| Esome e t => error (msg "COMPILER ERROR:Invalid use of Some expression")
 | Match e pes t => do (ce, ctx') <- transBeePL_expr_expr e ctx;
                    error (msg "Match translation not supported yet")
 end.

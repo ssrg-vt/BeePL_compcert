@@ -5,9 +5,9 @@ Import Csyntaxdefs.CsyntaxNotations.
 Local Open Scope string_scope.
 Local Open Scope csyntax_scope.
 
-(* option_t main() {
+(* int main() {
      option_t r;
-     return 0;
+     r = None;
   }
 *)
 
@@ -24,7 +24,9 @@ Definition f_option1 : BeePL.function := {|
                                    fn_callconv := cc_default;
                                    fn_args := nil;
                                    fn_vars := ((_r, BeeTypes.Otype (Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr))) :: nil);
-                                   fn_body := (Const (ConsInt (Int.repr 0)) (Ptype (BeeTypes.Tint I32 Signed dattr))) |}.
+                                   fn_body := (Prim Massgn ((Var _r (BeeTypes.Otype (Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)))) :: 
+                                                            (Enone (BeeTypes.Otype (Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)))) :: nil) 
+                                               (Ptype Tunit))|}.
 
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
