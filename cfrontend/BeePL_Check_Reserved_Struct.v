@@ -9,25 +9,19 @@ Local Open Scope list_scope.
 
 Definition check_user_struct (t : type) : bool :=
 match t with 
-| Stype x a => if ((substring 0 6 (string_of_ident x)) =? "option")%string
-               then true
-               else false 
+| Stype x a => ((substring 0 6 (string_of_ident x)) =? "option")%string
 | _ => false
 end.
       
 Fixpoint check_user_structs (ts : list type) : bool :=
 match ts with 
-| nil => true
-| st :: sts' => check_user_struct st && check_user_structs sts'
+| nil => false
+| st :: sts' => if check_user_struct st then true else check_user_structs sts' 
 end. 
 
-(*Compute (unique_option_types (Stype (ident_of_string "__bpl__option_x") noattr 
-                             :: Stype (ident_of_string "__bpl__option_y") noattr :: 
-                                Otype (Ptype Tunit) :: nil)).
-
-Compute (check_user_structs (unique_option_types (Stype (ident_of_string "__bpl__option_x") noattr 
-                                                    :: Stype (ident_of_string "__bpl__option_y") noattr :: 
-                                                    Otype (Ptype Tunit) :: nil))).*)
+(*Compute (check_user_structs (Stype (ident_of_string "option_x") noattr ::
+                             Stype (ident_of_string "option_y") noattr :: 
+                             Otype (Ptype Tunit) :: nil)).*)
 
 Definition check_struct_from_types (ots : list type) : res (list type) :=
 if check_user_structs ots 
