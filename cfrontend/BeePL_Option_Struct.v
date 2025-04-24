@@ -34,8 +34,8 @@ Fixpoint get_bcs_from_types (ots : list type) (bc : list bcomposite_definition) 
 match ots with
 | nil => bc
 | Otype t' :: ots_tail => let nbc := Bcomposite (create_ident_type t') Struct
-                                       (Member_plain _option_tag (Ptype (Tint I8 Unsigned noattr)) ::
-                                        Member_plain _option_val t' :: nil) noattr in
+                                       (Member_plain option_tag (Ptype (Tint I8 Unsigned noattr)) ::
+                                        Member_plain option_val t' :: nil) noattr in
                           let bc' := bc ++ (nbc :: nil) in
                           get_bcs_from_types ots_tail bc'
 | _ :: ots_tail => get_bcs_from_types ots_tail bc

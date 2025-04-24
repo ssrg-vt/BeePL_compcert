@@ -113,8 +113,8 @@ Record bcomposite : Type := Build_bcomposite
     co_sizeof_alignof : (co_alignof | co_sizeof) }.
 
 (* Reserved ident for option type conversion *)
-Definition _option_tag : ident := $"option_tag".
-Definition _option_val : ident := $"option_val".                     
+Definition option_tag : ident := $"option_tag".
+Definition option_val : ident := $"option_val".                     
 
 Section translate_types.
 
