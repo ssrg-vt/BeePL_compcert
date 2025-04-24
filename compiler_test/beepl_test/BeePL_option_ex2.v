@@ -1,3 +1,4 @@
+
 Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values BeePL_typechecker. 
 From Coq Require Import String ZArith Lists.List.
 From compcert Require Import Csyntaxdefs Errors Maps BeePL_aux.
@@ -6,8 +7,8 @@ Local Open Scope string_scope.
 Local Open Scope csyntax_scope.
 
 (* int main() {
-     option<int32> r;
-     r = None;
+     option<int> r;
+     r = Some 2;
   }
 *)
 
@@ -25,7 +26,8 @@ Definition f_option1 : BeePL.function := {|
                                    fn_args := nil;
                                    fn_vars := ((_r, BeeTypes.Otype (Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr))) :: nil);
                                    fn_body := (Prim Massgn ((Var _r (BeeTypes.Otype (Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)))) :: 
-                                                            (Enone (BeeTypes.Otype (Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)))) :: nil) 
+                                                            (Esome (Const (ConsInt (Int.repr 2)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
+                                                                   (BeeTypes.Otype (Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)))) :: nil) 
                                                (Ptype Tunit))|}.
 
 

@@ -202,17 +202,30 @@ match e with
                                      match t with 
                                      | Otype t' => do ce1 <- transBeePL_expr_expr e1 fn_ctx;
                                                    let ct' := transBeePL_type t' in
-                                                    ret ((Eassign (Efield (fst ce1) _option_tag ct')
-                                                              (Eval (Values.Vint (Int.repr 0)) ct') ct'), snd ce1)
+                                                    ret ((Eassign (Efield (fst ce1) _option_tag (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
+                                                              (Eval (Values.Vint (Int.repr 0)) (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr)) 
+                                                           (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr)), snd ce1)
                                      | _ => error (msg "COMPILER ERROR: The type of None should be an option type")
                                      end
-                                 | _ => do ce1 <- transBeePL_expr_expr e1 fn_ctx;
-                                                 do ce2 <- transBeePL_expr_expr e2 (snd ce1);
-                                                 let ct := (transBeePL_type t) in
-                                                 ret ((Eassign (fst ce1) (fst ce2)
-                                                         ct), snd ce2)
-                                 end 
-                             | _ => error (msg "COMPILER ERROR: Wrong number of arguments to massgn")
+                                 | Esome e3 t => 
+                                     match t with 
+                                     | Otype t' => do ce1 <- transBeePL_expr_expr e1 fn_ctx;
+                                                   do ce3 <- transBeePL_expr_expr e3 (snd ce1); 
+                                                   let ct' := transBeePL_type t' in
+                                                   ret (Ecomma (Eassign (Efield (fst ce1) _option_tag (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
+                                                                        (Eval (Values.Vint (Int.repr 1)) (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr)) 
+                                                                  (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr)) 
+                                                               (Eassign (Efield (fst ce1) _option_val ct')
+                                                                         (fst ce3) ct') ct', snd ce3)
+                                     | _ => error (msg "COMPILER ERROR: The type of Some should be an option type")
+                                     end
+                                 | _ => do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx);
+                                        let ct := (transBeePL_type t) in
+                                        ret ((Eassign (hd default_expr (exprlist_list_expr ces))
+                                                (hd default_expr (tl (exprlist_list_expr ces)))
+                                                ct), fn_ctx')
+                                 end
+                              | _ => error (msg "COMPILER ERROR: Wrong number of arguments to massgn")
                              end
                  | Run h => ret ((Eval (Values.Vundef) Tvoid), fn_ctx)
                  | Uop o => do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx);
@@ -309,24 +322,37 @@ match e with
                             let ct := (transBeePL_type t) in
                             ret (Sdo (Ederef (hd default_expr (exprlist_list_expr ces)) 
                                      ct), ctx')   
-                 | Massgn => match es with 
+                 | Massgn =>match es with 
                              | e1 :: e2 :: nil => 
                                  match e2 with 
                                  | Enone t => 
                                      match t with 
                                      | Otype t' => do ce1 <- transBeePL_expr_expr e1 ctx;
                                                    let ct' := transBeePL_type t' in
-                                                    ret (Sdo (Eassign (Efield (fst ce1) _option_tag ct')
-                                                              (Eval (Values.Vint (Int.repr 0)) ct') ct'), snd ce1)
+                                                    ret (Sdo (Eassign (Efield (fst ce1) _option_tag (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
+                                                              (Eval (Values.Vint (Int.repr 0)) (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr)) 
+                                                           (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr)), snd ce1)
                                      | _ => error (msg "COMPILER ERROR: The type of None should be an option type")
                                      end
-                                 | _ => do ce1 <- transBeePL_expr_expr e1 ctx;
-                                                 do ce2 <- transBeePL_expr_expr e2 (snd ce1);
-                                                 let ct := (transBeePL_type t) in
-                                                 ret (Sdo (Eassign (fst ce1) (fst ce2)
-                                                         ct), snd ce2)
-                                 end 
-                             | _ => error (msg "COMPILER ERROR: Wrong number of arguments to massgn")
+                                 | Esome e3 t => 
+                                     match t with 
+                                     | Otype t' => do ce1 <- transBeePL_expr_expr e1 ctx;
+                                                   do ce3 <- transBeePL_expr_expr e3 (snd ce1); 
+                                                   let ct' := transBeePL_type t' in
+                                                   ret (Ssequence (Sdo (Eassign (Efield (fst ce1) _option_tag (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
+                                                                        (Eval (Values.Vint (Int.repr 1)) (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr)) 
+                                                                  (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))) 
+                                                                 (Sdo (Eassign (Efield (fst ce1) _option_val ct')
+                                                                         (fst ce3) ct')), snd ce3)
+                                     | _ => error (msg "COMPILER ERROR: The type of Some should be an option type")
+                                     end
+                                 | _ => do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx);
+                                        let ct := (transBeePL_type t) in
+                                        ret (Sdo (Eassign (hd default_expr (exprlist_list_expr ces))
+                                                (hd default_expr (tl (exprlist_list_expr ces)))
+                                                ct), fn_ctx')
+                                 end
+                              | _ => error (msg "COMPILER ERROR: Wrong number of arguments to massgn")
                              end
                  | Run h => ret (Sdo (Eval (Values.Vundef) Tvoid), ctx)
                  | Uop o => do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx);
