@@ -5,7 +5,7 @@ From Coq Require Import String.
 
 Require Import BeePL_add BeePL_cond BeePL_app BeePL_div_zero BeePL_div_zero1 BeePL_external_call BeePL_ref.
 Require Import BeePL_struct_ex1 BeePL_struct_ex2 BeePL_struct_ex3 BeePL_struct_ex4 BeePL_for_ex1 BeePL_for_ex2.
-Require Import BeePL_bpf_get_prandom BeePL_option_ex1 BeePL_option_ex2 BeePL_match_ex1.
+Require Import BeePL_bpf_get_prandom BeePL_null_ptr.
 
 (* In this file you will see two definitions. One for example1 and the other for
    example1_atom_of_string. Those two definitions are extracted to OCaml by 
@@ -33,11 +33,11 @@ Proof.
   unfold build_bcomposite_env; simpl; reflexivity.
 Qed.
 
-Definition example1 : BeePL.program := @mkbprogram BeePL_match_ex1.bcomposites 
-                                                   BeePL_match_ex1.global_definitions 
-                                                   BeePL_match_ex1.public_idents 
-                                                   BeePL_match_ex1._main 
-                                                   BeePL_match_ex1.bcomposite_correct
-                                                   BeePL_match_ex1.ident_to_string.
+Definition example1 : BeePL.program := @mkbprogram BeePL_null_ptr.bcomposites 
+                                                   BeePL_null_ptr.global_definitions 
+                                                   BeePL_null_ptr.public_idents 
+                                                   BeePL_null_ptr._main 
+                                                   BeePL_null_ptr.bcomposite_correct
+                                                   BeePL_null_ptr.ident_to_string.
 
 

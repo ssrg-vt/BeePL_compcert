@@ -51,7 +51,7 @@ Inductive type : Type :=
 | Reftype : ident -> basic_type -> attr -> type           (* reference type ref<h,int> *)
 | Ftype : list type -> effect -> type -> type             (* function/arrow type *)
 | Stype : ident -> attr -> type                           (* struct *)
-| Otype : type -> type.                                   (* option type *)
+| Otype : type -> type.                                   (* option type : only contains ref *)
 
 Inductive wtype : Type :=
 | Twunit : wtype
@@ -193,7 +193,6 @@ match t with
 | Otype t => $("option_o_ption__" ++ string_of_ident (create_ident_type t))
 end.
 
-
 Fixpoint transBeePL_type (t : BeeTypes.type) : Ctypes.type :=
 match t with
 | Ptype t => match t with  
@@ -213,7 +212,7 @@ match t with
                                        {| cc_vararg := Some (Z.of_nat(length(ts))); 
                                        cc_unproto := false; cc_structret := false |}) (* Fix me *) 
 | BeeTypes.Stype x a => (Tstruct x a)
-| BeeTypes.Otype t => Tstruct (create_ident_type t) (attr_of_type t) 
+| BeeTypes.Otype t => Ctypes.Tpointer (transBeePL_type t) (attr_of_type t)
 end.
 
 
