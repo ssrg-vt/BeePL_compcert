@@ -122,5 +122,12 @@ Proof.
   unfold build_bcomposite_env; simpl; constructor. 
 Qed.
 
+(*Definition example1 : BeePL.program := @mkbprogram bcomposites 
+                                                   global_definitions 
+                                                   public_idents 
+                                                   _main 
+                                                   bcomposite_correct
+                                                   ident_to_string.*)
+
 
 (*Compute (type_check_program example1).*) (* Type checks *)

@@ -492,7 +492,7 @@ match e1, e2 with
 | Panic, Panic => true 
 | Divergence, Divergence => true 
 | Read id1, Read id2 => (id1 =? id2)%positive
-| Write id1, Read id2 => (id1 =? id2)%positive
+| Write id1, Write id2 => (id1 =? id2)%positive
 | Alloc id1, Alloc id2 => (id1 =? id2)%positive
 | Hstate id1, Hstate id2 => (id1 =? id2)%positive
 | _, _ => false

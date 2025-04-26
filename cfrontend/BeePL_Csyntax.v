@@ -197,7 +197,8 @@ match e with
                                 ct), fn_ctx')   
                  | Massgn => do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx);
                                         let ct := (transBeePL_type t) in
-                                        ret ((Eassign (hd default_expr (exprlist_list_expr ces))
+                                        ret ((Eassign (Ederef (hd default_expr (exprlist_list_expr ces)) 
+                                                         (typeof (hd default_expr (exprlist_list_expr ces))))
                                                 (hd default_expr (tl (exprlist_list_expr ces)))
                                                 ct), fn_ctx')
                  | Run h => ret ((Eval (Values.Vundef) Tvoid), fn_ctx)
@@ -324,11 +325,12 @@ match e with
                           end
                  | Deref => do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx);
                             let ct := (transBeePL_type t) in
-                            ret (Sdo (Ederef (hd default_expr (exprlist_list_expr ces)) 
-                                     ct), ctx')   
+                            ret (Sreturn (Some (Ederef (hd default_expr (exprlist_list_expr ces)) 
+                                     ct)), ctx')   
                  | Massgn => do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx);
                                         let ct := (transBeePL_type t) in
-                                        ret (Sdo (Eassign (hd default_expr (exprlist_list_expr ces))
+                                        ret (Sdo (Eassign (Ederef (hd default_expr (exprlist_list_expr ces)) 
+                                                             (typeof (hd default_expr (exprlist_list_expr ces)))) 
                                                 (hd default_expr (tl (exprlist_list_expr ces)))
                                                 ct), fn_ctx')
                  | Run h => ret (Sdo (Eval (Values.Vundef) Tvoid), ctx)
@@ -353,9 +355,9 @@ match e with
                       match e with 
                       | Prim Massgn es t => do (ce, ctx'') <- (transBeePL_expr_expr e ctx'); ret (Ssequence (Sdo ce) ce', ctx'') 
                       | For x e1 e2 d e3 t => do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')                 
-                      | _ => do (ce, ctx'') <- (transBeePL_expr_expr e ctx');
-                             ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
-                                            (ce'), ctx'')
+                      | _ =>  do (ce, ctx'') <- (transBeePL_expr_expr e ctx');
+                                    ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
+                                           (ce'), ctx'')
                       end
 | Cond e e' e'' t' => do (ce, ctx') <- (transBeePL_expr_expr e ctx);
                       do (ce', ctx'') <- (transBeePL_expr_st e' ctx');
