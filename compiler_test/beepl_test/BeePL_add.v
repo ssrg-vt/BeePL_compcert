@@ -58,5 +58,9 @@ Definition global_definitions : list (ident * AST.globdef BeePL.fundef type)
 
 Definition public_idents : list ident := (_main :: nil).
 
+
+
+(*Compute (type_check_program example1). *) (* Type checking works *)
+
 (*Compute (type_check_expr empty_context empty_context f_add.(fn_body)).*)
 

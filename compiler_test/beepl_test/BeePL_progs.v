@@ -33,11 +33,11 @@ Proof.
   unfold build_bcomposite_env; simpl; reflexivity.
 Qed.
 
-Definition example1 : BeePL.program := @mkbprogram BeePL_null_ptr.bcomposites 
-                                                   BeePL_null_ptr.global_definitions 
-                                                   BeePL_null_ptr.public_idents 
-                                                   BeePL_null_ptr._main 
-                                                   BeePL_null_ptr.bcomposite_correct
-                                                   BeePL_null_ptr.ident_to_string.
+Definition example1 : BeePL.program := @mkbprogram BeePL_bpf_get_prandom.bcomposites 
+                                                   BeePL_bpf_get_prandom.global_definitions 
+                                                   BeePL_bpf_get_prandom.public_idents 
+                                                   BeePL_bpf_get_prandom._main 
+                                                   BeePL_bpf_get_prandom.bcomposite_correct
+                                                   BeePL_bpf_get_prandom.ident_to_string.
 
 

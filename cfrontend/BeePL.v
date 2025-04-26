@@ -55,6 +55,11 @@ match ef with
 | EF_external n sig => sig.(bsig_args)
 end.
 
+Definition get_name_eapp (ef : external_function) : string :=
+match ef with 
+| EF_external n sig => n
+end.
+ 
 Definition befunction_to_cefunction (bef : external_function) : AST.external_function :=
 match bef with 
 | EF_external n bsig => (AST.EF_external n (bsig_to_csig bsig))
