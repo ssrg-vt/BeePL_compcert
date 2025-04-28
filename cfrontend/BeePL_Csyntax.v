@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx Coq.Strings.BinaryString.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Coq.Lists.List.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes Coqlib SimplExpr Csyntaxdefs.
-Require Import BeePL_aux BeePL BeeTypes Csyntax Errors SimplExpr BeePL_values DecimalString.
+Require Import BeePL_aux BeePL BeeTypes Csyntax Errors SimplExpr BeePL_values DecimalString BeePL_Option_Struct BeePL_Check_Reserved_Struct.
 
 Local Open Scope string_scope.
 Local Open Scope gensym_monad_scope.
@@ -135,7 +135,21 @@ Definition ref_to_prim (ty : type) : mon primitive_type :=
   | Reftype _ (Bprim pt) _ => ret pt
   | _ => error (msg "ref_to_prim: expected only reftype")
   end.
-      
+
+(* It will never be used, but we need for None case *)
+Definition get_default_option_val (t : Ctypes.type) : mon Values.val :=
+match t with  
+| Tvoid =>  ret Values.Vundef
+| Ctypes.Tint sz s a => ret (Values.Vint (Int.repr 0)) 
+| Ctypes.Tlong s a => ret (Values.Vlong (Int64.repr 0))
+| Tfloat sz a => error (msg "No default value for float")
+| Tpointer t a => ret (Values.Vlong (Int64.repr 0)) 
+| Tarray _ _ _ => error (msg "No default value for array")
+| Tfunction _ _ _ => error (msg "No default value for function")
+| Tstruct x a => ret (Values.Vlong (Int64.repr 0)) 
+| Tunion _ _ => error (msg "No default value for function")
+end.
+
 Fixpoint transBeePL_expr_expr (e : BeePL.expr) (fn_ctx : list (ident * BeeTypes.type * string)) : mon (Csyntax.expr * (list (ident * BeeTypes.type * string))) := 
 match e with 
 | Val v t => ret (Eval (trans_bvalue_cvalue v) (transBeePL_type t), fn_ctx) 
@@ -184,10 +198,11 @@ match e with
                             ret ((Ederef (hd default_expr (exprlist_list_expr ces)) 
                                 ct), fn_ctx')   
                  | Massgn => do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx);
-                             let ct := (transBeePL_type t) in
-                             ret ((Eassign (hd default_expr (exprlist_list_expr ces))
-                                    (hd default_expr (tl (exprlist_list_expr ces)))
-                                 ct), fn_ctx')
+                                        let ct := (transBeePL_type t) in
+                                        ret ((Eassign (Ederef (hd default_expr (exprlist_list_expr ces)) 
+                                                         (typeof (hd default_expr (exprlist_list_expr ces))))
+                                                (hd default_expr (tl (exprlist_list_expr ces)))
+                                                ct), fn_ctx')
                  | Run h => ret ((Eval (Values.Vundef) Tvoid), fn_ctx)
                  | Uop o => do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx);
                             let ct := (transBeePL_type t) in
@@ -228,14 +243,42 @@ match e with
 | Sfield e x t => do (ce, fn_ctx') <- transBeePL_expr_expr e fn_ctx;
                   let ct := transBeePL_type t in
                   ret (Efield (Evalof ce (transBeePL_type (typeof_expr e))) x ct, fn_ctx')
-| For x e1 e2 d e t => error (msg "For loop cannot be translated to another C expr")
-| Enone t => let ct := transBeePL_type t in 
-             error (msg "Enone translation not supported yet")
-| Esome e t => let ct := transBeePL_type t in
-               do (ce, fn_ctx') <- transBeePL_expr_expr e fn_ctx;
-               error (msg "Esome translation not supported yet")
-| Match e pes t => do (ce, fn_ctx') <- transBeePL_expr_expr e fn_ctx;
-                   error (msg "Match translation not supported yet")
+| For x e1 e2 d e t => error (msg "COMPILER ERROR: For loop cannot be translated to another C expr")
+| Enone t => match t with 
+             | Otype t' => if is_reftype t'
+                           then ret ((Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t))), fn_ctx)
+                           else error (msg "COMPILER ERROR: Option type of None should contain a pointer in BeePL")
+             | _ => error (msg "COMPILER ERROR: None should be of Option type")
+             end
+| Esome e t => match t with 
+               | Otype t' => if is_reftype t'
+                             then transBeePL_expr_expr e fn_ctx
+                             else error (msg "COMPILER ERROR: Option type of Some should contain a pointer in BeePL")
+               | _ => error (msg "COMPILER ERROR: Some should be of Option type")
+              end
+| Match e pes t => if is_reftype t
+                   then do ce <- transBeePL_expr_expr e fn_ctx;
+                        match pes with 
+                         | nil => error (msg "COMPILER ERROR: No pattern matching cases found")
+                         | ((Pnone, e1) :: (Psome x, e2) :: nil) => 
+                             do ce1 <- transBeePL_expr_expr e1 fn_ctx;
+                             do ce2 <- transBeePL_expr_expr e2 (snd ce1);
+                             ret ((Econdition (Ebinop Cop.Oeq (fst ce) 
+                                                (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                               (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
+                                  (fst ce1)
+                                  (fst ce2) (transBeePL_type t)), snd (ce2))
+                          | ((Psome x, e1) :: (Pnone, e2) :: nil) => 
+                             do ce1 <- transBeePL_expr_expr e1 fn_ctx;
+                             do ce2 <- transBeePL_expr_expr e2 (snd ce1);
+                             ret ((Econdition (Ebinop Cop.Oeq (fst ce) 
+                                                (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                               (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
+                                  (fst ce2)
+                                  (fst ce1) (transBeePL_type t)), snd (ce1))
+                          | _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
+                        end
+                   else error (msg "COMPILER ERROR: The return type of matching should be a pointer")
 end.
 
 
@@ -284,13 +327,14 @@ match e with
                           end
                  | Deref => do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx);
                             let ct := (transBeePL_type t) in
-                            ret (Sdo (Ederef (hd default_expr (exprlist_list_expr ces)) 
-                                     ct), ctx')   
-                 | Massgn => do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx);
-                             let ct := (transBeePL_type t) in
-                             ret (Sdo (Eassign (hd default_expr (exprlist_list_expr ces))
-                                              (hd default_expr (tl (exprlist_list_expr ces)))
-                                      ct), ctx') 
+                            ret (Sreturn (Some (Ederef (hd default_expr (exprlist_list_expr ces)) 
+                                     ct)), ctx')   
+                 | Massgn => do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx);
+                                        let ct := (transBeePL_type t) in
+                                        ret (Sdo (Eassign (Ederef (hd default_expr (exprlist_list_expr ces)) 
+                                                             (typeof (hd default_expr (exprlist_list_expr ces)))) 
+                                                (hd default_expr (tl (exprlist_list_expr ces)))
+                                                ct), fn_ctx')
                  | Run h => ret (Sdo (Eval (Values.Vundef) Tvoid), ctx)
                  | Uop o => do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx);
                             let ct := (transBeePL_type t) in 
@@ -313,9 +357,9 @@ match e with
                       match e with 
                       | Prim Massgn es t => do (ce, ctx'') <- (transBeePL_expr_expr e ctx'); ret (Ssequence (Sdo ce) ce', ctx'') 
                       | For x e1 e2 d e3 t => do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')                 
-                      | _ => do (ce, ctx'') <- (transBeePL_expr_expr e ctx');
-                             ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
-                                            (ce'), ctx'')
+                      | _ =>  do (ce, ctx'') <- (transBeePL_expr_expr e ctx');
+                                    ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
+                                           (ce'), ctx'')
                       end
 | Cond e e' e'' t' => do (ce, ctx') <- (transBeePL_expr_expr e ctx);
                       do (ce', ctx'') <- (transBeePL_expr_st e' ctx');
@@ -359,13 +403,39 @@ match e with
                                                   (Sdo (Epostincr Cop.Decr (Evar x (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr)))
                                                   ce3, ctx''')
                                 end  
-| Enone t => let ct := transBeePL_type t in 
-             error (msg "Enone translation not supported yet")
-| Esome e t => let ct := transBeePL_type t in
-               do (ce, ctx') <- transBeePL_expr_expr e ctx;
-               error (msg "Esome translation not supported yet")
-| Match e pes t => do (ce, ctx') <- transBeePL_expr_expr e ctx;
-                   error (msg "Match translation not supported yet")
+| Enone t => match t with 
+             | Otype t' => if is_reftype t'
+                           then ret (Sdo ((Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))), ctx)
+                           else error (msg "COMPILER ERROR: Option type of None should contain a pointer in BeePL")
+             | _ => error (msg "COMPILER ERROR: None should be of Option type")
+             end
+| Esome e t => match t with 
+               | Otype t' => if is_reftype t'
+                             then transBeePL_expr_st e ctx
+                             else error (msg "COMPILER ERROR: Option type of Some should contain a pointer in BeePL")
+               | _ => error (msg "COMPILER ERROR: Some should be of Option type")
+              end
+| Match e pes t => do ce <- transBeePL_expr_expr e ctx;
+                        match pes with 
+                         | nil => error (msg "COMPILER ERROR: No pattern matching cases found")
+                         | ((Pnone, e1) :: (Psome x, e2) :: nil) => 
+                             do ce1 <- transBeePL_expr_st e1 ctx;
+                             do ce2 <- transBeePL_expr_st e2 (snd ce1);
+                             ret ((Sifthenelse (Ebinop Cop.Oeq (fst ce) 
+                                                (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                               (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
+                                  (fst ce1)
+                                  (fst ce2)), snd (ce2))
+                          | ((Psome x, e1) :: (Pnone, e2) :: nil) => 
+                             do ce1 <- transBeePL_expr_st e1 ctx;
+                             do ce2 <- transBeePL_expr_st e2 (snd ce1);
+                             ret ((Sifthenelse (Ebinop Cop.Oeq (fst ce) 
+                                                (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                               (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
+                                  (fst ce2)
+                                  (fst ce1)), snd (ce1))
+                          | _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
+                        end
 end.
 
 
@@ -454,5 +524,5 @@ end.
 (* Missing compositie information and list of public functions *) 
 Definition BeePL_compcert (p : BeePL.program) : res (Csyntax.program * list (ident * string)) :=
   do (pds, is') <- transBeePL_globdefs_globdefs (unzip2 (p.(prog_defs))) (p.(prog_ident_to_string));
-  do cprog <- make_program (map bcomposite_ccomposite_definition (prog_types p)) (zip (unzip1 p.(prog_defs)) pds) (prog_public p) (prog_main p);
+  do cprog <- make_program (map bcomposite_ccomposite_definition p.(prog_types)) (zip (unzip1 p.(prog_defs)) pds) (prog_public p) (prog_main p);
   OK (cprog, is').

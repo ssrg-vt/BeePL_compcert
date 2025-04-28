@@ -8,10 +8,11 @@ Local Open Scope csyntax_scope.
 (* #include <stdio.h>
 
 int main() {
-    int x = 0;
+    int x = ref 0;
     for (int i = 5; i <= 1; i--) {
-            x = x + 1;
+            x := !x + 1;
     }
+   return *x;
 }
 *)
 
@@ -27,30 +28,33 @@ Definition ident_to_string : list (ident * string) := ((_x, "x") ::
                                                       (_main, "main") :: nil).
 
 Definition f_for : BeePL.function := {| 
-                                   fn_return := (Reftype $"h" (Bprim (BeeTypes.Tint I32 Unsigned dattr)) dattr);
-                                   fn_effect := (Read $"h" :: Write $"h" :: nil);
+                                   fn_return := (Ptype (Tint I32 Unsigned dattr));
+                                   fn_effect := (Alloc mem_ident :: Read mem_ident :: Write mem_ident :: Read mem_ident :: nil);
                                    fn_callconv := cc_default;
                                    fn_args := nil;
-                                   fn_vars := ((_x, (Reftype $"h" (Bprim (BeeTypes.Tint I32 Unsigned dattr)) dattr)) :: 
-                                               (_i, BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)) :: 
-                                               (_t, BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)) :: nil);
-                                   fn_body := (Bind _x (Reftype $"h" (Bprim (BeeTypes.Tint I32 Unsigned dattr)) dattr) 
-                                                       (Const (ConsInt (Int.repr 0)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
+                                   fn_vars := ((_x, (Reftype mem_ident (Bprim (Tint I32 Unsigned dattr)) dattr)) :: 
+                                               (_i, Ptype (Tint I32 Unsigned dattr)) :: 
+                                               (_t, Ptype (Tint I32 Unsigned dattr)) :: nil);
+                                   fn_body := (Bind _x (Reftype mem_ident (Bprim (Tint I32 Unsigned dattr)) dattr)
+                                                       (Prim Ref ((Const (ConsInt (Int.repr 0)) (Ptype (Tint I32 Unsigned dattr))) :: nil)
+                                                             (Reftype mem_ident (Bprim (Tint I32 Unsigned dattr)) dattr))
                                                        (Bind _t (Ptype Tunit)
                                                           (For _i 
-                                                             (Const (ConsInt (Int.repr 5)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
-                                                             (Const (ConsInt (Int.repr 1)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
+                                                             (Const (ConsInt (Int.repr 5)) (Ptype (Tint I32 Unsigned dattr)))
+                                                             (Const (ConsInt (Int.repr 1)) (Ptype (Tint I32 Unsigned dattr)))
                                                              Down
-                                                             (Prim Massgn (Var _x (Reftype $"h" (Bprim (BeeTypes.Tint I32 Unsigned dattr)) dattr) ::
+                                                             (Prim Massgn (Var _x (Reftype mem_ident (Bprim (Tint I32 Unsigned dattr)) dattr) ::
                                                                      (Prim (Bop Cop.Oadd) 
-                                                                        (Var _x (Ptype (BeeTypes.Tint I32 Unsigned dattr)) :: 
-                                                                           Const (ConsInt (Int.repr 1)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)) :: nil)
-                                                                        (Ptype (BeeTypes.Tint I32 Unsigned dattr))) :: nil)
+                                                                        (Prim Deref (Var _x (Reftype mem_ident (Bprim (Tint I32 Unsigned dattr)) dattr) :: nil) 
+                                                                             (Ptype (Tint I32 Unsigned dattr)) :: 
+                                                                           Const (ConsInt (Int.repr 1)) (Ptype (Tint I32 Unsigned dattr)) :: nil)
+                                                                        (Ptype (Tint I32 Unsigned dattr))) :: nil)
                                                             (Ptype Tunit))
-                                                          (Ptype Tunit))
-                                                     (Var _x (Reftype $"h" (Bprim (BeeTypes.Tint I32 Unsigned dattr)) dattr))
-                                                     (Reftype $"h" (Bprim (BeeTypes.Tint I32 Unsigned dattr)) dattr))
-                                                 (Reftype $"h" (Bprim (BeeTypes.Tint I32 Unsigned dattr)) dattr))|}.
+                                                           (Ptype Tunit))
+                                                        (Prim Deref (Var _x (Reftype mem_ident (Bprim (Tint I32 Unsigned dattr)) dattr) :: nil) 
+                                                           (Ptype (Tint I32 Unsigned dattr)))
+                                                     (Ptype (Tint I32 Unsigned dattr)))
+                                               (Ptype (Tint I32 Unsigned dattr)))|}.
 
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
@@ -68,10 +72,13 @@ Proof.
   unfold build_bcomposite_env; simpl; reflexivity.
 Qed.
 
-(*Definition example1 : BeePL.program := @mkbprogram BeePL_for_ex2.bcomposites 
-                                                   BeePL_for_ex2.global_definitions 
-                                                   BeePL_for_ex2.public_idents 
-                                                   BeePL_for_ex2._main 
-                                                   BeePL_for_ex2.bcomposite_correct.
+(*Definition example1 : BeePL.program := @mkbprogram bcomposites 
+                                                   global_definitions 
+                                                   public_idents 
+                                                   _main 
+                                                   bcomposite_correct
+                                                   ident_to_string.
 
-Compute (type_check_program example1).*)
+Compute (type_check_expr beepl_ef_env example1.(prog_comp_env) 
+                         (bind_vars (bind_vars empty_context f_for.(fn_args)) f_for.(fn_vars)) empty_context f_for.(fn_body)).
+Compute (type_check_program example1). *) (* Type checks *)

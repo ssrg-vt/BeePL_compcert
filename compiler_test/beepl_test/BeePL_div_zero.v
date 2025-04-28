@@ -58,4 +58,20 @@ Definition global_definitions : list (ident * AST.globdef BeePL.fundef type)
 
 Definition public_idents : list ident := (_main :: nil).
 
-(*Compute (type_check_expr empty_context empty_context f_div_zero.(fn_body)).*)
+Definition bcomposites : list bcomposite_definition := nil.
+
+Lemma bcomposite_correct :
+  wf_bcomposites bcomposites.
+Proof.
+  unfold wf_bcomposites.
+  unfold build_bcomposite_env; simpl; reflexivity.
+Qed.
+
+Definition example1 : BeePL.program := @mkbprogram bcomposites 
+                                                   global_definitions 
+                                                   public_idents 
+                                                   _main 
+                                                   bcomposite_correct
+                                                   ident_to_string.
+
+Compute (type_check_program example1).

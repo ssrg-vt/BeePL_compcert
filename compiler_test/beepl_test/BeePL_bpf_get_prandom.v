@@ -1,5 +1,4 @@
-
-Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values. 
+Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values BeePL_typechecker. 
 From Coq Require Import String ZArith.
 From compcert Require Import Csyntaxdefs.
 Import Csyntaxdefs.CsyntaxNotations.
@@ -73,15 +72,12 @@ Definition f_xdp_prog : BeePL.function := {|
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
                                    fn_args := (_ctx, Reftype _h (BeeTypes.Bstruct _xdp_md dattr) dattr) :: nil ;
-                                   fn_vars := ((_rand, BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)) :: 
+                                   fn_vars := ((_rand, BeeTypes.Ptype (BeeTypes.Tint I32 Ctypes.Unsigned dattr)) :: 
                                                 nil);
                                    fn_body := Bind 
                                                 (_rand) 
-                                                (Ptype (BeeTypes.Tint I32 Signed dattr))
-                                                (App (Var _bpf_get_prandom_u32 (Ftype nil (* args type signature *)
-                                                                                      nil (* effect *)
-                                                                                      (Ptype (BeeTypes.Tint I32 Unsigned dattr)))) 
-                                                  nil (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
+                                                (Ptype (BeeTypes.Tint I32 Unsigned dattr))
+                                                (Eapp bpf_external_function nil nil (Ptype (BeeTypes.Tint I32 Unsigned dattr))) 
                                                 (Const (ConsInt (Int.repr 1)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
                                              (Ptype (BeeTypes.Tint I32 Unsigned dattr))|}.
 
@@ -97,7 +93,7 @@ Definition bcomposites : list bcomposite_definition :=
 
 
 Definition f_main : BeePL.function := {| 
-                                   fn_return := (Ptype (BeeTypes.Tint I32 Signed dattr));
+                                   fn_return := (Ptype (BeeTypes.Tint I32 Unsigned dattr));
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
                                    fn_args := nil;
@@ -112,7 +108,7 @@ Definition f_main : BeePL.function := {|
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
    := (_bpf_get_prandom_u32, AST.Gfun(BeePL.External (bpf_external_function)
                                      nil
-                                     (Ptype (BeeTypes.Tint I32 Signed dattr))
+                                     (Ptype (BeeTypes.Tint I32 Unsigned dattr))
                                      (cc_default))) :: 
       (_xdp_prog, AST.Gfun(BeePL.Internal (f_xdp_prog))) ::
       (_main, AST.Gfun(BeePL.Internal (f_main))) :: nil.
@@ -126,4 +122,12 @@ Proof.
   unfold build_bcomposite_env; simpl; constructor. 
 Qed.
 
+(*Definition example1 : BeePL.program := @mkbprogram bcomposites 
+                                                   global_definitions 
+                                                   public_idents 
+                                                   _main 
+                                                   bcomposite_correct
+                                                   ident_to_string.*)
 
+
+(*Compute (type_check_program example1).*) (* Type checks *)

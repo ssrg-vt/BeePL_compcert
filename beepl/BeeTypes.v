@@ -32,7 +32,7 @@ end.
 Fixpoint is_stateful_effect (e : effect) : bool :=
 match e with 
 | nil => true
-| e :: es => is_stateful_effectlabel e && is_stateful_effect es
+| e :: es => is_stateful_effectlabel e || is_stateful_effect es
 end.
 
 Inductive primitive_type : Type :=
@@ -51,7 +51,7 @@ Inductive type : Type :=
 | Reftype : ident -> basic_type -> attr -> type           (* reference type ref<h,int> *)
 | Ftype : list type -> effect -> type -> type             (* function/arrow type *)
 | Stype : ident -> attr -> type                           (* struct *)
-| Otype : type -> type.                                   (* option type *)
+| Otype : type -> type.                                   (* option type : only contains ref *)
 
 Inductive wtype : Type :=
 | Twunit : wtype
@@ -112,8 +112,9 @@ Record bcomposite : Type := Build_bcomposite
     co_alignof_two_p : exists n : nat, co_alignof = two_power_nat n;
     co_sizeof_alignof : (co_alignof | co_sizeof) }.
 
-Definition _option_tag : ident := $"option_tag".
-Definition _option_val : ident := $"option_val".                     
+(* Reserved ident for option type conversion *)
+Definition option_tag : ident := $"option_tag".
+Definition option_val : ident := $"option_val".                     
 
 Section translate_types.
 
@@ -128,18 +129,68 @@ end.
 
 End translate_types.
 
-Definition create_ident_type (t : type) : ident :=
+Fixpoint create_ident_type (t : type) : ident :=
 match t with 
 | Ptype t => match t with 
-             | Tunit => $"option_tunit"
-             | Tbool => $"option_tbool"
-             | Tint sz s a => $"option_tint"
-             | Tlong s a => $"option_tlong"
+             | Tunit => $"option__tunit"
+             | Tbool => $"option__tbool"
+             | Tint sz s a => match sz with 
+                              | I8 => match s with 
+                                      | Ctypes.Unsigned => $("option__tint__i8__unsigned")
+                                      | Ctypes.Signed => $("option__tint__i8__signed")
+                                      end
+                              | I16 => match s with 
+                                       | Unsigned => $("option__tint__i16__unsigned")
+                                       | SIgned => $("option__tint__i16__signed")
+                                       end
+                              | I32 => match s with 
+                                       | Unsigned => $("option__tint__i32__unsigned")
+                                       | SIgned => $("option__tint__i32__signed")
+                                       end
+                             | IBool => match s with 
+                                       | Unsigned => $("option__tint__ib__unsigned")
+                                       | SIgned => $("option__tint__ib__signed")
+                                       end
+                             end
+             | Tlong s a => match s with 
+                            | Signed => $("option__tlong__signed")
+                            | Unsigned => $("option__tlong__unsigned")
+                            end
+
              end
-| Reftype h bt a => $"option_ref"
-| Ftype ts ef t => $"option_fun"
-| Stype x a => $"option_struct"
-| Otype t => $"option_t"
+| Reftype h bt a => match bt with 
+                    | Bprim p => match p with 
+                                 | Tunit => $"option__ref__tunit"
+                                 | Tbool => $"option__ref__tbool"
+                                 | Tint sz s a => match sz with 
+                                                  | I8 => match s with 
+                                                          | Ctypes.Unsigned => $("option__ref__tint__i8__unsigned")
+                                                          | Ctypes.Signed => $("option__ref__tint__i8__signed")
+                                                          end
+                                                  | I16 => match s with 
+                                                           | Unsigned => $("option__ref__tint__i16__unsigned")
+                                                           | SIgned => $("option__ref__tint__i16__signed")
+                                                           end
+                                                  | I32 => match s with 
+                                                           | Unsigned => $("option___ref__tint__i32__unsigned")
+                                                           | SIgned => $("option__ref__tint__i32__signed")
+                                                           end
+                                                  | IBool => match s with 
+                                                             | Unsigned => $("option__ref__tint__ib__unsigned")
+                                                             | SIgned => $("option__ref__tint__ib__signed")
+                                                             end
+                                                  end
+                                 | Tlong s a => match s with 
+                                                | Signed => $("option__ref__tlong__signed")
+                                                | Unsigned => $("option__ref__tlong__unsigned")
+                                                end
+                                 end
+                     | Bstruct x a => $("option__ref" ++ string_of_ident x)
+
+             end
+| Ftype ts ef t => $"option__fun"
+| Stype x a => $("option__struct" ++ string_of_ident x)
+| Otype t => $("option_o_ption__" ++ string_of_ident (create_ident_type t))
 end.
 
 Fixpoint transBeePL_type (t : BeeTypes.type) : Ctypes.type :=
@@ -161,7 +212,7 @@ match t with
                                        {| cc_vararg := Some (Z.of_nat(length(ts))); 
                                        cc_unproto := false; cc_structret := false |}) (* Fix me *) 
 | BeeTypes.Stype x a => (Tstruct x a)
-| BeeTypes.Otype t => Tstruct (create_ident_type t) (attr_of_type t) 
+| BeeTypes.Otype t => Ctypes.Tpointer (transBeePL_type t) (attr_of_type t)
 end.
 
 (* Custom induction principles for transBeePL_type *)
@@ -505,7 +556,7 @@ match e1, e2 with
 | Panic, Panic => true 
 | Divergence, Divergence => true 
 | Read id1, Read id2 => (id1 =? id2)%positive
-| Write id1, Read id2 => (id1 =? id2)%positive
+| Write id1, Write id2 => (id1 =? id2)%positive
 | Alloc id1, Alloc id2 => (id1 =? id2)%positive
 | Hstate id1, Hstate id2 => (id1 =? id2)%positive
 | _, _ => false
@@ -705,6 +756,8 @@ match p1, p2 with
 | Reftype e1 b1 a1, Reftype e2 b2 a2 => if attr_eq a1 a2  
                                         then (e1 =? e2)%positive && eq_basic_type b1 b2
                                         else false
+| Stype x1 a1, Stype x2 a2 => if (x1 =?  x2)%positive && attr_eq a1 a2 then true else false
+| Otype t1, Otype t2 => eq_type t1 t2
 | _, _ => false
 end. 
 
@@ -713,6 +766,10 @@ match t1, t2 with
 | Twunit, Twunit => true 
 | Twint, Twint => true 
 | Twlong, Twlong => true 
+| Twref, Twref => true
+| Twfun, Twfun => true
+| Twst, Twst => true
+| Twot, Twot => true
 | _, _ => false
 end.  
 
