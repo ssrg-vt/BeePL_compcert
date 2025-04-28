@@ -8,6 +8,8 @@ Local Open Scope gensym_monad_scope.
 (**** BeePL Compiler *****)
 Section transBeePL_exprs.
 
+Definition function_ctx := list (ident * BeeTypes.type * string). 
+
 Variables transBeePL_expr_expr : BeePL.expr -> list (ident * BeeTypes.type * string) -> mon (Csyntax.expr * list (ident * BeeTypes.type * string)).
 
 Definition max_fresh : nat := 1000%nat.
@@ -213,7 +215,7 @@ match e with
                      do (ce'', fn_ctx''') <- (transBeePL_expr_expr e'' fn_ctx'');
                      let ct := (transBeePL_type t) in
                      ret (Econdition ce ce' ce'' ct, fn_ctx''')  
-| Unit t=> let ct := (transBeePL_type t) in
+| Unit t => let ct := (transBeePL_type t) in
            ret (Eval (trans_bvalue_cvalue Vunit) ct, fn_ctx) (* Fix me *)
 | Addr l ofs t => let ct := transBeePL_type t in
                   ret (Eloc l.(lname) ofs l.(lbitfield) ct, fn_ctx)
