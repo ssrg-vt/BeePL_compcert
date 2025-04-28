@@ -1,8 +1,8 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx FunInd.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Linking.
-Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Linking Ctypes Smallstep SimplExpr.
+Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Linking Ctypes Ctypesdefs Smallstep SimplExpr.
 Require Import BeePL_aux BeePL_mem BeeTypes BeePL_values BeePL BeePL_typesystem Csyntax Csem Clight Globalenvs BeePL_Csyntax.
-Require Import Initializersproof Cstrategy BeePL_auxlemmas BeePL_notations Coqlib Errors.
+Require Import Initializersproof Cstrategy BeePL_auxlemmas Coqlib Errors.
 
 
 From mathcomp Require Import all_ssreflect. 
@@ -186,7 +186,7 @@ Inductive sim_bexpr_cstmt : vmap -> BeePL.expr -> function_ctx -> Csyntax.statem
                        transBeePL_type t = ct ->
                        sim_bexprs_cexprs le es ctx ces ctx' ->
                        sim_bexpr_cstmt le (BeePL.Prim Massgn es t) ctx (Sdo (Csyntax.Eassign
-                                                                        (hd default_expr (exprlist_list_expr ces))
+                                                                        (Csyntax.Ederef (hd default_expr (exprlist_list_expr ces)) (Csyntax.typeof (hd default_expr (exprlist_list_expr ces))))
                                                                         (hd default_expr (tl (exprlist_list_expr ces)))
                                                                         ct)) ctx'
 | sim_prim_uop_st : forall le ctx ctx' o es t ct ces, 
@@ -308,7 +308,34 @@ Inductive sim_bexpr_cstmt : vmap -> BeePL.expr -> function_ctx -> Csyntax.statem
 | sim_enone_st : forall le ctx t t',
                  t = Otype t' ->
                  is_reftype t' = true ->
-                 sim_bexpr_cstmt (BeePL.Enone t) ctx (Csyntax.Sdo ((Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t))))) ctx.
+                 sim_bexpr_cstmt le (BeePL.Enone t) ctx (Csyntax.Sdo ((Csyntax.Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t))))) ctx
+| sim_esome_st : forall le ctx e t t' cs,
+                 t = Otype t' ->
+                 is_reftype t' = true ->
+                 sim_bexpr_cstmt le e ctx cs ctx ->
+                 sim_bexpr_cstmt le (BeePL.Esome e t) ctx cs ctx
+| sim_match_fst_st : forall le ctx ctx' ctx'' ctx''' e pes t ce e1 e2 x ce1 ce2,
+                     sim_bexpr_cexpr le e ctx ce ctx' -> 
+                     length pes = 2%nat ->
+                     pes = ((Pnone, e1) :: (Psome x, e2) :: nil) ->
+                     sim_bexpr_cstmt le e1 ctx' ce1 ctx'' ->
+                     sim_bexpr_cstmt le e2 ctx'' ce2 ctx''' ->
+                     sim_bexpr_cstmt le (BeePL.Match e pes t) ctx
+                                  (Csyntax.Sifthenelse (Csyntax.Ebinop Cop.Oeq ce
+                                                (Csyntax.Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                               (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
+                                  ce1 ce2) ctx''
+| sim_match_snd_st : forall le ctx ctx' ctx'' ctx''' e pes t ce e1 e2 x ce1 ce2,
+                     sim_bexpr_cexpr le e ctx ce ctx' -> 
+                     length pes = 2%nat ->
+                     pes = ((Psome x, e1) :: (Pnone, e2) :: nil) ->
+                     sim_bexpr_cstmt le e1 ctx' ce1 ctx'' ->
+                     sim_bexpr_cstmt le e2 ctx'' ce2 ctx''' ->
+                     sim_bexpr_cstmt le (BeePL.Match e pes t) ctx
+                                  (Csyntax.Sifthenelse (Csyntax.Ebinop Cop.Oeq ce
+                                                (Csyntax.Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                               (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
+                                  ce2 ce1) ctx''.
 
 
 
