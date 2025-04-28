@@ -97,8 +97,6 @@ end.
 
 End Type_check_exprs.
 
-Definition mem_ident := 2%positive.
-
 Fixpoint type_check_expr (efenv : ef_env) (cenv : bcomposite_env) (Gamma : ty_context) (Sigma : store_context) (e : expr) : res (type * effect) :=
 match e with 
 | Val v t => OK (t, nil)

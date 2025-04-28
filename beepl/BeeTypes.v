@@ -129,6 +129,8 @@ end.
 
 End translate_types.
 
+Definition mem_ident : ident := $"mem_ident".
+
 Fixpoint create_ident_type (t : type) : ident :=
 match t with 
 | Ptype t => match t with 
