@@ -2,7 +2,7 @@ Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx FunI
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Linking.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Linking Ctypes Smallstep SimplExpr.
 Require Import BeePL_aux BeePL_mem BeeTypes BeePL_values BeePL BeePL_typesystem Csyntax Csem Clight Globalenvs BeePL_Csyntax.
-Require Import Initializersproof Cstrategy BeePL_auxlemmas Coqlib Errors.
+Require Import Initializersproof Cstrategy BeePL_auxlemmas BeePL_notations Coqlib Errors.
 
 
 From mathcomp Require Import all_ssreflect. 
@@ -178,40 +178,55 @@ Inductive sim_bexpr_cstmt : vmap -> BeePL.expr -> function_ctx -> Csyntax.statem
                                   (Csyntax.Ssequence
                                        (Sdo (Csyntax.Eassign (Csyntax.Evar id cpty) (hd default_expr (exprlist_list_expr ces)) cpty))
                                        (Sdo (Csyntax.Eaddrof (Csyntax.Evar id ct) ct))) ctx''
-| sim_prim_deref_st : forall le es t ct ces,
+| sim_prim_deref_st : forall le ctx ctx' es t ct ces,
                      transBeePL_type t = ct ->
-                     sim_bexprs_cexprs le es ces ->
-                     sim_bexpr_cstmt le (BeePL.Prim Deref es t) (Sdo (Csyntax.Evalof (hd default_expr (exprlist_list_expr ces)) ct))
-| sim_prim_massgn_st : forall le es t ces ct,
+                     sim_bexprs_cexprs le es ctx ces ctx' ->
+                     sim_bexpr_cstmt le (BeePL.Prim Deref es t) ctx (Sdo (Csyntax.Evalof (hd default_expr (exprlist_list_expr ces)) ct)) ctx'
+| sim_prim_massgn_st : forall le ctx ctx' es t ces ct,
                        transBeePL_type t = ct ->
-                       sim_bexprs_cexprs le es ces ->
-                       sim_bexpr_cstmt le (BeePL.Prim Massgn es t) (Sdo (Csyntax.Eassign
+                       sim_bexprs_cexprs le es ctx ces ctx' ->
+                       sim_bexpr_cstmt le (BeePL.Prim Massgn es t) ctx (Sdo (Csyntax.Eassign
                                                                         (hd default_expr (exprlist_list_expr ces))
                                                                         (hd default_expr (tl (exprlist_list_expr ces)))
-                                                                        ct))
-| sim_prim_uop_st : forall le o es t ct ces, 
+                                                                        ct)) ctx'
+| sim_prim_uop_st : forall le ctx ctx' o es t ct ces, 
                     transBeePL_type t = ct ->
-                    sim_bexprs_cexprs le es ces ->
-                    sim_bexpr_cstmt le (BeePL.Prim (Uop o) es t) (Sdo (Csyntax.Eunop o (hd default_expr (exprlist_list_expr ces)) ct))
-| sim_prim_bop_undef_st : forall le o es t ct v,
+                    sim_bexprs_cexprs le es ctx ces ctx' ->
+                    sim_bexpr_cstmt le (BeePL.Prim (Uop o) es t) ctx (Sdo (Csyntax.Eunop o (hd default_expr (exprlist_list_expr ces)) ct)) ctx'
+| sim_prim_bop_undef_st : forall le ctx o es t ct v g g' i,
                  transBeePL_type t = ct ->
-                 return_czero ct g' = Res v g'' i'' ->
-                 sim_bexpr_cstmt le (BeePL.Prim (Bop o) es t) (Sdo (Eval v ct))
-| sim_prim_bop_st : forall le o es t ct ces,
-                    transBeePL_type t g = ct ->
-                    sim_bexprs_cexprs le es ces ->
-                    sim_bexpr_cstmt le (BeePL.Prim (Bop o) es t) (Sdo (Csyntax.Ebinop o 
+                 return_czero ct g = Res v g' i ->
+                 sim_bexpr_cstmt le (BeePL.Prim (Bop o) es t) ctx (Sdo (Eval v ct)) ctx
+| sim_prim_bop_st : forall le ctx ctx' o es t ct ces,
+                    transBeePL_type t = ct ->
+                    sim_bexprs_cexprs le es ctx ces ctx' ->
+                    sim_bexpr_cstmt le (BeePL.Prim (Bop o) es t) ctx (Sdo (Csyntax.Ebinop o 
                                                                       (hd default_expr (exprlist_list_expr ces))
                                                                       (hd default_expr (tl (exprlist_list_expr ces)))
-                                                                      ct))
-| sim_prim_run_st : forall le es h t,
-                    sim_bexpr_cstmt le (BeePL.Prim (Run h) es t) (Sdo (Eval (Values.Vundef) Tvoid)) (* Fix me *)
-| sim_bind_st : forall le x t e e' t' ct ce ce' g g' i', (* Fix me *)
-                transBeePL_type t g = Res ct g' i' ->
-                sim_bexpr_cexpr le e ce ->
-                sim_bexpr_cstmt le e' ce' ->
-                sim_bexpr_cstmt le (BeePL.Bind x t e e' t') 
-                                   (Csyntax.Ssequence (Sdo (Eassign (Csyntax.Evar x ct) ce Tvoid)) ce')
+                                                                      ct)) ctx'
+| sim_prim_run_st : forall le ctx es h t,
+                    sim_bexpr_cstmt le (BeePL.Prim (Run h) es t) ctx (Sdo (Eval (Values.Vundef) Tvoid)) ctx
+(* The t in Prim Massgn is shadowed, may need to add another one *)
+| sim_bind_massgn_st : forall le ctx ctx' ctx'' x t e e' t' ct ce ce' es,
+                       transBeePL_type t = ct ->
+                       sim_bexpr_cstmt le e' ctx ce' ctx' ->
+                       e = Prim Massgn es t ->
+                       sim_bexpr_cexpr le e ctx' ce ctx'' ->
+                       sim_bexpr_cstmt le (BeePL.Bind x t e e' t') ctx
+                                          (Csyntax.Ssequence (Sdo ce) ce') ctx''
+| sim_bind_for_st : forall le ctx ctx' ctx'' x t e e' t' ct cs ce' e1 e2 d e3,
+                    transBeePL_type t = ct ->
+                    sim_bexpr_cstmt le e' ctx ce' ctx' ->
+                    e = For x e1 e2 d e3 t ->
+                    sim_bexpr_cstmt le e ctx' cs ctx'' ->
+                    sim_bexpr_cstmt le (BeePL.Bind x t e e' t') ctx
+                                       (Csyntax.Ssequence cs ce') ctx''
+| sim_bind_st : forall le ctx ctx' ctx'' x t e e' t' ct ce ce', (* Fix me *)
+                transBeePL_type t = ct ->
+                sim_bexpr_cstmt le e' ctx ce' ctx' ->
+                sim_bexpr_cexpr le e ctx' ce ctx'' ->
+                sim_bexpr_cstmt le (BeePL.Bind x t e e' t') ctx
+                                   (Csyntax.Ssequence (Sdo (Eassign (Csyntax.Evar x ct) ce Tvoid)) ce') ctx''
 (*
 | sim_cond_vars_st : forall le e1 e2 e3 t ct ce1 ce2 ce3 g g' i',
                      transBeePL_type t g = Res ct g' i' ->
@@ -239,28 +254,63 @@ Inductive sim_bexpr_cstmt : vmap -> BeePL.expr -> function_ctx -> Csyntax.statem
                      sim_bexpr_cstmt le (BeePL.Cond e1 e2 e3 t) 
                                         (Csyntax.Sifthenelse ce1 (Csyntax.Sdo ce2) (Csyntax.Sreturn (Some (Evalof ce3 ct))))
 *)                    
-| sim_cond_st : forall le e1 e2 e3 t ct ce1 ce2 ce3,
+| sim_cond_st : forall le ctx ctx' ctx'' ctx''' e1 e2 e3 t ct ce1 ce2 ce3,
                 transBeePL_type t = ct ->
-                sim_bexpr_cexpr le e1 ce1 ->
-                sim_bexpr_cstmt le e2 ce2 ->
-                sim_bexpr_cstmt le e3 ce3 ->
-                sim_bexpr_cstmt le (BeePL.Cond e1 e2 e3 t) 
-                                   (Csyntax.Sifthenelse ce1 ce2 ce3)
-| sim_unit_st : forall le t ct,
+                sim_bexpr_cexpr le e1 ctx ce1 ctx' ->
+                sim_bexpr_cstmt le e2 ctx' ce2 ctx'' ->
+                sim_bexpr_cstmt le e3 ctx'' ce3 ctx''' ->
+                sim_bexpr_cstmt le (BeePL.Cond e1 e2 e3 t) ctx'
+                                   (Csyntax.Sifthenelse ce1 ce2 ce3) ctx'''
+| sim_unit_st : forall le ctx t ct,
                 transBeePL_type t = ct ->
-                sim_bexpr_cstmt le (BeePL.Unit t) (Csyntax.Sreturn (Some (Eval (Values.Vint (Int.repr 0)) (Ctypes.Tint I32 Unsigned noattr))))
-| sim_addr_st : forall le l ofs t ct,
+                sim_bexpr_cstmt le (BeePL.Unit t) ctx (Csyntax.Sskip) ctx
+| sim_addr_st : forall le ctx l ofs t ct,
                 transBeePL_type t = ct ->
-                sim_bexpr_cstmt le (BeePL.Addr l ofs t) (Csyntax.Sdo (Csyntax.Eloc l.(lname) ofs l.(lbitfield) ct))
-| sim_hexpr_st : forall le h e t, (* Fix me *)
-                 sim_bexpr_cstmt le (BeePL.Hexpr h e t) (Sdo (Eval (Values.Vundef) Tvoid))
-| sim_eapp_st : forall le ef ts es t ce cts ces ct g1 g2 i2 g3 i3 g4 i4,
-               befunction_to_cefunction ef g1 = Res ce g2 i2 ->
-               transBeePL_types transBeePL_type ts g2 = Res cts g3 i3 ->
-               transBeePL_type t g3 = Res ct g4 i4 ->
-               sim_bexprs_cexprs le es ces ->
-               sim_bexpr_cstmt le (BeePL.Eapp ef ts es t)
-                              (Csyntax.Sdo (Csyntax.Ebuiltin ce cts ces ct)).
+                sim_bexpr_cstmt le (BeePL.Addr l ofs t) ctx (Csyntax.Sdo (Csyntax.Eloc l.(lname) ofs l.(lbitfield) ct)) ctx
+| sim_hexpr_st : forall le ctx h e t, (* Fix me *)
+                 sim_bexpr_cstmt le (BeePL.Hexpr h e t) ctx (Sdo (Eval (Values.Vundef) Tvoid)) ctx
+| sim_eapp_st : forall le ctx ctx' ef ts es t cef cts ct ces,
+               befunction_to_cefunction ef = cef ->
+               transBeePL_types transBeePL_type ts = cts ->
+               transBeePL_type t = ct ->
+               sim_bexprs_cexprs le es ctx ces ctx' ->
+               sim_bexpr_cstmt le (BeePL.Eapp ef ts es t) ctx
+                              (Csyntax.Sdo (Csyntax.Ebuiltin cef cts ces ct)) ctx
+| sim_sfield_st : forall le ctx ctx' e x t ce ct,
+                  transBeePL_type t = ct ->
+                  sim_bexpr_cexpr le e ctx ce ctx' ->
+                  sim_bexpr_cstmt le (BeePL.Sfield e x t) ctx
+                                     (Csyntax.Sdo (Evalof (Csyntax.Efield (Evalof ce (transBeePL_type (typeof_expr e))) x ct) ct)) ctx'
+| sim_for_up_st : forall le ctx ctx' ctx'' ctx''' x e1 e2 d e t ce1 ce2 ce3,
+                  sim_bexpr_cexpr le e1 ctx ce1 ctx' ->
+                  sim_bexpr_cexpr le e2 ctx' ce2 ctx'' ->
+                  sim_bexpr_cstmt le e ctx'' ce3 ctx''' ->
+                  is_primunsigned_int_long (typeof_expr e1) (typeof_expr e2) = true ->
+                  check_range_expr e1 e2 d = true ->
+                  d = Up ->
+                  sim_bexpr_cstmt le (BeePL.For x e1 e2 d e t) ctx (Csyntax.Sfor (Sdo (Eassign (Csyntax.Evar x (Ctypes.Tint I32 Unsigned noattr)) ce1 (Ctypes.Tint I32 Unsigned noattr)))
+                                                   (Csyntax.Ebinop Cop.Ole (Evalof (Csyntax.Evar x (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr))
+                                                    ce2 (Ctypes.Tint I32 Unsigned noattr))
+                                                   (Sdo (Epostincr Cop.Incr (Csyntax.Evar x (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr)))
+                                                   ce3) ctx'''
+| sim_for_down_st : forall le ctx ctx' ctx'' ctx''' x e1 e2 d e t ce1 ce2 ce3,
+                  sim_bexpr_cexpr le e1 ctx ce1 ctx' ->
+                  sim_bexpr_cexpr le e2 ctx' ce2 ctx'' ->
+                  sim_bexpr_cstmt le e ctx'' ce3 ctx''' ->
+                  is_primunsigned_int_long (typeof_expr e1) (typeof_expr e2) = true ->
+                  check_range_expr e1 e2 d = true ->
+                  d = Down ->
+                  sim_bexpr_cstmt le (BeePL.For x e1 e2 d e t) ctx (Csyntax.Sfor (Sdo (Eassign (Csyntax.Evar x (Ctypes.Tint I32 Unsigned noattr)) ce1 (Ctypes.Tint I32 Unsigned noattr)))
+                                                   (Csyntax.Ebinop Cop.Oge (Evalof (Csyntax.Evar x (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr))
+                                                    ce2 (Ctypes.Tint I32 Unsigned noattr))
+                                                   (Sdo (Epostincr Cop.Decr (Csyntax.Evar x (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr)))
+                                                   ce3) ctx'''
+| sim_enone_st : forall le ctx t t',
+                 t = Otype t' ->
+                 is_reftype t' = true ->
+                 sim_bexpr_cstmt (BeePL.Enone t) ctx (Csyntax.Sdo ((Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t))))) ctx.
+
+
 
 
 (***** Specification for types *****) 

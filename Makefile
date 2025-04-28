@@ -28,7 +28,7 @@ else
 ARCHDIRS=$(ARCH)_$(BITSIZE) $(ARCH)
 endif
 
-DIRS := lib beepl common $(ARCHDIRS) backend cfrontend driver export cparser
+DIRS := lib beepl common $(ARCHDIRS) ebpf backend cfrontend driver export cparser
 
 COQINCLUDES := $(foreach d, $(DIRS), -R $(d) compcert.$(d))
 
@@ -151,6 +151,14 @@ BACKEND=\
   Bounds.v Stacklayout.v Stacking.v Stackingproof.v \
   Asm.v Asmgen.v Asmgenproof0.v Asmgenproof1.v Asmgenproof.v
 
+# EBPF modules
+
+EBPF=Archi.v Asm.v Asmgen.v Asmgenproof.v Asmgenproof1.v Builtins1.v \
+  CombineOp.v CombineOpproof.v ConstpropOp.v ConstpropOpproof.v \
+  Conventions1.v extractionMachdep.v Machregs.v Mulh.v NeedOp.v Op.v \
+  SelectLong.v SelectLongproof.v SelectOp.v SelectOpproof.v Size.v \
+  Stacklayout.v ValueAOp.v
+
 # C front-end modules (in cfrontend/)
 
 CFRONTEND=BeePL_mem.v BeePL_aux.v BeePL.v BeePL_notations.v BeePL_auxlemmas.v BeePL_sem.v BeePL_typechecker.v BeePL_typesystem.v \
@@ -190,7 +198,7 @@ endif
 
 # All source files
 
-FILES=$(VLIB) $(BEEPL) $(COMMON) $(BACKEND) $(CFRONTEND) $(DRIVER) $(FLOCQ) \
+FILES=$(VLIB) $(BEEPL) $(COMMON) $(EBPF) $(BACKEND) $(CFRONTEND) $(DRIVER) $(FLOCQ) \
   $(MENHIRLIB) $(PARSER) $(EXPORTLIB)
 
 # Generated source files
