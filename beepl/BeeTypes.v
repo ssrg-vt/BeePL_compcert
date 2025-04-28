@@ -32,7 +32,7 @@ end.
 Fixpoint is_stateful_effect (e : effect) : bool :=
 match e with 
 | nil => true
-| e :: es => is_stateful_effectlabel e && is_stateful_effect es
+| e :: es => is_stateful_effectlabel e || is_stateful_effect es
 end.
 
 Inductive primitive_type : Type :=
