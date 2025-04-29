@@ -34,7 +34,7 @@ match e with
 | Hexpr m e t => false (* fix me *)
 | BeePL.Eapp ef ts es t => true (* fix me *)
 | Sfield _ _ _ => false
-| For x e1 e2 d e t => is_stateful_expr e 
+| For e1 e2 d e t => is_stateful_expr e 
 | Enone t => false
 | Esome e t => is_stateful_expr e
 | Match e pes t => false (* fix me *)
@@ -167,11 +167,11 @@ Inductive bsem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
                 field_offset (bcomposite_composite_env ge.(genv_cenv)) f (bmembers_cmembers (co_members co)) = OK (delta, bf) ->
                 bsem_expr vm m (Sfield e f t)  
                                m vm (Vloc b (Ptrofs.add ofs (Ptrofs.repr delta))) 
-| bsem_bfor : forall i e1 e2 d e3 lo hi vm m vm' m' vm'' m'' v t,
+(*| bsem_bfor : forall i e1 e2 d e3 lo hi vm m vm' m' vm'' m'' v t,
              bsem_expr vm m e1 m' vm' (Vint lo) ->
              bsem_expr vm' m' e2 m'' vm'' (Vint hi) ->
              bsem_for vm' m' (wrange d (Int.intval lo) (Int.intval hi)) i e3 m'' vm'' v ->
-             bsem_expr vm m (For i e1 e2 d e3 t) m'' vm'' v
+             bsem_expr vm m (For e1 e2 d e3 t) m'' vm'' v*)
 (* fix me : add semantics for hexpr *)
 with bsem_exprs : vmap -> Memory.mem -> list BeePL.expr -> Memory.mem -> vmap -> list value -> Prop :=
 | bsem_nil : forall vm m,
@@ -179,16 +179,16 @@ with bsem_exprs : vmap -> Memory.mem -> list BeePL.expr -> Memory.mem -> vmap ->
 | bsem_cons : forall vm m m' m'' v vs e es vm' vm'',
               bsem_expr vm m e m' vm' v ->
               bsem_exprs vm' m' es m'' vm'' vs ->
-              bsem_exprs vm m (e :: es) m'' vm'' (v :: vs)
+              bsem_exprs vm m (e :: es) m'' vm'' (v :: vs).
 
-with bsem_for : vmap -> Memory.mem -> list int -> ident -> expr -> Memory.mem -> vmap -> value -> Prop :=
+(*with bsem_for : vmap -> Memory.mem -> list int -> ident -> expr -> Memory.mem -> vmap -> value -> Prop :=
 | bsem_for_nil : forall vm m i e,
                  bsem_for vm m [::] i e m vm Vunit
 | bsem_for_one : forall vm m t e i w ws m' vm'' m'' vm''' m''' v v',
                  bsem_expr vm m (Prim Massgn ((Var i t) :: (Val (Vint w) t) :: nil) (Ptype Tunit)) m' vm (Vint w) ->
                  bsem_expr vm m' e m'' vm'' v ->
                  bsem_for vm'' m'' ws i e m''' vm''' v' ->
-                 bsem_for vm m (w :: ws) i e m''' vm''' v'. 
+                 bsem_for vm m (w :: ws) i e m''' vm''' v'.*) 
 
 End Big_Step_Semantics.
 

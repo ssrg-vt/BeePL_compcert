@@ -19,12 +19,10 @@ int main() {
 
 Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
 Definition _x : ident := $"x".
-Definition _i : ident := $"i".
 Definition _t : ident := $"t".
 Definition _main : ident := $"main".
 
 Definition ident_to_string : list (ident * string) := ((_x, "x") :: 
-                                                      (_i, "i") :: 
                                                       (_t, "t") ::
                                                       (_main, "main") :: nil).
 
@@ -34,13 +32,12 @@ Definition f_for : BeePL.function := {|
                                    fn_callconv := cc_default;
                                    fn_args := nil;
                                    fn_vars := ((_x, (Reftype mem_ident (Bprim (Tint I32 Unsigned dattr)) dattr)) :: 
-                                               (_i, Ptype (Tint I32 Unsigned dattr)) :: 
                                                (_t, Ptype (Tint I32 Unsigned dattr)) :: nil);
                                    fn_body := (Bind _x (Reftype mem_ident (Bprim (Tint I32 Unsigned dattr)) dattr)
                                                        (Prim Ref ((Const (ConsInt (Int.repr 0)) (Ptype (Tint I32 Unsigned dattr))) :: nil)
                                                              (Reftype mem_ident (Bprim (Tint I32 Unsigned dattr)) dattr))
                                                        (Bind _t (Ptype Tunit)
-                                                          (For _i 
+                                                          (For 
                                                              (Const (ConsInt (Int.repr 1)) (Ptype (Tint I32 Unsigned dattr)))
                                                              (Const (ConsInt (Int.repr 5)) (Ptype (Tint I32 Unsigned dattr)))
                                                              Up
@@ -80,6 +77,6 @@ Qed.
                                                    bcomposite_correct
                                                    ident_to_string.
 
-Compute (type_check_expr beepl_ef_env example1.(prog_comp_env) 
+Compute (type_check_expr example1.(prog_comp_env) 
                          (bind_vars (bind_vars empty_context f_for.(fn_args)) f_for.(fn_vars)) empty_context f_for.(fn_body)).
-Compute (type_check_program example1).*) (* Type checks *)
+Compute (type_check_program example1). *) (* Type checks *)

@@ -399,6 +399,18 @@ match t with
 | _ => false
 end.
 
+Definition is_primint32 (t : type) : bool :=
+match t with 
+| Ptype p => match p with 
+             | Tunit => false
+             | Tbool => false
+             | Tint I32 _ _ => true 
+             | Tlong _ _ => false
+             | _ => false
+             end
+| _ => false
+end.
+
 Definition is_primunsigned_int_long (t1 t2 : type) : bool :=
 match t1, t2 with 
 | Ptype p1, Ptype p2 => match p1, p2 with 

@@ -158,7 +158,7 @@ match e with
 | Eapp ef ts es t => flatten (map gen_safe_cond_expr es)
 | Hexpr h e t => [::] (* fix me *)
 | Sfield x a t => [::]
-| For x e1 e2 d e t => [::]
+| For e1 e2 d e t => [::]
 | Enone t => [::]
 | Esome e t => [::]
 | Match e pes t => [::]

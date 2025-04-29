@@ -1,6 +1,6 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx Coq.Strings.BinaryString.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Coq.Lists.List.
-Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes Coqlib SimplExpr Csyntaxdefs.
+Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes Coqlib SimplExpr Csyntaxdefs BeePL_notations.
 Require Import BeePL_aux BeePL BeeTypes Csyntax Errors SimplExpr BeePL_values DecimalString BeePL_Option_Struct BeePL_Check_Reserved_Struct.
 
 Local Open Scope string_scope.
@@ -345,7 +345,7 @@ end
 | Sfield e x t => do (ce, fn_ctx') <- transBeePL_expr_expr e fn_ctx;
                   let ct := transBeePL_type t in
                   ret (Efield (Evalof ce (transBeePL_type (typeof_expr e))) x ct, fn_ctx')
-| For x e1 e2 d e t => error (msg "COMPILER ERROR: For loop cannot be translated to another C expr")
+| For e1 e2 d e t => error (msg "COMPILER ERROR: For loop cannot be translated to another C expr")
 | Enone t => match t with 
              | Otype t' => if is_reftype t'
                            then ret ((Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t))), fn_ctx)
@@ -390,7 +390,6 @@ match e with
 | Const c t => true 
 | _ => false
 end.
-
 
 Fixpoint transBeePL_expr_st (e : BeePL.expr ) (ctx : list (ident * BeeTypes.type * string)) : mon (Csyntax.statement * list (ident * BeeTypes.type * string)) :=
 match e with 
@@ -466,7 +465,7 @@ match e with
                       do (ce', ctx') <- (transBeePL_expr_st e' ctx);
                       match e with 
                       | Prim Massgn es t => do (ce, ctx'') <- (transBeePL_expr_expr e ctx'); ret (Ssequence (Sdo ce) ce', ctx'') 
-                      | For x e1 e2 d e3 t => do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')                 
+                      | For e1 e2 d e3 t => do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')                 
                       | _ =>  do (ce, ctx'') <- (transBeePL_expr_expr e ctx');
                                     ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
                                            (ce'), ctx'')
@@ -494,25 +493,33 @@ match e with
 | Sfield e x t => do (ce, ctx') <- transBeePL_expr_expr e ctx;
                   let ct := transBeePL_type t in
                   ret (Sdo (Evalof (Efield (Evalof ce (transBeePL_type (typeof_expr e))) x ct) ct), ctx')
-| For x e1 e2 d e t => do (ce1, ctx') <- transBeePL_expr_expr e1 ctx;
-                       do (ce2, ctx'') <- transBeePL_expr_expr e2 ctx';
-                       do (ce3, ctx''') <- transBeePL_expr_st e ctx'';
-                       if negb (is_primunsigned_int_long (typeof_expr e1) (typeof_expr e2))
-                       then error (msg "The type of range expr should be always unsigned int or long")
-                       else if check_range_expr e1 e2 d 
-                            then error (msg "The loop has crossed the limit of 8 * 1024 * 1024")
-                            else match d with
-                                 | Up => ret (Sfor (Sdo (Eassign (Evar x (Ctypes.Tint I32 Unsigned noattr)) ce1 (Ctypes.Tint I32 Unsigned noattr)))
-                                                   (Ebinop Cop.Ole (Evalof (Evar x (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr))
-                                                    ce2 (Ctypes.Tint I32 Unsigned noattr))
-                                                   (Sdo (Epostincr Cop.Incr (Evar x (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr)))
-                                                   ce3, ctx''')
-                                 | Down => ret (Sfor (Sdo (Eassign (Evar x (Ctypes.Tint I32 Unsigned noattr)) ce1 (Ctypes.Tint I32 Unsigned noattr)))
-                                                  (Ebinop Cop.Oge (Evalof (Evar x (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr))
-                                                     ce2 (Ctypes.Tint I32 Unsigned noattr))
-                                                  (Sdo (Epostincr Cop.Decr (Evar x (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr)))
-                                                  ce3, ctx''')
-                                end  
+| For e1 e2 d e t => do (ce1, ctx1) <- transBeePL_expr_expr e1 ctx;
+                     do (low, strl) <- (fresh_ident (List.map unzip_ident ctx1) max_fresh);
+                     let ctx2 := (low, typeof_expr e1, strl) :: ctx1 in
+                     do (ce2, ctx3) <- transBeePL_expr_expr e2 ctx2;
+                     do (high, strh) <- (fresh_ident (List.map unzip_ident ctx3) max_fresh);
+                     let ctx4 := (high, typeof_expr e2, strh) :: ctx3 in
+                     do (ce3, ctx5) <- transBeePL_expr_st e ctx4;
+                     do (i, stri) <- (fresh_ident (List.map unzip_ident ctx4) max_fresh);
+                     let ctx6 := (i, typeof_expr e1, stri) :: ctx5 in
+                     match d with 
+                     | Up => ret (Ssequence (Ssequence (Sdo (Eassign (Evar low (typeof ce1)) ce1 (typeof ce1)))
+                                                       (Sdo (Eassign (Evar high (typeof ce2)) ce2 (typeof ce2))))
+                                            (Sifthenelse (Ebinop Cop.Ole (Evar low (typeof ce1)) (Evar high (typeof ce2)) (typeof ce1))
+                                                         (Sfor (Sdo (Eassign (Evar i (typeof ce1)) (Evar low (typeof ce1)) (typeof ce1)))
+                                                               (Ebinop Cop.Ole (Evalof (Evar i (typeof ce2)) (typeof ce2)) (Evar high (typeof ce2)) (typeof ce2))
+                                                               (Sdo (Epostincr Cop.Incr (Evar i (typeof ce2)) (typeof ce2)))
+                                                          ce3)
+                                                         Sskip), ctx6)
+                     | Down => ret (Ssequence (Ssequence (Sdo (Eassign (Evar low (typeof ce1)) ce1 (typeof ce1)))
+                                                         (Sdo (Eassign (Evar high (typeof ce2)) ce2 (typeof ce2))))
+                                              (Sifthenelse (Ebinop Cop.Oge (Evar low (typeof ce1)) (Evar high (typeof ce2)) (typeof ce1))
+                                                           (Sfor (Sdo (Eassign (Evar i (typeof ce1)) (Evar low (typeof ce1)) (typeof ce1)))
+                                                                 (Ebinop Cop.Oge (Evalof (Evar i (typeof ce2)) (typeof ce2)) (Evar high (typeof ce2)) (typeof ce2))
+                                                                 (Sdo (Epostincr Cop.Decr (Evar i (typeof ce2)) (typeof ce2)))
+                                                            ce3)
+                                                            Sskip), ctx6)
+                     end
 | Enone t => match t with 
              | Otype t' => if is_reftype t'
                            then ret (Sdo ((Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))), ctx)

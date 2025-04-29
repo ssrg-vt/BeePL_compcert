@@ -200,7 +200,7 @@ match e with
                             | Cop.Odiv => match es with 
                                           | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
                                                            do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
-                                                           if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_type te1 t) 
+                                                           if (eq_type te1 te2 && (is_primint32 te1 || is_primlong te1) && eq_type te1 t) 
                                                            then OK(te1, ef1 ++ ef2)
                                                            else Error (msg "TYPE ERROR: Wrong argument types to div operator, it expects int or long as argument")
                                           | _ => Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
@@ -208,7 +208,7 @@ match e with
                             | Cop.Omod => match es with 
                                           | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
                                                            do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
-                                                           if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_type te1 t) 
+                                                           if (eq_type te1 te2 && (is_primint32 te1 || is_primlong te1) && eq_type te1 t) 
                                                            then OK(te1, ef1 ++ ef2)
                                                            else Error (msg "TYPE ERROR: Wrong argument types to mod operator, it expects int or long as argument") 
                                           | _ => Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
@@ -240,7 +240,7 @@ match e with
                             | Cop.Oshl => match es with 
                                           | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
                                                            do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
-                                                           if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_type te1 t) 
+                                                           if (eq_type te1 te2 && (is_primint32 te1 || is_primlong te1) && eq_type te1 t) 
                                                            then OK(te1, ef1 ++ ef2)
                                                            else Error (msg "TYPE ERROR: Wrong argument types to shl operator, it expects int or long as argument")
                                           | _ =>  Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
@@ -248,7 +248,7 @@ match e with
                             | Cop.Oshr => match es with 
                                           | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
                                                            do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
-                                                           if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_type te1 t) 
+                                                           if (eq_type te1 te2 && (is_primint32 te1 || is_primlong te1) && eq_type te1 t) 
                                                            then OK(te1, ef1 ++ ef2)
                                                            else Error (msg "TYPE ERROR: Wrong argument types to shr operator, it expects int or long as argument")
                                           | _ =>  Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
@@ -337,13 +337,13 @@ match e with
                                   end
                   | _ => Error (msg "TYPE ERROR: Should be a struct type")
                   end
-| For x e1 e2 d e t => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
+| For e1 e2 d e t =>   do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
                        do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                        do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                        if (eq_type te1 te2 
                            && eq_effect ef1 nil 
                            && eq_effect ef2 nil 
-                           && is_primunsigned_int_long te1 te2
+                           && ((is_primint te1) || (is_primlong te2))
                            && eq_type te t)
                        then OK(te, ef1 ++ ef2 ++ ef)
                        else Error (msg "TYPE ERROR: The range type should be unsigned int or long and the inferred type does not match")
