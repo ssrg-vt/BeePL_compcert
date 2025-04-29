@@ -1,4 +1,4 @@
-Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values BeePL_typechecker. 
+Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values BeePL_typechecker BeePL_notations. 
 From Coq Require Import String ZArith.
 From compcert Require Import Csyntaxdefs.
 Import Csyntaxdefs.CsyntaxNotations.
@@ -77,7 +77,7 @@ Definition f_xdp_prog : BeePL.function := {|
                                    fn_body := Bind 
                                                 (_rand) 
                                                 (Ptype (BeeTypes.Tint I32 Unsigned dattr))
-                                                (Eapp bpf_external_function nil nil (Ptype (BeeTypes.Tint I32 Unsigned dattr))) 
+                                                (App (Var _bpf_get_prandom_u32 (Ftype nil nil (Ptype (BeeTypes.Tint I32 Unsigned dattr)))) nil tint32u)
                                                 (Const (ConsInt (Int.repr 1)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
                                              (Ptype (BeeTypes.Tint I32 Unsigned dattr))|}.
 
@@ -122,12 +122,12 @@ Proof.
   unfold build_bcomposite_env; simpl; constructor. 
 Qed.
 
-(*Definition example1 : BeePL.program := @mkbprogram bcomposites 
+Definition example1 : BeePL.program := @mkbprogram bcomposites 
                                                    global_definitions 
                                                    public_idents 
                                                    _main 
                                                    bcomposite_correct
-                                                   ident_to_string.*)
+                                                   ident_to_string.
 
 
-(*Compute (type_check_program example1).*) (* Type checks *)
+Compute (type_check_program example1). (* Type checks *)

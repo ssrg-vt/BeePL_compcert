@@ -148,6 +148,102 @@ match t with
 | Tunion _ _ => error (msg "No default value for function")
 end.
 
+Definition check_div (ces : exprlist) (v : Values.val) (t : Ctypes.type) : mon Csyntax.expr :=
+match t with 
+| Ctypes.Tint I32 Signed _ => ret (Econdition (Ebinop Cop.Oor (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                     (Eval (Values.Vint Int.zero) t) t)
+                                                      (Ebinop Cop.Oand (Ebinop Cop.Oeq (hd default_expr (exprlist_list_expr ces))
+                                                                                        (Eval (Values.Vint (Int.repr Int.min_signed)) t) t)
+                                                                       (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                                        (Eval (Values.Vint Int.mone) t) t) t) t)
+                                     (Eval v t)
+                                     (Ebinop (Cop.Odiv) (hd default_expr (exprlist_list_expr ces)) 
+                                                        (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| Ctypes.Tint I32 Unsigned _ => ret (Econdition (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                     (Eval (Values.Vint Int.zero) t) t)
+                                            (Eval v t)
+                                            (Ebinop (Cop.Odiv) (hd default_expr (exprlist_list_expr ces)) 
+                                                        (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| Ctypes.Tlong Signed _ => ret (Econdition (Ebinop Cop.Oor (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                     (Eval (Values.Vlong Int64.zero) t) t)
+                                                      (Ebinop Cop.Oand (Ebinop Cop.Oeq (hd default_expr (exprlist_list_expr ces))
+                                                                                        (Eval (Values.Vlong (Int64.repr Int64.min_signed)) t) t)
+                                                                       (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                                        (Eval (Values.Vlong Int64.mone) t) t) t) t)
+                                     (Eval v t)
+                                     (Ebinop (Cop.Odiv) (hd default_expr (exprlist_list_expr ces)) 
+                                                        (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| Ctypes.Tlong Unsigned _ => ret (Econdition (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                     (Eval (Values.Vlong Int64.zero) t) t)
+                                            (Eval v t)
+                                            (Ebinop (Cop.Odiv) (hd default_expr (exprlist_list_expr ces)) 
+                                                        (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| _ => error (msg "The type of argument of div should be int or long")
+end.
+
+Definition check_mod (ces : exprlist) (v : Values.val) (t : Ctypes.type) : mon Csyntax.expr :=
+match t with 
+| Ctypes.Tint I32 Signed _ => ret (Econdition (Ebinop Cop.Oor (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                     (Eval (Values.Vint Int.zero) t) t)
+                                                      (Ebinop Cop.Oand (Ebinop Cop.Oeq (hd default_expr (exprlist_list_expr ces))
+                                                                                        (Eval (Values.Vint (Int.repr Int.min_signed)) t) t)
+                                                                       (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                                        (Eval (Values.Vint Int.mone) t) t) t) t)
+                                     (Eval v t)
+                                     (Ebinop (Cop.Omod) (hd default_expr (exprlist_list_expr ces)) 
+                                                        (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| Ctypes.Tint I32 Unsigned _ => ret (Econdition (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                     (Eval (Values.Vint Int.zero) t) t)
+                                            (Eval v t)
+                                            (Ebinop (Cop.Omod) (hd default_expr (exprlist_list_expr ces)) 
+                                                        (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| Ctypes.Tlong Signed _ => ret (Econdition (Ebinop Cop.Oor (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                     (Eval (Values.Vlong Int64.zero) t) t)
+                                                      (Ebinop Cop.Oand (Ebinop Cop.Oeq (hd default_expr (exprlist_list_expr ces))
+                                                                                        (Eval (Values.Vlong (Int64.repr Int64.min_signed)) t) t)
+                                                                       (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                                        (Eval (Values.Vlong Int64.mone) t) t) t) t)
+                                     (Eval v t)
+                                     (Ebinop (Cop.Omod) (hd default_expr (exprlist_list_expr ces)) 
+                                                        (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| Ctypes.Tlong Unsigned _ => ret (Econdition (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                     (Eval (Values.Vlong Int64.zero) t) t)
+                                            (Eval v t)
+                                            (Ebinop (Cop.Omod) (hd default_expr (exprlist_list_expr ces)) 
+                                                        (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| _ => error (msg "The type of argument of div should be int or long")
+end.
+
+Definition check_shl (ces : exprlist) (v : Values.val) (t : Ctypes.type) : mon Csyntax.expr :=
+match t with 
+| Ctypes.Tint _ s _ => ret (Econdition (Ebinop Cop.Olt (hd default_expr (tl (exprlist_list_expr ces)))
+                                                               (Eval (Values.Vint Int.iwordsize) t) t)
+                                                      (Eval v t) 
+                                                      (Ebinop (Cop.Oshl) (hd default_expr (exprlist_list_expr ces)) 
+                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| Ctypes.Tlong _ _ => ret (Econdition (Ebinop Cop.Olt (hd default_expr (tl (exprlist_list_expr ces)))
+                                                               (Eval (Values.Vlong Int64.iwordsize) t) t)
+                                                      (Eval v t) 
+                                                      (Ebinop (Cop.Oshl) (hd default_expr (exprlist_list_expr ces)) 
+                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| _ => error (msg "COMPILER ERROR: The type of argument of shl should be int or long")
+end.
+
+Definition check_shr (ces : exprlist) (v : Values.val) (t : Ctypes.type) : mon Csyntax.expr :=
+match t with 
+| Ctypes.Tint _ s _ => ret (Econdition (Ebinop Cop.Olt (hd default_expr (tl (exprlist_list_expr ces)))
+                                                               (Eval (Values.Vint Int.iwordsize) t) t)
+                                                      (Eval v t) 
+                                                      (Ebinop (Cop.Oshr) (hd default_expr (exprlist_list_expr ces)) 
+                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| Ctypes.Tlong _ _ => ret (Econdition (Ebinop Cop.Olt (hd default_expr (tl (exprlist_list_expr ces)))
+                                                               (Eval (Values.Vlong Int64.iwordsize) t) t)
+                                                      (Eval v t) 
+                                                      (Ebinop (Cop.Oshr) (hd default_expr (exprlist_list_expr ces)) 
+                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| _ => error (msg "COMPILER ERROR: The type of argument of shr should be int or long")
+end.
+
 Fixpoint transBeePL_expr_expr (e : BeePL.expr) (fn_ctx : list (ident * BeeTypes.type * string)) : mon (Csyntax.expr * (list (ident * BeeTypes.type * string))) := 
 match e with 
 | Val v t => ret (Eval (trans_bvalue_cvalue v) (transBeePL_type t), fn_ctx) 
@@ -207,17 +303,25 @@ match e with
                             ret ((Eunop o
                                 (hd default_expr (exprlist_list_expr ces)) 
                                 ct), fn_ctx')
-                 | Bop o => if is_bop_undef t o es 
-                            then let ct := (transBeePL_type t) in
-                                 do v <- return_czero ct;
-                                 ret (Eval v ct, fn_ctx)
-                            else do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx);
-                                 let ct := (transBeePL_type t) in
-                                 ret ((Ebinop o
+                 | Bop o => do v <- return_czero (transBeePL_type t);
+                            do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx);
+                            match o with 
+                            | Cop.Odiv => do rs <- (check_div ces v (transBeePL_type t));
+                                          ret (rs, fn_ctx')
+                                                                      
+                            | Cop.Omod => do rs <- (check_mod ces v (transBeePL_type t));
+                                          ret (rs, fn_ctx')
+                            | Cop.Oshl => do rs <- check_shl ces v (transBeePL_type t);
+                                          ret (rs, fn_ctx')
+                             | Cop.Oshr => do rs <- check_shr ces v (transBeePL_type t);
+                                           ret (rs, fn_ctx')
+                            | _ => ret (Ebinop o
                                         (hd default_expr (exprlist_list_expr ces)) 
                                         (hd default_expr (tl (exprlist_list_expr ces)))
-                                        ct), fn_ctx')
-                            end
+                                        (transBeePL_type t), fn_ctx')
+
+                           end
+end
 | Bind x t e e' t' => let ct := (transBeePL_type t) in
                       do (ce, fn_ctx') <- (transBeePL_expr_expr e fn_ctx);
                       do (ce', fn_ctx'') <- (transBeePL_expr_expr e' fn_ctx');
@@ -339,16 +443,24 @@ match e with
                             ret (Sdo (Eunop o 
                                      (hd default_expr (exprlist_list_expr ces)) 
                                      ct), ctx') 
-                 | Bop o => if is_bop_undef t o es 
-                            then let ct := (transBeePL_type t) in
-                                 do v <- return_czero ct;
-                                 ret (Sdo (Eval v ct), ctx)
-                            else do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx);
-                                 let ct := (transBeePL_type t) in
-                                 ret (Sdo (Ebinop o 
-                                     (hd default_expr (exprlist_list_expr ces)) 
-                                     (hd default_expr (tl (exprlist_list_expr ces)))
-                                     ct), ctx')
+                 | Bop o => do v <- return_czero (transBeePL_type t);
+                            do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx);
+                            match o with 
+                            | Cop.Odiv => do rs <- (check_div ces v (transBeePL_type t));
+                                          ret (Sdo rs, fn_ctx')
+                                                                      
+                            | Cop.Omod => do rs <- (check_div ces v (transBeePL_type t));
+                                          ret (Sdo rs, fn_ctx')
+                            | Cop.Oshl => do rs <- check_shl ces v (transBeePL_type t);
+                                          ret (Sdo rs, fn_ctx')
+                             | Cop.Oshr => do rs <- check_shr ces v (transBeePL_type t);
+                                           ret (Sdo rs, fn_ctx')
+                            | _ => ret (Sdo (Ebinop o
+                                        (hd default_expr (exprlist_list_expr ces)) 
+                                        (hd default_expr (tl (exprlist_list_expr ces)))
+                                        (transBeePL_type t)), fn_ctx')
+
+                           end
                  end 
 | Bind x t e e' t' => let ct := (transBeePL_type t) in
                       do (ce', ctx') <- (transBeePL_expr_st e' ctx);

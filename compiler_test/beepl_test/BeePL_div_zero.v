@@ -8,7 +8,7 @@ Local Open Scope csyntax_scope.
 (* int main() {
      unsigned int x = 10;
      unsigned int y = 0;
-     unsigned int r = x / y;
+     unsigned int r = x / y;   
      return r;
   }
 *)
@@ -39,7 +39,7 @@ Definition f_div_zero : BeePL.function := {|
                                                 (Bind 
                                                    (_y) 
                                                    (Ptype (BeeTypes.Tint I32 Unsigned dattr))
-                                                   (Const (ConsInt (Int.repr 0)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
+                                                   (Const (ConsInt (Int.repr 2)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
                                                    (Bind 
                                                       (_r) 
                                                       (Ptype (BeeTypes.Tint I32 Unsigned dattr))
@@ -67,11 +67,11 @@ Proof.
   unfold build_bcomposite_env; simpl; reflexivity.
 Qed.
 
-Definition example1 : BeePL.program := @mkbprogram bcomposites 
+(*Definition example1 : BeePL.program := @mkbprogram bcomposites 
                                                    global_definitions 
                                                    public_idents 
                                                    _main 
                                                    bcomposite_correct
                                                    ident_to_string.
 
-Compute (type_check_program example1).
+Compute (type_check_program example1).*)

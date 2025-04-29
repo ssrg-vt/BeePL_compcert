@@ -85,28 +85,28 @@ end.
 
 Section Type_check_exprs. 
 
-Variable type_check_expr : ef_env -> bcomposite_env -> ty_context -> store_context -> expr -> res (type * effect).
+Variable type_check_expr : bcomposite_env -> ty_context -> store_context -> expr -> res (type * effect).
 
-Fixpoint type_check_exprs (efenv : ef_env) (cenv : bcomposite_env) (Gamma : ty_context) (Sigma : store_context) (es : list expr) : res (list type * effect) :=
+Fixpoint type_check_exprs (cenv : bcomposite_env) (Gamma : ty_context) (Sigma : store_context) (es : list expr) : res (list type * effect) :=
 match es with 
 | nil => OK (nil, nil)
-| e :: es => do (te, efe) <- type_check_expr efenv cenv Gamma Sigma e;
-             do (tes, efes) <- type_check_exprs efenv cenv Gamma Sigma es;
+| e :: es => do (te, efe) <- type_check_expr cenv Gamma Sigma e;
+             do (tes, efes) <- type_check_exprs cenv Gamma Sigma es;
              OK (te :: tes, efe ++ efes)
 end.
 
 End Type_check_exprs.
 
-Fixpoint type_check_expr (efenv : ef_env) (cenv : bcomposite_env) (Gamma : ty_context) (Sigma : store_context) (e : expr) : res (type * effect) :=
+Fixpoint type_check_expr (cenv : bcomposite_env) (Gamma : ty_context) (Sigma : store_context) (e : expr) : res (type * effect) :=
 match e with 
 | Val v t => OK (t, nil)
 | Var x t => match (PTree.get x (extend_context Gamma x t)) with 
-             | Some t' => if (eq_type t t') then OK(t, nil) else Error (msg "Var type does not match") 
+             | Some t' => if (eq_type t t') then OK(t, nil) else Error (msg "TYPE ERROR: Var type does not match") 
              | None => Error (msg "TYPE ERROR: Variable not found")
              end
 | Const c t => OK (t, nil)
-| App e es t => do (ft, efe) <- type_check_expr efenv cenv Gamma Sigma e;
-                do (ts, efs) <- type_check_exprs type_check_expr efenv cenv Gamma Sigma es;
+| App e es t => do (ft, efe) <- type_check_expr cenv Gamma Sigma e;
+                do (ts, efs) <- type_check_exprs type_check_expr cenv Gamma Sigma es;
                 match ft with 
                 | Ftype ts1 ef rt1 => if eq_types eq_type ts ts1 && eq_type rt1 t
                                       then OK (rt1, efe ++ ef ++ efs) 
@@ -115,17 +115,17 @@ match e with
                 end
 | Prim b es t => match b with 
                  | Ref => match es with 
-                          | e :: nil => do (te, ef) <- type_check_expr efenv cenv Gamma Sigma e;
+                          | e :: nil => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                                         match te with 
                                         | Ptype bt => if eq_type t (Reftype mem_ident (Bprim bt) (attr_of_primitive_type bt)) 
                                                       then OK (Reftype mem_ident (Bprim bt) (attr_of_primitive_type bt), (ef ++ (Alloc mem_ident :: nil)))
-                                                      else Error (msg "Reftype does not match the inferred type")
+                                                      else Error (msg "TYPE ERROR: Reftype does not match the inferred type")
                                         | _ => Error (msg "TYPE ERROR: Only primitive types are allowed to be allocated in memory")
                                         end
                           |  _ => Error (msg "TYPE ERROR: Wrong number of arguments to Ref")
                           end
                  | Deref => match es with 
-                            | e :: nil => do (te, ef) <- type_check_expr efenv cenv Gamma Sigma e;
+                            | e :: nil => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                                           match te with 
                                           | Reftype mem_ident (Bprim bt) a => if eq_type t (Ptype bt) 
                                                                               then OK (Ptype bt, (ef ++ (Read mem_ident :: nil)))
@@ -135,9 +135,9 @@ match e with
                           |  _ => Error (msg "TYPE ERROR: Wrong number of arguments to Deref")
                           end
                  | Massgn => match es with 
-                             | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr efenv cenv Gamma Sigma e1;
+                             | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
                                                   match te1 with 
-                                                  | Reftype mem_ident (Bprim bt) a => do (te2, ef2) <- type_check_expr efenv cenv Gamma Sigma e2;
+                                                  | Reftype mem_ident (Bprim bt) a => do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                                                                                       match te2 with 
                                                                                       | Ptype bt => if eq_type t (Ptype Tunit)
                                                                                                     then OK (Ptype Tunit, ef1 ++ ef2 ++ (Write mem_ident :: nil))
@@ -150,21 +150,21 @@ match e with
                             end                                                         
                  | Uop o => match o with 
                             | Cop.Onotbool => match es with 
-                                              | e :: nil => do (te, ef) <- type_check_expr efenv cenv Gamma Sigma e;
+                                              | e :: nil => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                                                             if is_primbool te && eq_type t te
                                                             then OK (te, ef)
                                                             else Error (msg "TYPE ERROR: Wrong argument type to negation bool operator, it expects bool as argument")
                                               | _ => Error (msg "TYPE ERROR: Wrong number of arguments to Unary operator")
                                               end
                             | Cop.Onotint => match es with 
-                                              | e :: nil => do (te, ef) <- type_check_expr efenv cenv Gamma Sigma e;
+                                              | e :: nil => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                                                             if (is_primint te || is_primlong te) && eq_type t te
                                                             then OK (te, ef)
                                                             else Error (msg "TYPE ERROR: Wrong argument type to bitwise not operator, it expects int or long as argument")
                                               | _ => Error (msg "TYPE ERROR: Wrong number of arguments to Unary operator")
                                               end
                             | Cop.Oneg => match es with 
-                                          | e :: nil => do (te, ef) <- type_check_expr efenv cenv Gamma Sigma e;
+                                          | e :: nil => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                                                         if (is_primint te || is_primlong te) && eq_type t te
                                                         then OK (te, ef)
                                                         else Error (msg "TYPE ERROR: Wrong argument type to unary minus operator, it expects int or long as argument")
@@ -174,128 +174,128 @@ match e with
                             end 
                  | Bop o => match o with 
                             | Cop.Oadd => match es with 
-                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr efenv cenv Gamma Sigma e1;
-                                                               do (te2, ef2) <- type_check_expr efenv cenv Gamma Sigma e2;
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
+                                                               do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                                                                if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_type te1 t) 
                                                                then OK(te1, ef1 ++ ef2)
                                                                else Error (msg "TYPE ERROR: Wrong argument types to add operator, it expects int or long as argument")
                                           | _ => Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
                                           end 
                             | Cop.Osub => match es with 
-                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr efenv cenv Gamma Sigma e1;
-                                                               do (te2, ef2) <- type_check_expr efenv cenv Gamma Sigma e2;
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
+                                                               do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                                                                if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_type te1 t) 
                                                                then OK(te1, ef1 ++ ef2)
                                                                else Error (msg "TYPE ERROR: Wrong argument types to add operator, it expects int or long as argument") 
                                           | _ => Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
                                           end
                             | Cop.Omul => match es with 
-                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr efenv cenv Gamma Sigma e1;
-                                                           do (te2, ef2) <- type_check_expr efenv cenv Gamma Sigma e2;
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
+                                                           do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                                                            if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_type te1 t) 
                                                            then OK(te1, ef1 ++ ef2)
                                                            else Error (msg "TYPE ERROR: Wrong argument types to mul operator, it expects int or long as argument")
                                           | _ => Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
                                           end 
                             | Cop.Odiv => match es with 
-                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr efenv cenv Gamma Sigma e1;
-                                                           do (te2, ef2) <- type_check_expr efenv cenv Gamma Sigma e2;
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
+                                                           do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                                                            if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_type te1 t) 
                                                            then OK(te1, ef1 ++ ef2)
                                                            else Error (msg "TYPE ERROR: Wrong argument types to div operator, it expects int or long as argument")
                                           | _ => Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
                                           end
                             | Cop.Omod => match es with 
-                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr efenv cenv Gamma Sigma e1;
-                                                           do (te2, ef2) <- type_check_expr efenv cenv Gamma Sigma e2;
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
+                                                           do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                                                            if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_type te1 t) 
                                                            then OK(te1, ef1 ++ ef2)
                                                            else Error (msg "TYPE ERROR: Wrong argument types to mod operator, it expects int or long as argument") 
                                           | _ => Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
                                           end
                             | Cop.Oand => match es with 
-                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr efenv cenv Gamma Sigma e1;
-                                                           do (te2, ef2) <- type_check_expr efenv cenv Gamma Sigma e2;
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
+                                                           do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                                                            if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_type te1 t) 
                                                            then OK(te1, ef1 ++ ef2)
                                                            else Error (msg "TYPE ERROR: Wrong argument types to and operator, it expects bool as argument")
                                           | _ => Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
                                           end
                             | Cop.Oor => match es with 
-                                         | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr efenv cenv Gamma Sigma e1;
-                                                           do (te2, ef2) <- type_check_expr efenv cenv Gamma Sigma e2;
+                                         | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
+                                                           do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                                                            if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_type te1 t) 
                                                            then OK(te1, ef1 ++ ef2)
                                                            else Error (msg "TYPE ERROR: Wrong argument types to or operator, it expects bool as argument")
                                          | _ => Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
                                          end
                             | Cop.Oxor => match es with 
-                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr efenv cenv Gamma Sigma e1;
-                                                           do (te2, ef2) <- type_check_expr efenv cenv Gamma Sigma e2;
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
+                                                           do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                                                            if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_type te1 t) 
                                                            then OK(te1, ef1 ++ ef2)
                                                            else Error (msg "TYPE ERROR: Wrong argument types to xor operator, it expects int or long as argument")
                                           | _ =>  Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
                                           end
                             | Cop.Oshl => match es with 
-                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr efenv cenv Gamma Sigma e1;
-                                                           do (te2, ef2) <- type_check_expr efenv cenv Gamma Sigma e2;
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
+                                                           do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                                                            if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_type te1 t) 
                                                            then OK(te1, ef1 ++ ef2)
                                                            else Error (msg "TYPE ERROR: Wrong argument types to shl operator, it expects int or long as argument")
                                           | _ =>  Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
                                           end
                             | Cop.Oshr => match es with 
-                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr efenv cenv Gamma Sigma e1;
-                                                           do (te2, ef2) <- type_check_expr efenv cenv Gamma Sigma e2;
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
+                                                           do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                                                            if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_type te1 t) 
                                                            then OK(te1, ef1 ++ ef2)
                                                            else Error (msg "TYPE ERROR: Wrong argument types to shr operator, it expects int or long as argument")
                                           | _ =>  Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
                                           end
                             | Cop.Oeq => match es with 
-                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr efenv cenv Gamma Sigma e1;
-                                                               do (te2, ef2) <- type_check_expr efenv cenv Gamma Sigma e2;
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
+                                                               do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                                                                if (eq_type te1 te2 && (is_primint te1 || is_primlong te1 || is_primbool te2) && eq_type te1 t) 
                                                                then OK(Ptype Tbool, ef1 ++ ef2)
                                                                else Error (msg "TYPE ERROR: Wrong argument types to eq operator, it expects int or long as argument")
                                           | _ =>  Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
                                           end
                             | Cop.One => match es with 
-                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr efenv cenv Gamma Sigma e1;
-                                                               do (te2, ef2) <- type_check_expr efenv cenv Gamma Sigma e2;
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
+                                                               do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                                                                if (eq_type te1 te2 && (is_primint te1 || is_primlong te1 || is_primbool te2) && eq_type te1 t) 
                                                                then OK(Ptype Tbool, ef1 ++ ef2)
                                                                else Error (msg "TYPE ERROR: Wrong argument types to ne operator, it expects int or long as argument")
                                           | _ =>  Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
                                           end
                             | Cop.Olt => match es with 
-                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr efenv cenv Gamma Sigma e1;
-                                                               do (te2, ef2) <- type_check_expr efenv cenv Gamma Sigma e2;
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
+                                                               do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                                                                if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_type (Ptype Tbool) t) 
                                                                then OK(Ptype Tbool, ef1 ++ ef2)
                                                                else Error (msg "TYPE ERROR: Wrong argument types to lt operator, it expects int or long as argument")
                                           | _ =>  Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
                                           end
                             | Cop.Ogt => match es with 
-                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr efenv cenv Gamma Sigma e1;
-                                                               do (te2, ef2) <- type_check_expr efenv cenv Gamma Sigma e2;
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
+                                                               do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                                                                if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_type te1 t) 
                                                                then OK(Ptype Tbool, ef1 ++ ef2)
                                                                else Error (msg "TYPE ERROR: Wrong argument types to gt operator, it expects int or long as argument")
                                           | _ =>  Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
                                           end
                             | Cop.Ole => match es with 
-                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr efenv cenv Gamma Sigma e1;
-                                                               do (te2, ef2) <- type_check_expr efenv cenv Gamma Sigma e2;
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
+                                                               do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                                                                if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_type te1 t) 
                                                                then OK(Ptype Tbool, ef1 ++ ef2)
                                                                else Error (msg "TYPE ERROR: Wrong argument types to le operator, it expects int or long as argument")
                                           | _ =>  Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
                                           end
                             | Cop.Oge => match es with 
-                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr efenv cenv Gamma Sigma e1;
-                                                               do (te2, ef2) <- type_check_expr efenv cenv Gamma Sigma e2;
+                                          | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
+                                                               do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                                                                if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_type te1 t) 
                                                                then OK(Ptype Tbool, ef1 ++ ef2)
                                                                else Error (msg "TYPE ERROR: Wrong argument types to ge operator, it expects int or long as argument")
@@ -304,14 +304,14 @@ match e with
                             end
                  | Run h => Error (msg "TYPE ERROR: Run is not yet supported")
                  end
-| Bind x t e1 e2 t' => do (te1, ef1) <- type_check_expr efenv cenv Gamma Sigma e1;
-                       do (te2, ef2) <- type_check_expr efenv cenv (extend_context Gamma x t) Sigma e2;
+| Bind x t e1 e2 t' => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
+                       do (te2, ef2) <- type_check_expr cenv (extend_context Gamma x t) Sigma e2;
                        if eq_type te2 t'
                        then OK (te2, ef1 ++ ef2)
                        else Error (msg "TYPE ERROR: Type of bind does not match the inferred type")
-| Cond e1 e2 e3 t =>  do (te1, ef1) <- type_check_expr efenv cenv Gamma Sigma e1;
-                      do (te2, ef2) <- type_check_expr efenv cenv Gamma Sigma e2;
-                      do (te3, ef3) <- type_check_expr efenv cenv Gamma Sigma e3;
+| Cond e1 e2 e3 t =>  do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
+                      do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
+                      do (te3, ef3) <- type_check_expr cenv Gamma Sigma e3;
                       if is_primbool te1 && eq_type te2 te3 && eq_effect ef2 ef3 && eq_type t te2
                       then OK (te2, ef1 ++ ef2)
                       else Error (msg "TYPE ERROR: Type of cond does not match the inferred type")
@@ -324,15 +324,8 @@ match e with
                    | None => Error (msg "TYPE ERROR: Location not found")
                    end
 | Hexpr h e t =>  Error (msg "TYPE ERROR: Hexpr is not yet supported")
-| Eapp ef ts es t => do efs <- get_ef_type efenv (get_name_eapp ef);
-                     if eq_type t (get_rt_eapp ef) 
-                        && eq_types eq_type ts (get_at_eapp ef) 
-                        && eq_types eq_type ts (fst efs) 
-                        && eq_type t (fst (snd efs))
-                        && eq_effect (get_ef_eapp ef) (snd (snd efs))  
-                     then OK (t, get_ef_eapp ef)
-                     else Error (msg "TYPE ERROR: Type of external call does not match with its signature")
-| Sfield e x t => do (te, ef) <- type_check_expr efenv cenv Gamma Sigma e;
+| Eapp ef ts es t => Error (msg "TYPE ERROR: We have no use case of builtin function as of now")
+| Sfield e x t => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                   match te with 
                   | Stype id a => match cenv!id with 
                                   | Some co => do ct <- type_of_member a x (bmembers_cmembers co.(co_members));
@@ -344,9 +337,9 @@ match e with
                                   end
                   | _ => Error (msg "TYPE ERROR: Should be a struct type")
                   end
-| For x e1 e2 d e t => do (te1, ef1) <- type_check_expr efenv cenv Gamma Sigma e1;
-                       do (te2, ef2) <- type_check_expr efenv cenv Gamma Sigma e2;
-                       do (te, ef) <- type_check_expr efenv cenv Gamma Sigma e;
+| For x e1 e2 d e t => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
+                       do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
+                       do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                        if (eq_type te1 te2 
                            && eq_effect ef1 nil 
                            && eq_effect ef2 nil 
@@ -368,16 +361,16 @@ match l with
 | (id, ty) :: l => bind_vars (PTree.set id ty Gamma) l
 end.
 
-Fixpoint bind_globdef (efenv : ef_env) (Gamma: ty_context) (l: list (ident * globdef fundef type)) : ty_context :=
+Fixpoint bind_globdef (Gamma: ty_context) (l: list (ident * globdef fundef type)) : ty_context :=
 match l with
 | nil => Gamma
-| (id, Gfun fd) :: l => bind_globdef efenv (PTree.set id (type_of_fundef fd) Gamma) l
-| (id, Gvar v) :: l => bind_globdef efenv (PTree.set id v.(gvar_info) Gamma) l
+| (id, Gfun fd) :: l => bind_globdef (PTree.set id (type_of_fundef fd) Gamma) l
+| (id, Gvar v) :: l => bind_globdef (PTree.set id v.(gvar_info) Gamma) l
 end.
 
-Definition type_check_function (efenv : ef_env) (cenv : bcomposite_env) (Gamma : ty_context) (Sigma : store_context) (fn : function) : res string :=
+Definition type_check_function (cenv : bcomposite_env) (Gamma : ty_context) (Sigma : store_context) (fn : function) : res string :=
 let Gamma' := bind_vars (bind_vars Gamma fn.(fn_args)) fn.(fn_vars) in
-match type_check_expr efenv cenv Gamma' Sigma fn.(fn_body) with 
+match type_check_expr cenv Gamma' Sigma fn.(fn_body) with 
 | Error msg => Error msg
 | OK tef => if eq_type fn.(fn_return) tef.1 && eq_effect fn.(fn_effect) tef.2
              then OK "SUCCESS: Function type checks!" 
@@ -386,7 +379,7 @@ end.
 
 Definition type_check_fundef (efenv : ef_env) (cenv : bcomposite_env) (Gamma : ty_context) (Sigma : store_context) (fn : BeePL.fundef) : res string :=
 match fn with 
-| Internal f => type_check_function efenv cenv Gamma Sigma f 
+| Internal f => type_check_function cenv Gamma Sigma f 
 | External ef ts t cc => match ef with 
                          | EF_external fn fs => do efs <- get_ef_type efenv (get_name_eapp ef);
                                                 if eq_type t (get_rt_eapp ef) 
@@ -423,9 +416,9 @@ match gd with
             OK "SUCCESS: Program type checks!"
 end.
 
-(* Fix Store context: How to compute this? *)
+(* Fix Store context: How to compute this? *) 
 Definition type_check_program (p : BeePL.program) : res string :=
-let Gamma := bind_globdef beepl_ef_env (PTree.empty _) p.(prog_defs) in
+let Gamma := bind_globdef (PTree.empty _) p.(prog_defs) in
 let cenv := p.(prog_comp_env) in 
 type_check_globdefs type_check_globdef beepl_ef_env cenv Gamma empty_context (unzip2 (p.(prog_defs))).
 

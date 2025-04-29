@@ -41,7 +41,7 @@ Definition f_div_zero : BeePL.function := {|
                                                    (Ptype (BeeTypes.Tint I32 Unsigned dattr))
                                                    (Prim (Bop Cop.Osub)
                                                          (Var _x (Ptype (BeeTypes.Tint I32 Unsigned dattr)) :: 
-                                                          (Const (ConsInt (Int.repr 5)) (Ptype (BeeTypes.Tint I32 Unsigned dattr))) :: nil)
+                                                          (Const (ConsInt (Int.repr 10)) (Ptype (BeeTypes.Tint I32 Unsigned dattr))) :: nil)
                                                             (Ptype (BeeTypes.Tint I32 Unsigned dattr))) 
                                                    (Bind 
                                                       (_r) 

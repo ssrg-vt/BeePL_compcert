@@ -277,6 +277,7 @@ match e with
 | e :: es => typeof_expr e :: typeof_exprs es
 end.
 
+
 Definition is_bop_undef (t : type) (op : binary_operation) (es : list expr) : bool :=
 match op with 
 | Odiv => match es with 
@@ -314,10 +315,10 @@ match op with
 | _ => false
 end.
 
-(* Test 
+(* Test *)
 Compute (is_bop_undef (Ptype (BeeTypes.Tint I32 Signed {| attr_volatile := false; attr_alignas := None |})) 
                       Cop.Odiv ((Const (ConsInt (Int.repr 10)) (Ptype (BeeTypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := None |}))) ::
-                                (Const (ConsInt (Int.repr 0)) (Ptype (BeeTypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := None |}))) :: nil)).*)
+                                (Const (ConsInt (Int.repr 0)) (Ptype (BeeTypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := None |}))) :: nil)).
 
 
 Record function : Type := mkfunction { (*fn_sec: option string; XDP ==> SEC("xdp") *)
@@ -370,6 +371,14 @@ Definition globvar (V : Type) := AST.globvar V.
 
 Definition globdef (F V : Type) := AST.globdef F V.
 
+Definition is_external_fundef (gd : globdef fundef type) : bool :=
+match gd with 
+| Gfun fd => match fd with 
+             | Internal _ => false
+             | External _ _ _ _ => true
+             end
+| Gvar v => false
+end.
 
 Record program  : Type := mkprogam { prog_defs : list (ident * globdef fundef type);
                                      prog_public : list ident;
