@@ -128,9 +128,10 @@ Fixpoint merge_ident_string (fn_ctx : list (ident * BeeTypes.type * string)) (is
   end.
 
 (* Used for extracting the correct type for a Ref's fresh variable *)
-Definition ref_to_prim (ty : type) : mon primitive_type :=
+Definition ref_to_prim (ty : type) : mon type :=
   match ty with
-  | Reftype _ (Bprim pt) _ => ret pt
+  | Reftype _ (Bprim pt) _ => ret (Ptype pt)
+  | Reftype _ (Bstruct s a) _ => ret (Stype s a)
   | _ => error (msg "ref_to_prim: expected only reftype")
   end.
 
@@ -244,6 +245,16 @@ match t with
 | _ => error (msg "COMPILER ERROR: The type of argument of shr should be int or long")
 end.
 
+Fixpoint init_struct_fields (sid : ident) (fields : list (ident * Csyntax.expr)) (t : Ctypes.type) 
+(t' : Ctypes.type) {struct fields} : mon Csyntax.statement :=
+match fields with
+| nil => ret Sskip
+| (f, e) :: rest => let lhs := (Efield (Evalof (Ederef (Evalof (Evar sid t) t) t') t') f (typeof e)) in
+                    let ff := (Sdo (Eassign lhs e (typeof e))) in
+                    do rs <- (init_struct_fields sid rest t t');
+                    ret (Ssequence ff rs)
+end.
+
 Fixpoint transBeePL_expr_expr (e : BeePL.expr) (fn_ctx : list (ident * BeeTypes.type * string)) : mon (Csyntax.expr * (list (ident * BeeTypes.type * string))) := 
 match e with 
 | Val v t => ret (Eval (trans_bvalue_cvalue v) (transBeePL_type t), fn_ctx) 
@@ -277,8 +288,8 @@ match e with
 
                           match es with
                           | e :: nil => do pty <- ref_to_prim t;
-                                        let cpty := (transBeePL_type (Ptype pty)) in
-                                        let fn_ctx'' := (i, (Ptype pty), str) :: fn_ctx' in
+                                        let cpty := (transBeePL_type pty) in
+                                        let fn_ctx'' := (i, pty, str) :: fn_ctx' in
                                         ret ((Ecomma (Eassign (Evar i cpty) 
                                                               (hd default_expr (exprlist_list_expr ces)) 
                                                               (cpty)) 
@@ -342,6 +353,7 @@ end
                      let ct := (transBeePL_type t) in
                      do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx);
                      ret (Ebuiltin cef cts ces ct, fn_ctx')
+| Screate x tes t => error (msg "COMPILER ERROR: Struct creation cannot be translated to another C epxr")
 | Sfield e x t => do (ce, fn_ctx') <- transBeePL_expr_expr e fn_ctx;
                   let ct := transBeePL_type t in
                   ret (Efield (Evalof ce (transBeePL_type (typeof_expr e))) x ct, fn_ctx')
@@ -417,8 +429,8 @@ match e with
                           do (i, str) <- (fresh_ident (List.map unzip_ident ctx') max_fresh);
                           match es with
                           | e :: nil => do pty <- ref_to_prim t;
-                                        let cpty := (transBeePL_type (Ptype pty)) in        
-                                        let ctx'' := (i, (Ptype pty), str) :: ctx' in
+                                        let cpty := (transBeePL_type pty) in        
+                                        let ctx'' := (i, pty, str) :: ctx' in
                                         ret (Ssequence (Sdo (Eassign (Evar i cpty)
                                                                      (hd default_expr (exprlist_list_expr ces))
                                                                      (cpty)))
@@ -490,6 +502,14 @@ match e with
                      let ct := (transBeePL_type t) in
                      do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx);
                      ret (Sdo (Ebuiltin cef cts ces ct), ctx')
+| Screate sx tes t => do (ces, ctx') <- transBeePL_expr_exprs transBeePL_expr_expr (unzip2 tes) ctx;
+                      do (temp, strl) <- (fresh_ident (List.map unzip_ident ctx') max_fresh);
+                      do pty <- ref_to_prim t;
+                      let ctx'' := (temp, pty, strl) :: ctx' in
+                      do rs <- init_struct_fields sx (zip (unzip1 tes) (exprlist_list_expr ces)) (transBeePL_type t) (transBeePL_type pty);
+                      ret (Ssequence (Sdo (Eassign (Evar sx (transBeePL_type t)) 
+                                                                         (Eaddrof (Evar temp (transBeePL_type pty)) (transBeePL_type t)) (transBeePL_type t)))
+                                                            rs, ctx'')
 | Sfield e x t => do (ce, ctx') <- transBeePL_expr_expr e ctx;
                   let ct := transBeePL_type t in
                   ret (Sdo (Evalof (Efield (Evalof ce (transBeePL_type (typeof_expr e))) x ct) ct), ctx')

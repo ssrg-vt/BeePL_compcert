@@ -81,6 +81,7 @@ Inductive expr : Type :=
 | Addr : linfo -> ptrofs -> type -> expr                                (* address *)
 | Hexpr : Memory.mem -> expr -> type -> expr                            (* heap effect *)
 | Eapp : external_function -> list type -> list expr -> type -> expr    (* external function *)
+| Screate : ident -> list (ident * expr) -> type -> expr                (* struct creation *)
 | Sfield : expr -> ident -> type -> expr                                (* access to a member of struct *)
 | For : expr -> expr -> dir -> expr -> type -> expr                     (* for loop - constant bound *)
 | Enone : type -> expr                                                  (* none: option *)
@@ -106,141 +107,6 @@ match e with
 | _ => false
 end.
 
-Section Is_zero_exprs.
-
-Variable is_zero_expr : expr -> bool.
-
-Fixpoint is_zero_exprs (es : list expr) : bool :=
-match es with 
-| nil => true 
-| e :: es => is_zero_expr e && is_zero_exprs es
-end.
-
-End Is_zero_exprs.
-
-Fixpoint is_zero_expr (e : expr) {struct e} : bool :=
-match e return bool with 
-| Val v t => is_zero_val v
-| Var x t => false 
-| Const c t => is_zero_constant c
-| App e ts t => false
-| Prim b es t => is_zero_exprs is_zero_expr es
-| Bind x t e e' t' => is_zero_expr e && is_zero_expr e'
-| Cond e e' e'' t => is_zero_expr e && is_zero_expr e' && is_zero_expr e''
-| Unit t => false
-| Addr l p t => false
-| Hexpr h e t => false
-| Eapp ef ts es t => is_zero_exprs is_zero_expr es
-| Sfield e i t => false
-| For e1 e2 d e t => is_zero_expr e 
-| Enone t => false
-| Esome e t => is_zero_expr e
-| Match e pes t => is_zero_expr e (* FIX ME: && is_zero_exprs is_zero_expr (unzip2 pes)*)
-end.
-
-Section Is_exprs_min_signed.
-
-Variable is_expr_min_signed : expr -> bool.
-
-Fixpoint is_exprs_min_signed (es : list expr) : bool :=
-match es with 
-| nil => true 
-| e :: es => is_expr_min_signed e && is_exprs_min_signed es
-end.
-
-End Is_exprs_min_signed.
-
-Fixpoint is_expr_min_signed (e : expr) : bool :=
-match e with 
-| Val v t => is_val_min_signed v 
-| Var x t => false 
-| Const c t => is_constant_min_signed c
-| App e ts t => false
-| Prim b es t => is_exprs_min_signed is_expr_min_signed es
-| Bind x t e e' t' => is_expr_min_signed e && is_expr_min_signed e'
-| Cond e e' e'' t => is_expr_min_signed e && is_expr_min_signed e' && is_expr_min_signed e''
-| Unit t => false
-| Addr l p t => false
-| Hexpr h e t => false
-| Eapp ef ts es t => is_exprs_min_signed is_expr_min_signed es
-| Sfield e x t => false
-| For e1 e2 d e t => is_expr_min_signed e 
-| Enone t => false
-| Esome e t => is_expr_min_signed e
-| Match e pes t => is_expr_min_signed e (* Fix ME: && is_exprs_min_signed is_expr_min_signed (unzip2 pes)*)
-end.
-
-Section Is_exprs_mone.
-
-Variable is_expr_mone : expr -> bool.
-
-Fixpoint is_exprs_mone (es : list expr) : bool :=
-match es with 
-| nil => true 
-| e :: es => is_expr_mone e && is_exprs_mone es
-end.
-
-End Is_exprs_mone.
-
-Fixpoint is_expr_mone (e : expr) : bool :=
-match e with 
-| Val v t => is_val_mone v 
-| Var x t => false 
-| Const c t => is_constant_mone c
-| App e ts t => false
-| Prim b es t => is_exprs_mone is_expr_mone es
-| Bind x t e e' t' => is_expr_mone e && is_expr_mone e'
-| Cond e e' e'' t => is_expr_mone e && is_expr_mone e' && is_expr_mone e''
-| Unit t => false
-| Addr l p t => false
-| Hexpr h e t => false
-| Eapp ef ts es t => is_exprs_mone is_expr_mone es
-| Sfield e x t => false
-| For e1 e2 d e t => is_expr_mone e
-| Enone t => false
-| Esome e t => is_expr_mone e
-| Match e pes t => is_expr_mone e (* Fix ME: && is_exprs_mone is_expr_mone (unzip2 pes)*)
-end.
-
-Section Is_exprs_shift.
-
-Variable is_expr_shift : expr -> bool.
-
-Fixpoint is_exprs_shift (es : list expr) : bool :=
-match es with 
-| nil => true 
-| e :: es => is_expr_shift e && is_exprs_shift es 
-end.
-
-End Is_exprs_shift.
-
-Fixpoint is_expr_shift (e : expr) : bool :=
-match e with 
-| Val v t => is_val_shift v 
-| Var x t => false 
-| Const c t => is_constant_shift c
-| App e ts t => false
-| Prim b es t => is_exprs_shift is_expr_shift es
-| Bind x t e e' t' => is_expr_shift e && is_expr_shift e'
-| Cond e e' e'' t => is_expr_shift e && is_expr_shift e' && is_expr_shift e''
-| Unit t => false
-| Addr l p t => false
-| Hexpr h e t => false
-| Eapp ef ts es t => is_exprs_shift is_expr_shift es
-| Sfield e x t => false
-| For e1 e2 d e t => is_expr_shift e 
-| Enone t => false
-| Esome e t => is_expr_shift e
-| Match e pes t => is_expr_shift e (* Fix ME: && is_exprs_shift is_expr_shift (unzip2 pes)*)
-end.
-
-(* Check for the range of the for-loop to always keep them within the BPF limit 8 * 1024 * 1024= 8388608 *)
-Definition check_range_expr (e1 e2 : expr) (d : dir) : bool :=
-match e1, e2 with 
-| Val v1 t1, Val v2 t2 => check_range_val v1 v2 d
-| Const c1 t1, Const c2 t2 => check_range_const c1 c2 d
-| _, _ => false
-end.
 
 Definition is_pointer (e : expr) : bool :=
 match e with 
@@ -264,6 +130,7 @@ match e with
 | Addr l p t => t
 | Hexpr h e t => t
 | Eapp ef ts es t => t
+| Screate _ _ t => t
 | Sfield e x t => t
 | For e1 e2 d e t => t
 | Enone t => t
@@ -276,49 +143,6 @@ match e with
 | nil => nil
 | e :: es => typeof_expr e :: typeof_exprs es
 end.
-
-
-Definition is_bop_undef (t : type) (op : binary_operation) (es : list expr) : bool :=
-match op with 
-| Odiv => match es with 
-          | e1 :: e2 :: nil => match extract_signedness_type t with 
-                               | Some s => if signedness_eq s Signed 
-                                           then if (is_zero_expr e2) || 
-                                                   (is_expr_min_signed e1 && is_expr_mone e2) 
-                                                then true 
-                                                else false 
-                                           else if is_zero_expr e2 then true else false
-                               | None => false 
-                               end
-          | _ => false
-          end
-| Omod => match es with 
-          | e1 :: e2 :: nil => match extract_signedness_type t with 
-                               | Some s => if (signedness_eq s Signed) 
-                                           then if (is_zero_expr e2) || 
-                                                   (is_expr_min_signed e1 && is_expr_mone e2) 
-                                               then true 
-                                               else false 
-                                           else if is_zero_expr e2 then true else false
-                               | None => false
-                        end
-          | _ => false 
-          end
-| Oshl => match es with 
-          | e1 :: e2 :: nil => is_expr_shift e2
-          | _ => false 
-          end
-| Oshr => match es with 
-          | e1 :: e2 :: nil => is_expr_shift e2
-          | _ => false 
-          end
-| _ => false
-end.
-
-(* Test *)
-Compute (is_bop_undef (Ptype (BeeTypes.Tint I32 Signed {| attr_volatile := false; attr_alignas := None |})) 
-                      Cop.Odiv ((Const (ConsInt (Int.repr 10)) (Ptype (BeeTypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := None |}))) ::
-                                (Const (ConsInt (Int.repr 0)) (Ptype (BeeTypes.Tint I32 Unsigned {| attr_volatile := false; attr_alignas := None |}))) :: nil)).
 
 
 Record function : Type := mkfunction { (*fn_sec: option string; XDP ==> SEC("xdp") *)
@@ -624,6 +448,7 @@ Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
   | Addr l p t => Addr l p t
   | Hexpr h e t => Hexpr h (subst x se e) t
   | Eapp ef ts es t => Eapp ef ts (map (subst x se) es) t
+  | Screate x tes t => Screate x tes t (* FIX ME Screate x (zip (unzip1 tes) (map (subst x se) (unzip2 tes))) t*)
   | Sfield e fld t => Sfield (subst x se e) fld t
   | For e1 e2 d e' t => For (subst x se e1) (subst x se e2) d (subst x se e') t
   | Enone t => Enone t 

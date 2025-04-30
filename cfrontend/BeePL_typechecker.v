@@ -73,8 +73,8 @@ match ct with
 | Tfloat _ _ => Error (msg "TYPE ERROR: Float is not supported in BeePL")
 | Tpointer t a => match t with 
                   | Tvoid => OK (Reftype 1%positive (Bprim Tunit) a)
-                  | Ctypes.Tint sz s a => OK (Reftype 1%positive (Bprim (Tint sz s a)) a)
-                  | Ctypes.Tlong s a => OK (Reftype 1%positive (Bprim (Tlong s a)) a)
+                  | Ctypes.Tint sz s a => OK (Reftype mem_ident (Bprim (Tint sz s a)) a)
+                  | Ctypes.Tlong s a => OK (Reftype mem_ident (Bprim (Tlong s a)) a)
                   | _ => Error (msg "TYPE ERROR: Not supported in ref type")
                   end 
 | Tarray t z a => Error (msg "TYPE ERROR: Array is not supported in BeePL")
@@ -325,13 +325,14 @@ match e with
                    end
 | Hexpr h e t =>  Error (msg "TYPE ERROR: Hexpr is not yet supported")
 | Eapp ef ts es t => Error (msg "TYPE ERROR: We have no use case of builtin function as of now")
+| Screate x tes t =>  Error (msg "TYPE ERROR: Struct creation is not yet supported")
 | Sfield e x t => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                   match te with 
                   | Stype id a => match cenv!id with 
                                   | Some co => do ct <- type_of_member a x (bmembers_cmembers co.(co_members));
                                                do bt <- trans_ctype_btype ct;
                                                if eq_type t bt 
-                                               then OK (te, nil)
+                                               then OK (bt, nil)
                                                else Error (msg "TYPE ERROR: Wrong type inferred for the struct field")
                                   | None => Error (msg "TYPE ERROR: Struct information not found in composite env")
                                   end

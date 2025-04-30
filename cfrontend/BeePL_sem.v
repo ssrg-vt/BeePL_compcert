@@ -33,7 +33,8 @@ match e with
 | Addr l ofs t => false
 | Hexpr m e t => false (* fix me *)
 | BeePL.Eapp ef ts es t => true (* fix me *)
-| Sfield _ _ _ => false
+| Screate _ _ _ => true
+| Sfield _ _ _ => true
 | For e1 e2 d e t => is_stateful_expr e 
 | Enone t => false
 | Esome e t => is_stateful_expr e
@@ -119,13 +120,11 @@ Inductive bsem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> 
 | bsem_bop_unsafe : forall vm m e1 e2 v1 v2 bop vm' m' m'' vm'' zv,
                   bsem_expr vm m e1 m' vm' v1 ->
                   bsem_expr vm' m' e2 m'' vm'' v2 ->
-                  is_bop_undef (typeof_expr e1) bop (Val v1 (typeof_expr e1) :: Val v2 (typeof_expr e2) :: nil) -> 
                   return_bzero (typeof_expr e1) = ret zv ->
                   bsem_expr vm m (Prim (Bop bop) (e1 :: e2 :: nil) (typeof_expr e1)) m'' vm'' zv
 | bsem_bop_safe : forall cenv vm m e1 e2 v1 v2 bop vm' m' m'' vm'' ct1 ct2 v v',
                   bsem_expr vm m e1 m' vm' v1 ->
                   bsem_expr vm' m' e2 m'' vm'' v2 ->
-                  not (is_bop_undef (typeof_expr e1) bop (Val v1 (typeof_expr e1) :: Val v2 (typeof_expr e2) :: nil)) -> 
                   transBeePL_type (typeof_expr e1) = ct1 ->
                   transBeePL_type (typeof_expr e2) = ct2 ->
                   sem_binary_operation cenv bop (trans_bvalue_cvalue v1) ct1 
