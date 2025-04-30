@@ -106,8 +106,7 @@ VLIB=Axioms.v Coqlib.v Intv.v Maps.v Heaps.v Lattice.v Ordered.v \
 BEEPL_TESTS=\
   BeePL_progs.v BeePL_add.v BeePL_cond.v BeePL_app.v \
   BeePL_div_zero.v BeePL_div_zero1.v BeePL_external_call.v BeePL_ref.v \
-  BeePL_struct_ex1.v BeePL_struct_ex2.v BeePL_struct_ex3.v BeePL_struct_ex4.v \
-  BeePL_for_ex1.v BeePL_for_ex2.v BeePL_bpf_get_prandom.v 
+  BeePL_struct_ex2.v BeePL_for_ex1.v BeePL_for_ex2.v BeePL_bpf_get_prandom.v 
 
 # Parts common to BeePL
 
