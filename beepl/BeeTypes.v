@@ -51,7 +51,7 @@ Inductive type : Type :=
 | Reftype : ident -> basic_type -> attr -> type           (* reference type ref<h,int> *)
 | Ftype : list type -> effect -> type -> type             (* function/arrow type *)
 | Stype : ident -> attr -> type                           (* struct *)
-| Otype : type -> type.                                   (* option type : only contains ref *)
+| Otype : type -> type.                                   (* option type : only contains ref (checked by the type checker *)
 
 Inductive wtype : Type :=
 | Twunit : wtype

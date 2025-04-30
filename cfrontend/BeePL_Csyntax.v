@@ -346,31 +346,35 @@ end
                              else error (msg "COMPILER ERROR: Option type of Some should contain a pointer in BeePL")
                | _ => error (msg "COMPILER ERROR: Some should be of Option type")
               end
-| Match e ps es t => if is_reftype t
-                     then do ce <- transBeePL_expr_expr e fn_ctx;
-                          match ps, es with 
-                          | nil, nil => error (msg "COMPILER ERROR: No pattern matching cases found")
-                          | (Pnone :: Psome x :: nil), (e1 :: e2 :: nil) => 
-                             do ce1 <- transBeePL_expr_expr e1 fn_ctx;
-                             do ce2 <- transBeePL_expr_expr e2 (snd ce1);
-                             ret ((Econdition (Ebinop Cop.Oeq (fst ce) 
-                                                (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
-                                               (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
-                                  (fst ce1)
-                                  (fst ce2) (transBeePL_type t)), snd (ce2))
-                          | (Psome x :: Pnone :: nil), (e1 :: e2 :: nil) => 
-                             do ce1 <- transBeePL_expr_expr e1 fn_ctx;
-                             do ce2 <- transBeePL_expr_expr e2 (snd ce1);
-                             ret ((Econdition (Ebinop Cop.Oeq (fst ce) 
-                                                (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
-                                               (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
-                                  (fst ce2)
-                                  (fst ce1) (transBeePL_type t)), snd (ce1))
-                          | _, _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
-                        end
-                   else error (msg "COMPILER ERROR: The return type of matching should be a pointer")
+| Match e ps es t => do ce <- transBeePL_expr_expr e fn_ctx;
+                     let te := typeof_expr e in
+                     match te with 
+                     | Otype t' => 
+                         if is_reftype t' 
+                         then match ps, es with 
+                              | nil, nil => error (msg "COMPILER ERROR: No pattern matching cases found")
+                              | (Pnone :: Psome x :: nil), (e1 :: e2 :: nil) => 
+                                  do ce1 <- transBeePL_expr_expr e1 fn_ctx;
+                                  do ce2 <- transBeePL_expr_expr e2 (snd ce1);
+                                  ret ((Econdition (Ebinop Cop.Oeq (fst ce) 
+                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                                       (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
+                                          (fst ce1)
+                                          (fst ce2) (transBeePL_type t)), snd (ce2))
+                              | (Psome x :: Pnone :: nil), (e1 :: e2 :: nil) => 
+                                  do ce1 <- transBeePL_expr_expr e1 fn_ctx;
+                                  do ce2 <- transBeePL_expr_expr e2 (snd ce1);
+                                  ret ((Econdition (Ebinop Cop.Oeq (fst ce) 
+                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                                       (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
+                                          (fst ce2)
+                                          (fst ce1) (transBeePL_type t)), snd (ce1))
+                              | _, _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
+                              end
+                          else error (msg "COMPILER ERROR: Match can be only performed on option type containing ref")
+                     | _ =>  error (msg "COMPILER ERROR: Match can be only performed on option type")
+                     end
 end.
-
 
 Definition check_var_const (e : BeePL.expr) : bool :=
 match e with 
@@ -530,26 +534,33 @@ match e with
                | _ => error (msg "COMPILER ERROR: Some should be of Option type")
               end
 | Match e ps es t => do ce <- transBeePL_expr_expr e ctx;
-                     match ps, es with 
-                     | nil, nil => error (msg "COMPILER ERROR: No pattern matching cases found")
-                     | (Pnone :: Psome x :: nil), (e1 :: e2 :: nil) => 
-                       do ce1 <- transBeePL_expr_st e1 ctx;
-                       do ce2 <- transBeePL_expr_st e2 (snd ce1);
-                       ret ((Sifthenelse (Ebinop Cop.Oeq (fst ce) 
-                                          (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
-                                          (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
-                                  (fst ce1)
-                                  (fst ce2)), snd (ce2))
-                    | (Psome x :: Pnone :: nil), (e1 :: e2 :: nil) => 
-                      do ce1 <- transBeePL_expr_st e1 ctx;
-                      do ce2 <- transBeePL_expr_st e2 (snd ce1);
-                      ret ((Sifthenelse (Ebinop Cop.Oeq (fst ce) 
-                                                (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
-                                               (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
-                                  (fst ce2)
-                                  (fst ce1)), snd (ce1))
-                    | _, _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
-                    end
+                     let te := typeof_expr e in
+                     match te with 
+                     | Otype t' => 
+                         if is_reftype t' 
+                         then match ps, es with 
+                              | nil, nil => error (msg "COMPILER ERROR: No pattern matching cases found")
+                              | (Pnone :: Psome x :: nil), (e1 :: e2 :: nil) => 
+                                  do ce1 <- transBeePL_expr_st e1 ctx;
+                                  do ce2 <- transBeePL_expr_st e2 (snd ce1);
+                                  ret ((Sifthenelse (Ebinop Cop.Oeq (fst ce) 
+                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                                       (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
+                                          (fst ce1)
+                                          (fst ce2)), snd (ce2))
+                              | (Psome x :: Pnone :: nil), (e1 :: e2 :: nil) => 
+                                  do ce1 <- transBeePL_expr_st e1 ctx;
+                                  do ce2 <- transBeePL_expr_st e2 (snd ce1);
+                                  ret ((Sifthenelse (Ebinop Cop.Oeq (fst ce) 
+                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                                       (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
+                                          (fst ce2)
+                                          (fst ce1)), snd (ce1))
+                              | _, _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
+                              end
+                          else error (msg "COMPILER ERROR: Match can be only performed on option type containing ref")
+                     | _ =>  error (msg "COMPILER ERROR: Match can be only performed on option type")
+                     end
 end.
 
 

@@ -6,7 +6,7 @@ Local Open Scope string_scope.
 Local Open Scope csyntax_scope.
 
 (* Just for testing the functionality of match, none, and some *)
-(* This program will never type check in BeePL as programmer is not suppose to do match on ref(2) *)
+(* This program is not allowed in BeePL as programmer is not suppose to do match on ref(2) *)
 (* Match should be only performed on pointers coming from helper function *)
 (* int main() {
      match ref(2) 

@@ -74,4 +74,4 @@ Qed.
                                                    bcomposite_correct
                                                    ident_to_string.
 
-Compute (type_check_program example1).*)
+Compute (type_check_program example1). (* Type checks *) *)

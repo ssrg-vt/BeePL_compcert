@@ -5,6 +5,7 @@ Import Csyntaxdefs.CsyntaxNotations.
 Local Open Scope string_scope.
 Local Open Scope csyntax_scope.
 
+(* This program should not be allowed by the compiler as we only allow option containing pointers *)
 (* int main() {
    option<int> r;
    r = Some 4;
@@ -43,8 +44,9 @@ Definition f_option1 : BeePL.function := {|
                                                  (Ptype Tunit))
                                                (Bind _y (Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)) 
                                                      (Match (Var _r (BeeTypes.Otype (Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr))))
-                                                             ((Pnone, (Const (ConsInt (Int.repr 0)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)))) ::
-                                                              (Psome _x, (Var _x (Ptype (BeeTypes.Tint I32 Unsigned dattr)))) :: nil) 
+                                                              (Pnone :: Psome _x :: nil) 
+                                                              (Const (ConsInt (Int.repr 0)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)) ::
+                                                               Var _x (Ptype (BeeTypes.Tint I32 Unsigned dattr)) :: nil) 
                                                              (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
                                                      (Var _y (Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)))
                                                 (Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)))
