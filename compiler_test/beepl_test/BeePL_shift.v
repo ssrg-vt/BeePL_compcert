@@ -23,6 +23,7 @@ Definition ident_to_string : list (ident * string) := ((_r, "r") ::
                                                        (_main, "main") :: nil).
 
 Definition f_rshift : BeePL.function := {| 
+                                   fn_sec := None;
                                    fn_return := tlongu;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;

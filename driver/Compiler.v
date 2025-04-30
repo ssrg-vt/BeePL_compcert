@@ -170,7 +170,11 @@ Definition transf_c_program (p: Csyntax.program) : res Asm.program :=
   @@@ time "Clight generation" SimplExpr.transl_program
   @@@ transf_clight_program.
 
-Definition transf_beepl_program_csyntax (p : BeePL.program) : res (Csyntax.program * list (ident * string)) :=
+(* The BeePL.program gets broken down into many different CompCert data 
+   structures. `list (ident * string)` is used for CompCert's atom_of_string and
+   string_of_atom. The list of csyntax_atom_info is used to fill out CompCert's
+   decl_atom *)
+Definition transf_beepl_program_csyntax (p : BeePL.program) : res (Csyntax.program * list (ident * string) * list (ident * BeePL_Csyntax.csyntax_atom_info)) :=
   OK p
   @@@ time "Csyntax generation" BeePL_Csyntax.BeePL_compcert.
 

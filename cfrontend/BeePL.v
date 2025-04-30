@@ -196,7 +196,7 @@ match e with
 end.
 
 
-Record function : Type := mkfunction { (*fn_sec: option string; XDP ==> SEC("xdp") *)
+Record function : Type := mkfunction { fn_sec: option string;
                                        fn_return: type;
                                        fn_effect: effect;
                                        fn_callconv: calling_convention;

@@ -81,6 +81,7 @@ Definition v_counter_table := {|
 Definition bcomposites : list bcomposite_definition := bcomposites_pt_regs ++ bcomposites_bpf_map_type_hash.
 
 Definition f_hash_map_example : BeePL.function := {| 
+  fn_sec := None;
   fn_return := tint32s;
   fn_effect := Alloc mem_ident :: Alloc mem_ident :: Io :: Write mem_ident :: Read mem_ident :: Io :: 
                Read mem_ident :: Write mem_ident :: Read mem_ident :: Write mem_ident :: Write mem_ident :: Io :: nil;

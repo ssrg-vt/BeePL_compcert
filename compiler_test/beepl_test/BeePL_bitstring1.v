@@ -32,7 +32,8 @@ Definition ident_to_string : list (ident * string) := ((_xdp_md_bee, "xdp_md_bee
                                                        (_cv, "cv") ::
                                                        (_main, "main") :: nil).
 
-Definition f_bytes : BeePL.function := {| fn_return := tint32s;
+Definition f_bytes : BeePL.function := {|  fn_sec := None;
+                                           fn_return := tint32s;
                                            fn_effect :=  nil;
                                            fn_callconv := cc_default;
                                            fn_args := (_ctx, tpstruct _xdp_md_bee)  :: nil ;

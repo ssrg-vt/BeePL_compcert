@@ -819,8 +819,81 @@ match gds with
              OK ((fst (fst gd) :: fst (fst gds)), (snd (fst gds)), (snd gd ++ snd gds)%list, is'')
 end.
 
+(* CompCert stores section information in a global hash table called decl_atom,
+   which is defined in C2C.ml. decl_atom's key is defined in Coq but it's value,
+   a record called atom_info, is defined in OCaml. Until atom_info is moved from
+   OCaml to Coq redefine only what is required for use of sections in eBPF 
+   programs. TODO: move atom_info completely into Coq *)
+Inductive section_name : Type :=
+  | Section_literal : int (* literal size; zero if unknown *) -> section_name
+  | Section_jumptable : section_name
+  | Section_user : string -> bool (*writable*) -> bool (*executable*) -> section_name.
+
+Inductive storage : Type :=
+  | Storage_default (* used for toplevel names without explicit storage *)
+  | Storage_extern
+  | Storage_static
+  | Storage_auto    (* used for block-scoped names without explicit storage *)
+  | Storage_register.
+
+Inductive inline_status : Type :=
+  | No_specifier (* No inline specifier and no noinline attribute *)
+  | Noinline     (* The atom is declared with the noinline attribute *)
+  | Inline.      (* The atom is declared inline *)
+
+(* Had to deviate from name used in atom_info due to conflict with use of 
+   access_mode in BeePL_auxlemmas *)
+Inductive sec_access_mode : Type := 
+  | Access_default
+  | Access_near
+  | Access_far.
+
+Record csyntax_atom_info : Type := {
+  a_storage : storage;
+  a_size : option int64;
+  a_alignment : option int;
+  a_section : list section_name;
+  a_access : sec_access_mode;
+  a_inline : inline_status;
+  a_loc : string (*filename*) * int; (*line number*)
+}.
+
+Fixpoint get_section_info (glob_defs : list (ident * AST.globdef BeePL.fundef type)) : list (ident * csyntax_atom_info) :=
+  match glob_defs with
+  | nil => nil
+  | (id, AST.Gfun (Internal f)) :: rest =>
+      let tail := get_section_info rest in
+      match fn_sec f with
+      | Some s =>
+        (* User defined functions should be immutable and executable. In testing
+           we found that CompCert adds Section_literal(0) and Section_jumptable 
+           when __attribute__(section("section_name") is used so we do too *)
+        let section_list := Section_user s false (*writable*) true (*executable*) :: 
+                            Section_literal (Int.repr 0) :: 
+                            Section_jumptable :: nil in
+        let info := {|
+          a_storage := Storage_default;
+          a_size := None;
+          a_alignment := None;
+          a_section := section_list;
+          a_access := Access_default;
+          a_inline := No_specifier;
+          (* Currently location information is not stored in BeePL.program. When
+             we implment a parser we can decise if we should do that*)
+          a_loc := ("", (Int.repr 0))
+        |} in
+        (id, info) :: tail
+      | None => tail
+      end
+  | _ :: rest =>
+      get_section_info rest
+  end.
+
 (* Missing list of public functions *) 
-Definition BeePL_compcert (p : BeePL.program) : res (Csyntax.program * list (ident * string)) :=
+Definition BeePL_compcert (p : BeePL.program) : res (Csyntax.program * list (ident * string) * list (ident * csyntax_atom_info)) :=
+  (* Extract section information from BeePL.program *)  
+  let section_info := get_section_info (prog_defs p) in
+  
   let bctx := {| arg_ctx := get_args_ebpf_gbdefs (unzip2 p.(prog_defs)); benv := p.(prog_comp_env) |} in 
   do cp <- check_struct_from_program p;
   do (pds, is') <- transBeePL_globdefs_globdefs (prog_comp_env(p)) (unzip2 (p.(prog_defs))) (p.(prog_ident_to_string)) bctx;
@@ -828,4 +901,5 @@ Definition BeePL_compcert (p : BeePL.program) : res (Csyntax.program * list (ide
   let cs := (map bcomposite_ccomposite_definition p.(prog_types)) in 
   let mcs := (ncs ++ snd pds ++ wrapper_beepl_struct_ebpf_struct cs)%list in
   do cprog <- make_program mcs (zip (unzip1 p.(prog_defs)) (fst (fst pds))) (prog_public p) (prog_main p);
-  OK (cprog, snd (fst pds)).
+  OK (cprog, snd (fst pds), section_info).
+

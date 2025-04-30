@@ -25,6 +25,7 @@ Definition ident_to_string : list (ident * string) := ((_x, "x") ::
                                                        (_main, "main") :: nil).
 
 Definition f_ref : BeePL.function := {| 
+                                   fn_sec := None;
                                    fn_return := (Ptype (BeeTypes.Tint I32 Signed dattr));
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
@@ -37,6 +38,7 @@ Definition f_ref : BeePL.function := {|
 
 (* Swarn said this should be rejected by the typechecker *)
 Definition f_ref2 : BeePL.function := {| 
+                                   fn_sec := None;
                                    fn_return := (Ptype (BeeTypes.Tint I32 Signed dattr));
                                    fn_effect := nil;
                                    fn_callconv := cc_default;

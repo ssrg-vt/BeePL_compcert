@@ -22,7 +22,8 @@ Definition ident_to_string : list (ident * string) := ((_Point, "Point") ::
                                                        (_t, "t") ::
                                                        (_main, "main") :: nil).
 
-Definition f_struct : BeePL.function := {| fn_return := tint32s;
+Definition f_struct : BeePL.function := {| fn_sec := None
+                                           fn_return := tint32s;
                                            fn_effect :=  nil;
                                            fn_callconv := cc_default;
                                            fn_args := nil;
