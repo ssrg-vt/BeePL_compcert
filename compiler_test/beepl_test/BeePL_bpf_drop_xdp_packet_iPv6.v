@@ -47,6 +47,7 @@ Definition ident_to_string : list (ident * string) := ident_to_string_xdp_md ++ 
                                                        (_xdp_drop_prog, "xdp_drop_prog") :: nil).
 
 Definition f_xdp_drop_prog : BeePL.function := {| 
+                                   fn_sec := None;
                                    fn_return := tint32s;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;

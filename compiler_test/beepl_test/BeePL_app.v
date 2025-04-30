@@ -37,6 +37,7 @@ Definition  ident_to_string : list (ident * string) := ((_a, "a") ::
  *     
  *)
 Definition f_add : BeePL.function := {| 
+                                   fn_sec := None;
                                    fn_return := tint32s;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
@@ -60,6 +61,7 @@ Definition f_add : BeePL.function := {|
  *     
  *)
 Definition f_add_with_one_ref : BeePL.function := {| 
+                                   fn_sec := None;
                                    fn_return := tint32s;
                                    fn_effect := (Read mem_ident :: nil);
                                    fn_callconv := cc_default;
@@ -84,6 +86,7 @@ Definition f_add_with_one_ref : BeePL.function := {|
  *     
  *)
 Definition f_add_with_two_ref : BeePL.function := {| 
+                                   fn_sec := None;
                                    fn_return := tint32s;
                                    fn_effect := (Read mem_ident :: Read mem_ident :: nil);
                                    fn_callconv := cc_default;
@@ -110,6 +113,7 @@ Definition f_add_with_two_ref : BeePL.function := {|
  *
  *)
 Definition f_main : BeePL.function := {| 
+                                   fn_sec := None;
                                    fn_return := tint32s;
                                    fn_effect := (Read mem_ident :: Alloc mem_ident :: 
                                                  Read mem_ident :: Read mem_ident :: 

@@ -49,6 +49,7 @@ Definition  ident_to_string : list (ident * string) := ((_a, "a") ::
 
 
 Definition f_add : BeePL.function := {| 
+                                   fn_sec := None;
                                    fn_return := tint32s;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
@@ -65,6 +66,7 @@ Definition f_add : BeePL.function := {|
 
 
 Definition f_compute : BeePL.function := {| 
+                                   fn_sec := None;
                                    fn_return := tint32s;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
@@ -79,6 +81,7 @@ Definition f_compute : BeePL.function := {|
 
 
 Definition f_main : BeePL.function := {| 
+                                   fn_sec := None;
                                    fn_return := tint32s;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;

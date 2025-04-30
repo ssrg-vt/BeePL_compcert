@@ -29,6 +29,7 @@ Definition ident_to_string : list (ident * string) := ((_x, "x") ::
                                                       (_main, "main") :: nil).
 
 Definition f_conditional_1 : BeePL.function := {| 
+                                   fn_sec := None;
                                    fn_return := tint32s;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
@@ -56,6 +57,7 @@ Definition f_conditional_1 : BeePL.function := {|
  *)
 
 Definition f_conditional_2 : BeePL.function := {| 
+                                   fn_sec := None;
                                    fn_return := tint32s;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;

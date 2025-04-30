@@ -30,6 +30,7 @@ Definition ident_to_string : list (ident * string) := ((_x, "x") ::
                                                       (_main, "main") :: nil).
 
 Definition f_trun_div : BeePL.function := {| 
+                                   fn_sec := None;
                                    fn_return := tint32u;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;

@@ -42,6 +42,7 @@ Definition test : BeePL.expr := (App (Var _add (tfun (tint32s :: trint32s :: nil
                                            (Var _b tint32s :: nil) trint32s :: nil) tint32s).
 
 Definition f_external_call : BeePL.function := {| 
+                                   fn_sec := None;
                                    fn_return := tint32s;
                                    fn_effect := (Alloc mem_ident :: nil);
                                    fn_callconv := cc_default;

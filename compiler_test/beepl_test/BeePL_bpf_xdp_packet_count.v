@@ -53,6 +53,7 @@ Definition v_counter := {|
 |}.
 
 Definition f_xdp_packet_count : BeePL.function := {| 
+                                   fn_sec := None;
                                    fn_return := tint32s;
                                    fn_effect := Read mem_ident :: Write mem_ident :: nil;
                                    fn_callconv := cc_default;

@@ -32,7 +32,8 @@ End Info.
 Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
 Definition _main : ident := $"main".
 
-Definition f_main : function := {| fn_return := (Ptype (BeeTypes.Tlong Unsigned dattr));
+Definition f_main : function := {| fn_sec := None;
+                                   fn_return := (Ptype (BeeTypes.Tlong Unsigned dattr));
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
                                    fn_args := nil;

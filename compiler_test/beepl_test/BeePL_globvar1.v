@@ -38,7 +38,8 @@ Definition v_x := {|
   gvar_volatile := false
 |}.
 
-Definition f_main := {| fn_return := tint32s;
+Definition f_main := {|   fn_sec := None;
+                          fn_return := tint32s;
                           fn_effect := Read mem_ident :: Write mem_ident :: Read mem_ident :: nil;
                           fn_callconv := cc_default;
                           fn_args := nil;

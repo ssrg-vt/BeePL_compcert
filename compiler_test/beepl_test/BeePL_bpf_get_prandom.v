@@ -40,6 +40,7 @@ Definition ident_to_string : list (ident * string) := ident_to_string_hf ++ iden
                                                        (_main, "main") :: nil).
 
 Definition f_xdp_prog : BeePL.function := {| 
+                                   fn_sec := None;
                                    fn_return := tint32s;
                                    fn_effect := Io :: nil;
                                    fn_callconv := cc_default;

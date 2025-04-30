@@ -56,6 +56,7 @@ Definition v_pid_filter := {|
 |}.
 
 Definition f_handle_tp : BeePL.function := {| 
+                                   fn_sec := None;
                                    fn_return := tint32s;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
