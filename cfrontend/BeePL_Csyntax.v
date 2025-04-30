@@ -44,30 +44,6 @@ end.
 
 Definition default_expr := (Eval (Values.Vundef) Tvoid).
 
-(*Fixpoint repeat_expr_up (x : ident) (er : Csyntax.expr) (e : Csyntax.expr) (fuel : nat) {struct fuel} : Csyntax.expr :=
-match fuel with
-| O => Eval (Values.Vint (Int.repr 0)) (Ctypes.Tint I32 Unsigned noattr)
-| S n => Econdition (Ebinop Cop.Ole (Evar x (Ctypes.Tint I32 Unsigned noattr)) er (Ctypes.Tint I32 Unsigned noattr))
-           (Ecomma e (Ecomma 
-                        (Ebinop Cop.Oadd 
-                           (Evar x (Ctypes.Tint I32 Unsigned noattr)) 
-                           (Eval (Values.Vint (Int.repr 1)) (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr))
-                        (repeat_expr_up x er e n) (typeof e)) (typeof e))
-           (Evar x (Ctypes.Tint I32 Unsigned noattr)) (typeof e)
-end.
-
-Fixpoint repeat_expr_down (x : ident) (er : Csyntax.expr) (e : Csyntax.expr) (fuel : nat) {struct fuel} : Csyntax.expr :=
-match fuel with
-| O => Eval (Values.Vint (Int.repr 0)) (Ctypes.Tint I32 Unsigned noattr)
-| S n => Econdition (Ebinop Cop.Oge (Evar x (Ctypes.Tint I32 Unsigned noattr)) er (Ctypes.Tint I32 Unsigned noattr))
-           (Ecomma e (Ecomma 
-                        (Ebinop Cop.Osub 
-                           (Evar x (Ctypes.Tint I32 Unsigned noattr)) 
-                           (Eval (Values.Vint (Int.repr 1)) (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr))
-                        (repeat_expr_up x er e n) (typeof e)) (typeof e))
-           (Evar x (Ctypes.Tint I32 Unsigned noattr)) (typeof e)
-end.*)
-
 (* This function exists to handle creating fresh variables for converting Ref to
    CompCert C. 
 
@@ -353,7 +329,7 @@ end
                      let ct := (transBeePL_type t) in
                      do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx);
                      ret (Ebuiltin cef cts ces ct, fn_ctx')
-| Screate x tes t => error (msg "COMPILER ERROR: Struct creation cannot be translated to another C epxr")
+| Screate x ids es t => error (msg "COMPILER ERROR: Struct creation cannot be translated to another C epxr")
 | Sfield e x t => do (ce, fn_ctx') <- transBeePL_expr_expr e fn_ctx;
                   let ct := transBeePL_type t in
                   ret (Efield (Evalof ce (transBeePL_type (typeof_expr e))) x ct, fn_ctx')
@@ -370,11 +346,11 @@ end
                              else error (msg "COMPILER ERROR: Option type of Some should contain a pointer in BeePL")
                | _ => error (msg "COMPILER ERROR: Some should be of Option type")
               end
-| Match e pes t => if is_reftype t
-                   then do ce <- transBeePL_expr_expr e fn_ctx;
-                        match pes with 
-                         | nil => error (msg "COMPILER ERROR: No pattern matching cases found")
-                         | ((Pnone, e1) :: (Psome x, e2) :: nil) => 
+| Match e ps es t => if is_reftype t
+                     then do ce <- transBeePL_expr_expr e fn_ctx;
+                          match ps, es with 
+                          | nil, nil => error (msg "COMPILER ERROR: No pattern matching cases found")
+                          | (Pnone :: Psome x :: nil), (e1 :: e2 :: nil) => 
                              do ce1 <- transBeePL_expr_expr e1 fn_ctx;
                              do ce2 <- transBeePL_expr_expr e2 (snd ce1);
                              ret ((Econdition (Ebinop Cop.Oeq (fst ce) 
@@ -382,7 +358,7 @@ end
                                                (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
                                   (fst ce1)
                                   (fst ce2) (transBeePL_type t)), snd (ce2))
-                          | ((Psome x, e1) :: (Pnone, e2) :: nil) => 
+                          | (Psome x :: Pnone :: nil), (e1 :: e2 :: nil) => 
                              do ce1 <- transBeePL_expr_expr e1 fn_ctx;
                              do ce2 <- transBeePL_expr_expr e2 (snd ce1);
                              ret ((Econdition (Ebinop Cop.Oeq (fst ce) 
@@ -390,7 +366,7 @@ end
                                                (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
                                   (fst ce2)
                                   (fst ce1) (transBeePL_type t)), snd (ce1))
-                          | _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
+                          | _, _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
                         end
                    else error (msg "COMPILER ERROR: The return type of matching should be a pointer")
 end.
@@ -477,7 +453,8 @@ match e with
                       do (ce', ctx') <- (transBeePL_expr_st e' ctx);
                       match e with 
                       | Prim Massgn es t => do (ce, ctx'') <- (transBeePL_expr_expr e ctx'); ret (Ssequence (Sdo ce) ce', ctx'') 
-                      | For e1 e2 d e3 t => do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')                 
+                      | For e1 e2 d e3 t => do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')  
+                      | Screate sx ids es t =>  do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')                                                                        
                       | _ =>  do (ce, ctx'') <- (transBeePL_expr_expr e ctx');
                                     ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
                                            (ce'), ctx'')
@@ -502,12 +479,12 @@ match e with
                      let ct := (transBeePL_type t) in
                      do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx);
                      ret (Sdo (Ebuiltin cef cts ces ct), ctx')
-| Screate sx tes t => do (ces, ctx') <- transBeePL_expr_exprs transBeePL_expr_expr (unzip2 tes) ctx;
-                      do (temp, strl) <- (fresh_ident (List.map unzip_ident ctx') max_fresh);
-                      do pty <- ref_to_prim t;
-                      let ctx'' := (temp, pty, strl) :: ctx' in
-                      do rs <- init_struct_fields sx (zip (unzip1 tes) (exprlist_list_expr ces)) (transBeePL_type t) (transBeePL_type pty);
-                      ret (Ssequence (Sdo (Eassign (Evar sx (transBeePL_type t)) 
+| Screate sx ids es t => do (ces, ctx') <- transBeePL_expr_exprs transBeePL_expr_expr es ctx;
+                         do (temp, strl) <- (fresh_ident (List.map unzip_ident ctx') max_fresh);
+                         do pty <- ref_to_prim t;
+                         let ctx'' := (temp, pty, strl) :: ctx' in
+                         do rs <- init_struct_fields sx (zip ids (exprlist_list_expr ces)) (transBeePL_type t) (transBeePL_type pty);
+                         ret (Ssequence (Sdo (Eassign (Evar sx (transBeePL_type t)) 
                                                                          (Eaddrof (Evar temp (transBeePL_type pty)) (transBeePL_type t)) (transBeePL_type t)))
                                                             rs, ctx'')
 | Sfield e x t => do (ce, ctx') <- transBeePL_expr_expr e ctx;
@@ -552,27 +529,27 @@ match e with
                              else error (msg "COMPILER ERROR: Option type of Some should contain a pointer in BeePL")
                | _ => error (msg "COMPILER ERROR: Some should be of Option type")
               end
-| Match e pes t => do ce <- transBeePL_expr_expr e ctx;
-                        match pes with 
-                         | nil => error (msg "COMPILER ERROR: No pattern matching cases found")
-                         | ((Pnone, e1) :: (Psome x, e2) :: nil) => 
-                             do ce1 <- transBeePL_expr_st e1 ctx;
-                             do ce2 <- transBeePL_expr_st e2 (snd ce1);
-                             ret ((Sifthenelse (Ebinop Cop.Oeq (fst ce) 
-                                                (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
-                                               (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
+| Match e ps es t => do ce <- transBeePL_expr_expr e ctx;
+                     match ps, es with 
+                     | nil, nil => error (msg "COMPILER ERROR: No pattern matching cases found")
+                     | (Pnone :: Psome x :: nil), (e1 :: e2 :: nil) => 
+                       do ce1 <- transBeePL_expr_st e1 ctx;
+                       do ce2 <- transBeePL_expr_st e2 (snd ce1);
+                       ret ((Sifthenelse (Ebinop Cop.Oeq (fst ce) 
+                                          (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                          (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
                                   (fst ce1)
                                   (fst ce2)), snd (ce2))
-                          | ((Psome x, e1) :: (Pnone, e2) :: nil) => 
-                             do ce1 <- transBeePL_expr_st e1 ctx;
-                             do ce2 <- transBeePL_expr_st e2 (snd ce1);
-                             ret ((Sifthenelse (Ebinop Cop.Oeq (fst ce) 
+                    | (Psome x :: Pnone :: nil), (e1 :: e2 :: nil) => 
+                      do ce1 <- transBeePL_expr_st e1 ctx;
+                      do ce2 <- transBeePL_expr_st e2 (snd ce1);
+                      ret ((Sifthenelse (Ebinop Cop.Oeq (fst ce) 
                                                 (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
                                                (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
                                   (fst ce2)
                                   (fst ce1)), snd (ce1))
-                          | _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
-                        end
+                    | _, _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
+                    end
 end.
 
 

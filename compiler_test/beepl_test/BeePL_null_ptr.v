@@ -1,10 +1,13 @@
-Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values BeePL_typechecker. 
+Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values BeePL_typechecker BeePL_notations. 
 From Coq Require Import String ZArith Lists.List.
 From compcert Require Import Csyntaxdefs Errors Maps BeePL_aux.
 Import Csyntaxdefs.CsyntaxNotations.
 Local Open Scope string_scope.
 Local Open Scope csyntax_scope.
 
+(* Just for testing the functionality of match, none, and some *)
+(* This program will never type check in BeePL as programmer is not suppose to do match on ref(2) *)
+(* Match should be only performed on pointers coming from helper function *)
 (* int main() {
      match ref(2) 
      | None option<ref<int>> => -1 (* I want to produce error msg with string *)
@@ -23,25 +26,20 @@ Definition ident_to_string : list (ident * string) := ((_p, "p") ::
                                                        (_main, "main") :: nil).
 
 Definition f_null_ptr : BeePL.function := {| 
-                                   fn_return := (Ptype (BeeTypes.Tint I32 Unsigned dattr));
+                                   fn_return := tint32s;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
                                    fn_args := nil;
-                                   fn_vars := ((_p, Otype (Reftype _h (Bprim (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)) noattr)) :: 
-                                               (_r, Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned noattr)) :: 
+                                   fn_vars := ((_p, toption (trint32s)) :: 
+                                               (_r, tint32s) :: 
                                                 nil);
-                                   fn_body := Match (Prim (Ref) 
-                                                       (Const (ConsInt (Int.repr 2)) (Ptype (BeeTypes.Tint I32 Signed dattr)) :: nil)
-                                                      (Reftype _h (Bprim (Tint Ctypes.I32 Ctypes.Signed dattr)) dattr))
-                                              ((Pnone, (Const (ConsInt (Int.repr (-1)%Z)) (Ptype (BeeTypes.Tint I32 Signed dattr)))) ::
-                                               (Psome _p, Bind _r (Ptype (Tint Ctypes.I32 Ctypes.Signed dattr))
+                                   fn_body := Match (Prim (Ref) (cint (Int.repr 2) tint32s :: nil) trint32s) 
+                                               (Pnone :: Psome _p :: nil) 
+                                               (cint (Int.repr 2) tint32s ::
+                                                Bind _r tint32s
                                                             (Prim (Deref) 
-                                                               (Prim (Ref) (Const (ConsInt (Int.repr 2)) (Ptype (BeeTypes.Tint I32 Signed dattr)) :: nil)
-                                                                     (Reftype _h (Bprim (Tint Ctypes.I32 Ctypes.Signed dattr)) dattr) :: nil) 
-                                                               (Ptype (Tint Ctypes.I32 Ctypes.Signed dattr)))
-                                                            (Var _r (Ptype (Tint Ctypes.I32 Ctypes.Signed dattr)))
-                                                          (Ptype (Tint Ctypes.I32 Ctypes.Signed dattr))) :: nil)
-                                               (Ptype (Tint Ctypes.I32 Ctypes.Signed dattr)) |}.
+                                                               (Prim (Ref) (cint (Int.repr 2) tint32s :: nil) trint32s :: nil) tint32s) 
+                                                            (Var _r tint32s) tint32s :: nil) tint32s |}.
 
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
@@ -57,3 +55,15 @@ Proof.
   unfold wf_bcomposites.
   unfold build_bcomposite_env; simpl; reflexivity.
 Qed.
+
+(*Definition example1 : BeePL.program := @mkbprogram bcomposites 
+                                                   global_definitions 
+                                                   public_idents 
+                                                   _main 
+                                                   bcomposite_correct
+                                                   ident_to_string.
+
+Compute (type_check_expr example1.(prog_comp_env) 
+                         (bind_vars (bind_vars empty_context f_null_ptr.(fn_args)) f_null_ptr.(fn_vars)) empty_context f_null_ptr.(fn_body)).
+
+Compute (type_check_program example1). Does not type check: Expected behavior *)

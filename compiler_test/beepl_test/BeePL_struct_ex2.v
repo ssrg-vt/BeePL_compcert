@@ -5,23 +5,6 @@ Import Csyntaxdefs.CsyntaxNotations.
 Local Open Scope string_scope.
 Local Open Scope csyntax_scope.
 
-(*
-#include <stdio.h>
-
-// Define a struct to represent a point in 2D
-struct Point {
-    int *x;
-    int *y;
-};
-
-int main(void)
-{
-  struct Point p1;
-  *p1.x = 10U;
-  return *p1.x;
-}
-}*)
-
 Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
 Definition _Point : ident := $"Point".
 Definition _p1 : ident := $"p1".
@@ -32,20 +15,22 @@ Definition _p2 : ident := $"p2".
 Definition _main : ident := $"main".
 
 Definition ident_to_string : list (ident * string) := ((_Point, "Point") ::
-                                                      (_p1, "p1") ::
-                                                      (_p2, "p2") ::
-                                                      (_x, "x") :: 
-                                                      (_y, "y") ::
-                                                      (_t, "t") ::
-                                                      (_main, "main") :: nil).
+                                                       (_p1, "p1") ::
+                                                       (_p2, "p2") ::
+                                                       (_x, "x") :: 
+                                                       (_y, "y") ::
+                                                       (_t, "t") ::
+                                                       (_main, "main") :: nil).
 
 Definition f_struct : BeePL.function := {| fn_return := tint32s;
-                                           fn_effect :=  Write mem_ident :: Read mem_ident :: nil;
+                                           fn_effect :=  nil;
                                            fn_callconv := cc_default;
                                            fn_args := nil;
                                            fn_vars := ((_p1, (Reftype mem_ident (Bstruct _Point noattr) noattr)) :: nil);  (* p1 is a struct variable on stack *)
-                                           fn_body := Screate _p1 ((_x, (cint (Int.repr 10) tint32s)) :: (_y, (cint (Int.repr 20) tint32s)) :: nil) 
-                                                        (Reftype mem_ident (Bstruct _Point noattr) noattr)
+                                           fn_body := (Bind _x tint32s 
+                                                         (Screate _p1 (_x :: _y :: nil) (cint (Int.repr 10) tint32s :: cint (Int.repr 20) tint32s :: nil) 
+                                                           (Reftype mem_ident (Bstruct _Point noattr) noattr))
+                                                        (cint (Int.repr 0) tint32s) tint32s)
                                                        |}.
                                                       
 
@@ -77,7 +62,9 @@ Qed.
 Compute (type_check_expr example1.(prog_comp_env) 
                          (bind_vars (bind_vars empty_context f_struct.(fn_args)) f_struct.(fn_vars)) empty_context f_struct.(fn_body)).
 
-Compute (type_check_program example1). *)
+Compute (type_check_program example1).*)
+
+
 
 
 

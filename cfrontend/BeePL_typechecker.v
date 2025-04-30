@@ -51,14 +51,26 @@ match v with
 | Vloc p ofs => Twptr
 end.
 
+Fixpoint typelist_to_list_type (cts : typelist) : list Ctypes.type :=
+match cts with 
+| Tnil => nil
+| Tcons t ts => t :: (typelist_to_list_type ts)
+end.
+
+Fixpoint list_type_to_typelist (cts : list Ctypes.type) : typelist :=
+match cts with
+| nil => Tnil
+| t :: ts => Tcons t (list_type_to_typelist ts)
+end.
+
 Section Trans_ctypes_btypes.
 
 Variable trans_ctype_btype : Ctypes.type -> res BeeTypes.type.
 
-Fixpoint trans_ctypes_btypes (ct : typelist) : res (list BeeTypes.type) :=
+Fixpoint trans_ctypes_btypes (ct : list Ctypes.type) : res (list BeeTypes.type) :=
 match ct with 
-| Tnil => OK nil
-| Tcons ct cts => do bt <- trans_ctype_btype ct;
+| nil => OK nil
+| ct :: cts => do bt <- trans_ctype_btype ct;
                   do bts <- trans_ctypes_btypes cts;
                   OK (bt :: bts)
 end.
@@ -83,6 +95,20 @@ match ct with
 | Tunion x a => Error (msg "TYPE ERROR: Union is not supported in BeePL")
 end.
 
+Fixpoint type_of_members (xs : list (attr * ident)) (m : members) {struct xs} : res (list Ctypes.type) :=
+match xs with 
+| nil => OK nil
+| (a, x) :: xs => do t <- type_of_member a x m;
+                  do ts <- type_of_members xs m;
+                  OK (t :: ts)
+end.
+
+Fixpoint all_eq_types (ts : list type) : bool :=
+match ts with
+| nil => true
+| t1 :: ts' => forallb (fun t => eq_type t1 t) ts'
+end. 
+
 Section Type_check_exprs. 
 
 Variable type_check_expr : bcomposite_env -> ty_context -> store_context -> expr -> res (type * effect).
@@ -97,7 +123,7 @@ end.
 
 End Type_check_exprs.
 
-Fixpoint type_check_expr (cenv : bcomposite_env) (Gamma : ty_context) (Sigma : store_context) (e : expr) : res (type * effect) :=
+Fixpoint type_check_expr (cenv : bcomposite_env) (Gamma : ty_context) (Sigma : store_context) (e : expr) {struct e} : res (type * effect) :=
 match e with 
 | Val v t => OK (t, nil)
 | Var x t => match (PTree.get x (extend_context Gamma x t)) with 
@@ -325,16 +351,29 @@ match e with
                    end
 | Hexpr h e t =>  Error (msg "TYPE ERROR: Hexpr is not yet supported")
 | Eapp ef ts es t => Error (msg "TYPE ERROR: We have no use case of builtin function as of now")
-| Screate x tes t =>  Error (msg "TYPE ERROR: Struct creation is not yet supported")
+| Screate x ids es t => do (tes, efs) <- type_check_exprs type_check_expr cenv Gamma Sigma es;
+                        match t with 
+                        | Reftype mem_ident (Bstruct id a) a' => match cenv!id with 
+                                                                 | Some co => do cts <- type_of_members 
+                                                                                        (combine (map Ctypes.attr_of_type (typelist_to_list_type (transBeePL_types transBeePL_type tes))) ids) 
+                                                                                        (bmembers_cmembers co.(co_members));
+                                                                              do bts <- trans_ctypes_btypes trans_ctype_btype cts;
+                                                                              if eq_types eq_type tes bts 
+                                                                              then OK(t, efs)
+                                                                              else Error (msg "TYPE ERROR: Wrong type inferred for the struct initialization")
+                                                                 | None => Error (msg "TYPE ERROR: Struct fields not found in composite env")
+                                                                 end
+                     | _ => Error (msg "TYPE ERROR: Struct created in BeePL should always be reftype")
+                    end
 | Sfield e x t => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                   match te with 
                   | Stype id a => match cenv!id with 
                                   | Some co => do ct <- type_of_member a x (bmembers_cmembers co.(co_members));
                                                do bt <- trans_ctype_btype ct;
                                                if eq_type t bt 
-                                               then OK (bt, nil)
+                                               then OK (bt, ef)
                                                else Error (msg "TYPE ERROR: Wrong type inferred for the struct field")
-                                  | None => Error (msg "TYPE ERROR: Struct information not found in composite env")
+                                  | None => Error (msg "TYPE ERROR: The field accessed from the struct is not found in composite env")
                                   end
                   | _ => Error (msg "TYPE ERROR: Should be a struct type")
                   end
@@ -349,9 +388,28 @@ match e with
                        then OK(te, ef1 ++ ef2 ++ ef)
                        else Error (msg "TYPE ERROR: The range type should be unsigned int or long and the inferred type does not match")
                                                           
-| Enone t => Error (msg "TYPE ERROR: Enone type checking not supported yet")
-| Esome e t => Error (msg "TYPE ERROR: Esome type checking not supported yet")
-| Match e pes t => Error (msg "TYPE ERROR: Match type checking not supported yet")
+| Enone t => match t with 
+             | Otype t' => if is_reftype t' 
+                           then OK(t, nil) 
+                           else Error (msg "TYPE ERROR: Type of Enone should be an option to ref type")
+             | _ => Error (msg "TYPE ERROR: Type of Enone should be an option type")
+             end
+| Esome e t => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
+               match t with 
+               | Otype t' => if is_reftype t'
+                             then OK(t, ef)
+                             else Error (msg "TYPE ERROR: Type of Esome should be an option to ref type")
+               | _ => Error (msg "TYPE ERROR: Type of Esome should be an option type")
+               end
+| Match e ps es t => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
+                     do (tes, efs) <- type_check_exprs type_check_expr cenv Gamma Sigma es;
+                     match te with 
+                     | Otype t' => if is_reftype te && all_eq_types tes 
+                                   then OK(t, ef ++ efs)
+                                   else Error (msg "TYPE ERROR: Type of Match expr should be an option to ref type and all its elements should be of same type")
+                     | _ => Error (msg "TYPE ERROR: Type of Match expr should be an option type")
+                     end
+                     
 end.
 
 Open Scope string_scope.

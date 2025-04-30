@@ -33,12 +33,12 @@ match e with
 | Addr l ofs t => false
 | Hexpr m e t => false (* fix me *)
 | BeePL.Eapp ef ts es t => true (* fix me *)
-| Screate _ _ _ => true
+| Screate _ _ _ _ => true
 | Sfield _ _ _ => true
 | For e1 e2 d e t => is_stateful_expr e 
 | Enone t => false
 | Esome e t => is_stateful_expr e
-| Match e pes t => false (* fix me *)
+| Match e ps es t => false (* fix me *)
 end.
 
 Fixpoint is_stateful_exprs (es : list BeePL.expr) : bool :=

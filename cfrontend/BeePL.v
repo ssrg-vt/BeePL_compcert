@@ -76,17 +76,15 @@ Inductive expr : Type :=
 | Bind : ident -> type -> expr -> expr -> type -> expr                  (* let binding: type of continuation *)
 | Cond : expr -> expr -> expr -> type -> expr                           (* if e then e else e *) 
 | Unit : type -> expr                                                   (* unit *)
-(* Addr: not intended to be written by programmers:
-   Only should play role in operational semantics *)
-| Addr : linfo -> ptrofs -> type -> expr                                (* address *)
+| Addr : linfo -> ptrofs -> type -> expr                                (* address: Addr: not intended to be written by programmers: *)
 | Hexpr : Memory.mem -> expr -> type -> expr                            (* heap effect *)
 | Eapp : external_function -> list type -> list expr -> type -> expr    (* external function *)
-| Screate : ident -> list (ident * expr) -> type -> expr                (* struct creation *)
+| Screate : ident -> list ident -> list expr -> type -> expr                (* struct creation *)
 | Sfield : expr -> ident -> type -> expr                                (* access to a member of struct *)
 | For : expr -> expr -> dir -> expr -> type -> expr                     (* for loop - constant bound *)
 | Enone : type -> expr                                                  (* none: option *)
 | Esome : expr -> type -> expr                                          (* some: option *)
-| Match : expr -> list (pattern * expr) -> type -> expr                 (* pattern matching *).
+| Match : expr -> list pattern -> list expr -> type -> expr             (* pattern matching *).
 
 (* for i = 1 to 5 Upto e *)
 (*
@@ -130,12 +128,12 @@ match e with
 | Addr l p t => t
 | Hexpr h e t => t
 | Eapp ef ts es t => t
-| Screate _ _ t => t
+| Screate _ _ _ t => t
 | Sfield e x t => t
 | For e1 e2 d e t => t
 | Enone t => t
 | Esome e t => t
-| Match e pes t => t
+| Match e ps es t => t
 end.
 
 Fixpoint typeof_exprs (e : list expr) : list BeeTypes.type :=
@@ -448,16 +446,12 @@ Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
   | Addr l p t => Addr l p t
   | Hexpr h e t => Hexpr h (subst x se e) t
   | Eapp ef ts es t => Eapp ef ts (map (subst x se) es) t
-  | Screate x tes t => Screate x tes t (* FIX ME Screate x (zip (unzip1 tes) (map (subst x se) (unzip2 tes))) t*)
+  | Screate x ids es t => Screate x ids (map (subst x se) es) t (* fix we need to make comparison with ids? *)
   | Sfield e fld t => Sfield (subst x se e) fld t
   | For e1 e2 d e' t => For (subst x se e1) (subst x se e2) d (subst x se e') t
   | Enone t => Enone t 
   | Esome e t => Esome (subst x se e) t
-  | Match e pes t =>
-      let ps := unzip1 pes in 
-      let es := unzip2 pes in 
-      let ses := map (subst x se) es in
-      Match (subst x se e) pes (*FIX ME : (zip ps ses)*) t
+  | Match e ps es t => Match (subst x se e) ps (map (subst x se) es) t
   end.
 
 
