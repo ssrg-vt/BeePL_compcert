@@ -766,6 +766,14 @@ match t with
 | Otype t => sizeof_type env t (* fix me *)
 end.
 
+(* Used for extracting the correct type for a Ref's fresh variable *)
+Definition ref_to_prim (ty : type) : mon type :=
+  match ty with
+  | Reftype _ (Bprim pt) _ => ret (Ptype pt)
+  | Reftype _ (Bstruct s a) _ => ret (Stype s a)
+  | _ => error (msg "ref_to_prim: expected only reftype")
+  end.
+
 (* Typing context *)
 Definition ty_context := PTree.t type.
 
