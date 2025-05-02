@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx Coq.Strings.BinaryString.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Coq.Lists.List.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes Ctyping.
-Require Import BeePL_aux BeePL BeePL_values BeeTypes BeePL_mem Errors Csyntaxdefs.
+Require Import BeePL_aux BeePL BeePL_values BeeTypes BeePL_mem Errors Csyntaxdefs BeePL_notations.
 From mathcomp Require Import all_ssreflect. 
 
 Local Open Scope error_monad_scope.
@@ -20,7 +20,8 @@ Notation "m [ a ]" := (PTree.get (ident_of_string a) m) (at level 10, left assoc
 
 (* Add all external functions needed for BeePL *)
 Definition  beepl_ef_env : ef_env :=
-ef_empty_map ["bpf_get_prandom_u32" <- (nil, (Ptype (BeeTypes.Tint I32 Unsigned noattr), nil))].
+ef_empty_map ["bpf_get_prandom_u32" <- (nil, (tint32u, nil))]
+             ["bpf_ktime_get_ns" <- (nil, (tlongu, nil))].
 
 Definition get_ef_type (efenv : ef_env) (s : string) : res ef_info :=
 match efenv[s] with 
@@ -49,6 +50,7 @@ match v with
 | Vint i => Twint
 | Vint64 i => Twlong
 | Vloc p ofs => Twptr
+| Voption o => Twot
 end.
 
 Fixpoint typelist_to_list_type (cts : typelist) : list Ctypes.type :=

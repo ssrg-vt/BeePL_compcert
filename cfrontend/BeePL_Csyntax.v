@@ -5,6 +5,7 @@ Require Import BeePL_aux BeePL BeeTypes Csyntax Errors SimplExpr BeePL_values De
 
 Local Open Scope string_scope.
 Local Open Scope gensym_monad_scope.
+
 (**** BeePL Compiler *****)
 Section transBeePL_exprs.
 
@@ -50,6 +51,7 @@ Definition default_expr := (Eval (Values.Vundef) Tvoid).
    Ex) ref(4) => int __fresh; __fresh = 4; &__fresh; 
    
    FIXME: There really shouldn't be a limited number of fresh identifiers *)
+
 Fixpoint fresh_ident (used : list ident) (n : nat) : mon (ident * string) :=
   let candidate_str := "__fresh__" ++ NilZero.string_of_uint (Nat.to_uint n) in
   let candidate := ident_of_string candidate_str in
@@ -431,25 +433,25 @@ match e with
                  | Run h => ret (Sdo (Eval (Values.Vundef) Tvoid), ctx)
                  | Uop o => do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx);
                             let ct := (transBeePL_type t) in 
-                            ret (Sdo (Eunop o 
+                            ret (Sreturn (Some (Eunop o 
                                      (hd default_expr (exprlist_list_expr ces)) 
-                                     ct), ctx') 
+                                     ct)), ctx') 
                  | Bop o => do v <- return_czero (transBeePL_type t);
                             do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx);
                             match o with 
                             | Cop.Odiv => do rs <- (check_div ces v (transBeePL_type t));
-                                          ret (Sdo rs, fn_ctx')
+                                          ret (Sreturn (Some rs), fn_ctx')
                                                                       
                             | Cop.Omod => do rs <- (check_div ces v (transBeePL_type t));
-                                          ret (Sdo rs, fn_ctx')
+                                          ret (Sreturn (Some rs), fn_ctx')
                             | Cop.Oshl => do rs <- check_shl ces v (transBeePL_type t);
-                                          ret (Sdo rs, fn_ctx')
+                                          ret (Sreturn (Some rs), fn_ctx')
                              | Cop.Oshr => do rs <- check_shr ces v (transBeePL_type t);
-                                           ret (Sdo rs, fn_ctx')
-                            | _ => ret (Sdo (Ebinop o
+                                           ret (Sreturn (Some rs), fn_ctx')
+                            | _ => ret (Sreturn (Some (Ebinop o
                                         (hd default_expr (exprlist_list_expr ces)) 
                                         (hd default_expr (tl (exprlist_list_expr ces)))
-                                        (transBeePL_type t)), fn_ctx')
+                                        (transBeePL_type t))), fn_ctx')
 
                            end
                  end 
@@ -458,8 +460,8 @@ match e with
                       match e with 
                       | Prim Massgn es t => do (ce, ctx'') <- (transBeePL_expr_expr e ctx'); ret (Ssequence (Sdo ce) ce', ctx'') 
                       | For e1 e2 d e3 t => do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')  
-                      | Screate sx ids es t =>  do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')                                                                        
-                      | _ =>  do (ce, ctx'') <- (transBeePL_expr_expr e ctx');
+                      | Screate sx ids es t =>  do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')  
+                      | App e1 es t => do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')                                                 | _ =>  do (ce, ctx'') <- (transBeePL_expr_expr e ctx');
                                     ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
                                            (ce'), ctx'')
                       end
@@ -607,7 +609,7 @@ end.
 
 (* Translates the value that is assigned to global variable to C global variable data *)
 
-Definition transBeePL_init_data_init_data (g : BeePL.init_data) : AST.init_data :=
+(*Definition transBeePL_init_data_init_data (g : BeePL.init_data) : AST.init_data :=
 match g with 
 | Init_int8 i => AST.Init_int8 i
 | Init_int16 i => AST.Init_int16 i
@@ -620,7 +622,7 @@ Fixpoint transBeePL_init_datas_init_datas (gs : list BeePL.init_data) : list AST
 match gs with 
 | nil => nil
 | g :: gs => transBeePL_init_data_init_data g :: transBeePL_init_datas_init_datas gs
-end. 
+end. *)
 
 (* Translates BeePL global variable to C global variable *) 
 Definition transBeePLglobvar_globvar (gv : BeePL.globvar type) : (AST.globvar Ctypes.type)  :=

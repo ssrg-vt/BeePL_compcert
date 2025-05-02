@@ -295,7 +295,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
   exists vm'. exists (Prim Ref [:: e'] (Reftype h (Bprim bt) a)). 
   split=> //=. by apply ssem_ref1.
 (* deref *)
-+ move=> Gamma Sigma e ef h bt a hte hin bge vm m hw.
++ (*move=> Gamma Sigma e ef h bt a hte hin bge vm m hw.
   move: (hin bge vm m hw)=> [].
   (* is value *)
   + move=> hv. right. rewrite /is_value in hv. case: e hv hte hin=> v t //= _. case: v=> //=.
@@ -325,7 +325,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
       by inversion hp.
    move=> hwd. move: (hwd ofs h' bt a' hs)=> [] hvp [].
    move=> [] v [] hd hv ha. exists m. exists vm. exists (Val v (Ptype bt)). split=> //=.
-   by apply ssem_deref2 with Full. 
+   by apply ssem_deref2 with Full.
   (* step *)
   move: (hin bge vm m hw)=> hin'. move=> [] m' [] vm' [] e' [] he hs. right.
   exists m'. exists vm'. exists (Prim Deref [:: e'] (Ptype bt)). split=> //=. 
@@ -362,7 +362,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
       by inversion hp.
     move=> hwd. move: (hwd ofs h' bt a' hs)=> [] hvp [] hd ha. 
     move: (ha v')=> [] bf [] m' [] ha' hv'.      
-    exists m'. exists vm. exists (Val Vunit (Ptype Tunit)). 
+    exists m'. exists vm. exists (Val Vunit (Ptype Tunit)). *)
     (*have hteq := type_val_reflx Gamma Sigma v' t' ef' (Ptype bt) hte'; subst. split=> //=.
     + by apply ssem_massgn3 with bf. 
     by have := assign_preserves_store_well_typed Sigma bge vm m bt l ofs bf v' m' hw ha' hv'.

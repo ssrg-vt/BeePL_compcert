@@ -1,6 +1,6 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL PeanoNat Coq.NArith.BinNat Ctypes Errors Ctypes Coq.ZArith.Znumtheory.
-Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps SimplExpr Coq.Strings.BinaryString.
+Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps SimplExpr Coq.Strings.BinaryString  Coq.Numbers.DecimalString.
 From mathcomp Require Import all_ssreflect. 
 From compcert Require Import Csyntaxdefs. 
 Import Csyntaxdefs.CsyntaxNotations.
@@ -462,7 +462,21 @@ end.
 Definition is_primtype_notunit (t : type) : Prop :=
 is_primtype t /\ (not (is_unittype t)).
 
-Definition extract_signedness_type (t : type) : option signedness :=
+Definition extract_signedness_ptype (t : primitive_type) : option signedness :=
+match t with 
+| Tunit => None
+| Tbool => None 
+| Tint sz s a => Some s 
+| Tlong s a => Some s
+end.
+
+Definition extract_signedness_btype (t : basic_type) : option signedness :=
+match t with 
+| Bprim pt => extract_signedness_ptype pt
+| Bstruct s a => None 
+end.
+
+Fixpoint extract_signedness_type (t : type) : option signedness :=
 match t with 
 | Ptype p => match p with 
              | Tunit => None
@@ -470,7 +484,10 @@ match t with
              | Tint sz s a => Some s
              | Tlong s a => Some s
              end
-| _ => None 
+| Reftype h bt a => extract_signedness_btype bt 
+| Ftype es e t => None 
+| Stype s a => None 
+| Otype t => extract_signedness_type t 
 end.
 
 Definition basic_to_type (b : basic_type) : mon type :=
@@ -764,8 +781,6 @@ Definition extend_context (Gamma : ty_context) (k : ident) (t : type) := PTree.s
 Definition empty_stcontext := (PTree.empty type).
 
 Definition extend_stcontext (Sigma : store_context) (k : ident) (t : type) := PTree.set k t Sigma. 
-
-
 
 (*** Auxillary lemmas related to types and effects ***)
 (* Complete Me: Easy *)

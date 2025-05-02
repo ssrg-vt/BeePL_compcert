@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx FunInd.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Linking.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Linking Ctypes Smallstep.
-Require Import Globalenvs Cop Csyntax Csem BeeTypes BeePL_aux BeePL_mem BeePL.
+Require Import Globalenvs Cop Csyntax Csem BeeTypes BeePL_aux BeePL_mem BeePL Csyntaxdefs.
 Require Import Initializersproof Cstrategy BeePL_auxlemmas Coqlib Errors SimplExpr Events BeePL_values.
 
 From mathcomp Require Import all_ssreflect. 
@@ -18,7 +18,7 @@ match e with
 | Val e t => true 
 | Var x t => false
 | Const c t => false
-| App e es t => true (* fix me *)
+| App e es t => true 
 | Prim b es t => match b with 
                  | Ref => true 
                  | Deref => true 
@@ -38,7 +38,8 @@ match e with
 | For e1 e2 d e t => is_stateful_expr e 
 | Enone t => false
 | Esome e t => is_stateful_expr e
-| Match e ps es t => false (* fix me *)
+| Match e ps es t => is_stateful_expr e || has is_stateful_expr es
+ 
 end.
 
 Fixpoint is_stateful_exprs (es : list BeePL.expr) : bool :=
@@ -54,142 +55,247 @@ Definition wrange d (n1 n2 : Z) : seq int :=
   | Down => (map Int.repr [seq (Z.sub n2 (Z.of_nat i)) | i <- iota 0 n])
   end.
 
+Definition check_unsafe_op (op : binary_operation) (s : signedness) (v1 v2 : value) : bool :=
+match op with 
+| Odiv => match s with 
+         | Signed => if is_zero_val v2
+                        || is_overflow_vals v1 v2
+                     then true 
+                     else false
+         | Unsigned => is_zero_val v2
+         end
+| Omod => match s with 
+         | Signed => if is_zero_val v2
+                        || is_overflow_vals v1 v2
+                     then true 
+                     else false
+         | Unsigned => is_zero_val v2
+         end
+| Oshl => is_val_shift v1
+| Oshr => is_val_shift v1 
+| _ => false
+end.
+
+
+Definition extract_variables_globdef (gd : (globdef fundef type)) : list (ident * type) :=
+match gd with 
+| Gfun fd => match fd with 
+             | Internal fn => fn.(fn_args) ++ fn.(fn_vars)
+             | External ef ts t cc => nil
+             end
+| Gvar gv => nil
+end.
+
+Fixpoint extract_variables_globdefs (gds : list (globdef fundef type)) : list (ident * type) :=
+match gds with 
+| nil => nil
+| gd :: gds => extract_variables_globdef gd ++ extract_variables_globdefs gds
+end.
+
+Fixpoint string_of_nat (n : nat) : string :=
+match n with
+| O => "0"%string
+| S n' => append (string_of_nat n') "1"%string (* or a real digit encoder *)
+end.
+
+Fixpoint ident_in_list (x : ident) (l : list ident) {struct l} : bool :=
+  match l with
+  | nil => false
+  | y :: ys => if (x =? y)%positive then true else ident_in_list x ys
+  end.
+
+Fixpoint create_fresh_ident_aux (used : list ident) (next : positive) (fuel : nat) : option ident :=
+  match fuel with
+  | O => None (* exhausted fuel *)
+  | S fuel' =>
+      if ident_in_list next used then
+        create_fresh_ident_aux used (Pos.succ next) fuel'
+      else
+        Some next
+  end.
+
+Definition create_fresh_ident (used : list ident) : ident :=
+  match create_fresh_ident_aux used 100%positive 10000 with
+  | Some id => id
+  | None => 1%positive (* fallback if we somehow exhaust fuel *)
+  end.
+
+Inductive sem_allocate_fields : positive -> ptrofs -> ident -> list ident -> list value -> list type -> Memory.mem -> Memory.mem -> Prop :=
+| sem_allocate_nil : forall b ofs sid m,
+                          sem_allocate_fields b ofs sid nil nil nil m m
+| sem_allocate_struct : forall loc ofs ge sid co f delta bf fs v vs t ts m1 m2 m3, 
+                        ge.(genv_cenv)!sid = Some co ->
+                        field_offset (bcomposite_composite_env ge.(genv_cenv)) f (bmembers_cmembers (co_members co)) = OK (delta, bf) ->
+                        assign_addr ge t m1 loc (Ptrofs.add ofs (Ptrofs.repr delta)) bf v m2 v ->
+                        sem_allocate_fields loc ofs sid fs vs ts m2 m3 ->
+                        sem_allocate_fields loc ofs sid (f :: fs) (v :: vs) (t :: ts) m1 m3.
+
 Section Big_Step_Semantics.
 
 Variable (ge : genv).
 
 (* Big step semantics without lv, rv, or context *) 
-Inductive bsem_expr : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> value -> Prop := 
-| bsem_value : forall vm m v t,
+Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> value -> Prop := 
+| bsem_value : forall p vm m v t,
                well_formed_value v t ->
-               bsem_expr vm m (Val v t) m vm v
-| bsem_lvar : forall vm m x t l ofs v,
+               bsem_expr p vm m (Val v t) m vm v
+| bsem_lvar : forall p vm m x t l ofs v,
               vm!x = Some (l, t) -> 
               deref_addr ge t m l ofs Full v ->
-              bsem_expr vm m (Var x t) m vm v
-| bsem_gbvar : forall vm m x t l ofs v,
+              bsem_expr p vm m (Var x t) m vm v
+| bsem_gbvar : forall p vm m x t l ofs v,
                vm!x = None ->
                Genv.find_symbol ge x = Some l -> 
                deref_addr ge t m l ofs Full v ->
-               bsem_expr vm m (Var x t) m vm v
-| bsem_consti : forall vm m i t,
-                bsem_expr vm m (Const (ConsInt i) t) m vm (Vint i)
-| bsem_constl : forall vm m i t, 
-                bsem_expr vm m (Const (ConsLong i) t) m vm (Vint64 i)
-| bsem_constu : forall vm m,
-                bsem_expr vm m (Const (ConsUnit) (Ptype Tunit)) m vm (Vunit)
-| bsem_appr :  forall vm1 vm2 m1 e es t l fd m2 m3 m4 m5 m6 vs rv vm3 vm4 vm5,
-               bsem_expr vm1 m1 e m2 vm2 (Vloc l Ptrofs.zero) ->
+               bsem_expr p vm m (Var x t) m vm v
+| bsem_consti : forall p vm m i t,
+                bsem_expr p vm m (Const (ConsInt i) t) m vm (Vint i)
+| bsem_constl : forall p vm m i t, 
+                bsem_expr p vm m (Const (ConsLong i) t) m vm (Vint64 i)
+| bsem_constu : forall p vm m,
+                bsem_expr p vm m (Const (ConsUnit) (Ptype Tunit)) m vm (Vunit)
+| bsem_appr :  forall p vm1 vm2 m1 e es t l fd m2 m3 m4 m5 m6 vs rv vm3 vm4 vm5,
+               bsem_expr p vm1 m1 e m2 vm2 (Vloc l Ptrofs.zero) ->
                Genv.find_funct ge (trans_bvalue_cvalue (Vloc l Ptrofs.zero)) = Some (Internal fd) ->
                BeePL.type_of_fundef (Internal fd) = 
                Ftype (typeof_exprs es) (get_effect_fundef (Internal fd)) (get_rt_fundef (Internal fd)) ->
                list_norepet (fd.(fn_args) ++ fd.(BeePL.fn_vars)) ->
                alloc_variables ge vm2 m2 (fd.(fn_args) ++ fd.(BeePL.fn_vars)) vm3 m3 -> 
-               bsem_exprs vm3 m3 es m4 vm4 vs ->
+               bsem_exprs p vm3 m3 es m4 vm4 vs ->
                typeof_values vs (unzip2 fd.(fn_args)) ->
                bind_variables ge vm4 m4 fd.(fn_args) vs m5  ->
-               bsem_expr vm4 m5 fd.(BeePL.fn_body) m6 vm5 rv -> 
+               bsem_expr p vm4 m5 fd.(BeePL.fn_body) m6 vm5 rv -> 
                typeof_value rv (get_rt_fundef (Internal fd)) ->
                t = (get_rt_fundef (Internal fd)) ->
-               bsem_expr vm1 m1 (App e es t) m6 vm5 rv
-| bsem_ref : forall vm m e vm' m' vm'' m'' v fid l ofs ct h a t,
-             bsem_expr vm m e m' vm' v ->
+               bsem_expr p vm1 m1 (App e es t) m6 vm5 rv
+| bsem_ref : forall p vm m e vm' m' vm'' m'' v fid l ofs ct h a t vars,
+             bsem_expr p vm m e m' vm' v ->
              transBeePL_type (Ptype t) = ct ->
-             (gensym ct) = ret fid ->
+             extract_variables_globdefs (unzip2 p.(prog_defs)) = vars ->
+             create_fresh_ident (unzip1 (extract_variables_globdefs (unzip2 p.(prog_defs)))) = fid ->
              bind_variables ge vm' m' ((fid, Ptype t) :: nil) (v :: nil) m'' ->
              vm!fid = Some (l, Reftype h (Bprim t) a) -> 
-             bsem_expr vm m (Prim Ref [:: e] (Reftype h (Bprim t) a)) m'' vm'' (Vloc l ofs)
-| bsem_deref : forall vm m e m' vm' l ofs bf v,
-               bsem_expr vm m e m' vm' (Vloc l ofs) ->
+             bsem_expr p vm m (Prim Ref [:: e] (Reftype h (Bprim t) a)) m'' vm'' (Vloc l ofs)
+| bsem_deref : forall p vm m e m' vm' l ofs bf v,
+               bsem_expr p vm m e m' vm' (Vloc l ofs) ->
                deref_addr ge (typeof_expr e) m l ofs bf v ->
-               bsem_expr vm m (Prim Deref (e :: nil) (typeof_expr e)) m' vm' v
-| bsem_massgn : forall vm m e1 m' vm' l ofs bf e2 vm'' m'' v v' ct1 ct2,  
-                bsem_expr vm m e1 m' vm' (Vloc l ofs) ->
-                bsem_expr vm' m' e2 vm'' m'' v ->
+               bsem_expr p vm m (Prim Deref (e :: nil) (typeof_expr e)) m' vm' v
+| bsem_massgn : forall p vm m e1 m' vm' l ofs bf e2 vm'' m'' v v' ct1 ct2,  
+                bsem_expr p vm m e1 m' vm' (Vloc l ofs) ->
+                bsem_expr p vm' m' e2 vm'' m'' v ->
                 transBeePL_type (typeof_expr e1) = ct1  ->
                 transBeePL_type (typeof_expr e2) = ct2  ->
                 sem_cast (trans_bvalue_cvalue v) ct2 ct1 m = Some (trans_bvalue_cvalue v') ->
                 assign_addr ge (typeof_expr e1) m l ofs bf v' m' v' -> 
-                bsem_expr vm m (Prim Massgn (e1 :: e2 :: nil) (Ptype Tunit)) vm'' m'' Vunit
-| bsem_uop : forall vm m e v uop m' vm' v' ct v'',
-             bsem_expr vm m e m' vm' v ->
+                bsem_expr p vm m (Prim Massgn (e1 :: e2 :: nil) (Ptype Tunit)) vm'' m'' Vunit
+| bsem_uop : forall p vm m e v uop m' vm' v' ct v'',
+             bsem_expr p vm m e m' vm' v ->
              transBeePL_type (typeof_expr e) = ct ->
              sem_unary_operation uop (trans_bvalue_cvalue v) ct m' = Some v' ->
              trans_cvalue_bvalue v' = OK v'' ->
-             bsem_expr vm m (Prim (Uop uop) (e :: nil) (typeof_expr e)) m' vm' v''
-| bsem_bop_unsafe : forall vm m e1 e2 v1 v2 bop vm' m' m'' vm'' zv,
-                  bsem_expr vm m e1 m' vm' v1 ->
-                  bsem_expr vm' m' e2 m'' vm'' v2 ->
-                  return_bzero (typeof_expr e1) = ret zv ->
-                  bsem_expr vm m (Prim (Bop bop) (e1 :: e2 :: nil) (typeof_expr e1)) m'' vm'' zv
-| bsem_bop_safe : forall cenv vm m e1 e2 v1 v2 bop vm' m' m'' vm'' ct1 ct2 v v',
-                  bsem_expr vm m e1 m' vm' v1 ->
-                  bsem_expr vm' m' e2 m'' vm'' v2 ->
+             bsem_expr p vm m (Prim (Uop uop) (e :: nil) (typeof_expr e)) m' vm' v''
+| bsem_bop_unsafe : forall p vm m e1 e2 v1 v2 bop s vm' m' m'' vm'' zv,
+                    bsem_expr p vm m e1 m' vm' v1 ->
+                    bsem_expr p vm' m' e2 m'' vm'' v2 ->
+                    extract_signedness_type (typeof_expr e1) = Some s ->
+                    check_unsafe_op bop s v1 v2 = true ->
+                    return_bzero (typeof_expr e1) = ret zv ->
+                    bsem_expr p vm m (Prim (Bop bop) (e1 :: e2 :: nil) (typeof_expr e1)) m'' vm'' zv
+| bsem_bop_safe : forall p cenv vm m e1 e2 v1 v2 bop s vm' m' m'' vm'' ct1 ct2 v v',
+                  bsem_expr p vm m e1 m' vm' v1 ->
+                  bsem_expr p vm' m' e2 m'' vm'' v2 ->
+                  extract_signedness_type (typeof_expr e1) = Some s ->
+                  check_unsafe_op bop s v1 v2 = false ->
                   transBeePL_type (typeof_expr e1) = ct1 ->
                   transBeePL_type (typeof_expr e2) = ct2 ->
                   sem_binary_operation cenv bop (trans_bvalue_cvalue v1) ct1 
                                            (trans_bvalue_cvalue v2) ct2 m'' = Some v ->
                   trans_cvalue_bvalue v = OK v' ->
-                  bsem_expr vm m (Prim (Bop bop) (e1 :: e2 :: nil) (typeof_expr e1)) m'' vm'' v'
+                  bsem_expr p vm m (Prim (Bop bop) (e1 :: e2 :: nil) (typeof_expr e1)) m'' vm'' v'
 (* fix me : add semantics for run primitive *)
-| bsem_bind : forall vm m x e1 vm' m' v e2 e2' v' tx,
-              bsem_expr vm m e1 m' vm' v -> 
+| bsem_bind : forall p vm m x e1 vm' m' v e2 e2' v' tx,
+              bsem_expr p vm m e1 m' vm' v -> 
               subst x (Val v (typeof_expr e1)) e2 = e2' ->
-              bsem_expr vm m e2' m' vm' v' ->
-              bsem_expr vm m (Bind x tx e1 e2 (typeof_expr e2)) m' vm' v'
-| bsem_ctrue : forall vm m e1 e2 e3 t vm' m' vb ct1 v vm'' m'', 
-               bsem_expr vm m e1 m' vm' vb -> 
+              bsem_expr p vm m e2' m' vm' v' ->
+              bsem_expr p vm m (Bind x tx e1 e2 (typeof_expr e2)) m' vm' v'
+| bsem_ctrue : forall p vm m e1 e2 e3 t vm' m' vb ct1 v vm'' m'', 
+               bsem_expr p vm m e1 m' vm' vb -> 
                transBeePL_type (typeof_expr e1) = ct1 ->
                bool_val (trans_bvalue_cvalue vb) ct1 m' = Some true ->
-               bsem_expr vm' m' e2 m'' vm'' v ->
-               bsem_expr vm m (Cond e1 e2 e3 t) m'' vm'' v
-| bsem_cfalse : forall vm m e1 e2 e3 t vm' m' vb ct1 v vm'' m'', 
-                bsem_expr vm m e1 m' vm' vb -> 
+               bsem_expr p vm' m' e2 m'' vm'' v ->
+               bsem_expr p vm m (Cond e1 e2 e3 t) m'' vm'' v
+| bsem_cfalse : forall p vm m e1 e2 e3 t vm' m' vb ct1 v vm'' m'', 
+                bsem_expr p vm m e1 m' vm' vb -> 
                 transBeePL_type (typeof_expr e1) = ct1 ->
                 bool_val (trans_bvalue_cvalue vb) ct1 m' = Some false ->
-                bsem_expr vm' m' e3 m'' vm'' v ->
-                bsem_expr vm m (Cond e1 e2 e3 t) m'' vm'' v
-| bsem_ut : forall vm m, 
-            bsem_expr vm m (Unit (Ptype Tunit)) m vm Vunit
-| bsem_adr : forall vm m l ofs t,
-              bsem_expr vm m (Addr l ofs t) m vm (Vloc l.(lname) ofs)
-| bsem_eapp : forall vm m es vm' m' m'' vs ef cef vres bv ts ty t,
-              bsem_exprs vm m es m' vm' vs ->
+                bsem_expr p vm' m' e3 m'' vm'' v ->
+                bsem_expr p vm m (Cond e1 e2 e3 t) m'' vm'' v
+| bsem_ut : forall p vm m, 
+            bsem_expr p vm m (Unit (Ptype Tunit)) m vm Vunit
+| bsem_adr : forall p vm m l ofs t,
+             bsem_expr p vm m (Addr l ofs t) m vm (Vloc l.(lname) ofs)
+| bsem_eapp : forall p vm m es vm' m' m'' vs ef cef vres bv ts ty t,
+              bsem_exprs p vm m es m' vm' vs ->
               befunction_to_cefunction ef = cef ->
               external_call cef ge (trans_bvalues_cvalues vs) m' t vres m'' ->
               trans_cvalue_bvalue vres = OK bv ->
-              bsem_expr vm m (BeePL.Eapp ef ts es ty) m'' vm' bv
-| bsem_sfield : forall b ofs id a co delta bf f vm m vm' m' e t, (* bitfield is lost *)
-                bsem_expr vm m e m' vm' (Vloc b ofs) ->
+              bsem_expr p vm m (BeePL.Eapp ef ts es ty) m'' vm' bv
+| bsem_screate : forall p x ids t vm1 m1 es vm2 m2 vm3 m3 m4 vs fid loc ofs,
+                 bsem_exprs p vm1 m1 es m2 vm2 vs ->
+                 create_fresh_ident (unzip1 (extract_variables_globdefs (unzip2 p.(prog_defs)))) = fid ->
+                 alloc_variables ge vm2 m2 ((fid, t) :: nil) vm3 m3 ->
+                 vm3!fid = Some (loc, t) ->
+                 sem_allocate_fields loc ofs x ids vs (map typeof_expr es) m3 m4 ->
+                 bsem_expr p vm1 m1 (Screate x ids es t) m2 vm2 (Vloc loc ofs) 
+| bsem_sfield : forall p b ofs id a co delta bf f vm m vm' m' e t, (* bitfield is lost *)
+                bsem_expr p vm m e m' vm' (Vloc b ofs) ->
                 typeof_expr e = (Stype id a) ->
                 ge.(genv_cenv)!id = Some co ->
                 field_offset (bcomposite_composite_env ge.(genv_cenv)) f (bmembers_cmembers (co_members co)) = OK (delta, bf) ->
-                bsem_expr vm m (Sfield e f t)  
+                bsem_expr p vm m (Sfield e f t)  
                                m vm (Vloc b (Ptrofs.add ofs (Ptrofs.repr delta))) 
-(*| bsem_bfor : forall i e1 e2 d e3 lo hi vm m vm' m' vm'' m'' v t,
-             bsem_expr vm m e1 m' vm' (Vint lo) ->
-             bsem_expr vm' m' e2 m'' vm'' (Vint hi) ->
-             bsem_for vm' m' (wrange d (Int.intval lo) (Int.intval hi)) i e3 m'' vm'' v ->
-             bsem_expr vm m (For e1 e2 d e3 t) m'' vm'' v*)
+| bsem_for : forall p e1 e2 d e3 lo hi n vm m vm' m' vm'' m'' vm''' m''' t v',
+             bsem_expr p vm m e1 m' vm' lo ->
+             bsem_expr p vm' m' e2 m'' vm'' hi ->
+             compute_range lo hi = OK n ->
+             bsem_bfor p n vm'' m'' (For e1 e2 d e3 t) m''' vm''' v' -> 
+             bsem_expr p vm m (For e1 e2 d e3 t) m''' vm''' v'
+| bsem_none : forall p m vm t,
+              bsem_expr p vm m (Enone t) m vm (Voption None)
+| bsem_some : forall p m vm t e vm' m' v,
+              bsem_expr p vm m e m' vm' v ->
+              bsem_expr p vm m (Esome e t) m vm (Voption (Some v))
+| bsem_match_none : forall p m vm t e p1 p2 e1 e2 vm' m' vm'' m'' v1 v2 vm''' m''',
+                    bsem_expr p vm m e m' vm' (Voption None) ->
+                    bsem_expr p vm' m' e1 m'' vm'' v1 ->
+                    bsem_expr p vm'' m'' e2 m''' vm''' v2 ->
+                    bsem_expr p vm m (Match e (p1 :: p2 :: nil) (e1 :: e2 :: nil) t) m'' vm'' 
+                      (if eq_pattern p1 Pnone then v1 else v2) 
+| bsem_match_some : forall p m vm t e ve p1 p2 e1 e2 vm' m' vm'' m'' v1 v2 vm''' m''',
+                    bsem_expr p vm m e m' vm' (Voption (Some ve)) ->
+                    bsem_expr p vm' m' e1 m'' vm'' v1 ->
+                    bsem_expr p vm'' m'' e2 m''' vm''' v2 ->
+                    bsem_expr p vm m (Match e (p1 :: p2 :: nil) (e1 :: e2 :: nil) t) m'' vm'' 
+                       (if eq_pattern p1 Pnone then v2 else v1)        
 (* fix me : add semantics for hexpr *)
-with bsem_exprs : vmap -> Memory.mem -> list BeePL.expr -> Memory.mem -> vmap -> list value -> Prop :=
-| bsem_nil : forall vm m,
-             bsem_exprs vm m nil m vm nil
-| bsem_cons : forall vm m m' m'' v vs e es vm' vm'',
-              bsem_expr vm m e m' vm' v ->
-              bsem_exprs vm' m' es m'' vm'' vs ->
-              bsem_exprs vm m (e :: es) m'' vm'' (v :: vs).
+with bsem_exprs : program -> vmap -> Memory.mem -> list BeePL.expr -> Memory.mem -> vmap -> list value -> Prop :=
+| bsem_nil : forall p vm m,
+             bsem_exprs p vm m nil m vm nil
+| bsem_cons : forall p vm m m' m'' v vs e es vm' vm'',
+              bsem_expr p vm m e m' vm' v ->
+              bsem_exprs p vm' m' es m'' vm'' vs ->
+              bsem_exprs p vm m (e :: es) m'' vm'' (v :: vs)
 
-(*with bsem_for : vmap -> Memory.mem -> list int -> ident -> expr -> Memory.mem -> vmap -> value -> Prop :=
-| bsem_for_nil : forall vm m i e,
-                 bsem_for vm m [::] i e m vm Vunit
-| bsem_for_one : forall vm m t e i w ws m' vm'' m'' vm''' m''' v v',
-                 bsem_expr vm m (Prim Massgn ((Var i t) :: (Val (Vint w) t) :: nil) (Ptype Tunit)) m' vm (Vint w) ->
-                 bsem_expr vm m' e m'' vm'' v ->
-                 bsem_for vm'' m'' ws i e m''' vm''' v' ->
-                 bsem_for vm m (w :: ws) i e m''' vm''' v'.*) 
+with bsem_bfor : program -> Z -> vmap -> Memory.mem -> expr -> Memory.mem -> vmap -> value -> Prop :=
+| bsem_for_nil : forall p vm m e,
+                 bsem_bfor p (Z.of_nat O) vm m e m vm Vunit
+| bsem_for_one : forall p n vm m e m' vm' vm'' m'' v v',
+                 bsem_expr p vm m e m' vm' v ->
+                 bsem_bfor p (Z.of_nat n) vm' m' e m'' vm'' v' ->
+                 bsem_bfor p (Z.of_nat (S n)) vm m e m'' vm'' v'.
 
 End Big_Step_Semantics.
+
 
 Scheme bsem_expr_ind_mut := Induction for bsem_expr Sort Prop
   with bsem_exprs_ind_mut := Induction for bsem_exprs Sort Prop.
@@ -205,15 +311,6 @@ Fixpoint extract_values_exprs (es : list BeePL.expr) : list value :=
 match es with 
 | nil => nil
 | e :: es => extract_value_expr e ++ extract_values_exprs es 
-end.
-
-Definition check_for_zero (v : value) : bool :=
-match v with
-| Vunit => true (* as we translate unit to produce 0 in C *)
-| Vbool b => false
-| Vint i => if (Int.eq i Int.zero) then true else false
-| Vint64 i => if (Int64.eq i Int64.zero) then true else false
-| Vloc p ofs => false
 end.
 
 Section Small_Step_Semantics.
@@ -386,8 +483,8 @@ end.
 
 (** An expr is safe if it cannot get stuck by doing any transition - 
     Either it reaches a value or it takes step **)
-Definition bsafe_expr (bge : genv) (e : BeePL.expr) : Prop :=
-forall v vm m vm' m', bsem_expr bge vm m e vm' m' v.
+Definition bsafe_expr (bge : genv) (p : program) (e : BeePL.expr) : Prop :=
+forall v vm m vm' m', bsem_expr bge p vm m e vm' m' v.
 
 Definition ssafe_expr (bge : genv) (vm : vmap) (m : Memory.mem) (e : BeePL.expr) : Prop :=
 is_value e \/ exists m' vm' e', ssem_expr bge vm m e m' vm' e'.
