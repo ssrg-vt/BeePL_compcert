@@ -454,7 +454,7 @@ match e with
                       | Prim Massgn es t => do (ce, ctx'') <- (transBeePL_expr_expr e ctx'); ret (Ssequence (Sdo ce) ce', ctx'') 
                       | For e1 e2 d e3 t => do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')  
                       | Screate sx ids es t =>  do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')  
-                      | App e1 es t => do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')                                                 | _ =>  do (ce, ctx'') <- (transBeePL_expr_expr e ctx');
+                      (*| App e1 es t => do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')  *)                                               | _ =>  do (ce, ctx'') <- (transBeePL_expr_expr e ctx');
                                     ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
                                            (ce'), ctx'')
                       end

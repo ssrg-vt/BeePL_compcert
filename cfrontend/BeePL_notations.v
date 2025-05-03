@@ -54,6 +54,10 @@ Definition trlongs {h} := Reftype h blongs noattr.
 Definition trstruct x {h} := Reftype h (bstruct x) noattr.
 Definition tfun ts ef t := Ftype ts ef t.
 Definition tstruct x := Stype x noattr.
-Definition toption t := Otype t.
+Definition tpstruct x := Ptrtype (Sptype x noattr).
+Definition toption t := Ptrtype (Otype t).
+Definition tpfun ts ef t := Ptrtype (Fptype ts ef t).
+Definition tunit := Utype.
+
 
 

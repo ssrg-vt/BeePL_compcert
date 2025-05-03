@@ -186,7 +186,7 @@ with transBeePL_ptr_type (pt : ptr_type) : Ctypes.type :=
   | Fptype ts ef t' =>
       Ctypes.Tpointer
         (Tfunction (transBeePL_types transBeePL_type ts) (transBeePL_type t')
-          {| cc_vararg := Some (Z.of_nat (length ts));
+          {| cc_vararg := None;
              cc_unproto := false;
              cc_structret := false |})
         noattr
