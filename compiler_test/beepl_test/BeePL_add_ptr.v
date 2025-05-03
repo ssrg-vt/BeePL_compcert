@@ -70,7 +70,7 @@ Definition f_main : BeePL.function := {|
                                                          (App (Var _fp (tpfun (tint32s :: tint32s :: nil) nil tint32s))
                                                             (Var _a tint32s :: 
                                                             Var _a tint32s :: nil) tint32s)
-                                                         (Var _r tint32u) tint32s) tunit) tint32s |}.
+                                                         (Var _r tint32s) tint32s) tint32s) tint32s |}.
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
    := (_add, AST.Gfun(BeePL.Internal (f_add))) ::
@@ -87,11 +87,12 @@ Proof.
   unfold build_bcomposite_env; simpl; reflexivity.
 Qed.
 
-(*Definition example1 : BeePL.program := @mkbprogram bcomposites 
+Definition example1 : BeePL.program := @mkbprogram bcomposites 
                                                    global_definitions 
                                                    public_idents 
                                                    _main 
                                                    bcomposite_correct
                                                    ident_to_string.
 
-Compute (type_check_program example1).*) (* Type checks *)
+
+(*Compute (type_check_program example1).*) (* Type checks *)

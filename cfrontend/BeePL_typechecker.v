@@ -139,6 +139,9 @@ match e with
                 | Ftype ts1 ef rt1 => if eq_types eq_type ts ts1 && eq_type rt1 t
                                       then OK (rt1, efe ++ ef ++ efs) 
                                       else Error (msg "TYPE ERROR: Function declaration does not match the inferred type") 
+                | Ptrtype (Fptype ts1 ef rt1) => if eq_types eq_type ts ts1 && eq_type rt1 t
+                                                 then OK (rt1, efe ++ ef ++ efs) 
+                                                 else Error (msg "TYPE ERROR: Function declaration does not match the inferred type") 
                 | _ => Error (msg "TYPE ERROR: Not a function type")
                 end
 | Prim b es t => match b with 

@@ -51,7 +51,7 @@ Definition f_add : BeePL.function := {|
                                                 (Var _r tint32s) tint32s |}.
 
 (*
- *  int add(int x, int *y) {
+ *  int add_with_one_ref(int x, int *y) {
  *    int r;
  *    r = x + *y;
  *    return r;
@@ -60,7 +60,7 @@ Definition f_add : BeePL.function := {|
  *)
 Definition f_add_with_one_ref : BeePL.function := {| 
                                    fn_return := tint32s;
-                                   fn_effect := nil;
+                                   fn_effect := (Read mem_ident :: nil);
                                    fn_callconv := cc_default;
                                    fn_args := ((_x, tint32s) :: 
                                                (_y, trint32s) :: nil);
@@ -74,7 +74,7 @@ Definition f_add_with_one_ref : BeePL.function := {|
                                                 (Var _r tint32s) tint32s |}.
 
 (*
- *  int add(int *x, int *y) {
+ *  int add_with_two_ref(int *x, int *y) {
  *    int r;
  *    r = *x + *y;
  *    return r;
@@ -83,7 +83,7 @@ Definition f_add_with_one_ref : BeePL.function := {|
  *)
 Definition f_add_with_two_ref : BeePL.function := {| 
                                    fn_return := tint32s;
-                                   fn_effect := nil;
+                                   fn_effect := (Read mem_ident :: Read mem_ident :: nil);
                                    fn_callconv := cc_default;
                                    fn_args := ((_x, trint32s) :: 
                                                (_y, trint32s):: nil);
@@ -99,14 +99,18 @@ Definition f_add_with_two_ref : BeePL.function := {|
 
 (*  int main(void) {
  *    int a = 1;
- *    int b = add(a, 2); // <- should be ref(2)
+      int b = add(a, a);
+ *    int b = add_with_one_ref(a, 2); // <- should be ref(2)
+      int b = add_with_two_ref(2, 2); // <- should be ref(2)
  *    return b;
  * } 
  *
  *)
 Definition f_main : BeePL.function := {| 
                                    fn_return := tint32s;
-                                   fn_effect := nil;
+                                   fn_effect := (Read mem_ident :: Alloc mem_ident :: 
+                                                 Read mem_ident :: Read mem_ident :: 
+                                                 Alloc mem_ident :: Alloc mem_ident :: nil);
                                    fn_callconv := cc_default;
                                    fn_args := nil;
                                    fn_vars := ((_a, tint32s) :: 
@@ -125,7 +129,7 @@ Definition f_main : BeePL.function := {|
                                                       (Bind 
                                                           (_b) tint32s
                                                           (App (Var _add_with_one_ref (tfun (tint32s :: trint32s :: nil) (* type signature *)
-                                                                                       nil (* effect *)
+                                                                                       (Read mem_ident :: nil) (* effect *)
                                                                                        tint32s)) (* return type *)
                                                                (Var _a tint32s :: 
                                                                 Prim (Ref) 
@@ -133,13 +137,44 @@ Definition f_main : BeePL.function := {|
                                                           (Bind 
                                                              (_b) tint32s
                                                              (App (Var _add_with_two_ref (tfun (trint32s :: trint32s :: nil) (* type signature *)
-                                                                                           nil (* effect *)
+                                                                                          (Read mem_ident :: Read mem_ident :: nil) (* effect *)
                                                                                           tint32s)) (* return type *)
                                                                   (Prim (Ref) 
                                                                         (cint (Int.repr 5) tint32s :: nil) trint32s ::
                                                                    Prim (Ref) 
                                                                         (cint (Int.repr 173) tint32s :: nil) trint32s :: nil) tint32s)
                                                              (Var _b tint32s) tint32s) tint32s) tint32s) tint32s |}.
+
+(*  int main(void) {
+ *    int a = 1;
+ *    int b = add_with_one_ref(a, 2); // <- should be ref(2)
+ *    return b;
+ * } 
+ *
+ *)
+
+(*Definition f_main : BeePL.function := {| 
+                                   fn_return := tint32s;
+                                   fn_effect := (Write mem_ident :: Alloc mem_ident :: Alloc mem_ident ::
+                                                 Write mem_ident :: Write mem_ident :: Alloc mem_ident :: 
+                                                 Alloc mem_ident :: Alloc mem_ident :: Alloc mem_ident :: nil);
+                                   fn_callconv := cc_default;
+                                   fn_args := nil;
+                                   fn_vars := ((_a, tint32s) :: 
+                                               (_b, tint32s) :: nil);
+                                   fn_body := 
+                                              Bind 
+                                                   (_a) tint32s 
+                                                   (cint (Int.repr 1) tint32s)
+                                                      (Bind 
+                                                          (_b) tint32s
+                                                          (App (Var _add_with_one_ref (tfun (tint32s :: trint32s :: nil) (* type signature *)
+                                                                                       (Read mem_ident :: nil) (* effect *)
+                                                                                       tint32s)) (* return type *)
+                                                               (Var _a tint32s :: 
+                                                                Prim (Ref) 
+                                                                     (cint (Int.repr 1) tint32s :: nil) trint32s :: nil) tint32s)
+                                                             (Var _b tint32s) tint32s) tint32s |}.*)
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
    := (_add, AST.Gfun(BeePL.Internal (f_add))) ::
@@ -159,11 +194,15 @@ Proof.
   unfold build_bcomposite_env; simpl; reflexivity.
 Qed.
 
-(*Definition example1 : BeePL.program := @mkbprogram bcomposites 
+Definition example1 : BeePL.program := @mkbprogram bcomposites 
                                                    global_definitions 
                                                    public_idents 
                                                    _main 
                                                    bcomposite_correct
                                                    ident_to_string.
+
+
+(*Compute (type_check_expr example1.(prog_comp_env) 
+                         (bind_vars (bind_vars empty_context f_main.(fn_args)) f_main.(fn_vars)) empty_context f_main.(fn_body)).
 
 Compute (type_check_program example1).*) (* Type checks *)
