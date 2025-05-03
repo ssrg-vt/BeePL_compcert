@@ -7,14 +7,14 @@ Require Import compcert.common.Errors Initializersproof Cstrategy lib.Coqlib Err
 From mathcomp Require Import all_ssreflect. 
 
 Lemma access_mode_preserved : forall ty cty md, 
-access_mode ty = md ->
+access_mode_type ty = md ->
 transBeePL_type ty =  cty ->
 Ctypes.access_mode cty = md.
 Proof.
 Admitted.
 
 Lemma non_volatile_type_preserved : forall ty cty b,
-type_is_volatile ty = b ->
+type_is_volatile (transBeePL_type ty) = b ->
 transBeePL_type ty = cty ->
 Ctypes.type_is_volatile cty = b.
 Proof.

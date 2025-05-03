@@ -257,7 +257,8 @@ match e with
                           do (i, str) <- (fresh_ident (List.map unzip_ident fn_ctx') max_fresh);
 
                           match es with
-                          | e :: nil => do pty <- ref_to_prim t;
+                          | e :: nil => 
+                                        do pty <- ref_to_prim t;
                                         let cpty := (transBeePL_type pty) in
                                         let fn_ctx'' := (i, pty, str) :: fn_ctx' in
                                         ret ((Ecomma (Eassign (Evar i cpty) 
@@ -329,22 +330,22 @@ end
                   ret (Efield (Evalof ce (transBeePL_type (typeof_expr e))) x ct, fn_ctx')
 | For e1 e2 d e t => error (msg "COMPILER ERROR: For loop cannot be translated to another C expr")
 | Enone t => match t with 
-             | Otype t' => if is_reftype t'
-                           then ret ((Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t))), fn_ctx)
-                           else error (msg "COMPILER ERROR: Option type of None should contain a pointer in BeePL")
-             | _ => error (msg "COMPILER ERROR: None should be of Option type")
+             | Ptrtype t' => if is_option_ptr_type t' 
+                             then ret ((Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t))), fn_ctx)
+                             else error (msg "COMPILER ERROR: Expression none should be a pointer option type")
+             | _ => error (msg "COMPILER ERROR: Expression none should be a pointer type")
              end
 | Esome e t => match t with 
-               | Otype t' => if is_reftype t'
+             | Ptrtype t' => if is_option_ptr_type t' 
                              then transBeePL_expr_expr e fn_ctx
-                             else error (msg "COMPILER ERROR: Option type of Some should contain a pointer in BeePL")
-               | _ => error (msg "COMPILER ERROR: Some should be of Option type")
-              end
+                             else error (msg "COMPILER ERROR: Expression some should be a pointer option type")
+             | _ => error (msg "COMPILER ERROR: Expression some should be a pointer type")
+             end
 | Match e ps es t => do ce <- transBeePL_expr_expr e fn_ctx;
                      let te := typeof_expr e in
                      match te with 
-                     | Otype t' => 
-                         if is_reftype t' 
+                     | Ptrtype t' => 
+                         if is_option_ptr_type t'  
                          then match ps, es with 
                               | nil, nil => error (msg "COMPILER ERROR: No pattern matching cases found")
                               | (Pnone :: Psome x :: nil), (e1 :: e2 :: nil) => 
@@ -365,8 +366,8 @@ end
                                           (fst ce1) (transBeePL_type t)), snd (ce1))
                               | _, _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
                               end
-                          else error (msg "COMPILER ERROR: Match can be only performed on option type containing ref")
-                     | _ =>  error (msg "COMPILER ERROR: Match can be only performed on option type")
+                          else error (msg "COMPILER ERROR: Match can be only performed on option type")
+                     | _ => error (msg "COMPILER ERROR: Match can be only performed on ptr type")
                      end
 end.
 
@@ -516,13 +517,13 @@ match e with
                                                             Sskip), ctx6)
                      end
 | Enone t => match t with 
-             | Otype t' => if is_reftype t'
+             | Ptrtype t' => if is_option_ptr_type t' 
                            then ret (Sdo ((Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))), ctx)
                            else error (msg "COMPILER ERROR: Option type of None should contain a pointer in BeePL")
              | _ => error (msg "COMPILER ERROR: None should be of Option type")
              end
 | Esome e t => match t with 
-               | Otype t' => if is_reftype t'
+               | Ptrtype t' => if is_option_ptr_type t' 
                              then transBeePL_expr_st e ctx
                              else error (msg "COMPILER ERROR: Option type of Some should contain a pointer in BeePL")
                | _ => error (msg "COMPILER ERROR: Some should be of Option type")
@@ -530,8 +531,8 @@ match e with
 | Match e ps es t => do ce <- transBeePL_expr_expr e ctx;
                      let te := typeof_expr e in
                      match te with 
-                     | Otype t' => 
-                         if is_reftype t' 
+                     | Ptrtype t' => 
+                         if is_option_ptr_type t' 
                          then match ps, es with 
                               | nil, nil => error (msg "COMPILER ERROR: No pattern matching cases found")
                               | (Pnone :: Psome x :: nil), (e1 :: e2 :: nil) => 

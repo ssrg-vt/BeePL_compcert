@@ -15,7 +15,7 @@ Inductive effect_label : Type :=
 | Read : ident -> effect_label       (* read heap effect *)
 | Write : ident -> effect_label      (* write heap effect *)
 | Alloc : ident -> effect_label      (* allocation heap effect *)
-| Hstate : ident -> effect_label      (* state heap effect *).
+| Hstate : ident -> effect_label     (* state heap effect *).
 
 Definition effect := list effect_label.  (* row of effects *)
 
@@ -36,48 +36,74 @@ match e with
 end.
 
 Inductive primitive_type : Type :=
-| Tunit : primitive_type
 | Tbool : primitive_type
 | Tint : intsize -> signedness -> attr -> primitive_type
 | Tlong : signedness -> attr -> primitive_type.
 
-(* In the future basic_type will include arrays, structs, etc. *)
 Inductive basic_type : Type :=  
 | Bprim : primitive_type -> basic_type
-| Bstruct : ident -> attr -> basic_type                           (* struct type *).
+| Bstruct : ident -> attr -> basic_type.
 
-Inductive type : Type :=
-| Ptype : primitive_type -> type                          (* primitive types *)
-| Reftype : ident -> basic_type -> attr -> type           (* reference type ref<h,int> *)
-| Ftype : list type -> effect -> type -> type             (* function/arrow type *)
-| Stype : ident -> attr -> type                           (* struct *)
-| Otype : type -> type.                                   (* option type : only contains ref (checked by the type checker *)
+Inductive ptr_type : Type :=
+| Reftype : ident -> basic_type -> attr -> ptr_type       (* Pointer to primitive types and struct *)
+| Otype : ptr_type -> ptr_type                            (* Option type *)          
+| Fptype : list type -> effect -> type -> ptr_type        (* function/arrow pointer type *)
+| Sptype : ident -> attr -> ptr_type                      (* struct pointer - often used when it comes from helper functions *)
+with type : Type :=
+| Utype : type                                            (* Unit type *)
+| Vtype : primitive_type -> type                          (* Value types *)
+| Ptrtype : ptr_type -> type                              (* pointer type : can be ref, option or function pointer*)
+| Stype : ident -> attr -> type                           (* struct type *)
+| Ftype : list type -> effect -> type -> type             (* function type *).
+
+Fixpoint get_data_type (pt : ptr_type) : type :=
+match pt with 
+| Reftype h bt a => match bt with 
+                    | Bprim p => Vtype p
+                    | Bstruct s a => Stype s a 
+                    end
+| Otype pt => get_data_type pt
+| Fptype ts e t => Ftype ts e t
+| Sptype s a => Stype s a
+end.
 
 Inductive wtype : Type :=
-| Twunit : wtype
 | Twbool : wtype
 | Twint : wtype
 | Twlong : wtype
+| Twunit : wtype
 | Twref : wtype
-| Twfun : wtype
+| Twot : wtype
+| Twpst : wtype
+| Twfunptr : wtype
 | Twst : wtype
-| Twot : wtype.
+| Twf : wtype
+| Twv : wtype
+| Twptr : wtype
+| Twfun : wtype.
 
 Definition attr_of_primitive_type (t : primitive_type) : attr :=
 match t with 
-| Tunit => noattr 
 | Tbool => noattr
 | Tint sz s a => a
 | Tlong s a => a
 end.
 
-Fixpoint attr_of_type (t : type) : attr :=
+Fixpoint attr_of_ptr_type (t : ptr_type) : attr :=
 match t with 
-| Ptype t => attr_of_primitive_type t
-| Reftype h t a => a
-| Ftype ts ef t => noattr
+| Reftype h bt a => a
+| Otype pt => attr_of_ptr_type pt
+| Fptype ts e t => noattr
+| Sptype h a => a
+end. 
+
+Definition attr_of_type (t : type) : attr :=
+match t with 
+| Utype => noattr
+| Vtype pt => attr_of_primitive_type pt
+| Ptrtype pt => attr_of_ptr_type pt
 | Stype x a => a
-| Otype t => attr_of_type t
+| Ftype ts e t => noattr
 end.
 
 (****** Translation from BeePL types to Csyntax types ******)
@@ -131,92 +157,41 @@ End translate_types.
 
 Definition mem_ident : ident := $"mem_ident".
 
-Fixpoint create_ident_type (t : type) : ident :=
-match t with 
-| Ptype t => match t with 
-             | Tunit => $"option__tunit"
-             | Tbool => $"option__tbool"
-             | Tint sz s a => match sz with 
-                              | I8 => match s with 
-                                      | Ctypes.Unsigned => $("option__tint__i8__unsigned")
-                                      | Ctypes.Signed => $("option__tint__i8__signed")
-                                      end
-                              | I16 => match s with 
-                                       | Unsigned => $("option__tint__i16__unsigned")
-                                       | SIgned => $("option__tint__i16__signed")
-                                       end
-                              | I32 => match s with 
-                                       | Unsigned => $("option__tint__i32__unsigned")
-                                       | SIgned => $("option__tint__i32__signed")
-                                       end
-                             | IBool => match s with 
-                                       | Unsigned => $("option__tint__ib__unsigned")
-                                       | SIgned => $("option__tint__ib__signed")
-                                       end
-                             end
-             | Tlong s a => match s with 
-                            | Signed => $("option__tlong__signed")
-                            | Unsigned => $("option__tlong__unsigned")
-                            end
-
-             end
-| Reftype h bt a => match bt with 
-                    | Bprim p => match p with 
-                                 | Tunit => $"option__ref__tunit"
-                                 | Tbool => $"option__ref__tbool"
-                                 | Tint sz s a => match sz with 
-                                                  | I8 => match s with 
-                                                          | Ctypes.Unsigned => $("option__ref__tint__i8__unsigned")
-                                                          | Ctypes.Signed => $("option__ref__tint__i8__signed")
-                                                          end
-                                                  | I16 => match s with 
-                                                           | Unsigned => $("option__ref__tint__i16__unsigned")
-                                                           | SIgned => $("option__ref__tint__i16__signed")
-                                                           end
-                                                  | I32 => match s with 
-                                                           | Unsigned => $("option___ref__tint__i32__unsigned")
-                                                           | SIgned => $("option__ref__tint__i32__signed")
-                                                           end
-                                                  | IBool => match s with 
-                                                             | Unsigned => $("option__ref__tint__ib__unsigned")
-                                                             | SIgned => $("option__ref__tint__ib__signed")
-                                                             end
-                                                  end
-                                 | Tlong s a => match s with 
-                                                | Signed => $("option__ref__tlong__signed")
-                                                | Unsigned => $("option__ref__tlong__unsigned")
-                                                end
-                                 end
-                     | Bstruct x a => $("option__ref" ++ string_of_ident x)
-
-             end
-| Ftype ts ef t => $"option__fun"
-| Stype x a => $("option__struct" ++ string_of_ident x)
-| Otype t => $("option_o_ption__" ++ string_of_ident (create_ident_type t))
-end.
-
 Fixpoint transBeePL_type (t : BeeTypes.type) : Ctypes.type :=
-match t with
-| Ptype t => match t with  
-             | Tunit => Ctypes.Tvoid (* Fix me *)
-             | Tbool => (Ctypes.Tint I8 Unsigned noattr)
-             | Tint sz s a => (Ctypes.Tint sz s a)
-             | Tlong s a => (Ctypes.Tlong s a)
-             end
-| Reftype h bt a => match bt with 
-                    | Bprim Tunit => (Ctypes.Tpointer Ctypes.Tvoid a)
-                    | Bprim Tbool => (Ctypes.Tint I8 Unsigned noattr)
-                    | Bprim (Tint sz s a') => (Ctypes.Tpointer (Ctypes.Tint sz s a') a)
-                    | Bprim (Tlong s a') => (Ctypes.Tpointer (Ctypes.Tlong s a') a)
-                    | Bstruct x a => (Ctypes.Tpointer (Tstruct x a) a)
-                    end
-| BeeTypes.Ftype ts ef t => (Tfunction (transBeePL_types transBeePL_type ts) (transBeePL_type t) 
-                                       {| cc_vararg := Some (Z.of_nat(length(ts))); 
-                                       cc_unproto := false; cc_structret := false |}) (* Fix me *) 
-| BeeTypes.Stype x a => (Tstruct x a)
-| BeeTypes.Otype t => Ctypes.Tpointer (transBeePL_type t) (attr_of_type t)
-end.
-
+  match t with
+  | Utype => Ctypes.Tvoid
+  | Vtype vt => match vt with  
+                | Tbool => Ctypes.Tint I8 Unsigned noattr
+                | Tint sz s a => Ctypes.Tint sz s a
+                | Tlong s a => Ctypes.Tlong s a
+                end
+  | Ptrtype pt => transBeePL_ptr_type pt
+  | Stype s a => Tstruct s a 
+  | Ftype ts ef t' =>
+      Tfunction (transBeePL_types transBeePL_type ts) (transBeePL_type t')
+        {| cc_vararg := Some (Z.of_nat (length ts));
+           cc_unproto := false;
+           cc_structret := false |}
+  end
+with transBeePL_ptr_type (pt : ptr_type) : Ctypes.type :=
+  match pt with 
+  | Reftype h bt a =>  
+      match bt with 
+      | Bprim Tbool => Ctypes.Tint I8 Unsigned noattr
+      | Bprim (Tint sz s a') => Ctypes.Tpointer (Ctypes.Tint sz s a') a
+      | Bprim (Tlong s a') => Ctypes.Tpointer (Ctypes.Tlong s a') a
+      | Bstruct s a' => Ctypes.Tpointer (Tstruct s a') a
+      end
+  | Otype t => Ctypes.Tpointer (transBeePL_ptr_type t) (attr_of_ptr_type t)
+  | Fptype ts ef t' =>
+      Ctypes.Tpointer
+        (Tfunction (transBeePL_types transBeePL_type ts) (transBeePL_type t')
+          {| cc_vararg := Some (Z.of_nat (length ts));
+             cc_unproto := false;
+             cc_structret := false |})
+        noattr
+  | Sptype s a => Ctypes.Tpointer (Tstruct s a) a
+  end.
 
 (*** Composite Definitions related to BeePL ***)
 Definition bmember_cmember (b : bmember) : member :=
@@ -326,54 +301,43 @@ Proof.
 - contradiction.
 Defined.
 
-(** To describe the values returned by functions, we use the more precise
-    types below. *)
-
-Inductive rettype : Type :=
-| Tret (t: type)      (**r like type [t] *)
-| Trbool               (**r Boolean value (0 or 1) *)
-| Tint8signed         (**r 8-bit signed integer *)
-| Tint8unsigned       (**r 8-bit unsigned integer *)
-| Tint16signed        (**r 16-bit signed integer *)
-| Tint16unsigned      (**r 16-bit unsigned integer *)
-| Teunit              (**r no value returned *)
-| Testype             (**r struct type **)
-| To                  (**r option type **).
-
-Definition is_reftype (t : type) : bool :=
+Definition is_ptrtype (t : type) : bool :=
 match t with 
-| Ptype p => false
-| Reftype h bt a => true 
+| Utype => false
+| Vtype vt => false
+| Ptrtype pt => true 
 | Ftype es ef t => false
 | Stype x a => false
-| Otype t => false
 end. 
 
-Definition is_optiontype (t : type) : bool :=
+Definition is_ref_ptr_type (pt : ptr_type) : bool :=
+match pt with 
+| Reftype _ _ _ => true 
+| _ => false
+end.
+
+Definition is_option_ptr_type (t : ptr_type) : bool :=
 match t with 
-| Ptype p => false
-| Reftype h bt a => false 
-| Ftype es ef t => false
-| Stype x a => false
 | Otype t => true
+| _ => false
 end. 
 
 Definition is_stype (t : type) : bool :=
 match t with 
-| Ptype p => false
-| Reftype h bt a => false
+| Utype => false
+| Vtype vt => false
+| Ptrtype pt => false 
 | Ftype es ef t => false
 | Stype x a => true
-| Otype t => false
 end. 
 
-Definition is_unittype (t : type) : bool :=
+Definition is_utype (t : type) : bool :=
 match t with 
-| Ptype p => match p with 
-             | Tunit => true
-             | _ => false
-             end
-| _ => false
+| Utype => true
+| Vtype vt => false
+| Ptrtype pt => false 
+| Ftype es ef t => false
+| Stype x a => false
 end. 
 
 Definition is_funtype (t : type) : bool :=
@@ -382,16 +346,15 @@ match t with
 | _ => false
 end.
 
-Definition is_primtype (t : type) : bool :=
+Definition is_vtype (t : type) : bool :=
 match t with 
-| Ptype p => true 
+| Vtype vt => true 
 | _ => false
 end.
 
 Definition is_primint (t : type) : bool :=
 match t with 
-| Ptype p => match p with 
-             | Tunit => false
+| Vtype p => match p with 
              | Tbool => false
              | Tint _ _ _ => true 
              | Tlong _ _ => false
@@ -401,8 +364,7 @@ end.
 
 Definition is_primint32 (t : type) : bool :=
 match t with 
-| Ptype p => match p with 
-             | Tunit => false
+| Vtype p => match p with 
              | Tbool => false
              | Tint I32 _ _ => true 
              | Tlong _ _ => false
@@ -413,8 +375,7 @@ end.
 
 Definition is_primunsigned_int_long (t1 t2 : type) : bool :=
 match t1, t2 with 
-| Ptype p1, Ptype p2 => match p1, p2 with 
-                        | Tunit, Tunit => false
+| Vtype p1, Vtype p2 => match p1, p2 with 
                         | Tbool, Tbool => false
                         | Tint sz1 s1 a1, Tint sz2 s2 a2 => if intsize_eq sz1 sz2 
                                                                && signedness_eq s1 s2 
@@ -432,8 +393,7 @@ end.
 
 Definition is_primlong (t : type) : bool :=
 match t with 
-| Ptype p => match p with 
-             | Tunit => false
+| Vtype p => match p with 
              | Tbool => false
              | Tint _ _ _ => false 
              | Tlong _ _ => true
@@ -441,76 +401,75 @@ match t with
 | _ => false
 end.
 
-Definition is_primunit (t : type) : bool :=
-match t with 
-| Ptype p => match p with 
-             | Tunit => true 
-             | _ => false
-             end
-| _ => false
-end.
-
 Definition is_primbool (t : type) : bool :=
 match t with 
-| Ptype p => match p with 
+| Vtype p => match p with 
              | Tbool => true 
              | _ => false
              end
 | _ => false
 end.
 
-Definition is_primtype_notunit (t : type) : Prop :=
-is_primtype t /\ (not (is_unittype t)).
+Definition is_vtype_notunit (t : type) : Prop :=
+is_vtype t /\ (not (is_utype t)).
 
-Definition extract_signedness_ptype (t : primitive_type) : option signedness :=
-match t with 
-| Tunit => None
-| Tbool => None 
-| Tint sz s a => Some s 
-| Tlong s a => Some s
-end.
+Definition signedness_of_primitive (pt : primitive_type) : option signedness :=
+  match pt with
+  | Tbool => None
+  | Tint _ s _ => Some s
+  | Tlong s _ => Some s
+  end.
 
-Definition extract_signedness_btype (t : basic_type) : option signedness :=
-match t with 
-| Bprim pt => extract_signedness_ptype pt
-| Bstruct s a => None 
-end.
+Definition signedness_of_basic (bt : basic_type) : option signedness :=
+  match bt with
+  | Bprim pt => signedness_of_primitive pt
+  | Bstruct _ _ => None
+  end.
 
-Fixpoint extract_signedness_type (t : type) : option signedness :=
-match t with 
-| Ptype p => match p with 
-             | Tunit => None
-             | Tbool => None
-             | Tint sz s a => Some s
-             | Tlong s a => Some s
-             end
-| Reftype h bt a => extract_signedness_btype bt 
-| Ftype es e t => None 
-| Stype s a => None 
-| Otype t => extract_signedness_type t 
-end.
+Fixpoint signedness_of_type (t : type) : option signedness :=
+  match t with
+  | Utype => None
+  | Vtype pt => signedness_of_primitive pt
+  | Ptrtype pt => signedness_of_ptr_type pt
+  | Stype _ _ => None
+  | Ftype _ _ _ => None
+  end
+with signedness_of_ptr_type (pt : ptr_type) : option signedness :=
+  match pt with
+  | Reftype _ bt _ => signedness_of_basic bt
+  | Otype pt' => signedness_of_ptr_type pt'
+  | Fptype _ _ _ => None
+  | Sptype _ _ => None
+  end.
 
-Definition basic_to_type (b : basic_type) : mon type :=
-match b with 
-| Bprim p => ret (Ptype p)
-| Bstruct x a => error (msg "Struct is not a primitive type")
-end.
 
-Definition Twptr := if Archi.ptr64 then Twlong else Twint. 
+Definition wtype_of_primitive (pt : primitive_type) : wtype :=
+  match pt with
+  | Tbool => Twbool
+  | Tint _ _ _ => Twint
+  | Tlong _ _ => Twlong
+  end.
 
-Definition wtype_of_type (t : type) : wtype :=
-match t with 
-| Ptype p => match p with
-             | Tunit => Twunit 
-             | Tbool => Twbool
-             | Tint _ _ _ => Twint 
-             | Tlong _ _ => Twlong 
-             end
-| Reftype _ _ _ => Twref 
-| Ftype _ _ _ => Twfun
-| Stype _ _ => Twst
-| Otype _ => Twot
-end.
+Definition wtype_of_ptr_type (pt : ptr_type) : wtype :=
+  match pt with
+  | Reftype _ bt _ =>
+      match bt with
+      | Bprim _ => Twref
+      | Bstruct _ _ => Twpst
+      end
+  | Otype _ => Twot
+  | Fptype _ _ _ => Twfunptr
+  | Sptype _ _ => Twptr
+  end.
+
+Fixpoint wtype_of_type (t : type) : wtype :=
+  match t with
+  | Utype => Twunit
+  | Vtype pt => wtype_of_primitive pt
+  | Ptrtype pt => wtype_of_ptr_type pt
+  | Stype _ _ => Twst
+  | Ftype _ _ _ => Twfun
+  end.
 
 Fixpoint wtypes_of_types (t : list type) : list wtype :=
 match t with 
@@ -559,7 +518,6 @@ end.
 
 Definition eq_primitive_type (p1 p2 : primitive_type) : bool :=
 match p1, p2 with 
-| Tunit, Tunit => true 
 | Tbool, Tbool => true
 | Tint sz s a, Tint sz' s' a'=> if intsize_eq sz sz' 
                                 then if signedness_eq s s'
@@ -621,7 +579,6 @@ type must be accessed:
 *)
 Definition access_mode_prim (t : primitive_type) : mode :=
 match t with 
-| Tunit =>  By_nothing (* Fix me *)
 | Tbool => By_value Mint8signed
 | Tint I8 Signed _ => By_value Mint8signed
 | Tint I8 Unsigned _ => By_value Mint8unsigned
@@ -638,49 +595,14 @@ match t with
 | Bstruct x a => By_copy
 end.
 
-Definition access_mode (t : type) : mode :=
-match t with 
-| Ptype t => access_mode_prim t
-| Reftype h t _ => By_value Mptr
-| Ftype ts ef t => By_reference
-| Stype x a => By_copy
-| Otype t => By_copy
-end.
-
-
-Definition type_is_volatile (t : type) : bool :=
-match access_mode t with 
-| By_value _ => attr_volatile (attr_of_type t)
-| _ => false
-end.
-
-(*Definition bchunk_for_volatile_type (t : type) (bf : bitfield) : option bmemory_chunk :=
-if type_is_volatile t 
-then match access_mode t with 
-     | By_value chunk => match bf with 
-                         | Full => Some chunk
-                         | Bits _ _ _ _ => None 
-                         end
-     | _ => None 
-     end
-else None.
-
-chunk_for_volatile_type = 
-fun (ty : Ctypes.type) (bf : bitfield) =>
-if Ctypes.type_is_volatile ty
-then
- match Ctypes.access_mode ty with
- | By_value chunk => match bf with
-                     | Full => Some chunk
-                     | Bits _ _ _ _ => None
-                     end
- | _ => None
- end
-else None
-
-Print chunk_for_volatile_type.
-chunk_for_volatile_type cty bf*)
-
+Fixpoint access_mode_type (t : type) : mode :=
+  match t with
+  | Utype => By_nothing
+  | Vtype pt => access_mode_prim pt
+  | Ptrtype _ => By_reference
+  | Stype _ _ => By_reference
+  | Ftype _ _ _ => By_reference
+  end.
 
 Section Eq_basic_types.
 
@@ -715,34 +637,51 @@ end.
 
 End Eq_types.
 
-Fixpoint eq_type (p1 p2 : type) : bool :=
-match p1, p2 with 
-| Ptype p1, Ptype p2 => eq_primitive_type p1 p2
-| Ftype ts1 e1 t1, Ftype ts2 e2 t2 => 
-  eq_types eq_type ts1 ts2 && eq_effect e1 e2 && eq_type t1 t2
-| Reftype e1 b1 a1, Reftype e2 b2 a2 => if attr_eq a1 a2  
-                                        then (e1 =? e2)%positive && eq_basic_type b1 b2
-                                        else false
-| Stype x1 a1, Stype x2 a2 => if (x1 =?  x2)%positive && attr_eq a1 a2 then true else false
-| Otype t1, Otype t2 => eq_type t1 t2
-| _, _ => false
-end. 
+Fixpoint eq_type (t1 t2 : type) : bool :=
+  match t1, t2 with
+  | Utype, Utype => true
+  | Vtype p1, Vtype p2 => eq_primitive_type p1 p2
+  | Ptrtype pt1, Ptrtype pt2 => eq_ptr_type pt1 pt2
+  | Stype id1 a1, Stype id2 a2 => (id1 =? id2)%positive && attr_eq a1 a2
+  | Ftype ts1 ef1 t1', Ftype ts2 ef2 t2' =>
+      eq_types eq_type ts1 ts2 && eq_effect ef1 ef2 && eq_type t1' t2'
+  | _, _ => false
+  end
 
-Definition eq_wtype (t1 t2 : wtype) : bool :=
-match t1, t2 with 
-| Twunit, Twunit => true 
-| Twint, Twint => true 
-| Twlong, Twlong => true 
-| Twref, Twref => true
-| Twfun, Twfun => true
-| Twst, Twst => true
-| Twot, Twot => true
-| _, _ => false
-end.  
+with eq_ptr_type (p1 p2 : ptr_type) : bool :=
+  match p1, p2 with
+  | Reftype h1 b1 a1, Reftype h2 b2 a2 =>
+      (h1 =? h2)%positive && eq_basic_type b1 b2 && attr_eq a1 a2
+  | Otype pt1, Otype pt2 => eq_ptr_type pt1 pt2
+  | Fptype ts1 ef1 t1, Fptype ts2 ef2 t2 =>
+      eq_types eq_type ts1 ts2 && eq_effect ef1 ef2 && eq_type t1 t2
+  | Sptype id1 a1, Sptype id2 a2 => (id1 =? id2)%positive && attr_eq a1 a2
+  | _, _ => false
+  end.
+
+ 
+Definition eq_wtype (w1 w2 : wtype) : bool :=
+  match w1, w2 with
+  | Twbool, Twbool => true
+  | Twint, Twint => true
+  | Twlong, Twlong => true
+  | Twunit, Twunit => true
+  | Twref, Twref => true
+  | Twot, Twot => true
+  | Twpst, Twpst => true
+  | Twfunptr, Twfunptr => true
+  | Twst, Twst => true
+  | Twf, Twf => true
+  | Twv, Twv => true
+  | Twptr, Twptr => true
+  | Twfun, Twfun => true
+  | _, _ => false
+  end.
+
+ 
 
 Definition sizeof_ptype (t : primitive_type) : Z :=
 match t with 
-| Tunit => 1
 | Tbool => 1
 | Tint I8 _ _ => 1
 | Tint I16 _ _ => 2
@@ -758,19 +697,27 @@ match t with
 end. 
 
 Fixpoint sizeof_type (env : bcomposite_env) (t : type) : Z :=
-match t with 
-| Ptype t => sizeof_ptype t 
-| Reftype h t _ => sizeof_btype env t
-| Ftype ts e t => 1
-| Stype x a => match env!x with Some co => co_sizeof co | None => 0 end
-| Otype t => sizeof_type env t (* fix me *)
-end.
+  match t with
+  | Utype => 0
+  | Vtype pt => sizeof_ptype pt
+  | Ptrtype pt => sizeof_ptr_type env pt
+  | Stype x _ => match env!x with Some co => co_sizeof co | None => 0 end
+  | Ftype _ _ _ => 1
+  end
+
+with sizeof_ptr_type (env : bcomposite_env) (pt : ptr_type) : Z :=
+  match pt with
+  | Reftype h t  _ => sizeof_btype env t
+  | Otype t => sizeof_ptr_type env t
+  | Fptype _ _ _ => 1
+  | Sptype x a => 1
+  end.
 
 (* Used for extracting the correct type for a Ref's fresh variable *)
 Definition ref_to_prim (ty : type) : mon type :=
   match ty with
-  | Reftype _ (Bprim pt) _ => ret (Ptype pt)
-  | Reftype _ (Bstruct s a) _ => ret (Stype s a)
+  | Ptrtype (Reftype _ (Bprim pt) _) => ret (Vtype pt)
+  | Ptrtype (Reftype _ (Bstruct s a) _) => ret (Stype s a)
   | _ => error (msg "ref_to_prim: expected only reftype")
   end.
 

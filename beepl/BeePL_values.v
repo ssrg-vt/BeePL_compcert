@@ -190,12 +190,12 @@ end.
 
 Definition typeof_value (v : value) (t : type) : Prop :=
 match v, t with 
-| Vunit, Ptype Tunit => True 
-| Vbool b, Ptype Tbool => True
-| Vint i, Ptype (Tint sz s a) => True 
-| Vint64 i, Ptype (Tlong s a) => True 
-| Vloc p ofs, Reftype h b a => True (* targeting only 64 bit arch *)
-| Voption v, Otype t => True
+| Vunit, Utype => True 
+| Vbool b, Vtype Tbool => True
+| Vint i, Vtype (Tint sz s a) => True 
+| Vint64 i, Vtype (Tlong s a) => True 
+| Vloc p ofs, Ptrtype (Reftype h b a) => True (* targeting only 64 bit arch *)
+| Voption v, Ptrtype (Otype t) => True
 | _, _ => False
 end.
 
@@ -256,14 +256,10 @@ if (v1.(lname) =? v2.(lname))%positive then true else false.
 
 Fixpoint return_bzero (t : type) : mon value :=
 match t with 
-| Ptype p => match p with   
-             | Tunit => error (msg "Tunit not allowed")
+| Vtype p => match p with   
              | Tbool => error (msg "Tbool not allowed")
              | Tint i s a => ret (Vint (Int.repr 0))
              | Tlong s a => ret (Vint64 (Int64.repr 0))
              end
-| Reftype h b a => error (msg "Tpointer not allowed")
-| Ftype ts e t => error (msg "Tfunction not allowed")
-| Stype x a => error (msg "Struct not allowed")
-| Otype t => return_bzero t
+| _ => error (msg "rest of the types are not needed to produce 0")
 end.

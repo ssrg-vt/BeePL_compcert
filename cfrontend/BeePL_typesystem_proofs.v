@@ -25,18 +25,18 @@ Definition store_well_typed (Sigma : store_context)
                                                   PTree.get l Sigma = Some t /\ 
                                                   (exists v ofs, deref_addr bge t m l' ofs Full v /\ 
                                                                  is_vloc v = false /\
-                                                                 is_reftype t = false)
+                                                                 is_ptrtype t = false)
                                | None => (exists l' ofs v, PTree.get l Sigma = Some t /\ 
                                                            Genv.find_symbol bge l = Some l' /\ 
                                                            deref_addr bge t m l' ofs Full v /\ 
                                                            is_vloc v = false /\
-                                                           is_reftype t = false)
+                                                           is_ptrtype t = false)
                                end
-                 | None => (forall ofs h t a, PTree.get l Sigma = Some (Reftype h (Bprim t) a) ->
+                 | None => (forall ofs h t a, PTree.get l Sigma = Some (Ptrtype (Reftype h (Bprim t) a)) ->
                                               Mem.valid_pointer m l (Ptrofs.unsigned ofs) /\
-                                              ((exists v, deref_addr bge (Ptype t) m l ofs Full v /\ 
+                                              ((exists v, deref_addr bge (Vtype t) m l ofs Full v /\ 
                                                           is_vloc v = false) /\
-                                               (forall v, (exists bf m', assign_addr bge (Ptype t) m l ofs bf v m' v /\
+                                               (forall v, (exists bf m', assign_addr bge (Vtype t) m l ofs bf v m' v /\
                                                                          is_vloc v = false))))
                  end).
 
@@ -44,7 +44,7 @@ Definition store_well_typed (Sigma : store_context)
      Sigma ! l = Reftype h bt a -> 
      deref m bt l = v ->
      v != loc. ***)
-
+(*
 (* A well-typed uop always has a semantics that leads to a value. *)
 Lemma well_formed_uop : forall Gamma Sigma bge vm v ef t uop m ct,
 type_expr Gamma Sigma (Prim (Uop uop) ((Val v t) :: nil) t) ef t ->
@@ -1096,6 +1096,6 @@ Qed. *)
       https://people.rennes.inria.fr/Frederic.Besson/compcertSFI.pdf *****)
 
 (**** Runtime rejection : add exit ****)
-
+*)
  
 

@@ -81,14 +81,14 @@ End Trans_ctypes_btypes.
 
 Definition trans_ctype_btype (ct : Ctypes.type) : res BeeTypes.type :=
 match ct with 
-| Tvoid => OK (Ptype Tunit)
-| Ctypes.Tint sz s a => OK (BeeTypes.Ptype (Tint sz s a))
-| Ctypes.Tlong s a => OK (BeeTypes.Ptype (Tlong s a))
+| Tvoid => OK Utype
+| Ctypes.Tint sz s a => OK (BeeTypes.Vtype (Tint sz s a))
+| Ctypes.Tlong s a => OK (BeeTypes.Vtype (Tlong s a))
 | Tfloat _ _ => Error (msg "TYPE ERROR: Float is not supported in BeePL")
 | Tpointer t a => match t with 
-                  | Tvoid => OK (Reftype 1%positive (Bprim Tunit) a)
-                  | Ctypes.Tint sz s a => OK (Reftype mem_ident (Bprim (Tint sz s a)) a)
-                  | Ctypes.Tlong s a => OK (Reftype mem_ident (Bprim (Tlong s a)) a)
+                  | Tvoid => Error (msg "TYPE ERROR: Void* is not supported in BeePL")
+                  | Ctypes.Tint sz s a => OK (Ptrtype (Reftype mem_ident (Bprim (Tint sz s a)) a))
+                  | Ctypes.Tlong s a => OK (Ptrtype (Reftype mem_ident (Bprim (Tlong s a)) a))
                   | _ => Error (msg "TYPE ERROR: Not supported in ref type")
                   end 
 | Tarray t z a => Error (msg "TYPE ERROR: Array is not supported in BeePL")
@@ -145,9 +145,9 @@ match e with
                  | Ref => match es with 
                           | e :: nil => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                                         match te with 
-                                        | Ptype bt => if eq_type t (Reftype mem_ident (Bprim bt) (attr_of_primitive_type bt)) 
-                                                      then OK (Reftype mem_ident (Bprim bt) (attr_of_primitive_type bt), (ef ++ (Alloc mem_ident :: nil)))
-                                                      else Error (msg "TYPE ERROR: Reftype does not match the inferred type")
+                                        | Vtype bt => if eq_type t (Ptrtype (Reftype mem_ident (Bprim bt) (attr_of_primitive_type bt))) 
+                                                        then OK (Ptrtype (Reftype mem_ident (Bprim bt) (attr_of_primitive_type bt)), (ef ++ (Alloc mem_ident :: nil)))
+                                                        else Error (msg "TYPE ERROR: Reftype does not match the inferred type")
                                         | _ => Error (msg "TYPE ERROR: Only primitive types are allowed to be allocated in memory")
                                         end
                           |  _ => Error (msg "TYPE ERROR: Wrong number of arguments to Ref")
@@ -155,9 +155,9 @@ match e with
                  | Deref => match es with 
                             | e :: nil => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                                           match te with 
-                                          | Reftype mem_ident (Bprim bt) a => if eq_type t (Ptype bt) 
-                                                                              then OK (Ptype bt, (ef ++ (Read mem_ident :: nil)))
-                                                                              else Error (msg "Dereftype does not match the inferred type")
+                                          | Ptrtype pt => if eq_type t (get_data_type pt) 
+                                                          then OK (get_data_type pt, (ef ++ (Read mem_ident :: nil)))
+                                                          else Error (msg "Dereftype does not match the inferred type")
                                           | _ => Error (msg "TYPE ERROR: Argument of dereferencing should be a ref type")
                                           end
                           |  _ => Error (msg "TYPE ERROR: Wrong number of arguments to Deref")
@@ -165,12 +165,12 @@ match e with
                  | Massgn => match es with 
                              | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
                                                   match te1 with 
-                                                  | Reftype mem_ident (Bprim bt) a => do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
-                                                                                      match te2 with 
-                                                                                      | Ptype bt => if eq_type t (Ptype Tunit)
-                                                                                                    then OK (Ptype Tunit, ef1 ++ ef2 ++ (Write mem_ident :: nil))
-                                                                                                    else Error (msg "Massgntype does not match the inferred type")
-                                                                                      | _ => Error (msg "TYPE ERROR: Only primitive types are allowed in memory assignment")
+                                                  | Ptrtype pt => do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
+                                                                  let bt := get_data_type pt in
+                                                                  match te2 with 
+                                                                  | bt => if eq_type t Utype
+                                                                                then OK (Utype, ef1 ++ ef2 ++ (Write mem_ident :: nil))
+                                                                                else Error (msg "Massgntype does not match the inferred type")
                                                                                       end 
                                                  | _ => Error (msg "TYPE ERROR: First argument of Massgn should be a reftype")
                                                  end
@@ -285,7 +285,7 @@ match e with
                                           | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
                                                                do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                                                                if (eq_type te1 te2 && (is_primint te1 || is_primlong te1 || is_primbool te2) && eq_type te1 t) 
-                                                               then OK(Ptype Tbool, ef1 ++ ef2)
+                                                               then OK(Vtype Tbool, ef1 ++ ef2)
                                                                else Error (msg "TYPE ERROR: Wrong argument types to eq operator, it expects int or long as argument")
                                           | _ =>  Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
                                           end
@@ -293,15 +293,15 @@ match e with
                                           | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
                                                                do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                                                                if (eq_type te1 te2 && (is_primint te1 || is_primlong te1 || is_primbool te2) && eq_type te1 t) 
-                                                               then OK(Ptype Tbool, ef1 ++ ef2)
+                                                               then OK(Vtype Tbool, ef1 ++ ef2)
                                                                else Error (msg "TYPE ERROR: Wrong argument types to ne operator, it expects int or long as argument")
                                           | _ =>  Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
                                           end
                             | Cop.Olt => match es with 
                                           | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
                                                                do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
-                                                               if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_type (Ptype Tbool) t) 
-                                                               then OK(Ptype Tbool, ef1 ++ ef2)
+                                                               if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_type (Vtype Tbool) t) 
+                                                               then OK(Vtype Tbool, ef1 ++ ef2)
                                                                else Error (msg "TYPE ERROR: Wrong argument types to lt operator, it expects int or long as argument")
                                           | _ =>  Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
                                           end
@@ -309,7 +309,7 @@ match e with
                                           | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
                                                                do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                                                                if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_type te1 t) 
-                                                               then OK(Ptype Tbool, ef1 ++ ef2)
+                                                               then OK(Vtype Tbool, ef1 ++ ef2)
                                                                else Error (msg "TYPE ERROR: Wrong argument types to gt operator, it expects int or long as argument")
                                           | _ =>  Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
                                           end
@@ -317,7 +317,7 @@ match e with
                                           | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
                                                                do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                                                                if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_type te1 t) 
-                                                               then OK(Ptype Tbool, ef1 ++ ef2)
+                                                               then OK(Vtype Tbool, ef1 ++ ef2)
                                                                else Error (msg "TYPE ERROR: Wrong argument types to le operator, it expects int or long as argument")
                                           | _ =>  Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
                                           end
@@ -325,7 +325,7 @@ match e with
                                           | e1 :: e2 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
                                                                do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                                                                if (eq_type te1 te2 && (is_primint te1 || is_primlong te1) && eq_type te1 t) 
-                                                               then OK(Ptype Tbool, ef1 ++ ef2)
+                                                               then OK(Vtype Tbool, ef1 ++ ef2)
                                                                else Error (msg "TYPE ERROR: Wrong argument types to ge operator, it expects int or long as argument")
                                           | _ =>  Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
                                           end
@@ -343,10 +343,10 @@ match e with
                       if is_primbool te1 && eq_type te2 te3 && eq_effect ef2 ef3 && eq_type t te2
                       then OK (te2, ef1 ++ ef2)
                       else Error (msg "TYPE ERROR: Type of cond does not match the inferred type")
-| Unit t => OK (Ptype Tunit, nil)
+| Unit t => OK (Utype, nil)
 | Addr l ofs t =>  match PTree.get l.(lname) Sigma with 
-                   | Some (Reftype mem_ident bt a) => if eq_type t (Reftype mem_ident bt a)
-                                              then OK (Reftype mem_ident bt a, nil)
+                   | Some (Ptrtype (Reftype mem_ident bt a)) => if eq_type t (Ptrtype (Reftype mem_ident bt a))
+                                              then OK (Ptrtype (Reftype mem_ident bt a), nil)
                                               else Error (msg "Type of location does not match the inferred type")
                    | Some _ => Error (msg "TYPE ERROR: Wrong type inferred for location")
                    | None => Error (msg "TYPE ERROR: Location not found")
@@ -355,7 +355,7 @@ match e with
 | Eapp ef ts es t => Error (msg "TYPE ERROR: We have no use case of builtin function as of now")
 | Screate x ids es t => do (tes, efs) <- type_check_exprs type_check_expr cenv Gamma Sigma es;
                         match t with 
-                        | Reftype mem_ident (Bstruct id a) a' => match cenv!id with 
+                        | Ptrtype (Reftype mem_ident (Bstruct id a) a') => match cenv!id with 
                                                                  | Some co => do cts <- type_of_members 
                                                                                         (combine (map Ctypes.attr_of_type (typelist_to_list_type (transBeePL_types transBeePL_type tes))) ids) 
                                                                                         (bmembers_cmembers co.(co_members));
@@ -391,24 +391,24 @@ match e with
                        else Error (msg "TYPE ERROR: The range type should be unsigned int or long and the inferred type does not match")
                                                           
 | Enone t => match t with 
-             | Otype t' => if is_reftype t' 
-                           then OK(t, nil) 
-                           else Error (msg "TYPE ERROR: Type of Enone should be an option to ref type")
+             | Ptrtype t' => if is_option_ptr_type t' 
+                             then OK(t, nil) 
+                             else Error (msg "TYPE ERROR: Type of Enone should be an option to ref type")
              | _ => Error (msg "TYPE ERROR: Type of Enone should be an option type")
              end
 | Esome e t => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                match t with 
-               | Otype t' => if is_reftype t'
-                             then OK(t, ef)
-                             else Error (msg "TYPE ERROR: Type of Esome should be an option to ref type")
+               | Ptrtype t' => if is_option_ptr_type t' 
+                               then OK(t, ef)
+                               else Error (msg "TYPE ERROR: Type of Esome should be an option to ref type")
                | _ => Error (msg "TYPE ERROR: Type of Esome should be an option type")
                end
 | Match e ps es t => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                      do (tes, efs) <- type_check_exprs type_check_expr cenv Gamma Sigma es;
                      match te with 
-                     | Otype t' => if is_reftype te && all_eq_types tes 
-                                   then OK(t, ef ++ efs)
-                                   else Error (msg "TYPE ERROR: Type of Match expr should be an option to ref type and all its elements should be of same type")
+                     | Ptrtype t' => if is_option_ptr_type t' && all_eq_types tes 
+                                     then OK(t, ef ++ efs)
+                                     else Error (msg "TYPE ERROR: Type of Match expr should be an option to ref type and all its elements should be of same type")
                      | _ => Error (msg "TYPE ERROR: Type of Match expr should be an option type")
                      end
                      

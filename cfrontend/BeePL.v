@@ -200,6 +200,8 @@ Definition globvar (V : Type) := AST.globvar V.
 
 Definition globdef (F V : Type) := AST.globdef F V.
 
+(* Try to write C program that has array of bytes uint_8 and see how it gets translated to Csyntax *)
+
 Definition is_external_fundef (gd : globdef fundef type) : bool :=
 match gd with 
 | Gfun fd => match fd with 
@@ -352,22 +354,22 @@ match Senv.find_symbol ge b with
 (* Add rest like copy, bitfield, volatile, etc once we add arrays and structs *) 
 Inductive deref_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : ptrofs) : bitfield -> value -> Prop :=
 | deref_addr_value : forall chunk v v',
-  access_mode ty = By_value (transl_bchunk_cchunk chunk) ->
-  type_is_volatile ty = false ->
+  access_mode_type ty = By_value (transl_bchunk_cchunk chunk) ->
+  type_is_volatile (transBeePL_type ty) = false ->
   Mem.loadv (transl_bchunk_cchunk chunk) m (trans_bvalue_cvalue (Vloc addr ofs)) = Some v ->
   trans_cvalue_bvalue v = OK v' ->
   deref_addr ty m addr ofs Full v'
 | deref_loc_volatile: forall chunk tr v v',
-  access_mode ty = By_value (transl_bchunk_cchunk chunk) -> 
-  type_is_volatile ty = true ->
+  access_mode_type ty = By_value (transl_bchunk_cchunk chunk) -> 
+  type_is_volatile (transBeePL_type ty) = true ->
   volatile_load ge (transl_bchunk_cchunk chunk) m addr ofs tr v ->
   trans_cvalue_bvalue v = OK v' ->
   deref_addr ty m addr ofs Full v'
 | deref_addr_reference:
-  access_mode ty = By_reference ->
+  access_mode_type ty = By_reference ->
   deref_addr ty m addr ofs Full (Vloc addr ofs) 
 | deref_addr_copy:
-  access_mode ty = By_copy ->
+  access_mode_type ty = By_copy ->
   deref_addr ty m addr ofs Full (Vloc addr ofs)
 | deref_addr_bitfield: forall sz sg pos width v v' cty,
   transBeePL_type ty = cty ->
@@ -380,18 +382,19 @@ Inductive deref_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : p
    [ofs] *) 
 Inductive assign_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : ptrofs) : bitfield -> value -> Memory.mem -> value -> Prop :=
 | assign_addr_value : forall v chunk m' v',
-  access_mode ty = By_value (transl_bchunk_cchunk chunk) ->
-  type_is_volatile ty = false ->
+  access_mode_type ty = By_value (transl_bchunk_cchunk chunk) ->
+  type_is_volatile (transBeePL_type ty) = false ->
   Mem.storev (transl_bchunk_cchunk chunk) m (trans_bvalue_cvalue (Vloc addr ofs)) v = Some m' ->
   trans_cvalue_bvalue v = OK v' ->
   assign_addr ty m addr ofs Full v' m' v'
 | assign_loc_volatile: forall v chunk tr m' v',
-  access_mode ty = By_value (transl_bchunk_cchunk chunk) -> type_is_volatile ty = true ->
+  access_mode_type ty = By_value (transl_bchunk_cchunk chunk) -> 
+  type_is_volatile (transBeePL_type ty) = true ->
   volatile_store ge (transl_bchunk_cchunk chunk) m addr ofs v tr m' ->
   trans_cvalue_bvalue v = OK v' ->
   assign_addr ty m addr ofs Full v' m' v'
 | assign_addr_copy: forall b' ofs' bytes m',
-  access_mode ty = By_copy ->
+  access_mode_type ty = By_copy ->
   (alignof_blockcopy (bcomposite_composite_env (genv_cenv ge)) (transBeePL_type ty) | Ptrofs.unsigned ofs') ->
   (alignof_blockcopy (bcomposite_composite_env (genv_cenv ge)) (transBeePL_type ty) | Ptrofs.unsigned ofs) ->
       b' <> addr \/ Ptrofs.unsigned ofs' = Ptrofs.unsigned ofs
@@ -467,13 +470,13 @@ Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
 
 
 Inductive well_formed_value : value -> type -> Prop :=
-| wf_vunit : well_formed_value Vunit (Ptype Tunit)
+| wf_vunit : well_formed_value Vunit (Utype)
 | wf_vint : forall sz s a i, 
-            well_formed_value (Vint i) (Ptype (Tint sz s a))
+            well_formed_value (Vint i) (Vtype (Tint sz s a))
 | wf_vlong : forall s a i,
-             well_formed_value (Vint64 i) (Ptype (Tlong s a))
+             well_formed_value (Vint64 i) (Vtype (Tlong s a))
 | wf_vloc : forall l ofs h t a,
-            well_formed_value (Vloc l ofs) (Reftype h t a).
+            well_formed_value (Vloc l ofs) (Ptrtype (Reftype h t a)).
 
 End Memory_semantics.
 
