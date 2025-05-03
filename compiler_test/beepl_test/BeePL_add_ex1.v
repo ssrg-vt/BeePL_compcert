@@ -7,7 +7,7 @@ Local Open Scope csyntax_scope.
 
 (* int main() {
      unsigned int x = 40;
-     unsigned int y = 2;
+     unsigned int y = 40;
      unsigned int r = x + y;
      return r;
   }

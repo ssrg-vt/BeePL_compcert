@@ -1,4 +1,4 @@
-Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values BeePL_typechecker. 
+Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values BeePL_typechecker BeePL_notations. 
 From Coq Require Import String ZArith.
 From compcert Require Import Csyntaxdefs.
 Import Csyntaxdefs.CsyntaxNotations.
@@ -29,23 +29,20 @@ Definition ident_to_string : list (ident * string) := ((_x, "x") ::
                                                       (_main, "main") :: nil).
 
 Definition f_conditional_1 : BeePL.function := {| 
-                                   fn_return := (Ptype (BeeTypes.Tint I32 Signed dattr));
+                                   fn_return := tint32s;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
                                    fn_args := nil;
-                                   fn_vars := ((_x, BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Signed dattr)) :: nil);
+                                   fn_vars := ((_x, tint32s) :: nil);
                                    fn_body := Bind 
-                                                (_x) 
-                                                (Ptype (BeeTypes.Tint I32 Signed dattr))
-                                                (Const (ConsInt (Int.repr 1)) (Ptype (BeeTypes.Tint I32 Signed dattr)))
+                                                (_x) tint32s
+                                                (cint (Int.repr 1) tint32s)
                                                 (Cond (Prim (Bop Cop.Olt) 
-                                                            (Var _x (Ptype (BeeTypes.Tint I32 Signed dattr)) :: 
-                                                             Const (ConsInt (Int.repr 3)) (Ptype (BeeTypes.Tint I32 Signed dattr)) :: nil)
-                                                            (Ptype Tbool))
-                                                      (Const (ConsInt (Int.repr 0)) (Ptype (BeeTypes.Tint I32 Signed dattr)))
-                                                      (Const (ConsInt (Int.repr 2)) (Ptype (BeeTypes.Tint I32 Signed dattr)))
-                                                      (Ptype (BeeTypes.Tint I32 Signed dattr)))
-                                                (Ptype (BeeTypes.Tint I32 Signed dattr)) |}.
+                                                            (Var _x tint32s :: 
+                                                             cint (Int.repr 3) tint32s :: nil)
+                                                             tbbool)
+                                                      (cint (Int.repr 0) tint32s) 
+                                                      (cint (Int.repr 2) tint32s) tint32s) tint32s |}.
 
 (*  int main(void) {
  *    int x;
@@ -58,29 +55,24 @@ Definition f_conditional_1 : BeePL.function := {|
  *)
 
 Definition f_conditional_2 : BeePL.function := {| 
-                                   fn_return := (Ptype (BeeTypes.Tint I32 Signed dattr));
+                                   fn_return := tint32s;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
                                    fn_args := nil;
-                                   fn_vars := ((_x, BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Signed dattr)) ::
-                                               (_y, BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Signed dattr)) :: nil);
+                                   fn_vars := ((_x, tint32s) ::
+                                               (_y, tint32s) :: nil);
                                    fn_body := Bind 
-                                                (_x) 
-                                                (Ptype (BeeTypes.Tint I32 Signed dattr))
-                                                (Const (ConsInt (Int.repr 1)) (Ptype (BeeTypes.Tint I32 Signed dattr)))
+                                                (_x) tint32s
+                                                (cint (Int.repr 1) tint32s) 
                                                 (Bind 
-                                                      (_y) 
-                                                      (Ptype (BeeTypes.Tint I32 Signed dattr))
+                                                      (_y) tint32s
                                                       (Cond (Prim (Bop Cop.Olt) 
-                                                                  (Var _x (Ptype (BeeTypes.Tint I32 Signed dattr)) :: 
-                                                                   Const (ConsInt (Int.repr 3)) (Ptype (BeeTypes.Tint I32 Signed dattr)) :: nil)
-                                                                  (Ptype Tbool))
-                                                            (Const (ConsInt (Int.repr 0)) (Ptype (BeeTypes.Tint I32 Signed dattr)))
-                                                            (Const (ConsInt (Int.repr 2)) (Ptype (BeeTypes.Tint I32 Signed dattr)))
-                                                            (Ptype (BeeTypes.Tint I32 Signed dattr)))
-                                                      (Var _y (Ptype (BeeTypes.Tint I32 Signed dattr)))
-                                                      (Ptype (BeeTypes.Tint I32 Signed dattr)))
-                                                (Ptype (BeeTypes.Tint I32 Signed dattr)) |}.
+                                                                  (Var _x tint32s :: 
+                                                                   cint (Int.repr 3) tint32s :: nil)
+                                                                  tbbool)
+                                                            (cint (Int.repr 0) tint32s)
+                                                            (cint (Int.repr 2) tint32s) tint32s)
+                                                      (Var _y tint32s) tint32s) tint32s |}.
 
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
@@ -102,7 +94,7 @@ Qed.
                                                    public_idents 
                                                    _main 
                                                    bcomposite_correct
-                                                   ident_to_string.*)
+                                                   ident_to_string.
 
-(*Compute (type_check_program example1).*)  (* Type Checks *)
+Compute (type_check_program example1).*)  (* Type Checks *)
 

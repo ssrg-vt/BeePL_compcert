@@ -15,10 +15,6 @@ Local Open Scope csyntax_scope.
  *    int r = fp(2,3);
  *    return r; *)
 
-
-(* CompCert's memory model does not allow assigning a function address to a function pointer variable in this way:
-   fails at runtime: zsh: bus error  ./a.out *)
-
 Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
 Definition _a : ident := $"a".
 Definition _b : ident := $"b".
@@ -43,39 +39,38 @@ Definition  ident_to_string : list (ident * string) := ((_a, "a") ::
 
 
 Definition f_add : BeePL.function := {| 
-                                   fn_return := tint32u;
+                                   fn_return := tint32s;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
-                                   fn_args := ((_x, tint32u) :: 
-                                               (_y, tint32u) :: nil);
-                                   fn_vars := ((_r, tint32u) :: nil);
+                                   fn_args := ((_x, tint32s) :: 
+                                               (_y, tint32s) :: nil);
+                                   fn_vars := ((_r, tint32s) :: nil);
                                    fn_body := Bind 
                                                 (_r) tint32u
                                                 (Prim (Bop Cop.Oadd) 
-                                                      (Var _x tint32u :: 
-                                                       Var _y tint32u :: nil) tint32u)
-                                                (Var _r tint32u) tint32u |}.
+                                                      (Var _x tint32s :: 
+                                                       Var _y tint32s :: nil) tint32s)
+                                                (Var _r tint32s) tint32s |}.
 
 Definition f_main : BeePL.function := {| 
-                                   fn_return := tint32u;
+                                   fn_return := tint32s;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
                                    fn_args := nil;
-                                   fn_vars := ((_a, tint32u) :: 
-                                               (_b, tint32u) ::
-                                               (_fp, (tpfun (tint32u :: tint32u :: nil) nil tint32u)) ::
-                                               (_r, tint32u) :: nil);
+                                   fn_vars := ((_a, tint32s) :: 
+                                               (_fp, (tpfun (tint32s :: tint32s :: nil) nil tint32s)) ::
+                                               (_r, tint32s) :: nil);
                                    fn_body := 
                                               Bind 
-                                                   (_a) tint32u
-                                                   (cint (Int.repr 1) tint32u)
-                                                   (Bind (_fp) (tpfun (tint32u :: tint32u :: nil) nil tint32u)
-                                                      (Var _add (tpfun (tint32u :: tint32u :: nil) nil tint32u))
-                                                      (Bind _r tint32u 
-                                                         (App (Var _fp (tpfun (tint32u :: tint32u :: nil) nil tint32u))
-                                                            (Var _a tint32u :: 
-                                                            Var _a tint32u :: nil) tint32u)
-                                                         (Var _r tint32u) tint32u) tunit) tint32u |}.
+                                                   (_a) tint32s
+                                                   (cint (Int.repr 1) tint32s)
+                                                   (Bind (_fp) (tpfun (tint32s :: tint32s :: nil) nil tint32s)
+                                                      (Var _add (tfun (tint32s :: tint32s :: nil) nil tint32s))
+                                                      (Bind _r tint32s
+                                                         (App (Var _fp (tpfun (tint32s :: tint32s :: nil) nil tint32s))
+                                                            (Var _a tint32s :: 
+                                                            Var _a tint32s :: nil) tint32s)
+                                                         (Var _r tint32u) tint32s) tunit) tint32s |}.
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
    := (_add, AST.Gfun(BeePL.Internal (f_add))) ::
