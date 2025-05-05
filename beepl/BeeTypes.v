@@ -45,8 +45,9 @@ Inductive basic_type : Type :=
 | Bstruct : ident -> attr -> basic_type.
 
 Inductive ptr_type : Type :=
-| Reftype : ident -> basic_type -> attr -> ptr_type       (* Pointer to primitive types and struct *)
-| Otype : type -> ptr_type                                (* Option type *)          
+| Reftype : ident -> basic_type -> attr -> ptr_type       (* Pointer to primitive types and struct : box - introduced in prog *)
+| Vptype : primitive_type -> ptr_type                         (* Pointer to primitve types coming from outside *)
+| Otype : ptr_type -> ptr_type                            (* Option type *)          
 | Fptype : list type -> effect -> type -> ptr_type        (* function/arrow pointer type *)
 | Sptype : ident -> attr -> ptr_type                      (* struct pointer - often used when it comes from helper functions *)
 with type : Type :=
@@ -55,6 +56,7 @@ with type : Type :=
 | Ptrtype : ptr_type -> type                              (* pointer type : can be ref, option or function pointer*)
 | Stype : ident -> attr -> type                           (* struct type *)
 | Ftype : list type -> effect -> type -> type             (* function type *).
+(*| Bytes : type.*)
 
 Fixpoint get_data_type (pt : ptr_type) : type :=
 match pt with 
@@ -62,7 +64,8 @@ match pt with
                     | Bprim p => Vtype p
                     | Bstruct s a => Stype s a 
                     end
-| Otype t => t
+| Vptype pt => Vtype pt
+| Otype pt => get_data_type pt
 | Fptype ts ef t => Ftype ts ef t
 | Sptype s a => Stype s a
 end.
@@ -73,6 +76,7 @@ Inductive wtype : Type :=
 | Twlong : wtype
 | Twunit : wtype
 | Twref : wtype
+| Twpv : wtype
 | Twot : wtype
 | Twpst : wtype
 | Twfunptr : wtype
@@ -81,6 +85,7 @@ Inductive wtype : Type :=
 | Twv : wtype
 | Twptr : wtype
 | Twfun : wtype.
+(*| Twbytes : wtype.*)
 
 Definition attr_of_primitive_type (t : primitive_type) : attr :=
 match t with 
@@ -92,7 +97,8 @@ end.
 Fixpoint attr_of_ptr_type (t : ptr_type) : attr :=
 match t with 
 | Reftype h bt a => a
-| Otype t => attr_of_type t
+| Vptype pt => attr_of_primitive_type pt
+| Otype t => attr_of_ptr_type t
 | Fptype ts ef t => noattr
 | Sptype h a => a
 end
@@ -103,6 +109,7 @@ match t with
 | Ptrtype pt => attr_of_ptr_type pt
 | Stype x a => a
 | Ftype ts e t => noattr
+(*| Bytes => noattr*)
 end.
 
 (****** Translation from BeePL types to Csyntax types ******)
@@ -155,41 +162,52 @@ end.
 End translate_types.
 
 Definition mem_ident : ident := $"mem_ident".
+Definition bytes_t : ident := $"bytes_t".
 
 Fixpoint transBeePL_type (t : BeeTypes.type) : Ctypes.type :=
   match t with
   | Utype => Ctypes.Tvoid
   | Vtype vt => match vt with  
-                | Tbool => Ctypes.Tint I8 Unsigned noattr
-                | Tint sz s a => Ctypes.Tint sz s a
-                | Tlong s a => Ctypes.Tlong s a
+                | Tbool => (Ctypes.Tint I8 Unsigned noattr)
+                | Tint sz s a => (Ctypes.Tint sz s a)
+                | Tlong s a => (Ctypes.Tlong s a)
                 end
-  | Ptrtype pt => transBeePL_ptr_type pt
-  | Stype s a => Tstruct s a 
+  | Ptrtype pt => (transBeePL_ptr_type pt)
+  | Stype s a => (Tstruct s a) 
   | Ftype ts ef t' =>
-      Tfunction (transBeePL_types transBeePL_type ts) (transBeePL_type t')
+      let cts := transBeePL_types transBeePL_type ts in 
+      let ct := transBeePL_type t' in 
+      (Tfunction cts ct
         {| cc_vararg := Some (Z.of_nat (length ts));
            cc_unproto := false;
-           cc_structret := false |}
+           cc_structret := false |})
+  (*| Bytes => (Tstruct bytes_t noattr)*)
   end
 with transBeePL_ptr_type (pt : ptr_type) : Ctypes.type :=
   match pt with 
   | Reftype h bt a =>  
       match bt with 
-      | Bprim Tbool => Ctypes.Tint I8 Unsigned noattr
+      | Bprim Tbool => Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr
       | Bprim (Tint sz s a') => Ctypes.Tpointer (Ctypes.Tint sz s a') a
       | Bprim (Tlong s a') => Ctypes.Tpointer (Ctypes.Tlong s a') a
       | Bstruct s a' => Ctypes.Tpointer (Tstruct s a') a
       end
-  | Otype t => Ctypes.Tpointer (transBeePL_type t) (attr_of_type t)
+  | Vptype pt => match pt with 
+                 | Tbool => Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr
+                 | (Tint sz s a') => Ctypes.Tpointer (Ctypes.Tint sz s a') a'
+                 | (Tlong s a') => Ctypes.Tpointer (Ctypes.Tlong s a') a'
+                 end
+  | Otype t => (transBeePL_ptr_type t)
   | Fptype ts ef t =>
-      Ctypes.Tpointer
-        (Tfunction (transBeePL_types transBeePL_type ts) (transBeePL_type t)
+      let cts := transBeePL_types transBeePL_type ts in 
+      let ct := transBeePL_type t in 
+      (Ctypes.Tpointer
+        (Tfunction cts ct 
           {| cc_vararg := None;
              cc_unproto := false;
              cc_structret := false |})
-        noattr
-  | Sptype s a => Ctypes.Tpointer (Tstruct s a) a
+        noattr)
+  | Sptype s a => (Ctypes.Tpointer (Tstruct s a) a)
   end.
 
 (*** Composite Definitions related to BeePL ***)
@@ -436,7 +454,8 @@ Fixpoint signedness_of_type (t : type) : option signedness :=
 with signedness_of_ptr_type (pt : ptr_type) : option signedness :=
   match pt with
   | Reftype _ bt _ => signedness_of_basic bt
-  | Otype pt' => signedness_of_type pt'
+  | Vptype pt => signedness_of_primitive pt
+  | Otype pt' => signedness_of_ptr_type pt'
   | Fptype _ _ _=> None
   | Sptype _ _ => None
   end.
@@ -456,6 +475,7 @@ Definition wtype_of_ptr_type (pt : ptr_type) : wtype :=
       | Bprim _ => Twref
       | Bstruct _ _ => Twpst
       end
+  | Vptype _ => Twpv
   | Otype _ => Twot
   | Fptype _ _ _ => Twfunptr
   | Sptype _ _ => Twptr
@@ -651,7 +671,8 @@ with eq_ptr_type (p1 p2 : ptr_type) : bool :=
   match p1, p2 with
   | Reftype h1 b1 a1, Reftype h2 b2 a2 =>
       (h1 =? h2)%positive && eq_basic_type b1 b2 && attr_eq a1 a2
-  | Otype t1, Otype t2 => eq_type t1 t2
+  | Vptype pt1, Vptype pt2 => eq_primitive_type pt1 pt2
+  | Otype t1, Otype t2 => eq_ptr_type t1 t2
   | Fptype ts1 ef1 t1, Fptype ts2 ef2 t2 =>
       eq_types eq_type ts1 ts2 && eq_effect ef1 ef2 && eq_type t1 t2
   | Sptype id1 a1, Sptype id2 a2 => (id1 =? id2)%positive && attr_eq a1 a2
@@ -666,6 +687,7 @@ Definition eq_wtype (w1 w2 : wtype) : bool :=
   | Twlong, Twlong => true
   | Twunit, Twunit => true
   | Twref, Twref => true
+  | Twpv, Twpv => true
   | Twot, Twot => true
   | Twpst, Twpst => true
   | Twfunptr, Twfunptr => true
@@ -707,7 +729,8 @@ Fixpoint sizeof_type (env : bcomposite_env) (t : type) : Z :=
 with sizeof_ptr_type (env : bcomposite_env) (pt : ptr_type) : Z :=
   match pt with
   | Reftype h t  _ => sizeof_btype env t
-  | Otype t => sizeof_type env t
+  | Vptype t => sizeof_ptype t
+  | Otype t => sizeof_ptr_type env t
   | Fptype _ _ _ => 1
   | Sptype x a => 1
   end.

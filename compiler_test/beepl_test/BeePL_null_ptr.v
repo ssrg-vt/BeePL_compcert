@@ -40,12 +40,12 @@ Definition f_null_ptr : BeePL.function := {|
                                    fn_effect := Read mem_ident :: nil;
                                    fn_callconv := cc_default;
                                    fn_args := nil;
-                                   fn_vars := ((_r, toption (tint32s)) :: (_t, tint32s) :: nil);
+                                   fn_vars := ((_r, toint32s) :: (_t, tint32s) :: nil);
                                    fn_body := Bind _t tint32s
-                                               (Match (Var _r (toption tint32s)) 
+                                               (Match (Var _r (toint32s)) 
                                                       (Pnone :: Psome _p :: nil) 
                                                       (cint (Int.repr (-1)%Z) tint32s ::
-                                                        (Prim (Deref) (Var _r (toption tint32s) :: nil) tint32s) :: nil) tint32s)
+                                                        (Prim (Deref) (Var _r (toint32s) :: nil) tint32s) :: nil) tint32s)
                                                (Var _t tint32s) tint32s|}.
 
 
@@ -64,13 +64,13 @@ Definition f_ptr_add : BeePL.function := {|
                                    fn_effect := Read mem_ident :: nil;
                                    fn_callconv := cc_default;
                                    fn_args := nil;
-                                   fn_vars := ((_r, toption (tint32s)) :: (_t, tint32s) :: nil);
+                                   fn_vars := ((_r, toint32s) :: (_t, tint32s) :: nil);
                                    fn_body := Bind _t tint32s
-                                               (Match (Var _r (toption tint32s)) 
+                                               (Match (Var _r (toint32s)) 
                                                       (Pnone :: Psome _p :: nil) 
                                                       (cint (Int.repr (-1)%Z) tint32s ::
                                                        (Prim (Bop Cop.Oadd) 
-                                                           (Prim (Deref) (Var _r (toption tint32s) :: nil) tint32s ::
+                                                           (Prim (Deref) (Var _r (toint32s) :: nil) tint32s ::
                                                             cint (Int.repr 1) tint32s :: nil) tint32s) :: nil) tint32s)
                                                (Var _t tint32s) tint32s|}.
 
@@ -89,18 +89,18 @@ Definition f_ptr_assgn : BeePL.function := {|
                                    fn_effect := Read mem_ident :: Write mem_ident :: Read mem_ident :: nil;
                                    fn_callconv := cc_default;
                                    fn_args := nil;
-                                   fn_vars := ((_r, toption (tint32s)) :: (_t, tint32s) :: nil);
+                                   fn_vars := ((_r, toint32s) :: (_t, tint32s) :: nil);
                                    fn_body := 
-                                               (Match (Var _r (toption tint32s)) 
+                                               (Match (Var _r (toint32s)) 
                                                       (Pnone :: Psome _p :: nil) 
                                                       (cint (Int.repr (-1)%Z) tint32s ::
                                                        (Bind _t tint32s
                                                         (Prim Massgn 
-                                                         (Var _r (toption tint32s) ::
+                                                         (Var _r (toint32s) ::
                                                           (Prim (Bop Cop.Oadd) 
-                                                           (Prim (Deref) (Var _r (toption tint32s) :: nil) tint32s ::
+                                                           (Prim (Deref) (Var _r (toint32s) :: nil) tint32s ::
                                                             cint (Int.repr 1) tint32s :: nil) tint32s) :: nil) tunit)
-                                                         (Prim Deref (Var _r (toption tint32s) :: nil) tint32s) tint32s) :: nil) tint32s)|}.
+                                                         (Prim Deref (Var _r (toint32s) :: nil) tint32s) tint32s) :: nil) tint32s)|}.
 
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 

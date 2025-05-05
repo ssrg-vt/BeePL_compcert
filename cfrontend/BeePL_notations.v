@@ -56,6 +56,14 @@ Definition tfun ts ef t := Ftype ts ef t.
 Definition tstruct x := Stype x noattr.
 Definition tpstruct x := Ptrtype (Sptype x noattr).
 Definition toption t := Ptrtype (Otype t).
+Definition toint8u := Ptrtype (Otype (Vptype pint8u)).
+Definition toint8s := Ptrtype (Otype (Vptype pint8s)).
+Definition toint16u := Ptrtype (Otype (Vptype pint16u)).
+Definition toint16s := Ptrtype (Otype (Vptype pint16s)).
+Definition toint32u := Ptrtype (Otype (Vptype pint32u)).
+Definition toint32s := Ptrtype (Otype (Vptype pint32s)).
+Definition tolongu := Ptrtype (Otype (Vptype plongu)).
+Definition tolongs := Ptrtype (Otype (Vptype plongs)).
 Definition tpfun ts ef t := Ptrtype (Fptype ts ef t).
 Definition tunit := Utype.
 
