@@ -30,10 +30,18 @@ Inductive pattern : Type :=
 | Pnone : pattern
 | Psome : ident -> pattern.
 
+Fixpoint idents_eq (xs ys : list ident) : bool :=
+match xs, ys with 
+| nil, nil => true 
+| x :: xs, y :: ys => (x =? y)%positive && idents_eq xs ys
+| _, _ => false
+end.
+
 Definition eq_pattern (p1 p2 : pattern) : bool :=
 match p1, p2 with 
 | Pnone, Pnone => true 
 | Psome x, Psome x' => ident_eq x x' 
+(*| Bstring xs ts, Bstring xs' ts' => idents_eq xs xs' && eq_types eq_type ts ts'*)
 | _, _ => false
 end. 
 

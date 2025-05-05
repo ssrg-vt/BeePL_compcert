@@ -106,7 +106,7 @@ VLIB=Axioms.v Coqlib.v Intv.v Maps.v Heaps.v Lattice.v Ordered.v \
 BEEPL_TESTS=\
    BeePL_progs.v BeePL_add.v BeePL_add_ptr.v BeePL_div_zero1.v BeePL_div_zero.v \
    BeePL_add_ex1.v BeePL_cond.v BeePL_app.v BeePL_funptr_ex1.v BeePL_bpf_get_prandom.v \
-   BeePL_for_ex1.v BeePL_for_ex2.v BeePL_match_fail_ex1.v BeePL_external_call.v BeePL_null_ptr.v
+   BeePL_for_ex1.v BeePL_for_ex2.v BeePL_match_fail_ex1.v BeePL_external_call.v BeePL_null_ptr.v BeePL_bytes1.v
 
 #  BeePL_div_zero.v BeePL_div_zero1.v BeePL_external_call.v BeePL_ref.v \
 #  BeePL_struct_ex2.v BeePL_for_ex1.v BeePL_for_ex2.v BeePL_globvar1.v \
@@ -157,7 +157,7 @@ BACKEND=\
 # C front-end modules (in cfrontend/)
 
 CFRONTEND=BeePL_mem.v BeePL_aux.v BeePL.v BeePL_notations.v BeePL_auxlemmas.v BeePL_sem.v BeePL_typechecker.v BeePL_typesystem.v \
-  BeePL_safety.v BeePL_typesystem_proofs.v BeePL_Check_Reserved_Struct.v BeePL_Option_Struct.v BeePL_Csyntax.v \
+  BeePL_safety.v BeePL_typesystem_proofs.v BeePL_Check_Reserved_Struct.v BeePL_Bytes_Struct.v BeePL_Csyntax.v \
   BeePL_compiler_proofs.v Ctypes.v Cop.v Csyntax.v Csem.v Ctyping.v Cstrategy.v Cexec.v \
   Initializers.v Initializersproof.v \
   SimplExpr.v SimplExprspec.v SimplExprproof.v \

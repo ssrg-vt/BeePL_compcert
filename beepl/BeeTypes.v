@@ -55,8 +55,8 @@ with type : Type :=
 | Vtype : primitive_type -> type                          (* Value types *)
 | Ptrtype : ptr_type -> type                              (* pointer type : can be ref, option or function pointer*)
 | Stype : ident -> attr -> type                           (* struct type *)
-| Ftype : list type -> effect -> type -> type             (* function type *).
-(*| Bytes : type.*)
+| Ftype : list type -> effect -> type -> type             (* function type *)
+| Bytes : type.                                           (* bytes type of size n *)
 
 Fixpoint get_data_type (pt : ptr_type) : type :=
 match pt with 
@@ -84,8 +84,8 @@ Inductive wtype : Type :=
 | Twf : wtype
 | Twv : wtype
 | Twptr : wtype
-| Twfun : wtype.
-(*| Twbytes : wtype.*)
+| Twfun : wtype
+| Twbytes : wtype.
 
 Definition attr_of_primitive_type (t : primitive_type) : attr :=
 match t with 
@@ -101,15 +101,16 @@ match t with
 | Otype t => attr_of_ptr_type t
 | Fptype ts ef t => noattr
 | Sptype h a => a
-end
-with attr_of_type (t : type) : attr :=
+end.
+
+Definition attr_of_type (t : type) : attr :=
 match t with 
 | Utype => noattr
 | Vtype pt => attr_of_primitive_type pt
 | Ptrtype pt => attr_of_ptr_type pt
 | Stype x a => a
 | Ftype ts e t => noattr
-(*| Bytes => noattr*)
+| Bytes => noattr
 end.
 
 (****** Translation from BeePL types to Csyntax types ******)
@@ -181,7 +182,7 @@ Fixpoint transBeePL_type (t : BeeTypes.type) : Ctypes.type :=
         {| cc_vararg := Some (Z.of_nat (length ts));
            cc_unproto := false;
            cc_structret := false |})
-  (*| Bytes => (Tstruct bytes_t noattr)*)
+  | Bytes => (Tstruct bytes_t noattr)
   end
 with transBeePL_ptr_type (pt : ptr_type) : Ctypes.type :=
   match pt with 
@@ -325,6 +326,7 @@ match t with
 | Ptrtype pt => true 
 | Ftype es ef t => false
 | Stype x a => false
+| Bytes => false
 end. 
 
 Definition is_ref_ptr_type (pt : ptr_type) : bool :=
@@ -346,6 +348,7 @@ match t with
 | Ptrtype pt => false 
 | Ftype es ef t => false
 | Stype x a => true
+| Bytes => false
 end. 
 
 Definition is_utype (t : type) : bool :=
@@ -355,6 +358,7 @@ match t with
 | Ptrtype pt => false 
 | Ftype es ef t => false
 | Stype x a => false
+| Bytes => false
 end. 
 
 Definition is_funtype (t : type) : bool :=
@@ -366,6 +370,12 @@ end.
 Definition is_vtype (t : type) : bool :=
 match t with 
 | Vtype vt => true 
+| _ => false
+end.
+
+Definition is_bytes (t : type) : bool :=
+match t with 
+| Bytes => true 
 | _ => false
 end.
 
@@ -443,15 +453,7 @@ Definition signedness_of_basic (bt : basic_type) : option signedness :=
   | Bstruct _ _ => None
   end.
 
-Fixpoint signedness_of_type (t : type) : option signedness :=
-  match t with
-  | Utype => None
-  | Vtype pt => signedness_of_primitive pt
-  | Ptrtype pt => signedness_of_ptr_type pt
-  | Stype _ _ => None
-  | Ftype _ _ _ => None
-  end
-with signedness_of_ptr_type (pt : ptr_type) : option signedness :=
+Fixpoint signedness_of_ptr_type (pt : ptr_type) : option signedness :=
   match pt with
   | Reftype _ bt _ => signedness_of_basic bt
   | Vptype pt => signedness_of_primitive pt
@@ -460,6 +462,15 @@ with signedness_of_ptr_type (pt : ptr_type) : option signedness :=
   | Sptype _ _ => None
   end.
 
+Definition signedness_of_type (t : type) : option signedness :=
+  match t with
+  | Utype => None
+  | Vtype pt => signedness_of_primitive pt
+  | Ptrtype pt => signedness_of_ptr_type pt
+  | Stype _ _ => None
+  | Ftype _ _ _ => None
+  | Bytes => None
+  end.
 
 Definition wtype_of_primitive (pt : primitive_type) : wtype :=
   match pt with
@@ -481,13 +492,14 @@ Definition wtype_of_ptr_type (pt : ptr_type) : wtype :=
   | Sptype _ _ => Twptr
   end.
 
-Fixpoint wtype_of_type (t : type) : wtype :=
+Definition wtype_of_type (t : type) : wtype :=
   match t with
   | Utype => Twunit
   | Vtype pt => wtype_of_primitive pt
   | Ptrtype pt => wtype_of_ptr_type pt
   | Stype _ _ => Twst
   | Ftype _ _ _ => Twfun
+  | Bytes => Twbytes
   end.
 
 Fixpoint wtypes_of_types (t : list type) : list wtype :=
@@ -614,13 +626,14 @@ match t with
 | Bstruct x a => By_copy
 end.
 
-Fixpoint access_mode_type (t : type) : mode :=
+Definition access_mode_type (t : type) : mode :=
   match t with
   | Utype => By_nothing
   | Vtype pt => access_mode_prim pt
   | Ptrtype _ => By_reference
   | Stype _ _ => By_reference
   | Ftype _ _ _ => By_reference
+  | Bytes => By_reference
   end.
 
 Section Eq_basic_types.
@@ -664,6 +677,7 @@ Fixpoint eq_type (t1 t2 : type) : bool :=
   | Stype id1 a1, Stype id2 a2 => (id1 =? id2)%positive && attr_eq a1 a2
   | Ftype ts1 ef1 t1', Ftype ts2 ef2 t2' =>
       eq_types eq_type ts1 ts2 && eq_effect ef1 ef2 && eq_type t1' t2'
+  | Bytes, Bytes => true
   | _, _ => false
   end
 
@@ -696,6 +710,7 @@ Definition eq_wtype (w1 w2 : wtype) : bool :=
   | Twv, Twv => true
   | Twptr, Twptr => true
   | Twfun, Twfun => true
+  | Twbytes, Twbytes => true
   | _, _ => false
   end.
 
@@ -717,16 +732,7 @@ match t with
 | Bstruct x a => match env!x with Some co => co_sizeof co | None => 0 end
 end. 
 
-Fixpoint sizeof_type (env : bcomposite_env) (t : type) : Z :=
-  match t with
-  | Utype => 0
-  | Vtype pt => sizeof_ptype pt
-  | Ptrtype pt => sizeof_ptr_type env pt
-  | Stype x _ => match env!x with Some co => co_sizeof co | None => 0 end
-  | Ftype _ _ _ => 1
-  end
-
-with sizeof_ptr_type (env : bcomposite_env) (pt : ptr_type) : Z :=
+Fixpoint sizeof_ptr_type (env : bcomposite_env) (pt : ptr_type) : Z :=
   match pt with
   | Reftype h t  _ => sizeof_btype env t
   | Vptype t => sizeof_ptype t
@@ -734,6 +740,17 @@ with sizeof_ptr_type (env : bcomposite_env) (pt : ptr_type) : Z :=
   | Fptype _ _ _ => 1
   | Sptype x a => 1
   end.
+
+Definition sizeof_type (env : bcomposite_env) (t : type) : Z :=
+  match t with
+  | Utype => 0
+  | Vtype pt => sizeof_ptype pt
+  | Ptrtype pt => sizeof_ptr_type env pt
+  | Stype x _ => match env!x with Some co => co_sizeof co | None => 0 end
+  | Ftype _ _ _ => 1
+  | Bytes => match env!bytes_t with Some co => co_sizeof co | None => 0 end
+  end.
+
 
 (* Used for extracting the correct type for a Ref's fresh variable *)
 Definition ref_to_prim (ty : type) : mon type :=
