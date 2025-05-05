@@ -7,16 +7,16 @@ From mathcomp Require Import all_ssreflect.
 
 (** Safety conditions **)
 
- Definition is_not_zero_expr (e : expr) (bge : genv) (vm : vmap) (m : Memory.mem) :=
-forall e v t m' vm', 
-ssem_expr bge vm m e m' vm' (Val v t) -> 
+(*Definition is_not_zero_expr (e : expr) (bge : genv) (vm : vmap) (m : Memory.mem) :=
+forall p e v t m' vm', 
+ssem_expr bge p vm m e m' vm' (Val v t) -> 
 v <> (Vint (Int.repr 0)) /\ v <> (Vint (Int.repr 0)).
 
 (* -128/-1 = 128 which will lead to overflow in div and mod *)
 Definition no_overflow_div (e1 : expr) (e2 : expr) (bge : genv) (vm : vmap) (m : Memory.mem) :=
 forall e1 vm m v1 t m1 vm1 v2 m2 vm2,
-ssem_expr bge vm m e1 m1 vm1 (Val v1 t) ->
-ssem_expr bge vm m e2 m2 vm2 (Val v2 t) ->
+ssem_expr bge p vm m e1 m1 vm1 (Val v1 t) ->
+ssem_expr bge p vm m e2 m2 vm2 (Val v2 t) ->
 is_primtype_notunit t ->
 match t with 
 | Ptype (Tint sz s a) => match s with 
@@ -157,11 +157,12 @@ match e with
 | Addr l ofs t => [::]
 | Eapp ef ts es t => flatten (map gen_safe_cond_expr es)
 | Hexpr h e t => [::] (* fix me *)
+| Screate _ _ _ _ => [::]
 | Sfield x a t => [::]
-| For x e1 e2 d e t => [::]
+| For e1 e2 d e t => [::]
 | Enone t => [::]
 | Esome e t => [::]
-| Match e pes t => [::]
+| Match e ps es t => [::]
 end.
 
 (* Defines the interpretation of safety condition *) 
@@ -284,3 +285,4 @@ Cop.sem_binary_operation bcmp bop (transBeePL_value_cvalue v1) ct
 exists v'', transC_val_bplvalue v' = OK v''.
 Proof.
 Admitted.*)
+*)

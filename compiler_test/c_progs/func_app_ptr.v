@@ -15,7 +15,7 @@ Module Info.
   Definition abi := "apple".
   Definition bitsize := 64.
   Definition big_endian := false.
-  Definition source_file := "compiler_test/typedef1.c".
+  Definition source_file := "compiler_test/c_progs/func_app_ptr.c".
 End Info.
 
 Definition ___builtin_annot : ident := $"__builtin_annot".
@@ -72,78 +72,83 @@ Definition ___compcert_va_composite : ident := $"__compcert_va_composite".
 Definition ___compcert_va_float64 : ident := $"__compcert_va_float64".
 Definition ___compcert_va_int32 : ident := $"__compcert_va_int32".
 Definition ___compcert_va_int64 : ident := $"__compcert_va_int64".
-Definition ___stringlit_1 : ident := $"__stringlit_1".
-Definition ___stringlit_2 : ident := $"__stringlit_2".
-Definition _i : ident := $"i".
-Definition _j : ident := $"j".
+Definition _add : ident := $"add".
 Definition _main : ident := $"main".
-Definition _printf : ident := $"printf".
+Definition _r : ident := $"r".
+Definition _sub : ident := $"sub".
+Definition _x : ident := $"x".
+Definition _y : ident := $"y".
 
-Definition v___stringlit_1 := {|
-  gvar_info := (tarray tschar 18);
-  gvar_init := (Init_int8 (Int.repr 86) :: Init_int8 (Int.repr 97) ::
-                Init_int8 (Int.repr 108) :: Init_int8 (Int.repr 117) ::
-                Init_int8 (Int.repr 101) :: Init_int8 (Int.repr 32) ::
-                Init_int8 (Int.repr 111) :: Init_int8 (Int.repr 102) ::
-                Init_int8 (Int.repr 32) :: Init_int8 (Int.repr 105) ::
-                Init_int8 (Int.repr 32) :: Init_int8 (Int.repr 105) ::
-                Init_int8 (Int.repr 115) :: Init_int8 (Int.repr 32) ::
-                Init_int8 (Int.repr 58) :: Init_int8 (Int.repr 37) ::
-                Init_int8 (Int.repr 100) :: Init_int8 (Int.repr 0) :: nil);
-  gvar_readonly := true;
-  gvar_volatile := false
+Definition f_add := {|
+  fn_return := tint;
+  fn_callconv := cc_default;
+  fn_params := ((_x, tint) :: (_y, tint) :: nil);
+  fn_vars := nil;
+  fn_body :=
+(Sreturn (Some (Ebinop Oadd (Evalof (Evar _x tint) tint)
+                 (Evalof (Evar _y tint) tint) tint)))
 |}.
 
-Definition v___stringlit_2 := {|
-  gvar_info := (tarray tschar 19);
-  gvar_init := (Init_int8 (Int.repr 10) :: Init_int8 (Int.repr 86) ::
-                Init_int8 (Int.repr 97) :: Init_int8 (Int.repr 108) ::
-                Init_int8 (Int.repr 117) :: Init_int8 (Int.repr 101) ::
-                Init_int8 (Int.repr 32) :: Init_int8 (Int.repr 111) ::
-                Init_int8 (Int.repr 102) :: Init_int8 (Int.repr 32) ::
-                Init_int8 (Int.repr 106) :: Init_int8 (Int.repr 32) ::
-                Init_int8 (Int.repr 105) :: Init_int8 (Int.repr 115) ::
-                Init_int8 (Int.repr 32) :: Init_int8 (Int.repr 58) ::
-                Init_int8 (Int.repr 37) :: Init_int8 (Int.repr 100) ::
-                Init_int8 (Int.repr 0) :: nil);
-  gvar_readonly := true;
-  gvar_volatile := false
+Definition f_sub := {|
+  fn_return := tint;
+  fn_callconv := cc_default;
+  fn_params := ((_x, tint) :: (_y, tint) :: nil);
+  fn_vars := nil;
+  fn_body :=
+(Sreturn (Some (Ebinop Osub (Evalof (Evar _x tint) tint)
+                 (Evalof (Evar _y tint) tint) tint)))
 |}.
 
 Definition f_main := {|
   fn_return := tint;
   fn_callconv := cc_default;
   fn_params := nil;
-  fn_vars := ((_i, tuint) :: (_j, tuint) :: nil);
+  fn_vars := ((_x,
+               (tptr (Tfunction (Tcons tint (Tcons tint Tnil)) tint
+                       cc_default))) :: (_r, tint) :: nil);
   fn_body :=
 (Ssequence
   (Ssequence
-    (Sdo (Eassign (Evar _i tuint) (Eval (Vint (Int.repr 10)) tint) tuint))
+    (Sdo (Eassign
+           (Evar _x (tptr (Tfunction (Tcons tint (Tcons tint Tnil)) tint
+                            cc_default)))
+           (Evalof
+             (Evar _add (Tfunction (Tcons tint (Tcons tint Tnil)) tint
+                          cc_default))
+             (Tfunction (Tcons tint (Tcons tint Tnil)) tint cc_default))
+           (tptr (Tfunction (Tcons tint (Tcons tint Tnil)) tint cc_default))))
     (Ssequence
-      (Sdo (Eassign (Evar _j tuint) (Eval (Vint (Int.repr 20)) tint) tuint))
-      (Ssequence
-        (Sdo (Ecall
+      (Sdo (Eassign (Evar _r tint)
+             (Ecall
                (Evalof
-                 (Evar _printf (Tfunction (Tcons (tptr tschar) Tnil) tint
-                                 {|cc_vararg:=(Some 1); cc_unproto:=false; cc_structret:=false|}))
-                 (Tfunction (Tcons (tptr tschar) Tnil) tint
-                   {|cc_vararg:=(Some 1); cc_unproto:=false; cc_structret:=false|}))
-               (Econs
-                 (Evalof (Evar ___stringlit_1 (tarray tschar 18))
-                   (tarray tschar 18))
-                 (Econs (Evalof (Evar _i tuint) tuint) Enil)) tint))
+                 (Evar _x (tptr (Tfunction (Tcons tint (Tcons tint Tnil))
+                                  tint cc_default)))
+                 (tptr (Tfunction (Tcons tint (Tcons tint Tnil)) tint
+                         cc_default)))
+               (Econs (Eval (Vint (Int.repr 5)) tint)
+                 (Econs (Eval (Vint (Int.repr 3)) tint) Enil)) tint) tint))
+      (Ssequence
+        (Sdo (Eassign
+               (Evar _x (tptr (Tfunction (Tcons tint (Tcons tint Tnil)) tint
+                                cc_default)))
+               (Evalof
+                 (Evar _sub (Tfunction (Tcons tint (Tcons tint Tnil)) tint
+                              cc_default))
+                 (Tfunction (Tcons tint (Tcons tint Tnil)) tint cc_default))
+               (tptr (Tfunction (Tcons tint (Tcons tint Tnil)) tint
+                       cc_default))))
         (Ssequence
-          (Sdo (Ecall
-                 (Evalof
-                   (Evar _printf (Tfunction (Tcons (tptr tschar) Tnil) tint
-                                   {|cc_vararg:=(Some 1); cc_unproto:=false; cc_structret:=false|}))
-                   (Tfunction (Tcons (tptr tschar) Tnil) tint
-                     {|cc_vararg:=(Some 1); cc_unproto:=false; cc_structret:=false|}))
-                 (Econs
-                   (Evalof (Evar ___stringlit_2 (tarray tschar 19))
-                     (tarray tschar 19))
-                   (Econs (Evalof (Evar _j tuint) tuint) Enil)) tint))
-          (Sreturn (Some (Eval (Vint (Int.repr 0)) tint)))))))
+          (Sdo (Eassign (Evar _r tint)
+                 (Ecall
+                   (Evalof
+                     (Evar _x (tptr (Tfunction (Tcons tint (Tcons tint Tnil))
+                                      tint cc_default)))
+                     (tptr (Tfunction (Tcons tint (Tcons tint Tnil)) tint
+                             cc_default)))
+                   (Econs (Eval (Vint (Int.repr 5)) tint)
+                     (Econs (Eval (Vint (Int.repr 3)) tint) Enil)) tint)
+                 tint))
+          (Sreturn (Some (Evalof (Evar _r tint) tint)))))))
   (Sreturn (Some (Eval (Vint (Int.repr 0)) tint))))
 |}.
 
@@ -236,8 +241,7 @@ Definition global_definitions : list (ident * globdef fundef type) :=
    Gfun(External (EF_runtime "__compcert_i64_umulh"
                    (mksignature (AST.Tlong :: AST.Tlong :: nil) AST.Tlong
                      cc_default)) (Tcons tulong (Tcons tulong Tnil)) tulong
-     cc_default)) :: (___stringlit_1, Gvar v___stringlit_1) ::
- (___stringlit_2, Gvar v___stringlit_2) ::
+     cc_default)) ::
  (___builtin_bswap64,
    Gfun(External (EF_builtin "__builtin_bswap64"
                    (mksignature (AST.Tlong :: nil) AST.Tlong cc_default))
@@ -406,16 +410,11 @@ Definition global_definitions : list (ident * globdef fundef type) :=
                      {|cc_vararg:=(Some 1); cc_unproto:=false; cc_structret:=false|}))
      (Tcons tint Tnil) tvoid
      {|cc_vararg:=(Some 1); cc_unproto:=false; cc_structret:=false|})) ::
- (_printf,
-   Gfun(External (EF_external "printf"
-                   (mksignature (AST.Tlong :: nil) AST.Tint
-                     {|cc_vararg:=(Some 1); cc_unproto:=false; cc_structret:=false|}))
-     (Tcons (tptr tschar) Tnil) tint
-     {|cc_vararg:=(Some 1); cc_unproto:=false; cc_structret:=false|})) ::
+ (_add, Gfun(Internal f_add)) :: (_sub, Gfun(Internal f_sub)) ::
  (_main, Gfun(Internal f_main)) :: nil).
 
 Definition public_idents : list ident :=
-(_main :: _printf :: ___builtin_debug :: ___builtin_fmin ::
+(_main :: _sub :: _add :: ___builtin_debug :: ___builtin_fmin ::
  ___builtin_fmax :: ___builtin_fnmsub :: ___builtin_fnmadd ::
  ___builtin_fmsub :: ___builtin_fmadd :: ___builtin_clsll ::
  ___builtin_clsl :: ___builtin_cls :: ___builtin_expect ::

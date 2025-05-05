@@ -25,18 +25,18 @@ Definition store_well_typed (Sigma : store_context)
                                                   PTree.get l Sigma = Some t /\ 
                                                   (exists v ofs, deref_addr bge t m l' ofs Full v /\ 
                                                                  is_vloc v = false /\
-                                                                 is_reftype t = false)
+                                                                 is_ptrtype t = false)
                                | None => (exists l' ofs v, PTree.get l Sigma = Some t /\ 
                                                            Genv.find_symbol bge l = Some l' /\ 
                                                            deref_addr bge t m l' ofs Full v /\ 
                                                            is_vloc v = false /\
-                                                           is_reftype t = false)
+                                                           is_ptrtype t = false)
                                end
-                 | None => (forall ofs h t a, PTree.get l Sigma = Some (Reftype h (Bprim t) a) ->
+                 | None => (forall ofs h t a, PTree.get l Sigma = Some (Ptrtype (Reftype h (Bprim t) a)) ->
                                               Mem.valid_pointer m l (Ptrofs.unsigned ofs) /\
-                                              ((exists v, deref_addr bge (Ptype t) m l ofs Full v /\ 
+                                              ((exists v, deref_addr bge (Vtype t) m l ofs Full v /\ 
                                                           is_vloc v = false) /\
-                                               (forall v, (exists bf m', assign_addr bge (Ptype t) m l ofs bf v m' v /\
+                                               (forall v, (exists bf m', assign_addr bge (Vtype t) m l ofs bf v m' v /\
                                                                          is_vloc v = false))))
                  end).
 
@@ -44,7 +44,7 @@ Definition store_well_typed (Sigma : store_context)
      Sigma ! l = Reftype h bt a -> 
      deref m bt l = v ->
      v != loc. ***)
-
+(*
 (* A well-typed uop always has a semantics that leads to a value. *)
 Lemma well_formed_uop : forall Gamma Sigma bge vm v ef t uop m ct,
 type_expr Gamma Sigma (Prim (Uop uop) ((Val v t) :: nil) t) ef t ->
@@ -224,32 +224,32 @@ Admitted.
 (* A well typed expression is never stuck,
    it either evaluates to a value or can continue executing. *)
 Lemma progress_ssem_expr_exprs:
-(forall Gamma Sigma es efs ts bge vm m, type_exprs Gamma Sigma es efs ts ->
+(forall Gamma Sigma es efs ts bge p vm m, type_exprs Gamma Sigma es efs ts ->
                                         store_well_typed Sigma bge vm m ->
                                         is_values es \/ exists m' vm' es',
-                                                        ssem_exprs bge vm m es m' vm' es' /\
+                                                        ssem_exprs bge p vm m es m' vm' es' /\
                                                         store_well_typed Sigma bge vm' m') /\
-(forall Gamma Sigma e ef t bge vm m, type_expr Gamma Sigma e ef t ->
-                                     store_well_typed Sigma bge vm m ->
-                                     is_value e \/ exists m' vm' e', 
-                                                   ssem_expr bge vm m e m' vm' e' /\
+(forall Gamma Sigma e ef t bge p vm m, type_expr Gamma Sigma e ef t ->
+                                       store_well_typed Sigma bge vm m ->
+                                       is_value e \/ exists m' vm' e', 
+                                                   ssem_expr bge p vm m e m' vm' e' /\
                                                    store_well_typed Sigma bge vm' m').
 Proof.
 suff : (forall Gamma Sigma es efs ts, type_exprs Gamma Sigma es efs ts ->
-                                      forall bge vm m, store_well_typed Sigma bge vm m ->
+                                      forall bge p vm m, store_well_typed Sigma bge vm m ->
                                                        is_values es \/ (exists m' vm' es',
-                                                       ssem_exprs bge vm m es m' vm' es' /\
+                                                       ssem_exprs bge p vm m es m' vm' es' /\
                                                        store_well_typed Sigma bge vm' m')) /\
 (forall Gamma Sigma e ef t, type_expr Gamma Sigma e ef t ->
-                            forall bge vm m, store_well_typed Sigma bge vm m ->
+                            forall bge p vm m, store_well_typed Sigma bge vm m ->
                                              is_value e \/ (exists m' vm' e', 
-                                                           ssem_expr bge vm m e m' vm' e' /\
+                                                           ssem_expr bge p vm m e m' vm' e' /\
                                                            store_well_typed Sigma bge vm' m')).
 + move=> [] hwt1 hwt2. split=> //=.
-  + move=> Gamma Sigma es efs ts bge vm m htes hw.
-    by move: (hwt1 Gamma Sigma es efs ts htes bge vm m hw).
-  move=> Gamma Sigma e ef t bge vm m hte hw. 
-  by move: (hwt2 Gamma Sigma e ef t hte bge vm m hw).
+  + move=> Gamma Sigma es efs ts bge p vm m htes hw.
+    by move: (hwt1 Gamma Sigma es efs ts htes bge p vm m hw).
+  move=> Gamma Sigma e ef t bge p vm m hte hw. 
+  by move: (hwt2 Gamma Sigma e ef t hte bge p vm m hw).
 apply type_exprs_type_expr_ind_mut=> //=.
 (* val unit *)
 + move=> Gamma Sigma bge vm m hw. by left.
@@ -260,7 +260,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
 (* val loc *)
 + move=> Gamma Sigma l ofs h t a bge vm m hw. by left.
 (* var *)
-+ move=> Gamma Sigma v t hteq bge vm m hw; subst. right.
++ move=> Gamma Sigma v t hteq bge p vm m hw; subst. right.
   rewrite /store_well_typed in hw. move: (hw (extend_context Gamma v t) v).
   rewrite hteq /=. case hvm: vm ! v=> [[l t'] | ] //=.
   (* lvar *)
@@ -273,21 +273,21 @@ apply type_exprs_type_expr_ind_mut=> //=.
   apply ssem_gbvar with l' ofs. + by apply hvm. + by apply hg.
   + by apply hd. by apply hv.
 (* const int *)
-+ move=> Gamma Sigma t sz a i bge vm m hw. right.
++ move=> Gamma Sigma t sz a i bge p vm m hw. right.
   exists m. exists vm. exists (Val (Vint i) (Ptype (Tint t sz a))). 
   split=> //=. by apply ssem_consti.
 (* const long *)
-+ move=> Gamma Sigma t s i bge vm m hw. right.
++ move=> Gamma Sigma t s i bge p vm m hw. right.
   exists m. exists vm. exists (Val (Vint64 i) (Ptype (Tlong t s))). 
   split=> //=. by apply ssem_constl.
 (* const uint *)
-+ move=> Gamma Sigma bge vm m. right; subst.
++ move=> Gamma Sigma bge p vm m. right; subst.
   exists m. exists vm. exists (Val (Vunit) (Ptype Tunit)). split=> //=. by apply ssem_constu.
 (* app *)
 + admit.
 (* ref *)
-+ move=> Gamma Sigma e ef h bt a hte hin bge vm m hw. 
-  move: (hin bge vm m hw)=> [] he.
++ move=> Gamma Sigma e ef h bt a hte hin bge p vm m hw. 
+  move: (hin bge p vm m hw)=> [] he.
   (* is value *)
   + admit. (* need to evolve well formedness for store typing more *)
   (* step *)
@@ -295,7 +295,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
   exists vm'. exists (Prim Ref [:: e'] (Reftype h (Bprim bt) a)). 
   split=> //=. by apply ssem_ref1.
 (* deref *)
-+ move=> Gamma Sigma e ef h bt a hte hin bge vm m hw.
++ (*move=> Gamma Sigma e ef h bt a hte hin bge vm m hw.
   move: (hin bge vm m hw)=> [].
   (* is value *)
   + move=> hv. right. rewrite /is_value in hv. case: e hv hte hin=> v t //= _. case: v=> //=.
@@ -325,7 +325,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
       by inversion hp.
    move=> hwd. move: (hwd ofs h' bt a' hs)=> [] hvp [].
    move=> [] v [] hd hv ha. exists m. exists vm. exists (Val v (Ptype bt)). split=> //=.
-   by apply ssem_deref2 with Full. 
+   by apply ssem_deref2 with Full.
   (* step *)
   move: (hin bge vm m hw)=> hin'. move=> [] m' [] vm' [] e' [] he hs. right.
   exists m'. exists vm'. exists (Prim Deref [:: e'] (Ptype bt)). split=> //=. 
@@ -362,7 +362,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
       by inversion hp.
     move=> hwd. move: (hwd ofs h' bt a' hs)=> [] hvp [] hd ha. 
     move: (ha v')=> [] bf [] m' [] ha' hv'.      
-    exists m'. exists vm. exists (Val Vunit (Ptype Tunit)). 
+    exists m'. exists vm. exists (Val Vunit (Ptype Tunit)). *)
     (*have hteq := type_val_reflx Gamma Sigma v' t' ef' (Ptype bt) hte'; subst. split=> //=.
     + by apply ssem_massgn3 with bf. 
     by have := assign_preserves_store_well_typed Sigma bge vm m bt l ofs bf v' m' hw ha' hv'.
@@ -803,29 +803,29 @@ Admitted.
 (* If a program starts well-typed, it remains well-typed throughout execution,
    an evaluation does not produce type errors.*)
 Lemma preservation_ssem_expr_exprs: 
-(forall Gamma Sigma es efs ts bge vm m vm' m' es', 
+(forall Gamma Sigma es efs ts bge p vm m vm' m' es', 
     type_exprs Gamma Sigma es efs ts ->
     store_well_typed Sigma bge vm m ->
-    ssem_exprs bge vm m es m' vm' es' ->
+    ssem_exprs bge p vm m es m' vm' es' ->
     type_exprs Gamma Sigma es' efs ts /\
     store_well_typed Sigma bge vm' m') /\
-(forall Gamma Sigma e ef t bge vm m vm' m' e', 
+(forall Gamma Sigma e ef t bge p vm m vm' m' e', 
     type_expr Gamma Sigma e ef t ->
     store_well_typed Sigma bge vm m ->
-    ssem_expr bge vm m e m' vm' e' ->
+    ssem_expr bge p vm m e m' vm' e' ->
     type_expr Gamma Sigma e' ef t /\
     store_well_typed Sigma bge vm' m').
 Proof.
 suff : (forall Gamma Sigma es efs ts, type_exprs Gamma Sigma es efs ts ->
-                                      forall bge vm m vm' m' es', 
+                                      forall bge p vm m vm' m' es', 
                                       store_well_typed Sigma bge vm m ->
-                                      ssem_exprs bge vm m es m' vm' es' ->
+                                      ssem_exprs bge p vm m es m' vm' es' ->
                                       type_exprs Gamma Sigma es' efs ts /\
                                       store_well_typed Sigma bge vm' m') /\
        (forall Gamma Sigma e ef t, type_expr Gamma Sigma e ef t ->
-                                   forall bge vm m vm' m' e', 
+                                   forall bge p vm m vm' m' e', 
                                    store_well_typed Sigma bge vm m ->
-                                   ssem_expr bge vm m e m' vm' e' ->
+                                   ssem_expr bge p vm m e m' vm' e' ->
                                    type_expr Gamma Sigma e' ef t /\
                                    store_well_typed Sigma bge vm' m').
 (*+ move=> [] ih ih'. split=> //=.
@@ -977,31 +977,31 @@ Admitted.
    Expressions like ref, deref, massgn cannot discard the stateful effect even in the case 
    where it reduces to value *)
 Lemma stateful_effects_preserved : 
-(forall Gamma Sigma es efs ts bge vm m vm' m' es' efs' ts', 
+(forall Gamma Sigma es efs ts bge p vm m vm' m' es' efs' ts', 
         type_exprs Gamma Sigma es efs ts ->
         is_stateful_exprs es = true /\ is_stateful_effect efs = true ->
-        ssem_exprs bge vm m es m' vm' es' ->
+        ssem_exprs bge p vm m es m' vm' es' ->
         type_exprs Gamma Sigma es' efs' ts' ->
         is_stateful_effect efs') /\
-(forall Gamma Sigma e ef t bge vm m vm' m' e' ef' t', 
+(forall Gamma Sigma e ef t bge p vm m vm' m' e' ef' t', 
         type_expr Gamma Sigma e ef t ->
         is_stateful_expr e = true /\ is_stateful_effect ef = true ->
-        ssem_expr bge vm m e m' vm' e' ->
+        ssem_expr bge p vm m e m' vm' e' ->
         type_expr Gamma Sigma e' ef' t' ->
         is_stateful_effect ef').
 Proof.
 suff : (forall Gamma Sigma es efs ts, 
         type_exprs Gamma Sigma es efs ts ->
-        forall bge vm m vm' m' es' efs' ts', 
+        forall bge p vm m vm' m' es' efs' ts', 
         is_stateful_exprs es = true /\ is_stateful_effect efs = true ->
-        ssem_exprs bge vm m es m' vm' es' ->
+        ssem_exprs bge p vm m es m' vm' es' ->
         type_exprs Gamma Sigma es' efs' ts' ->
         is_stateful_effect efs') /\
         (forall Gamma Sigma e ef t, 
         type_expr Gamma Sigma e ef t ->
-        forall bge vm m vm' m' e' ef' t', 
+        forall bge p vm m vm' m' e' ef' t', 
         is_stateful_expr e = true /\ is_stateful_effect ef = true ->
-        ssem_expr bge vm m e m' vm' e' ->
+        ssem_expr bge p vm m e m' vm' e' ->
         type_expr Gamma Sigma e' ef' t' ->
         is_stateful_effect ef').
 + move=> [] ih ih'. admit.
@@ -1011,14 +1011,14 @@ Admitted.
 (***** Normalization ******)
 (* A well typed program takes multistep to produce a value *)
 Lemma normalization :
-(forall Gamma Sigma es efs ts bge vm m n m' vm' es', 
+(forall Gamma Sigma es efs ts bge p vm m n m' vm' es', 
  type_exprs Gamma Sigma es efs ts ->
  store_well_typed Sigma bge vm m ->
- ssem_closures bge vm m es n m' vm' es' /\ is_values es') /\
-(forall Gamma Sigma e ef t bge vm m n m' vm' e', 
+ ssem_closures bge p vm m es n m' vm' es' /\ is_values es') /\
+(forall Gamma Sigma e ef t bge p vm m n m' vm' e', 
  type_expr Gamma Sigma e ef t ->
  store_well_typed Sigma bge vm m ->
- ssem_closure bge vm m e n m' vm' e' /\ is_value e).
+ ssem_closure bge p vm m e n m' vm' e' /\ is_value e).
 Proof.
 Admitted.
 
@@ -1136,6 +1136,6 @@ Qed. *)
       https://people.rennes.inria.fr/Frederic.Besson/compcertSFI.pdf *****)
 
 (**** Runtime rejection : add exit ****)
-
+*)
  
 

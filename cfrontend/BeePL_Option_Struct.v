@@ -7,7 +7,7 @@ Local Open Scope string_scope.
 Local Open Scope gensym_monad_scope.
 Local Open Scope list_scope.
 
-Fixpoint filter_otype (l : list type) : list type :=
+(*Fixpoint filter_otype (l : list type) : list type :=
 match l with
 | nil => nil
 | Otype t :: xs => Otype t :: filter_otype xs
@@ -87,6 +87,6 @@ end.
 Definition get_bcs_from_program (p : BeePL.program) : list bcomposite_definition :=
 let fv := unzip2 p.(prog_defs) in 
 let bc := p.(prog_types) in 
-get_bcs_from_globdefs fv bc.
+get_bcs_from_globdefs fv bc.*)
 
 

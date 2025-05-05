@@ -1,10 +1,11 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx Coq.Strings.BinaryString.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Coq.Lists.List.
-Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes Coqlib SimplExpr Csyntaxdefs.
+Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes Coqlib SimplExpr Csyntaxdefs BeePL_notations.
 Require Import BeePL_aux BeePL BeeTypes Csyntax Errors SimplExpr BeePL_values DecimalString BeePL_Option_Struct BeePL_Check_Reserved_Struct.
 
 Local Open Scope string_scope.
 Local Open Scope gensym_monad_scope.
+
 (**** BeePL Compiler *****)
 Section transBeePL_exprs.
 
@@ -46,36 +47,13 @@ end.
 
 Definition default_expr := (Eval (Values.Vundef) Tvoid).
 
-(*Fixpoint repeat_expr_up (x : ident) (er : Csyntax.expr) (e : Csyntax.expr) (fuel : nat) {struct fuel} : Csyntax.expr :=
-match fuel with
-| O => Eval (Values.Vint (Int.repr 0)) (Ctypes.Tint I32 Unsigned noattr)
-| S n => Econdition (Ebinop Cop.Ole (Evar x (Ctypes.Tint I32 Unsigned noattr)) er (Ctypes.Tint I32 Unsigned noattr))
-           (Ecomma e (Ecomma 
-                        (Ebinop Cop.Oadd 
-                           (Evar x (Ctypes.Tint I32 Unsigned noattr)) 
-                           (Eval (Values.Vint (Int.repr 1)) (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr))
-                        (repeat_expr_up x er e n) (typeof e)) (typeof e))
-           (Evar x (Ctypes.Tint I32 Unsigned noattr)) (typeof e)
-end.
-
-Fixpoint repeat_expr_down (x : ident) (er : Csyntax.expr) (e : Csyntax.expr) (fuel : nat) {struct fuel} : Csyntax.expr :=
-match fuel with
-| O => Eval (Values.Vint (Int.repr 0)) (Ctypes.Tint I32 Unsigned noattr)
-| S n => Econdition (Ebinop Cop.Oge (Evar x (Ctypes.Tint I32 Unsigned noattr)) er (Ctypes.Tint I32 Unsigned noattr))
-           (Ecomma e (Ecomma 
-                        (Ebinop Cop.Osub 
-                           (Evar x (Ctypes.Tint I32 Unsigned noattr)) 
-                           (Eval (Values.Vint (Int.repr 1)) (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr))
-                        (repeat_expr_up x er e n) (typeof e)) (typeof e))
-           (Evar x (Ctypes.Tint I32 Unsigned noattr)) (typeof e)
-end.*)
-
 (* This function exists to handle creating fresh variables for converting Ref to
    CompCert C. 
 
    Ex) ref(4) => int __fresh; __fresh = 4; &__fresh; 
    
    FIXME: There really shouldn't be a limited number of fresh identifiers *)
+
 Fixpoint fresh_ident (used : list ident) (n : nat) : mon (ident * string) :=
   let candidate_str := "__fresh__" ++ NilZero.string_of_uint (Nat.to_uint n) in
   let candidate := ident_of_string candidate_str in
@@ -129,13 +107,6 @@ Fixpoint merge_ident_string (fn_ctx : list (ident * BeeTypes.type * string)) (is
       end
   end.
 
-(* Used for extracting the correct type for a Ref's fresh variable *)
-Definition ref_to_prim (ty : type) : mon primitive_type :=
-  match ty with
-  | Reftype _ (Bprim pt) _ => ret pt
-  | _ => error (msg "ref_to_prim: expected only reftype")
-  end.
-
 (* It will never be used, but we need for None case *)
 Definition get_default_option_val (t : Ctypes.type) : mon Values.val :=
 match t with  
@@ -148,6 +119,112 @@ match t with
 | Tfunction _ _ _ => error (msg "No default value for function")
 | Tstruct x a => ret (Values.Vlong (Int64.repr 0)) 
 | Tunion _ _ => error (msg "No default value for function")
+end.
+
+Definition check_div (ces : exprlist) (v : Values.val) (t : Ctypes.type) : mon Csyntax.expr :=
+match t with 
+| Ctypes.Tint I32 Signed _ => ret (Econdition (Ebinop Cop.Oor (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                     (Eval (Values.Vint Int.zero) t) t)
+                                                      (Ebinop Cop.Oand (Ebinop Cop.Oeq (hd default_expr (exprlist_list_expr ces))
+                                                                                        (Eval (Values.Vint (Int.repr Int.min_signed)) t) t)
+                                                                       (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                                        (Eval (Values.Vint Int.mone) t) t) t) t)
+                                     (Eval v t)
+                                     (Ebinop (Cop.Odiv) (hd default_expr (exprlist_list_expr ces)) 
+                                                        (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| Ctypes.Tint I32 Unsigned _ => ret (Econdition (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                     (Eval (Values.Vint Int.zero) t) t)
+                                            (Eval v t)
+                                            (Ebinop (Cop.Odiv) (hd default_expr (exprlist_list_expr ces)) 
+                                                        (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| Ctypes.Tlong Signed _ => ret (Econdition (Ebinop Cop.Oor (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                     (Eval (Values.Vlong Int64.zero) t) t)
+                                                      (Ebinop Cop.Oand (Ebinop Cop.Oeq (hd default_expr (exprlist_list_expr ces))
+                                                                                        (Eval (Values.Vlong (Int64.repr Int64.min_signed)) t) t)
+                                                                       (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                                        (Eval (Values.Vlong Int64.mone) t) t) t) t)
+                                     (Eval v t)
+                                     (Ebinop (Cop.Odiv) (hd default_expr (exprlist_list_expr ces)) 
+                                                        (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| Ctypes.Tlong Unsigned _ => ret (Econdition (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                     (Eval (Values.Vlong Int64.zero) t) t)
+                                            (Eval v t)
+                                            (Ebinop (Cop.Odiv) (hd default_expr (exprlist_list_expr ces)) 
+                                                        (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| _ => error (msg "The type of argument of div should be int or long")
+end.
+
+Definition check_mod (ces : exprlist) (v : Values.val) (t : Ctypes.type) : mon Csyntax.expr :=
+match t with 
+| Ctypes.Tint I32 Signed _ => ret (Econdition (Ebinop Cop.Oor (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                     (Eval (Values.Vint Int.zero) t) t)
+                                                      (Ebinop Cop.Oand (Ebinop Cop.Oeq (hd default_expr (exprlist_list_expr ces))
+                                                                                        (Eval (Values.Vint (Int.repr Int.min_signed)) t) t)
+                                                                       (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                                        (Eval (Values.Vint Int.mone) t) t) t) t)
+                                     (Eval v t)
+                                     (Ebinop (Cop.Omod) (hd default_expr (exprlist_list_expr ces)) 
+                                                        (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| Ctypes.Tint I32 Unsigned _ => ret (Econdition (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                     (Eval (Values.Vint Int.zero) t) t)
+                                            (Eval v t)
+                                            (Ebinop (Cop.Omod) (hd default_expr (exprlist_list_expr ces)) 
+                                                        (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| Ctypes.Tlong Signed _ => ret (Econdition (Ebinop Cop.Oor (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                     (Eval (Values.Vlong Int64.zero) t) t)
+                                                      (Ebinop Cop.Oand (Ebinop Cop.Oeq (hd default_expr (exprlist_list_expr ces))
+                                                                                        (Eval (Values.Vlong (Int64.repr Int64.min_signed)) t) t)
+                                                                       (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                                        (Eval (Values.Vlong Int64.mone) t) t) t) t)
+                                     (Eval v t)
+                                     (Ebinop (Cop.Omod) (hd default_expr (exprlist_list_expr ces)) 
+                                                        (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| Ctypes.Tlong Unsigned _ => ret (Econdition (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                     (Eval (Values.Vlong Int64.zero) t) t)
+                                            (Eval v t)
+                                            (Ebinop (Cop.Omod) (hd default_expr (exprlist_list_expr ces)) 
+                                                        (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| _ => error (msg "The type of argument of div should be int or long")
+end.
+
+Definition check_shl (ces : exprlist) (v : Values.val) (t : Ctypes.type) : mon Csyntax.expr :=
+match t with 
+| Ctypes.Tint _ s _ => ret (Econdition (Ebinop Cop.Olt (hd default_expr (tl (exprlist_list_expr ces)))
+                                                               (Eval (Values.Vint Int.iwordsize) t) t)
+                                                      (Eval v t) 
+                                                      (Ebinop (Cop.Oshl) (hd default_expr (exprlist_list_expr ces)) 
+                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| Ctypes.Tlong _ _ => ret (Econdition (Ebinop Cop.Olt (hd default_expr (tl (exprlist_list_expr ces)))
+                                                               (Eval (Values.Vlong Int64.iwordsize) t) t)
+                                                      (Eval v t) 
+                                                      (Ebinop (Cop.Oshl) (hd default_expr (exprlist_list_expr ces)) 
+                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| _ => error (msg "COMPILER ERROR: The type of argument of shl should be int or long")
+end.
+
+Definition check_shr (ces : exprlist) (v : Values.val) (t : Ctypes.type) : mon Csyntax.expr :=
+match t with 
+| Ctypes.Tint _ s _ => ret (Econdition (Ebinop Cop.Olt (hd default_expr (tl (exprlist_list_expr ces)))
+                                                               (Eval (Values.Vint Int.iwordsize) t) t)
+                                                      (Eval v t) 
+                                                      (Ebinop (Cop.Oshr) (hd default_expr (exprlist_list_expr ces)) 
+                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| Ctypes.Tlong _ _ => ret (Econdition (Ebinop Cop.Olt (hd default_expr (tl (exprlist_list_expr ces)))
+                                                               (Eval (Values.Vlong Int64.iwordsize) t) t)
+                                                      (Eval v t) 
+                                                      (Ebinop (Cop.Oshr) (hd default_expr (exprlist_list_expr ces)) 
+                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| _ => error (msg "COMPILER ERROR: The type of argument of shr should be int or long")
+end.
+
+Fixpoint init_struct_fields (sid : ident) (fields : list (ident * Csyntax.expr)) (t : Ctypes.type) 
+(t' : Ctypes.type) {struct fields} : mon Csyntax.statement :=
+match fields with
+| nil => ret Sskip
+| (f, e) :: rest => let lhs := (Efield (Evalof (Ederef (Evalof (Evar sid t) t) t') t') f (typeof e)) in
+                    let ff := (Sdo (Eassign lhs e (typeof e))) in
+                    do rs <- (init_struct_fields sid rest t t');
+                    ret (Ssequence ff rs)
 end.
 
 Fixpoint transBeePL_expr_expr (e : BeePL.expr) (fn_ctx : list (ident * BeeTypes.type * string)) : mon (Csyntax.expr * (list (ident * BeeTypes.type * string))) := 
@@ -182,9 +259,10 @@ match e with
                           do (i, str) <- (fresh_ident (List.map unzip_ident fn_ctx') max_fresh);
 
                           match es with
-                          | e :: nil => do pty <- ref_to_prim t;
-                                        let cpty := (transBeePL_type (Ptype pty)) in
-                                        let fn_ctx'' := (i, (Ptype pty), str) :: fn_ctx' in
+                          | e :: nil => 
+                                        do pty <- ref_to_prim t;
+                                        let cpty := (transBeePL_type pty) in
+                                        let fn_ctx'' := (i, pty, str) :: fn_ctx' in
                                         ret ((Ecomma (Eassign (Evar i cpty) 
                                                               (hd default_expr (exprlist_list_expr ces)) 
                                                               (cpty)) 
@@ -209,17 +287,25 @@ match e with
                             ret ((Eunop o
                                 (hd default_expr (exprlist_list_expr ces)) 
                                 ct), fn_ctx')
-                 | Bop o => if is_bop_undef t o es 
-                            then let ct := (transBeePL_type t) in
-                                 do v <- return_czero ct;
-                                 ret (Eval v ct, fn_ctx)
-                            else do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx);
-                                 let ct := (transBeePL_type t) in
-                                 ret ((Ebinop o
+                 | Bop o => do v <- return_czero (transBeePL_type t);
+                            do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx);
+                            match o with 
+                            | Cop.Odiv => do rs <- (check_div ces v (transBeePL_type t));
+                                          ret (rs, fn_ctx')
+                                                                      
+                            | Cop.Omod => do rs <- (check_mod ces v (transBeePL_type t));
+                                          ret (rs, fn_ctx')
+                            | Cop.Oshl => do rs <- check_shl ces v (transBeePL_type t);
+                                          ret (rs, fn_ctx')
+                             | Cop.Oshr => do rs <- check_shr ces v (transBeePL_type t);
+                                           ret (rs, fn_ctx')
+                            | _ => ret (Ebinop o
                                         (hd default_expr (exprlist_list_expr ces)) 
                                         (hd default_expr (tl (exprlist_list_expr ces)))
-                                        ct), fn_ctx')
-                            end
+                                        (transBeePL_type t), fn_ctx')
+
+                           end
+end
 | Bind x t e e' t' => let ct := (transBeePL_type t) in
                       do (ce, fn_ctx') <- (transBeePL_expr_expr e fn_ctx);
                       do (ce', fn_ctx'') <- (transBeePL_expr_expr e' fn_ctx');
@@ -240,47 +326,52 @@ match e with
                      let ct := (transBeePL_type t) in
                      do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx);
                      ret (Ebuiltin cef cts ces ct, fn_ctx')
+| Screate x ids es t => error (msg "COMPILER ERROR: Struct creation cannot be translated to another C epxr")
 | Sfield e x t => do (ce, fn_ctx') <- transBeePL_expr_expr e fn_ctx;
                   let ct := transBeePL_type t in
                   ret (Efield (Evalof ce (transBeePL_type (typeof_expr e))) x ct, fn_ctx')
-| For x e1 e2 d e t => error (msg "COMPILER ERROR: For loop cannot be translated to another C expr")
+| For e1 e2 d e t => error (msg "COMPILER ERROR: For loop cannot be translated to another C expr")
 | Enone t => match t with 
-             | Otype t' => if is_reftype t'
-                           then ret ((Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t))), fn_ctx)
-                           else error (msg "COMPILER ERROR: Option type of None should contain a pointer in BeePL")
-             | _ => error (msg "COMPILER ERROR: None should be of Option type")
+             | Ptrtype t' => if is_option_ptr_type t' 
+                             then ret ((Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t))), fn_ctx)
+                             else error (msg "COMPILER ERROR: Expression none should be a pointer option type")
+             | _ => error (msg "COMPILER ERROR: Expression none should be a pointer type")
              end
 | Esome e t => match t with 
-               | Otype t' => if is_reftype t'
+             | Ptrtype t' => if is_option_ptr_type t' 
                              then transBeePL_expr_expr e fn_ctx
-                             else error (msg "COMPILER ERROR: Option type of Some should contain a pointer in BeePL")
-               | _ => error (msg "COMPILER ERROR: Some should be of Option type")
-              end
-| Match e pes t => if is_reftype t
-                   then do ce <- transBeePL_expr_expr e fn_ctx;
-                        match pes with 
-                         | nil => error (msg "COMPILER ERROR: No pattern matching cases found")
-                         | ((Pnone, e1) :: (Psome x, e2) :: nil) => 
-                             do ce1 <- transBeePL_expr_expr e1 fn_ctx;
-                             do ce2 <- transBeePL_expr_expr e2 (snd ce1);
-                             ret ((Econdition (Ebinop Cop.Oeq (fst ce) 
-                                                (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
-                                               (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
-                                  (fst ce1)
-                                  (fst ce2) (transBeePL_type t)), snd (ce2))
-                          | ((Psome x, e1) :: (Pnone, e2) :: nil) => 
-                             do ce1 <- transBeePL_expr_expr e1 fn_ctx;
-                             do ce2 <- transBeePL_expr_expr e2 (snd ce1);
-                             ret ((Econdition (Ebinop Cop.Oeq (fst ce) 
-                                                (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
-                                               (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
-                                  (fst ce2)
-                                  (fst ce1) (transBeePL_type t)), snd (ce1))
-                          | _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
-                        end
-                   else error (msg "COMPILER ERROR: The return type of matching should be a pointer")
+                             else error (msg "COMPILER ERROR: Expression some should be a pointer option type")
+             | _ => error (msg "COMPILER ERROR: Expression some should be a pointer type")
+             end
+| Match e ps es t => do ce <- transBeePL_expr_expr e fn_ctx;
+                     let te := typeof_expr e in
+                     match te with 
+                     | Ptrtype t' => 
+                         if is_option_ptr_type t'  
+                         then match ps, es with 
+                              | nil, nil => error (msg "COMPILER ERROR: No pattern matching cases found")
+                              | (Pnone :: Psome x :: nil), (e1 :: e2 :: nil) => 
+                                  do ce1 <- transBeePL_expr_expr e1 fn_ctx;
+                                  do ce2 <- transBeePL_expr_expr e2 (snd ce1);
+                                  ret ((Econdition (Ebinop Cop.Oeq (fst ce) 
+                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                                       (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
+                                          (fst ce1)
+                                          (fst ce2) (transBeePL_type t)), snd (ce2))
+                              | (Psome x :: Pnone :: nil), (e1 :: e2 :: nil) => 
+                                  do ce1 <- transBeePL_expr_expr e1 fn_ctx;
+                                  do ce2 <- transBeePL_expr_expr e2 (snd ce1);
+                                  ret ((Econdition (Ebinop Cop.Oeq (fst ce) 
+                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                                       (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
+                                          (fst ce2)
+                                          (fst ce1) (transBeePL_type t)), snd (ce1))
+                              | _, _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
+                              end
+                          else error (msg "COMPILER ERROR: Match can be only performed on option type")
+                     | _ => error (msg "COMPILER ERROR: Match can be only performed on ptr type")
+                     end
 end.
-
 
 Definition check_var_const (e : BeePL.expr) : bool :=
 match e with 
@@ -288,7 +379,6 @@ match e with
 | Const c t => true 
 | _ => false
 end.
-
 
 Fixpoint transBeePL_expr_st (e : BeePL.expr ) (ctx : list (ident * BeeTypes.type * string)) : mon (Csyntax.statement * list (ident * BeeTypes.type * string)) :=
 match e with 
@@ -308,7 +398,7 @@ match e with
 | App e es t => do (ce, ctx') <- (transBeePL_expr_expr e ctx);
                 do (ces, ctx'') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx');
                 let ct := (transBeePL_type t) in
-                ret (Sdo (Ecall ce ces ct), ctx'')  
+                ret (Sreturn (Some (Ecall ce ces ct)), ctx'')  
 | Prim b es t => match b with 
                  | Ref => (* TODO: figure out how to recude duplicate code between here and transBeePL_expr_st *)
                           do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx);
@@ -316,8 +406,8 @@ match e with
                           do (i, str) <- (fresh_ident (List.map unzip_ident ctx') max_fresh);
                           match es with
                           | e :: nil => do pty <- ref_to_prim t;
-                                        let cpty := (transBeePL_type (Ptype pty)) in        
-                                        let ctx'' := (i, (Ptype pty), str) :: ctx' in
+                                        let cpty := (transBeePL_type pty) in        
+                                        let ctx'' := (i, pty, str) :: ctx' in
                                         ret (Ssequence (Sdo (Eassign (Evar i cpty)
                                                                      (hd default_expr (exprlist_list_expr ces))
                                                                      (cpty)))
@@ -338,28 +428,38 @@ match e with
                  | Run h => ret (Sdo (Eval (Values.Vundef) Tvoid), ctx)
                  | Uop o => do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx);
                             let ct := (transBeePL_type t) in 
-                            ret (Sdo (Eunop o 
+                            ret (Sreturn (Some (Eunop o 
                                      (hd default_expr (exprlist_list_expr ces)) 
-                                     ct), ctx') 
-                 | Bop o => if is_bop_undef t o es 
-                            then let ct := (transBeePL_type t) in
-                                 do v <- return_czero ct;
-                                 ret (Sdo (Eval v ct), ctx)
-                            else do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx);
-                                 let ct := (transBeePL_type t) in
-                                 ret (Sdo (Ebinop o 
-                                     (hd default_expr (exprlist_list_expr ces)) 
-                                     (hd default_expr (tl (exprlist_list_expr ces)))
-                                     ct), ctx')
+                                     ct)), ctx') 
+                 | Bop o => do v <- return_czero (transBeePL_type t);
+                            do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx);
+                            match o with 
+                            | Cop.Odiv => do rs <- (check_div ces v (transBeePL_type t));
+                                          ret (Sreturn (Some rs), fn_ctx')
+                                                                      
+                            | Cop.Omod => do rs <- (check_div ces v (transBeePL_type t));
+                                          ret (Sreturn (Some rs), fn_ctx')
+                            | Cop.Oshl => do rs <- check_shl ces v (transBeePL_type t);
+                                          ret (Sreturn (Some rs), fn_ctx')
+                             | Cop.Oshr => do rs <- check_shr ces v (transBeePL_type t);
+                                           ret (Sreturn (Some rs), fn_ctx')
+                            | _ => ret (Sreturn (Some (Ebinop o
+                                        (hd default_expr (exprlist_list_expr ces)) 
+                                        (hd default_expr (tl (exprlist_list_expr ces)))
+                                        (transBeePL_type t))), fn_ctx')
+
+                           end
                  end 
 | Bind x t e e' t' => let ct := (transBeePL_type t) in
                       do (ce', ctx') <- (transBeePL_expr_st e' ctx);
                       match e with 
                       | Prim Massgn es t => do (ce, ctx'') <- (transBeePL_expr_expr e ctx'); ret (Ssequence (Sdo ce) ce', ctx'') 
-                      | For x e1 e2 d e3 t => do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')                 
-                      | _ =>  do (ce, ctx'') <- (transBeePL_expr_expr e ctx');
+                      | For e1 e2 d e3 t => do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')  
+                      | Screate sx ids es t =>  do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')  
+                      | _ => do (ce, ctx'') <- (transBeePL_expr_expr e ctx');
                                     ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
                                            (ce'), ctx'')
+
                       end
 | Cond e e' e'' t' => do (ce, ctx') <- (transBeePL_expr_expr e ctx);
                       do (ce', ctx'') <- (transBeePL_expr_st e' ctx');
@@ -381,61 +481,84 @@ match e with
                      let ct := (transBeePL_type t) in
                      do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx);
                      ret (Sdo (Ebuiltin cef cts ces ct), ctx')
+| Screate sx ids es t => do (ces, ctx') <- transBeePL_expr_exprs transBeePL_expr_expr es ctx;
+                         do (temp, strl) <- (fresh_ident (List.map unzip_ident ctx') max_fresh);
+                         do pty <- ref_to_prim t;
+                         let ctx'' := (temp, pty, strl) :: ctx' in
+                         do rs <- init_struct_fields sx (zip ids (exprlist_list_expr ces)) (transBeePL_type t) (transBeePL_type pty);
+                         ret (Ssequence (Sdo (Eassign (Evar sx (transBeePL_type t)) 
+                                                                         (Eaddrof (Evar temp (transBeePL_type pty)) (transBeePL_type t)) (transBeePL_type t)))
+                                                            rs, ctx'')
 | Sfield e x t => do (ce, ctx') <- transBeePL_expr_expr e ctx;
                   let ct := transBeePL_type t in
                   ret (Sdo (Evalof (Efield (Evalof ce (transBeePL_type (typeof_expr e))) x ct) ct), ctx')
-| For x e1 e2 d e t => do (ce1, ctx') <- transBeePL_expr_expr e1 ctx;
-                       do (ce2, ctx'') <- transBeePL_expr_expr e2 ctx';
-                       do (ce3, ctx''') <- transBeePL_expr_st e ctx'';
-                       if negb (is_primunsigned_int_long (typeof_expr e1) (typeof_expr e2))
-                       then error (msg "The type of range expr should be always unsigned int or long")
-                       else if check_range_expr e1 e2 d 
-                            then error (msg "The loop has crossed the limit of 8 * 1024 * 1024")
-                            else match d with
-                                 | Up => ret (Sfor (Sdo (Eassign (Evar x (Ctypes.Tint I32 Unsigned noattr)) ce1 (Ctypes.Tint I32 Unsigned noattr)))
-                                                   (Ebinop Cop.Ole (Evalof (Evar x (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr))
-                                                    ce2 (Ctypes.Tint I32 Unsigned noattr))
-                                                   (Sdo (Epostincr Cop.Incr (Evar x (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr)))
-                                                   ce3, ctx''')
-                                 | Down => ret (Sfor (Sdo (Eassign (Evar x (Ctypes.Tint I32 Unsigned noattr)) ce1 (Ctypes.Tint I32 Unsigned noattr)))
-                                                  (Ebinop Cop.Oge (Evalof (Evar x (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr))
-                                                     ce2 (Ctypes.Tint I32 Unsigned noattr))
-                                                  (Sdo (Epostincr Cop.Decr (Evar x (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr)))
-                                                  ce3, ctx''')
-                                end  
+| For e1 e2 d e t => do (ce1, ctx1) <- transBeePL_expr_expr e1 ctx;
+                     do (low, strl) <- (fresh_ident (List.map unzip_ident ctx1) max_fresh);
+                     let ctx2 := (low, typeof_expr e1, strl) :: ctx1 in
+                     do (ce2, ctx3) <- transBeePL_expr_expr e2 ctx2;
+                     do (high, strh) <- (fresh_ident (List.map unzip_ident ctx3) max_fresh);
+                     let ctx4 := (high, typeof_expr e2, strh) :: ctx3 in
+                     do (ce3, ctx5) <- transBeePL_expr_st e ctx4;
+                     do (i, stri) <- (fresh_ident (List.map unzip_ident ctx4) max_fresh);
+                     let ctx6 := (i, typeof_expr e1, stri) :: ctx5 in
+                     match d with 
+                     | Up => ret (Ssequence (Ssequence (Sdo (Eassign (Evar low (typeof ce1)) ce1 (typeof ce1)))
+                                                       (Sdo (Eassign (Evar high (typeof ce2)) ce2 (typeof ce2))))
+                                            (Sifthenelse (Ebinop Cop.Ole (Evar low (typeof ce1)) (Evar high (typeof ce2)) (typeof ce1))
+                                                         (Sfor (Sdo (Eassign (Evar i (typeof ce1)) (Evar low (typeof ce1)) (typeof ce1)))
+                                                               (Ebinop Cop.Ole (Evalof (Evar i (typeof ce2)) (typeof ce2)) (Evar high (typeof ce2)) (typeof ce2))
+                                                               (Sdo (Epostincr Cop.Incr (Evar i (typeof ce2)) (typeof ce2)))
+                                                          ce3)
+                                                         Sskip), ctx6)
+                     | Down => ret (Ssequence (Ssequence (Sdo (Eassign (Evar low (typeof ce1)) ce1 (typeof ce1)))
+                                                         (Sdo (Eassign (Evar high (typeof ce2)) ce2 (typeof ce2))))
+                                              (Sifthenelse (Ebinop Cop.Oge (Evar low (typeof ce1)) (Evar high (typeof ce2)) (typeof ce1))
+                                                           (Sfor (Sdo (Eassign (Evar i (typeof ce1)) (Evar low (typeof ce1)) (typeof ce1)))
+                                                                 (Ebinop Cop.Oge (Evalof (Evar i (typeof ce2)) (typeof ce2)) (Evar high (typeof ce2)) (typeof ce2))
+                                                                 (Sdo (Epostincr Cop.Decr (Evar i (typeof ce2)) (typeof ce2)))
+                                                            ce3)
+                                                            Sskip), ctx6)
+                     end
 | Enone t => match t with 
-             | Otype t' => if is_reftype t'
+             | Ptrtype t' => if is_option_ptr_type t' 
                            then ret (Sdo ((Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))), ctx)
                            else error (msg "COMPILER ERROR: Option type of None should contain a pointer in BeePL")
              | _ => error (msg "COMPILER ERROR: None should be of Option type")
              end
 | Esome e t => match t with 
-               | Otype t' => if is_reftype t'
+               | Ptrtype t' => if is_option_ptr_type t' 
                              then transBeePL_expr_st e ctx
                              else error (msg "COMPILER ERROR: Option type of Some should contain a pointer in BeePL")
                | _ => error (msg "COMPILER ERROR: Some should be of Option type")
               end
-| Match e pes t => do ce <- transBeePL_expr_expr e ctx;
-                        match pes with 
-                         | nil => error (msg "COMPILER ERROR: No pattern matching cases found")
-                         | ((Pnone, e1) :: (Psome x, e2) :: nil) => 
-                             do ce1 <- transBeePL_expr_st e1 ctx;
-                             do ce2 <- transBeePL_expr_st e2 (snd ce1);
-                             ret ((Sifthenelse (Ebinop Cop.Oeq (fst ce) 
-                                                (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
-                                               (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
-                                  (fst ce1)
-                                  (fst ce2)), snd (ce2))
-                          | ((Psome x, e1) :: (Pnone, e2) :: nil) => 
-                             do ce1 <- transBeePL_expr_st e1 ctx;
-                             do ce2 <- transBeePL_expr_st e2 (snd ce1);
-                             ret ((Sifthenelse (Ebinop Cop.Oeq (fst ce) 
-                                                (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
-                                               (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
-                                  (fst ce2)
-                                  (fst ce1)), snd (ce1))
-                          | _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
-                        end
+| Match e ps es t => do ce <- transBeePL_expr_expr e ctx;
+                     let te := typeof_expr e in
+                     match te with 
+                     | Ptrtype t' => 
+                         if is_option_ptr_type t' 
+                         then match ps, es with 
+                              | nil, nil => error (msg "COMPILER ERROR: No pattern matching cases found")
+                              | (Pnone :: Psome x :: nil), (e1 :: e2 :: nil) => 
+                                  do ce1 <- transBeePL_expr_st e1 ctx;
+                                  do ce2 <- transBeePL_expr_st e2 (snd ce1);
+                                  ret ((Sifthenelse (Ebinop Cop.Oeq (fst ce) 
+                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                                       (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
+                                          (fst ce1)
+                                          (fst ce2)), snd (ce2))
+                              | (Psome x :: Pnone :: nil), (e1 :: e2 :: nil) => 
+                                  do ce1 <- transBeePL_expr_st e1 ctx;
+                                  do ce2 <- transBeePL_expr_st e2 (snd ce1);
+                                  ret ((Sifthenelse (Ebinop Cop.Oeq (fst ce) 
+                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                                       (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
+                                          (fst ce2)
+                                          (fst ce1)), snd (ce1))
+                              | _, _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
+                              end
+                          else error (msg "COMPILER ERROR: Match can be only performed on option type containing types other than ref")
+                     | _ =>  error (msg "COMPILER ERROR: Match can be only performed on option type")
+                     end
 end.
 
 
@@ -482,7 +605,7 @@ end.
 
 (* Translates the value that is assigned to global variable to C global variable data *)
 
-Definition transBeePL_init_data_init_data (g : BeePL.init_data) : AST.init_data :=
+(*Definition transBeePL_init_data_init_data (g : BeePL.init_data) : AST.init_data :=
 match g with 
 | Init_int8 i => AST.Init_int8 i
 | Init_int16 i => AST.Init_int16 i
@@ -495,7 +618,7 @@ Fixpoint transBeePL_init_datas_init_datas (gs : list BeePL.init_data) : list AST
 match gs with 
 | nil => nil
 | g :: gs => transBeePL_init_data_init_data g :: transBeePL_init_datas_init_datas gs
-end. 
+end. *)
 
 (* Translates BeePL global variable to C global variable *) 
 Definition transBeePLglobvar_globvar (gv : BeePL.globvar type) : (AST.globvar Ctypes.type)  :=

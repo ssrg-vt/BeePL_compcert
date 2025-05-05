@@ -1,4 +1,4 @@
-Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values BeePL_typechecker. 
+Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values BeePL_typechecker BeePL_notations. 
 From Coq Require Import String ZArith.
 From compcert Require Import Csyntaxdefs.
 Import Csyntaxdefs.CsyntaxNotations.
@@ -16,11 +16,6 @@ int xdp_prog(struct xdp_md *ctx) {
 
     // Always pass the packet (simplest behavior)
     return XDP_PASS;
-}
-
-int main() {
-   struct xdp_md *x;
-   xdp_prog(x);
 }
 
 char _license[] SEC("license") = "GPL";
@@ -63,57 +58,40 @@ Definition bpf_external_function : BeePL.external_function
    := EF_external "bpf_get_prandom_u32" 
       {| bsig_args := nil;
          bsig_ef := nil;
-         bsig_res := Ptype (BeeTypes.Tint I32 Unsigned dattr);
+         bsig_res := tint32u;
          bsig_cc := cc_default
       |}.
 
 Definition f_xdp_prog : BeePL.function := {| 
-                                   fn_return := (Ptype (BeeTypes.Tint I32 Unsigned dattr));
+                                   fn_return := tint32s;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
-                                   fn_args := (_ctx, Reftype _h (BeeTypes.Bstruct _xdp_md dattr) dattr) :: nil ;
-                                   fn_vars := ((_rand, BeeTypes.Ptype (BeeTypes.Tint I32 Ctypes.Unsigned dattr)) :: 
+                                   fn_args := (_ctx, tpstruct _xdp_md) :: nil ;
+                                   fn_vars := ((_rand, tint32s) :: 
                                                 nil);
                                    fn_body := Bind 
-                                                (_rand) 
-                                                (Ptype (BeeTypes.Tint I32 Unsigned dattr))
-                                                (Eapp bpf_external_function nil nil (Ptype (BeeTypes.Tint I32 Unsigned dattr))) 
-                                                (Const (ConsInt (Int.repr 1)) (Ptype (BeeTypes.Tint I32 Unsigned dattr)))
-                                             (Ptype (BeeTypes.Tint I32 Unsigned dattr))|}.
+                                                (_rand) tint32u
+                                                (App (Var _bpf_get_prandom_u32 (tfun nil nil tint32u)) nil tint32u)
+                                                (cint (Int.repr 1) tint32s) tint32s |}.
 
 Definition bcomposites : list bcomposite_definition :=
 (Bcomposite _xdp_md Struct
-   (Member_plain _data (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)) :: 
-    Member_plain _data_end (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)) :: 
-    Member_plain _data_meta (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)) ::
-    Member_plain _ingress_ifindex (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)) :: 
-    Member_plain _rx_queue_index (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)) :: 
-    Member_plain _egress_ifindex (BeeTypes.Ptype (BeeTypes.Tint Ctypes.I32 Ctypes.Unsigned dattr)) :: nil)
+   (Member_plain _data tint32u :: 
+    Member_plain _data_end tint32u :: 
+    Member_plain _data_meta tint32u ::
+    Member_plain _ingress_ifindex tint32u :: 
+    Member_plain _rx_queue_index tint32u :: 
+    Member_plain _egress_ifindex tint32u :: nil)
    noattr :: nil).
-
-
-Definition f_main : BeePL.function := {| 
-                                   fn_return := (Ptype (BeeTypes.Tint I32 Unsigned dattr));
-                                   fn_effect := nil;
-                                   fn_callconv := cc_default;
-                                   fn_args := nil;
-                                   fn_vars := (_x, Reftype _h (BeeTypes.Bstruct _xdp_md dattr) dattr) :: nil;
-                                   fn_body := (App (Var _xdp_prog (Ftype ((Reftype _h (BeeTypes.Bstruct _xdp_md dattr) dattr) :: nil) 
-                                                                           nil 
-                                                                      (Ptype (BeeTypes.Tint I32 Unsigned dattr)))) 
-                                                  (Var _x (Reftype _h (BeeTypes.Bstruct _xdp_md dattr) dattr) :: nil) 
-                                                  (Ptype (BeeTypes.Tint I32 Unsigned dattr))) |}.
 
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
    := (_bpf_get_prandom_u32, AST.Gfun(BeePL.External (bpf_external_function)
-                                     nil
-                                     (Ptype (BeeTypes.Tint I32 Unsigned dattr))
+                                     nil tint32u
                                      (cc_default))) :: 
-      (_xdp_prog, AST.Gfun(BeePL.Internal (f_xdp_prog))) ::
-      (_main, AST.Gfun(BeePL.Internal (f_main))) :: nil.
+      (_xdp_prog, AST.Gfun(BeePL.Internal (f_xdp_prog))) :: nil.
 
-Definition public_idents : list ident := (_main :: _xdp_prog :: nil).
+Definition public_idents : list ident := (_xdp_prog :: nil).
 
 Lemma bcomposite_correct :
   wf_bcomposites bcomposites.
@@ -127,7 +105,7 @@ Qed.
                                                    public_idents 
                                                    _main 
                                                    bcomposite_correct
-                                                   ident_to_string.*)
+                                                   ident_to_string.
 
 
-(*Compute (type_check_program example1).*) (* Type checks *)
+Compute (type_check_program example1).*) (* Type checks *)

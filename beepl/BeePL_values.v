@@ -93,7 +93,15 @@ Inductive value : Type :=
 | Vbool : bool -> value
 | Vint : int -> value
 | Vint64 : int64 -> value
-| Vloc : positive -> ptrofs -> value.
+| Vloc : positive -> ptrofs -> value
+| Voption : option value -> value.
+
+Definition compute_range (v1 v2 : value) : res Z :=
+match v1, v2 with 
+| Vint i1, Vint i2 => OK (Int.intval (Int.sub i1 i2))
+| Vint64 i1, Vint64 i2 => OK (Int64.intval (Int64.sub i1 i2))
+| _, _ => Error (msg "The value should be int or long")
+end. 
 
 Definition is_vloc (v : value) : bool :=
 match v with 
@@ -102,6 +110,7 @@ match v with
 | Vint i => false 
 | Vint64 l => false
 | Vloc l ofs => true 
+| Voption v => false
 end.
 
 Definition is_zero_val (v : value) : bool :=
@@ -111,6 +120,7 @@ match v with
 | Vint i => if Int.eq i Int.zero then true else false
 | Vint64 i => if Int64.eq i Int64.zero then true else false
 | Vloc p ofs => false
+| Voption v => false
 end.
 
 Definition check_range_val (v1 v2 : value) (d : dir) : bool :=
@@ -175,16 +185,17 @@ match v, t with
 | Vint i, BeeTypes.Twint => True 
 | Vint64 i, BeeTypes.Twlong => True 
 | Vloc p ofs, BeeTypes.Twref => True
-| _, _ => False
+| Voption v, BeeTypes.Twot => false| _, _ => False
 end.
 
 Definition typeof_value (v : value) (t : type) : Prop :=
 match v, t with 
-| Vunit, Ptype Tunit => True 
-| Vbool b, Ptype Tbool => True
-| Vint i, Ptype (Tint sz s a) => True 
-| Vint64 i, Ptype (Tlong s a) => True 
-| Vloc p ofs, Reftype h b a => True (* targeting only 64 bit arch *)
+| Vunit, Utype => True 
+| Vbool b, Vtype Tbool => True
+| Vint i, Vtype (Tint sz s a) => True 
+| Vint64 i, Vtype (Tlong s a) => True 
+| Vloc p ofs, Ptrtype (Reftype h b a) => True (* targeting only 64 bit arch *)
+| Voption v, Ptrtype (Otype t) => True
 | _, _ => False
 end.
 
@@ -245,14 +256,10 @@ if (v1.(lname) =? v2.(lname))%positive then true else false.
 
 Fixpoint return_bzero (t : type) : mon value :=
 match t with 
-| Ptype p => match p with   
-             | Tunit => error (msg "Tunit not allowed")
+| Vtype p => match p with   
              | Tbool => error (msg "Tbool not allowed")
              | Tint i s a => ret (Vint (Int.repr 0))
              | Tlong s a => ret (Vint64 (Int64.repr 0))
              end
-| Reftype h b a => error (msg "Tpointer not allowed")
-| Ftype ts e t => error (msg "Tfunction not allowed")
-| Stype x a => error (msg "Struct not allowed")
-| Otype t => return_bzero t
+| _ => error (msg "rest of the types are not needed to produce 0")
 end.
