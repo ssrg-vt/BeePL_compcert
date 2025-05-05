@@ -21,7 +21,8 @@ Notation "m [ a ]" := (PTree.get (ident_of_string a) m) (at level 10, left assoc
 (* Add all external functions needed for BeePL *)
 Definition  beepl_ef_env : ef_env :=
 ef_empty_map ["bpf_get_prandom_u32" <- (nil, (tint32u, nil))]
-             ["bpf_ktime_get_ns" <- (nil, (tlongu, nil))].
+             ["bpf_ktime_get_ns" <- (nil, (tlongu, nil))]
+             ["add" <- ((tint32s :: trint32s :: nil), (tint32s, nil))].
 
 Definition get_ef_type (efenv : ef_env) (s : string) : res ef_info :=
 match efenv[s] with 

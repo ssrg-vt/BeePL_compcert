@@ -1,4 +1,4 @@
-Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values BeePL_typechecker. 
+Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values BeePL_typechecker BeePL_notations. 
 From Coq Require Import String ZArith Lists.List.
 From compcert Require Import Csyntaxdefs Errors Maps BeePL_aux.
 Import Csyntaxdefs.CsyntaxNotations.
@@ -8,11 +8,11 @@ Local Open Scope csyntax_scope.
 (* #include <stdio.h>
 
 int main() {
-    int x = ref 0;
-    for (5 ... 1; i--) {
+    x = 0;
+    for (int i = 5; i >= 1; i--) {
             x := !x + 1;
     }
-   return *x;
+   return !x;
 }
 *)
 
@@ -26,32 +26,25 @@ Definition ident_to_string : list (ident * string) := ((_x, "x") ::
                                                       (_main, "main") :: nil).
 
 Definition f_for : BeePL.function := {| 
-                                   fn_return := (Ptype (Tint I32 Unsigned dattr));
+                                   fn_return := tint32s;
                                    fn_effect := (Alloc mem_ident :: Read mem_ident :: Write mem_ident :: Read mem_ident :: nil);
                                    fn_callconv := cc_default;
                                    fn_args := nil;
-                                   fn_vars := ((_x, (Reftype mem_ident (Bprim (Tint I32 Unsigned dattr)) dattr)) :: 
-                                               (_t, Ptype (Tint I32 Unsigned dattr)) :: nil);
-                                   fn_body := (Bind _x (Reftype mem_ident (Bprim (Tint I32 Unsigned dattr)) dattr)
-                                                       (Prim Ref ((Const (ConsInt (Int.repr 0)) (Ptype (Tint I32 Unsigned dattr))) :: nil)
-                                                             (Reftype mem_ident (Bprim (Tint I32 Unsigned dattr)) dattr))
-                                                       (Bind _t (Ptype Tunit)
+                                   fn_vars := ((_x, trint32s) :: 
+                                               (_t, tint32s) :: nil);
+                                   fn_body := (Bind _x trint32s
+                                                       (Prim Ref (cint (Int.repr 0) tint32s :: nil) trint32s)
+                                                       (Bind _t tunit
                                                           (For 
-                                                             (Const (ConsInt (Int.repr 5)) (Ptype (Tint I32 Unsigned dattr)))
-                                                             (Const (ConsInt (Int.repr 1)) (Ptype (Tint I32 Unsigned dattr)))
+                                                             (cint (Int.repr 5) tint32s)
+                                                             (cint (Int.repr 1) tint32s)
                                                              Down
-                                                             (Prim Massgn (Var _x (Reftype mem_ident (Bprim (Tint I32 Unsigned dattr)) dattr) ::
-                                                                     (Prim (Bop Cop.Oadd) 
-                                                                        (Prim Deref (Var _x (Reftype mem_ident (Bprim (Tint I32 Unsigned dattr)) dattr) :: nil) 
-                                                                             (Ptype (Tint I32 Unsigned dattr)) :: 
-                                                                           Const (ConsInt (Int.repr 1)) (Ptype (Tint I32 Unsigned dattr)) :: nil)
-                                                                        (Ptype (Tint I32 Unsigned dattr))) :: nil)
-                                                            (Ptype Tunit))
-                                                           (Ptype Tunit))
-                                                        (Prim Deref (Var _x (Reftype mem_ident (Bprim (Tint I32 Unsigned dattr)) dattr) :: nil) 
-                                                           (Ptype (Tint I32 Unsigned dattr)))
-                                                     (Ptype (Tint I32 Unsigned dattr)))
-                                               (Ptype (Tint I32 Unsigned dattr)))|}.
+                                                             (Prim Massgn 
+                                                                     (Var _x trint32s ::
+                                                                      (Prim (Bop Cop.Oadd) 
+                                                                        (Prim Deref (Var _x trint32s :: nil) tint32s ::
+                                                                         cint (Int.repr 1) tint32s :: nil) tint32s) :: nil) tunit) tunit)
+                                                        (Prim Deref (Var _x trint32s :: nil)  tint32s) tint32s) tint32s) |}.
 
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 

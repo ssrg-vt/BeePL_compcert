@@ -454,9 +454,10 @@ match e with
                       | Prim Massgn es t => do (ce, ctx'') <- (transBeePL_expr_expr e ctx'); ret (Ssequence (Sdo ce) ce', ctx'') 
                       | For e1 e2 d e3 t => do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')  
                       | Screate sx ids es t =>  do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')  
-                      | _ =>  do (ce, ctx'') <- (transBeePL_expr_expr e ctx');
+                      | _ => do (ce, ctx'') <- (transBeePL_expr_expr e ctx');
                                     ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
                                            (ce'), ctx'')
+
                       end
 | Cond e e' e'' t' => do (ce, ctx') <- (transBeePL_expr_expr e ctx);
                       do (ce', ctx'') <- (transBeePL_expr_st e' ctx');
@@ -553,7 +554,7 @@ match e with
                                           (fst ce1)), snd (ce1))
                               | _, _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
                               end
-                          else error (msg "COMPILER ERROR: Match can be only performed on option type containing ref")
+                          else error (msg "COMPILER ERROR: Match can be only performed on option type containing types other than ref")
                      | _ =>  error (msg "COMPILER ERROR: Match can be only performed on option type")
                      end
 end.

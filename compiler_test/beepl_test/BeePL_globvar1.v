@@ -19,7 +19,7 @@ int main(void) {
     return x;
 }*)
 
-Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
+(*Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
 Definition _x : ident := $"x".
 Definition _val : ident := $"val".
 Definition _temp : ident := $"temp".
@@ -86,3 +86,4 @@ Proof.
   unfold wf_bcomposites.
   unfold build_bcomposite_env; simpl; constructor. 
 Qed.
+*)

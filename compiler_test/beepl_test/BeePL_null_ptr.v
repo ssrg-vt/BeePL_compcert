@@ -5,45 +5,108 @@ Import Csyntaxdefs.CsyntaxNotations.
 Local Open Scope string_scope.
 Local Open Scope csyntax_scope.
 
-(* Just for testing the functionality of match, none, and some *)
-(* This program is not allowed in BeePL as programmer is not suppose to do match on ref(2) *)
+(* Just for testing the functionality of match, none, and some, it will only work when we have r from helper function *)
 (* Match should be only performed on pointers coming from helper function *)
 (* int main() {
-     match ref(2) 
-     | None option<ref<int>> => -1 (* I want to produce error msg with string *)
-     | Some x => let r = !(ref(2)) in r
+     int t;
+     option<int> r;
+     t = match r 
+         | None  => -1 (* I want to produce error msg with string *)
+         | Some x => !r;
+     return t;
   }
 *)
 
 Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
 Definition _h : ident := $"h".
+Definition _t : ident := $"t".
 Definition _p : ident := $"p".
 Definition _r : ident := $"r".
+Definition _null_ptr : ident := $"null_ptr".
+Definition _ptr_add : ident := $"ptr_add".
+Definition _ptr_assgn : ident := $"ptr_assgn".
 Definition _main : ident := $"main".
 
-Definition ident_to_string : list (ident * string) := ((_p, "p") :: 
+Definition ident_to_string : list (ident * string) := ((_t, "t") :: 
+                                                       (_p, "p") ::
                                                        (_r, "r") ::
+                                                       (_null_ptr, "null_ptr") ::
+                                                       (_ptr_add, "ptr_add") ::
+                                                       (_ptr_assgn, "ptr_assgn") ::
                                                        (_main, "main") :: nil).
 
 Definition f_null_ptr : BeePL.function := {| 
                                    fn_return := tint32s;
-                                   fn_effect := nil;
+                                   fn_effect := Read mem_ident :: nil;
                                    fn_callconv := cc_default;
                                    fn_args := nil;
-                                   fn_vars := ((_p, toption (trint32s)) :: 
-                                               (_r, tint32s) :: 
-                                                nil);
-                                   fn_body := Match (Prim (Ref) (cint (Int.repr 2) tint32s :: nil) trint32s) 
-                                               (Pnone :: Psome _p :: nil) 
-                                               (cint (Int.repr 2) tint32s ::
-                                                Bind _r tint32s
-                                                            (Prim (Deref) 
-                                                               (Prim (Ref) (cint (Int.repr 2) tint32s :: nil) trint32s :: nil) tint32s) 
-                                                            (Var _r tint32s) tint32s :: nil) tint32s |}.
+                                   fn_vars := ((_r, toption (tint32s)) :: (_t, tint32s) :: nil);
+                                   fn_body := Bind _t tint32s
+                                               (Match (Var _r (toption tint32s)) 
+                                                      (Pnone :: Psome _p :: nil) 
+                                                      (cint (Int.repr (-1)%Z) tint32s ::
+                                                        (Prim (Deref) (Var _r (toption tint32s) :: nil) tint32s) :: nil) tint32s)
+                                               (Var _t tint32s) tint32s|}.
+
+
+(* int main() {
+     int t;
+     option<int> r;
+     t = match r 
+         | None  => -1 
+         | Some x => (star r + 1);
+     return t;
+  }
+*)
+
+Definition f_ptr_add : BeePL.function := {| 
+                                   fn_return := tint32s;
+                                   fn_effect := Read mem_ident :: nil;
+                                   fn_callconv := cc_default;
+                                   fn_args := nil;
+                                   fn_vars := ((_r, toption (tint32s)) :: (_t, tint32s) :: nil);
+                                   fn_body := Bind _t tint32s
+                                               (Match (Var _r (toption tint32s)) 
+                                                      (Pnone :: Psome _p :: nil) 
+                                                      (cint (Int.repr (-1)%Z) tint32s ::
+                                                       (Prim (Bop Cop.Oadd) 
+                                                           (Prim (Deref) (Var _r (toption tint32s) :: nil) tint32s ::
+                                                            cint (Int.repr 1) tint32s :: nil) tint32s) :: nil) tint32s)
+                                               (Var _t tint32s) tint32s|}.
+
+
+(* int main() {
+     option<int> r;
+     match r 
+         | None  => -1 
+         | Some x => star r = (star r + 1);
+     return 0;
+  }
+*)
+
+Definition f_ptr_assgn : BeePL.function := {| 
+                                   fn_return := tint32s;
+                                   fn_effect := Read mem_ident :: Write mem_ident :: Read mem_ident :: nil;
+                                   fn_callconv := cc_default;
+                                   fn_args := nil;
+                                   fn_vars := ((_r, toption (tint32s)) :: (_t, tint32s) :: nil);
+                                   fn_body := 
+                                               (Match (Var _r (toption tint32s)) 
+                                                      (Pnone :: Psome _p :: nil) 
+                                                      (cint (Int.repr (-1)%Z) tint32s ::
+                                                       (Bind _t tint32s
+                                                        (Prim Massgn 
+                                                         (Var _r (toption tint32s) ::
+                                                          (Prim (Bop Cop.Oadd) 
+                                                           (Prim (Deref) (Var _r (toption tint32s) :: nil) tint32s ::
+                                                            cint (Int.repr 1) tint32s :: nil) tint32s) :: nil) tunit)
+                                                         (Prim Deref (Var _r (toption tint32s) :: nil) tint32s) tint32s) :: nil) tint32s)|}.
 
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
-   := (_main, AST.Gfun(BeePL.Internal (f_null_ptr))) :: nil.
+   := (_null_ptr, AST.Gfun(BeePL.Internal (f_null_ptr))) :: 
+      (_ptr_add, AST.Gfun(BeePL.Internal (f_ptr_add))) :: 
+      (_main, AST.Gfun(BeePL.Internal (f_ptr_assgn))) :: nil.
 
 Definition public_idents : list ident := (_main :: nil).
 
@@ -56,14 +119,14 @@ Proof.
   unfold build_bcomposite_env; simpl; reflexivity.
 Qed.
 
-(*Definition example1 : BeePL.program := @mkbprogram bcomposites 
+Definition example1 : BeePL.program := @mkbprogram bcomposites 
                                                    global_definitions 
                                                    public_idents 
                                                    _main 
                                                    bcomposite_correct
                                                    ident_to_string.
 
-Compute (type_check_expr example1.(prog_comp_env) 
-                         (bind_vars (bind_vars empty_context f_null_ptr.(fn_args)) f_null_ptr.(fn_vars)) empty_context f_null_ptr.(fn_body)).
+(*Compute (type_check_expr example1.(prog_comp_env) 
+                         (bind_vars (bind_vars empty_context f_ptr_assgn.(fn_args)) f_ptr_add.(fn_vars)) empty_context f_ptr_assgn.(fn_body)).
 
-Compute (type_check_program example1). Does not type check: Expected behavior *)
+Compute (type_check_program example1). *) (* Type Checks! *)

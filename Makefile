@@ -105,8 +105,9 @@ VLIB=Axioms.v Coqlib.v Intv.v Maps.v Heaps.v Lattice.v Ordered.v \
 
 BEEPL_TESTS=\
    BeePL_progs.v BeePL_add.v BeePL_add_ptr.v BeePL_div_zero1.v BeePL_div_zero.v \
-   BeePL_add_ex1.v BeePL_cond.v BeePL_app.v BeePL_funptr_ex1.v
-# BeePL_cond.v BeePL_app.v \
+   BeePL_add_ex1.v BeePL_cond.v BeePL_app.v BeePL_funptr_ex1.v BeePL_bpf_get_prandom.v \
+   BeePL_for_ex1.v BeePL_for_ex2.v BeePL_match_fail_ex1.v BeePL_external_call.v BeePL_null_ptr.v
+
 #  BeePL_div_zero.v BeePL_div_zero1.v BeePL_external_call.v BeePL_ref.v \
 #  BeePL_struct_ex2.v BeePL_for_ex1.v BeePL_for_ex2.v BeePL_globvar1.v \
 #  BeePL_bpf_get_prandom.v BeePL_bpf_ktime_get_ns.v 

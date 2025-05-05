@@ -80,7 +80,7 @@ Definition f_bpf_prog : BeePL.function := {|
                                    fn_return := tlongu;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
-                                   fn_args := (_ctx, Reftype mem_ident (BeeTypes.Bstruct _pt_regs dattr) dattr) :: nil ;
+                                   fn_args := (_ctx, tpstruct _pt_regs) :: nil ;
                                    fn_vars := ((_ts, tlongu) :: 
                                                 nil);
                                    fn_body := Bind 
