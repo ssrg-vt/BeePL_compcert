@@ -6,14 +6,21 @@ Local Open Scope list_scope.
 Local Open Scope string_scope.
 Local Open Scope csyntax_scope.
 
-(* 
-  int add (int x, int y) 
-      return x + y; *)
+(*
 
-(* int main()
- *   int (star_fp)(int, int) = add;
- *   int r = fp(2,3);
- *   return r; *)
+int add(int a, int b) {
+    return a + b;
+}
+
+
+int compute(int x, int y, int (star fp)(int, int) {
+     return fp(x,y);
+}
+
+int main() {
+    int result = compute(3, 4, add);// Output: Result: 7
+    return result;
+}*)
 
 Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
 Definition _a : ident := $"a".
@@ -23,9 +30,11 @@ Definition _x : ident := $"x".
 Definition _y : ident := $"y".
 Definition _r : ident := $"r".
 Definition _fp : ident := $"fp".
-Definition _h : ident := $"h". (* supposed to represent heap for Reftype *)
+Definition _h : ident := $"h". 
 Definition _add : ident := $"add".
+Definition _compute : ident := $"compute".
 Definition _main : ident := $"main".
+
 
 Definition  ident_to_string : list (ident * string) := ((_a, "a") :: 
                                                         (_b, "b") :: 
@@ -35,6 +44,7 @@ Definition  ident_to_string : list (ident * string) := ((_a, "a") ::
                                                         (_r, "r") ::
                                                         (_fp, "fp") ::
                                                         (_add, "add") ::
+                                                        (_compute, "compute") ::
                                                         (_main, "main") :: nil).
 
 
@@ -52,31 +62,43 @@ Definition f_add : BeePL.function := {|
                                                        Var _y tint32s :: nil) tint32s)
                                                 (Var _r tint32s) tint32s |}.
 
+
+Definition f_compute : BeePL.function := {| 
+                                   fn_return := tint32s;
+                                   fn_effect := nil;
+                                   fn_callconv := cc_default;
+                                   fn_args := ((_x, tint32s) :: 
+                                               (_y, tint32s) :: 
+                                               (_fp, (tpfun (tint32s :: tint32s :: nil) nil tint32s)) :: nil); 
+                                   fn_vars := nil;
+                                   fn_body := (App (Var _fp (tpfun (tint32s :: tint32s :: nil) nil tint32s))
+                                                   (Var _x tint32s :: 
+                                                    Var _y tint32s :: nil) tint32s) |}.
+
+
 Definition f_main : BeePL.function := {| 
                                    fn_return := tint32s;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
                                    fn_args := nil;
-                                   fn_vars := ((_a, tint32s) :: 
-                                               (_fp, (tpfun (tint32s :: tint32s :: nil) nil tint32s)) ::
-                                               (_r, tint32s) :: nil);
+                                   fn_vars := ((_r, tint32s) :: nil);
                                    fn_body := 
                                               Bind 
-                                                   (_a) tint32s
-                                                   (cint (Int.repr 1) tint32s)
-                                                   (Bind (_fp) (tpfun (tint32s :: tint32s :: nil) nil tint32s)
-                                                      (Var _add (tfun (tint32s :: tint32s :: nil) nil tint32s))
-                                                      (Bind _r tint32s
-                                                         (App (Var _fp (tpfun (tint32s :: tint32s :: nil) nil tint32s))
-                                                            (Var _a tint32s :: 
-                                                            Var _a tint32s :: nil) tint32s)
-                                                         (Var _r tint32s) tint32s) tint32s) tint32s |}.
+                                                   (_r) tint32s
+                                                   (App (Var _compute (tfun (tint32s :: tint32s :: tpfun (tint32s :: tint32s :: nil) nil tint32s :: nil) 
+                                                                       nil tint32s))
+                                                        (cint (Int.repr 3) tint32s ::
+                                                         cint (Int.repr 4) tint32s ::
+                                                         Var _add (tfun (tint32s :: tint32s :: nil) nil tint32s) :: nil) 
+                                                         tint32s)
+                                                   (Var _r tint32s) tint32s |}.
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
    := (_add, AST.Gfun(BeePL.Internal (f_add))) ::
+      (_compute, AST.Gfun(BeePL.Internal (f_compute))) ::
       (_main, AST.Gfun(BeePL.Internal (f_main))) :: nil.
 
-Definition public_idents : list ident := (_main :: _add :: nil).
+Definition public_idents : list ident := (_main :: _compute :: _add :: nil).
 
 Definition bcomposites : list bcomposite_definition := nil.
 
@@ -96,3 +118,5 @@ Definition example1 : BeePL.program := @mkbprogram bcomposites
 
 
 (*Compute (type_check_program example1).*) (* Type checks *)
+
+

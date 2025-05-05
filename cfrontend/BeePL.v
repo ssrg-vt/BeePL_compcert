@@ -25,7 +25,7 @@ Inductive builtin : Type :=
                                                and reduces to a value discarding the heap *).
 
 (* Patterns *)
-(* Used in pattern matching in the match constructor *)
+(* Used in pattern matching in the match constructor *) 
 Inductive pattern : Type :=
 | Pnone : pattern
 | Psome : ident -> pattern.

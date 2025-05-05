@@ -125,6 +125,20 @@ end.
 
 End Type_check_exprs.
 
+Fixpoint check_fun_ptr_fun (sts : list type) (ats : list type) : bool :=
+match sts, ats with 
+| nil, nil => true 
+| t :: ts, t' :: ts' => match t, t' with 
+                        | Ptrtype (Fptype ts1 ef1 t1), Ftype ts1' ef1' t1' => 
+                          if eq_types eq_type ts1 ts1' && eq_type t1 t1' && eq_effect ef1 ef1'
+                          then check_fun_ptr_fun ts ts'
+                          else false
+                        | _, _ => eq_type t t' && check_fun_ptr_fun ts ts'
+                        end 
+| _, _ => false
+end. 
+                                                                                                      
+
 Fixpoint type_check_expr (cenv : bcomposite_env) (Gamma : ty_context) (Sigma : store_context) (e : expr) {struct e} : res (type * effect) :=
 match e with 
 | Val v t => OK (t, nil)
@@ -136,12 +150,13 @@ match e with
 | App e es t => do (ft, efe) <- type_check_expr cenv Gamma Sigma e;
                 do (ts, efs) <- type_check_exprs type_check_expr cenv Gamma Sigma es;
                 match ft with 
-                | Ftype ts1 ef rt1 => if eq_types eq_type ts ts1 && eq_type rt1 t
+                | Ftype ts1 ef rt1 => if check_fun_ptr_fun ts1 ts
                                       then OK (rt1, efe ++ ef ++ efs) 
-                                      else Error (msg "TYPE ERROR: Function declaration does not match the inferred type") 
-                | Ptrtype (Fptype ts1 ef rt1) => if eq_types eq_type ts ts1 && eq_type rt1 t
+                                      else Error (msg "TYPE ERROR: Function case does not match the inferred type") 
+                | Ptrtype (Fptype ts1 ef rt1) => if check_fun_ptr_fun ts1 ts
                                                  then OK (rt1, efe ++ ef ++ efs) 
-                                                 else Error (msg "TYPE ERROR: Function declaration does not match the inferred type") 
+                                                 else Error (msg "TYPE ERROR: Function pointer case does not match the inferred type")
+
                 | _ => Error (msg "TYPE ERROR: Not a function type")
                 end
 | Prim b es t => match b with 

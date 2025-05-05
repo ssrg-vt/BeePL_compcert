@@ -46,7 +46,7 @@ Inductive basic_type : Type :=
 
 Inductive ptr_type : Type :=
 | Reftype : ident -> basic_type -> attr -> ptr_type       (* Pointer to primitive types and struct *)
-| Otype : ptr_type -> ptr_type                            (* Option type *)          
+| Otype : type -> ptr_type                                (* Option type *)          
 | Fptype : list type -> effect -> type -> ptr_type        (* function/arrow pointer type *)
 | Sptype : ident -> attr -> ptr_type                      (* struct pointer - often used when it comes from helper functions *)
 with type : Type :=
@@ -62,8 +62,8 @@ match pt with
                     | Bprim p => Vtype p
                     | Bstruct s a => Stype s a 
                     end
-| Otype pt => get_data_type pt
-| Fptype ts e t => Ftype ts e t
+| Otype t => t
+| Fptype ts ef t => Ftype ts ef t
 | Sptype s a => Stype s a
 end.
 
@@ -92,12 +92,11 @@ end.
 Fixpoint attr_of_ptr_type (t : ptr_type) : attr :=
 match t with 
 | Reftype h bt a => a
-| Otype pt => attr_of_ptr_type pt
-| Fptype ts e t => noattr
+| Otype t => attr_of_type t
+| Fptype ts ef t => noattr
 | Sptype h a => a
-end. 
-
-Definition attr_of_type (t : type) : attr :=
+end
+with attr_of_type (t : type) : attr :=
 match t with 
 | Utype => noattr
 | Vtype pt => attr_of_primitive_type pt
@@ -182,10 +181,10 @@ with transBeePL_ptr_type (pt : ptr_type) : Ctypes.type :=
       | Bprim (Tlong s a') => Ctypes.Tpointer (Ctypes.Tlong s a') a
       | Bstruct s a' => Ctypes.Tpointer (Tstruct s a') a
       end
-  | Otype t => Ctypes.Tpointer (transBeePL_ptr_type t) (attr_of_ptr_type t)
-  | Fptype ts ef t' =>
+  | Otype t => Ctypes.Tpointer (transBeePL_type t) (attr_of_type t)
+  | Fptype ts ef t =>
       Ctypes.Tpointer
-        (Tfunction (transBeePL_types transBeePL_type ts) (transBeePL_type t')
+        (Tfunction (transBeePL_types transBeePL_type ts) (transBeePL_type t)
           {| cc_vararg := None;
              cc_unproto := false;
              cc_structret := false |})
@@ -437,8 +436,8 @@ Fixpoint signedness_of_type (t : type) : option signedness :=
 with signedness_of_ptr_type (pt : ptr_type) : option signedness :=
   match pt with
   | Reftype _ bt _ => signedness_of_basic bt
-  | Otype pt' => signedness_of_ptr_type pt'
-  | Fptype _ _ _ => None
+  | Otype pt' => signedness_of_type pt'
+  | Fptype _ _ _=> None
   | Sptype _ _ => None
   end.
 
@@ -652,7 +651,7 @@ with eq_ptr_type (p1 p2 : ptr_type) : bool :=
   match p1, p2 with
   | Reftype h1 b1 a1, Reftype h2 b2 a2 =>
       (h1 =? h2)%positive && eq_basic_type b1 b2 && attr_eq a1 a2
-  | Otype pt1, Otype pt2 => eq_ptr_type pt1 pt2
+  | Otype t1, Otype t2 => eq_type t1 t2
   | Fptype ts1 ef1 t1, Fptype ts2 ef2 t2 =>
       eq_types eq_type ts1 ts2 && eq_effect ef1 ef2 && eq_type t1 t2
   | Sptype id1 a1, Sptype id2 a2 => (id1 =? id2)%positive && attr_eq a1 a2
@@ -708,7 +707,7 @@ Fixpoint sizeof_type (env : bcomposite_env) (t : type) : Z :=
 with sizeof_ptr_type (env : bcomposite_env) (pt : ptr_type) : Z :=
   match pt with
   | Reftype h t  _ => sizeof_btype env t
-  | Otype t => sizeof_ptr_type env t
+  | Otype t => sizeof_type env t
   | Fptype _ _ _ => 1
   | Sptype x a => 1
   end.

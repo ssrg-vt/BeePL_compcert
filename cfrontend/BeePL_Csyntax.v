@@ -396,7 +396,7 @@ match e with
 | App e es t => do (ce, ctx') <- (transBeePL_expr_expr e ctx);
                 do (ces, ctx'') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx');
                 let ct := (transBeePL_type t) in
-                ret (Sdo (Ecall ce ces ct), ctx'')  
+                ret (Sreturn (Some (Ecall ce ces ct)), ctx'')  
 | Prim b es t => match b with 
                  | Ref => (* TODO: figure out how to recude duplicate code between here and transBeePL_expr_st *)
                           do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx);
@@ -454,7 +454,7 @@ match e with
                       | Prim Massgn es t => do (ce, ctx'') <- (transBeePL_expr_expr e ctx'); ret (Ssequence (Sdo ce) ce', ctx'') 
                       | For e1 e2 d e3 t => do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')  
                       | Screate sx ids es t =>  do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')  
-                      (*| App e1 es t => do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')  *)                                               | _ =>  do (ce, ctx'') <- (transBeePL_expr_expr e ctx');
+                      | _ =>  do (ce, ctx'') <- (transBeePL_expr_expr e ctx');
                                     ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
                                            (ce'), ctx'')
                       end
