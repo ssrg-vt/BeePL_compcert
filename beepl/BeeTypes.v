@@ -46,7 +46,7 @@ Inductive basic_type : Type :=
 
 Inductive ptr_type : Type :=
 | Reftype : ident -> basic_type -> attr -> ptr_type       (* Pointer to primitive types and struct : box - introduced in prog *)
-| Vptype : primitive_type -> ptr_type                         (* Pointer to primitve types coming from outside *)
+| Vptype : primitive_type -> ptr_type                     (* Pointer to primitve types coming from outside *)
 | Otype : ptr_type -> ptr_type                            (* Option type *)          
 | Fptype : list type -> effect -> type -> ptr_type        (* function/arrow pointer type *)
 | Sptype : ident -> attr -> ptr_type                      (* struct pointer - often used when it comes from helper functions *)
@@ -194,9 +194,9 @@ with transBeePL_ptr_type (pt : ptr_type) : Ctypes.type :=
       | Bstruct s a' => Ctypes.Tpointer (Tstruct s a') a
       end
   | Vptype pt => match pt with 
-                 | Tbool => Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr
-                 | (Tint sz s a') => Ctypes.Tpointer (Ctypes.Tint sz s a') a'
-                 | (Tlong s a') => Ctypes.Tpointer (Ctypes.Tlong s a') a'
+                 | Tbool => tptr tvoid (*Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr*)
+                 | (Tint sz s a') => tptr tvoid (*Ctypes.Tpointer (Ctypes.Tint sz s a') a'*)
+                 | (Tlong s a') => tptr tvoid (*Ctypes.Tpointer (Ctypes.Tlong s a') a'*)
                  end
   | Otype t => (transBeePL_ptr_type t)
   | Fptype ts ef t =>
