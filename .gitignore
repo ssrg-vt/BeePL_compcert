@@ -21,6 +21,8 @@
 .coq-native
 # Emacs saves
 *~
+# vscode
+.vscode
 # Executables and configuration
 /ccomp
 /ccomp.byte

@@ -59,6 +59,74 @@ with type : Type :=
 | Bytes : type.                                           (* bytes type of size n *)
 
 Section beepl_type_ind.
+Context (Pt : BeeTypes.type -> Prop).
+Context (Pts : list BeeTypes.type -> Prop).
+Context (Pptr : BeeTypes.ptr_type -> Prop).
+Context (Href : forall i bt a, Pptr (Reftype i bt a)).
+Context (Hvptr : forall pt, Pptr (Vptype pt)).
+Context (Hoptr : forall ptr, Pptr ptr -> Pptr (Otype ptr)).
+Context (Hfptr : forall ts e t, Pts ts -> Pt t -> Pptr (Fptype ts e t)).
+Context (Hsptr : forall i a, Pptr (Sptype i a)).
+Context (Hunot : Pt (Utype)).
+Context (Hv : forall pt, Pt (Vtype pt)).
+Context (Hptr : forall ptr, Pptr ptr -> Pt (Ptrtype ptr)).
+Context (Hs : forall i a, Pt (Stype i a)).
+Context (Hf : forall ts e t, Pts ts -> Pt t -> Pt (Ftype ts e t)).
+Context (Hb : Pt Bytes).
+Context (Hnil : Pts nil).
+Context (Hcons : forall t ts, Pt t -> Pts ts -> Pts (t :: ts)).
+
+Lemma beepl_type_ind_mut : 
+  (forall t, Pt t) /\ (forall ts, Pts ts) /\ (forall ptr, Pptr ptr).
+Proof.
+  assert (forall t, Pt t) as Htype.
+  - fix IHt 1.
+    destruct t.
+    + apply Hunot.
+    + apply Hv.
+    + apply Hptr.
+      revert p.
+      fix IHp 1.
+      destruct p.
+      * apply Href.
+      * apply Hvptr.
+      * apply Hoptr. apply IHp.
+      * apply Hfptr.
+        -- revert l.
+          fix IHl 1.
+          destruct l.
+          ++ apply Hnil.
+          ++ apply Hcons. apply IHt. apply IHl.
+        -- apply IHt.
+      * apply Hsptr.
+    + apply Hs.
+    + apply Hf.
+      * revert l.
+        fix IHl 1.
+        destruct l.
+        -- apply Hnil.
+        -- apply Hcons. apply IHt. apply IHl.
+      * apply IHt.
+    + apply Hb.
+  assert (forall ts, Pts ts) as Htypes.
+  - fix IHts 1.
+    destruct ts.
+    + apply Hnil.
+    + apply Hcons.
+      * apply Htype.
+      * apply IHts.
+  assert (forall ptr, Pptr ptr) as Hpptr.
+  - fix IHp 1.
+    destruct ptr.
+    + apply Href.
+    + apply Hvptr.
+    + apply Hoptr. apply IHp.
+    + apply Hfptr.
+      * apply Htypes.
+      * apply Htype.
+    + apply Hsptr.
+  split; try split; assumption.
+Qed.
 
 End beepl_type_ind.
 

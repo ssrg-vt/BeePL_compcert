@@ -134,19 +134,21 @@ Lemma expr_list_expr_ind_mut:
       Pe e -> Pe (Hexpr m e t)) ->
     (forall (ef : external_function) (ts : list type) (es : list BeePL.expr) (t : type),
       Pl es -> Pe (Eapp ef ts es t)) ->
+    (forall (i : ident) (idents : list ident) (es : list expr) (t : type),
+      Pl es -> Pe (Screate i idents es t)) ->
     (forall (e : expr) (x : ident) (t : type), Pe e -> Pe (Sfield e x t)) ->
-    (forall (x : ident) (e1 e2 : expr) (d : dir) (e3 : expr) (t : type), 
-      Pe e1 -> Pe e2 -> Pe e3 -> Pe (For x e1 e2 d e3 t)) ->
+    (forall (e1 e2 : expr) (d : dir) (e3 : expr) (t : type), 
+      Pe e1 -> Pe e2 -> Pe e3 -> Pe (For e1 e2 d e3 t)) ->
     (forall (t : type), Pe (Enone t)) ->
     (forall (e : expr) (t : type), Pe e -> Pe (Esome e t)) ->
-    (forall (e : expr) (l : list (pattern * expr)) (t : type),
-      Pe e -> Pl (unzip2 l) -> Pe (Match e l t)) ->
+    (forall (e : expr) (ps : list pattern) (es : list expr) (t : type),
+      Pe e -> Pl es -> Pe (Match e ps es t)) ->
     (Pl nil) ->
     (forall (e : BeePL.expr) (es : list BeePL.expr),
       Pe e -> Pl es -> Pl (e :: es)) ->
     (forall e, Pe e) /\ (forall es, Pl es).
 Proof.
-  intros Pe Pl HVal HVar HConst HApp HPrim HBind HCond HUnit HAddr HHexpr HEapp HSfield HFor HNone HSome HMatch Hnil Hcons.
+  intros Pe Pl HVal HVar HConst HApp HPrim HBind HCond HUnit HAddr HHexpr HEapp Hcreate HSfield HFor HNone HSome HMatch Hnil Hcons.
   
   (* Main proof strategy: induction on the structure of expressions and lists *)
   assert (forall e, Pe e) as He.
@@ -181,14 +183,19 @@ Proof.
         | nil => Hnil
         | e :: es => Hcons e es (IHe e) (IHl es)
         end).
+    - apply Hcreate.
+      apply (fix IHl (l : list BeePL.expr) : Pl l :=
+        match l with
+        | nil => Hnil
+        | e :: es => Hcons e es (IHe e) (IHl es)
+        end).
     - apply HSfield; apply IHe.
     - apply HFor; apply IHe.
     - apply HNone.
     - apply HSome; apply IHe.
     - apply HMatch.
       + apply IHe.
-      + induction l; auto.
-        apply Hcons; auto.
+      + induction l0; auto.
   }
   
   assert (forall l, Pl l) as Hl.
