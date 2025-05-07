@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx Coq.Strings.BinaryString.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Coq.Lists.List.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes Coqlib SimplExpr Csyntaxdefs.
-Require Import BeePL_aux BeePL BeeTypes Csyntax Errors SimplExpr BeePL_values DecimalString.
+Require Import BeePL_aux BeePL BeeTypes Csyntax Errors SimplExpr BeePL_values DecimalString BeePL_notations.
 
 Local Open Scope string_scope.
 Local Open Scope error_monad_scope.
@@ -9,7 +9,7 @@ Local Open Scope list_scope.
 
 Definition check_user_struct (t : type) : bool :=
 match t with 
-| Stype x a => ((substring 0 6 (string_of_ident x)) =? "option")%string
+| Stype x a => ((substring 0 5 (string_of_ident x)) =? "bytes")%string
 | _ => false
 end.
       
@@ -19,13 +19,13 @@ match ts with
 | st :: sts' => if check_user_struct st then true else check_user_structs sts' 
 end. 
 
-(*Compute (check_user_structs (Stype (ident_of_string "option_x") noattr ::
-                             Stype (ident_of_string "option_y") noattr :: 
-                             Otype (Ptype Tunit) :: nil)).*)
+(*Compute (check_user_structs (Stype (ident_of_string "bytes_t") noattr ::
+                             Stype (ident_of_string "x") noattr :: 
+                             tint32s :: nil)).*)
 
 Definition check_struct_from_types (ots : list type) : res (list type) :=
 if check_user_structs ots 
-then Error (msg "Reserved option struct names are not allowed")
+then Error (msg "Reserved bytes struct names are not allowed")
 else OK ots.
 
 Definition check_struct_from_vars (vars : list (ident * type)) : res (list (ident * type)) :=
