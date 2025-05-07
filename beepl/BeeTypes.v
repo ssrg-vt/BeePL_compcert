@@ -46,7 +46,7 @@ Inductive basic_type : Type :=
 
 Inductive ptr_type : Type :=
 | Reftype : ident -> basic_type -> attr -> ptr_type       (* Pointer to primitive types and struct : box - introduced in prog *)
-| Vptype : primitive_type -> ptr_type                         (* Pointer to primitve types coming from outside *)
+| Vptype : primitive_type -> ptr_type                     (* Pointer to primitve types coming from outside *)
 | Otype : ptr_type -> ptr_type                            (* Option type *)          
 | Fptype : list type -> effect -> type -> ptr_type        (* function/arrow pointer type *)
 | Sptype : ident -> attr -> ptr_type                      (* struct pointer - often used when it comes from helper functions *)
@@ -56,7 +56,12 @@ with type : Type :=
 | Ptrtype : ptr_type -> type                              (* pointer type : can be ref, option or function pointer*)
 | Stype : ident -> attr -> type                           (* struct type *)
 | Ftype : list type -> effect -> type -> type             (* function type *).
+
 (*| Bytes : type.*)
+
+Section beepl_type_ind.
+
+End beepl_type_ind.
 
 Fixpoint get_data_type (pt : ptr_type) : type :=
 match pt with 
@@ -101,8 +106,9 @@ match t with
 | Otype t => attr_of_ptr_type t
 | Fptype ts ef t => noattr
 | Sptype h a => a
-end
-with attr_of_type (t : type) : attr :=
+end.
+
+Definition attr_of_type (t : type) : attr :=
 match t with 
 | Utype => noattr
 | Vtype pt => attr_of_primitive_type pt
@@ -209,62 +215,6 @@ with transBeePL_ptr_type (pt : ptr_type) : Ctypes.type :=
         noattr)
   | Sptype s a => (Ctypes.Tpointer (Tstruct s a) a)
 end.
-
-(* Custom induction principles for transBeePL_type *)
-Lemma transBeePL_type_ind :
-forall (P : BeeTypes.type -> Prop),
-  (forall (t : primitive_type), P (Ptype t)) ->
-  (forall (h : ident) (bt : basic_type) (a : attr), P (Reftype h bt a)) ->
-  (forall (ts : list BeeTypes.type) (ef : effect) (t : BeeTypes.type),
-    Forall P ts -> P t -> P (Ftype ts ef t)) ->
-  (forall (h : ident) (a : attr), P (Stype h a)) ->
-  (forall (t : type), P t -> P (Otype t)) ->
-forall t : BeeTypes.type, P t.
-Proof.
-  intros P Hprim Href Hfun Hstruct Hoption.
-  fix IH 1.
-  intros t.
-  destruct t as [p | h bt a | ts ef t | h a | t].
-  - apply Hprim.
-  - apply Href.
-  - apply Hfun.
-    + induction ts as [| t' ts' IHts]; constructor; auto.
-    + apply IH.
-  - apply Hstruct.
-  - apply Hoption. apply IH.
-Qed.
-
-Lemma transBeePL_type_typelist_ind_mut:
-  forall (Pt : BeeTypes.type -> Prop) (Pts : list BeeTypes.type -> Prop),
-    (forall (t : primitive_type), Pt (Ptype t)) ->
-    (forall (h : ident) (bt : basic_type) (a : attr), Pt (Reftype h bt a)) ->
-    (forall (ts : list BeeTypes.type) (ef : effect) (t : BeeTypes.type),
-      Pts ts -> Pt t -> Pt (Ftype ts ef t)) ->
-    (forall (h : ident) (a : attr), Pt (Stype h a)) ->
-    (forall (t : type), Pt t -> Pt (Otype t)) ->
-    (Pts nil) ->
-    (forall (t : BeeTypes.type) (ts : list BeeTypes.type),
-      Pt t -> Pts ts -> Pts (t :: ts)) ->
-    (forall t, Pt t) /\ (forall ts, Pts ts).
-Proof.
-  intros Pt Pts Hprim Href Hfun Hstruct Hoption Hnil Hcons.
-  assert (forall t, Pt t) as Htype.
-  { apply transBeePL_type_ind; auto.
-    intros ts ef t Hforall HPt.
-    apply Hfun; auto.
-    induction ts as [|t' ts' IH].
-    - assumption.
-    - apply Hcons.
-      + apply Forall_inv in Hforall. assumption.
-      + apply IH. apply Forall_inv_tail in Hforall. assumption.
-  }
-  assert (forall ts, Pts ts) as Htypes.
-  { induction ts as [|t ts' IH].
-    - assumption.
-    - apply Hcons; auto.
-  }
-  split; assumption.
-Qed.
 
 Lemma transBeePL_types_length : forall ts cts,
   transBeePL_types transBeePL_type ts = cts ->
