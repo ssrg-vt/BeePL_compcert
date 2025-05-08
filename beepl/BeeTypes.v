@@ -289,9 +289,14 @@ Lemma transBeePL_types_length : forall ts cts,
 Proof.
   induction ts; intros.
   - inversion H. subst. reflexivity.
-  - admit.
-Admitted.
-
+  - simpl in *.
+    destruct cts.
+    + discriminate.
+    + injection H as H.
+      simpl.
+      f_equal.
+      auto.
+Qed.
 
 (*** Composite Definitions related to BeePL ***)
 Definition bmember_cmember (b : bmember) : member :=
@@ -692,7 +697,7 @@ type must be accessed:
 *)
 Definition access_mode_prim (t : primitive_type) : mode :=
 match t with 
-| Tbool => By_value Mint8signed
+| Tbool => By_value Mint8unsigned
 | Tint I8 Signed _ => By_value Mint8signed
 | Tint I8 Unsigned _ => By_value Mint8unsigned
 | Tint I16 Signed _ => By_value Mint16signed
@@ -712,7 +717,7 @@ Definition access_mode_type (t : type) : mode :=
   match t with
   | Utype => By_nothing
   | Vtype pt => access_mode_prim pt
-  | Ptrtype _ => By_reference
+  | Ptrtype _ => By_value Mptr
   | Stype _ _ => By_reference
   | Ftype _ _ _ => By_reference
   | Bytes => By_reference

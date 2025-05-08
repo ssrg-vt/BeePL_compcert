@@ -342,30 +342,58 @@ Inductive sim_bexpr_cstmt : vmap -> BeePL.expr -> function_ctx -> Csyntax.statem
 
 (***** Specification for types *****) 
 Inductive rel_ptype : BeeTypes.primitive_type -> Ctypes.type -> Prop :=
-| rel_tunit : rel_ptype Tunit (Ctypes.Tvoid) (* Fix me *)
+| rel_tbool : rel_ptype Tbool (Ctypes.Tint I8 Unsigned noattr)
 | rel_tint : forall sz s a, 
              rel_ptype (Tint sz s a) (Ctypes.Tint sz s a)
 | rel_tlong : forall s a, 
               rel_ptype (Tlong s a) (Ctypes.Tlong s a). 
 
 Inductive rel_btype : BeeTypes.basic_type -> Ctypes.type -> Prop :=
-| rel_bt : forall p ct,
-           rel_ptype p ct ->
-           rel_btype (Bprim p) ct.
+| rel_bprim : forall p ct,
+              rel_ptype p ct ->
+              rel_btype (Bprim p) ct
+| rel_bstruct : forall s a,
+                rel_btype (Bstruct s a) (Tstruct s a).
 
 Inductive rel_type : BeeTypes.type -> Ctypes.type -> Prop :=
-| rel_pt : forall p ct, 
-           rel_ptype p ct ->
-           rel_type (Ptype p) ct
-| rel_reftype : forall h bt ct a, 
-                rel_btype bt ct ->
-                rel_type (Reftype h bt a) (Tpointer ct a)
-| rel_ftype : forall ts ef t cts ct,
+| rel_utype : rel_type Utype (Ctypes.Tvoid)
+| rel_vtype : forall p ct,
+              rel_ptype p ct ->
+              rel_type (Vtype p) ct
+| rel_ptrtype : forall ptr cptr,
+                rel_ptr_type ptr cptr ->
+                rel_type (Ptrtype ptr) cptr
+| rel_stype : forall s a,
+              rel_type (Stype s a) (Tstruct s a)
+| rel_ftype : forall ts cts ef t ct,
               rel_types ts cts ->
               rel_type t ct -> 
               length ts = length (from_typelist cts) ->
               rel_type (Ftype ts ef t) (Tfunction cts ct 
-                                        {| cc_vararg := Some (Z.of_nat(length(ts))); cc_unproto := false; cc_structret := false |}) 
+                                        {| cc_vararg := Some (Z.of_nat (length ts)); cc_unproto := false; cc_structret := false |}) 
+| rel_bytes : rel_type Bytes (Tstruct bytes_t noattr)
+with rel_ptr_type : BeeTypes.ptr_type -> Ctypes.type -> Prop :=
+| rel_reftype_bool : forall i a,
+                     rel_ptr_type (Reftype i (Bprim Tbool) a) (Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr)
+| rel_reftype : forall i bt a ct,
+                rel_btype bt ct ->
+(* if ct is Tbool then a should be noattr, hopefully can discriminaite otherwise need another case *)
+                rel_ptr_type (Reftype i bt a) (Tpointer ct a) 
+| rel_vptype : forall pt ct,
+               rel_ptype pt ct ->
+               rel_ptr_type (Vptype pt) (tptr tvoid) (* replace with Tpointer ct once compiler is fixed *)
+| rel_otype : forall ptr cptr,
+              rel_ptr_type ptr cptr ->
+              rel_ptr_type (Otype ptr) cptr
+| rel_fptype : forall ts cts ef t ct,
+               rel_types ts cts ->
+               rel_type t ct ->
+               length ts = length (from_typelist cts) ->
+               rel_ptr_type (Fptype ts ef t) (Ctypes.Tpointer (Tfunction cts ct
+                                              {| cc_vararg := None; cc_unproto := false; cc_structret := false |})
+                                              noattr)
+| rel_sptype : forall s a,
+               rel_ptr_type (Sptype s a) (Ctypes.Tpointer (Tstruct s a) a)
 with rel_types : list BeeTypes.type -> Ctypes.typelist -> Prop :=
 | rel_tnil : rel_types nil Tnil
 | rel_tcons : forall bt bts ct cts,
@@ -374,128 +402,99 @@ with rel_types : list BeeTypes.type -> Ctypes.typelist -> Prop :=
               rel_types (bt :: bts) (Tcons ct cts).
 
 Scheme rel_type_ind_mut := Induction for rel_type Sort Prop
+  with rel_ptrtype_ind_mut := Induction for rel_ptr_type Sort Prop
   with rel_typelist_ind_mut := Induction for rel_types Sort Prop.
-Combined Scheme rel_type_typelist_ind_mut from rel_type_ind_mut, rel_typelist_ind_mut.
+Combined Scheme rel_type_typelist_ind_mut from rel_type_ind_mut, rel_ptrtype_ind_mut, rel_typelist_ind_mut.
 
 Section rel_type_ind.
-Context (Rts : list BeeTypes.type -> Ctypes.typelist -> Prop).
-Context (Rt : BeeTypes.type -> Ctypes.type -> Prop).
 Context (Rpt : BeeTypes.primitive_type -> Ctypes.type -> Prop).
 Context (Rbt : BeeTypes.basic_type -> Ctypes.type -> Prop).
-Context (Rtunit : Rpt Tunit (Ctypes.Tvoid)).
-Context (Rtint : forall sz s a, Rpt (Tint sz s a) (Ctypes.Tint sz s a)).
-Context (Rtlong : forall s a, Rpt (Tlong s a) (Ctypes.Tlong s a)).
-Context (Rbth : forall p ct, Rpt p ct -> Rbt (Bprim p) ct).
-Context (Rpth : forall p ct, Rpt p ct -> Rt (Ptype p) ct).
-Context (Rreft : forall h bt a ct, Rbt bt ct -> Rt (Reftype h bt a) (Tpointer ct a)). 
-Context (Rfunt : forall ts ef t cts ct, Rts ts cts -> Rt t ct -> 
-                 Rt (Ftype ts ef t) (Tfunction cts ct 
-                                     {| cc_vararg := Some (Z.of_nat(length(ts))); cc_unproto := false; cc_structret := false |})).
-Context (Rnil : Rts nil Tnil).
-Context (Rcons : forall t ct ts cts, Rt t ct -> Rts ts cts -> Rts (t :: ts) (Tcons ct cts)).
+Context (Rt : BeeTypes.type -> Ctypes.type -> Prop).
+Context (Rptr : BeeTypes.ptr_type -> Ctypes.type -> Prop).
+Context (Rts : list BeeTypes.type -> Ctypes.typelist -> Prop).
+Context (Htbool : Rpt Tbool (Ctypes.Tint I8 Unsigned noattr)).
+Context (Htint : forall sz s a, Rpt (Tint sz s a) (Ctypes.Tint sz s a)).
+Context (Htlong : forall s a, Rpt (Tlong s a) (Ctypes.Tlong s a)).
+Context (Hbprim : forall p ct, Rpt p ct -> Rbt (Bprim p) ct).
+Context (Hbstruct : forall s a, Rbt (Bstruct s a) (Tstruct s a)).
+Context (Hutype : Rt Utype (Ctypes.Tvoid)).
+Context (Hvtype : forall p ct, Rpt p ct -> Rt (Vtype p) ct).
+Context (Hptrtype : forall ptr cptr, Rptr ptr cptr -> Rt (Ptrtype ptr) cptr).
+Context (Hstype : forall s a, Rt (Stype s a) (Tstruct s a)).
+Context (Hftype : forall ts cts ef t ct, Rts ts cts -> Rt t ct -> Rt (Ftype ts ef t) (Tfunction cts ct
+                  {| cc_vararg := Some (Z.of_nat (length ts)); cc_unproto := false; cc_structret := false|})).
+Context (Hbytes : Rt Bytes (Tstruct bytes_t noattr)).
+Context (Hreftypebool : forall i a, Rptr (Reftype i (Bprim Tbool) a) (Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr)).
+Context (Hreftype : forall i bt a ct, Rbt bt ct -> Rptr (Reftype i bt a) (Tpointer ct a)).
+Context (Hvptype : forall pt ct, Rpt pt ct -> Rptr (Vptype pt) (tptr tvoid)).
+Context (Hotype : forall ptr cptr, Rptr ptr cptr -> Rptr (Otype ptr) cptr).
+Context (Hfptype : forall ts cts ef t ct, Rts ts cts -> Rt t ct -> Rptr (Fptype ts ef t) (Tpointer (Tfunction cts ct
+                   {| cc_vararg := None; cc_unproto := false; cc_structret := false|}) noattr)).
+Context (Hsptype : forall s a, Rptr (Sptype s a) (Tpointer (Tstruct s a) a)).
+Context (Hnil : Rts nil Tnil).
+Context (Hcons : forall t ct ts cts, Rt t ct -> Rts ts cts -> Rts (t :: ts) (Tcons ct cts)).
 
 Lemma rel_type_indP : 
 (forall t ct, rel_type t ct -> Rt t ct) /\
+(forall ptr cptr, rel_ptr_type ptr cptr -> Rptr ptr cptr) /\
 (forall ts cts, rel_types ts cts -> Rts ts cts).
 Proof. 
-Admitted.
-(*apply rel_type_typelist_ind_mut=> //=.
-+ move=> p ct /= hr. apply Rpth. case: p hr=> //=.
-  + case: ct=> //=.
-    + by move=> i s a hr;inversion hr.
-    + by move=> s a hr;inversion hr.
-    + by move=> f a hr; inversion hr.
-    + by move=> t a hr; inversion hr.
-    + by move=> t z a hr; inversion hr.
-    + by move=> ts t c hr; inversion hr.
-    + by move=> i a hr; inversion hr.
-    + by move=> i a hr; inversion hr.
-    by move=> i a hr; inversion hr.
-  + move=> i s a hr. case: ct hr=> //=.
-    + by move=> hr; inversion hr.
-    + by move=> sz' s' a' hr; inversion hr; subst.
-    + by move=> s' a' hr; inversion hr; subst.
-    + by move=> f a' hr; inversion hr.
-    + by move=> t a' hr; inversion hr.
-    + by move=> t z a' hr; inversion hr.
-    + by move=> t t' c hr; inversion hr.
-    + by move=> i' a' hr; inversion hr.
-    by move=> i' a' hr; inversion hr.
-  + case: ct=> //=.
-    + by move=> s a hr; inversion hr.
-    + by move=> sz s a s' a' hr; inversion hr; subst.
-    + by move=> s a s' a' hr; inversion hr; subst.
-    + by move=> f a s a' hr; inversion hr; subst.
-    + by move=> t a s a' hr; inversion hr.
-    + by move=> t z a s a' hr; inversion hr.
-    + by move=> ts t c s a hr; inversion hr.
-    + by move=> i a s a' hr; inversion hr.
-    by move=> i a s a' hr; inversion hr.
-+ move=> h bt ct a hr; inversion hr; subst.
-  apply Rreft. apply Rbth. case: p hr H=> //=.
-  + case: ct=> //=.
-    + by move=> i s a' hr H; inversion H; subst.
-    + by move=> s a' hr H; inversion H; subst.
-    + by move=> f a' hr H; inversion H.
-    + by move=> t a' hr H; inversion H.
-    + by move=> t z a' hr H; inversion H.
-    + by move=> ts t c hr H; inversion H.
-    + by move=> i a' hr H; inversion H.
-    + by move=> i a' hr H; inversion H.
-    + by move=> u s a' hr H; inversion H.
-    by move=> s a' hr H; inversion H.
-+ move=> ts ef t cts ct hrs hts hr ht hd.
-  by move: (Rfunt ts ef t cts ct hts ht).
-move=> bt bts ct cts hr ht hrs hts. 
-by move: (Rcons bt ct bts cts ht hts).
-Qed. *)
+  apply rel_type_typelist_ind_mut; auto.
+  - destruct p; intros; inversion r; auto.
+  - intros. apply Hreftype. destruct bt.
+    + apply Hbprim. inv r. destruct p; inversion H0; auto. 
+    + inv r. apply Hbstruct.
+  - intros. apply Hvptype with (ct := ct).
+    inv r; auto. 
+Qed.
 
 End rel_type_ind.
 
-(*
 (***** Proof for correctness of type transformation *****)
 Lemma type_translated: 
-(forall bt ct g g' i, 
-transBeePL_type bt g = Res ct g' i ->
-rel_type bt ct) /\ 
-(forall bts cts g g' i, 
-transBeePL_types transBeePL_type bts g = Res cts g' i ->
-rel_types bts cts).
+(forall t ct, 
+transBeePL_type t = ct ->
+rel_type t ct) /\ 
+(forall ts cts, 
+transBeePL_types transBeePL_type ts = cts ->
+rel_types ts cts) /\
+(forall ptr cptr,
+transBeePL_ptr_type ptr = cptr ->
+rel_ptr_type ptr cptr).
 Proof.
-  apply transBeePL_type_typelist_ind_mut with
-    (Pt := fun bt => forall ct g g' i,
-           transBeePL_type bt g = Res ct g' i ->
-           rel_type bt ct)
-    (Pts := fun bts => forall cts g g' i,
-           transBeePL_types transBeePL_type bts g = Res cts g' i ->
-           rel_types bts cts).
-  - intros. apply rel_pt. destruct t eqn:Hpt.
-    + injection H as H. subst. apply rel_tunit.
-    + injection H as H. subst. apply rel_tint.
-    + injection H as H. subst. apply rel_tlong.
-  - intros. inversion H. destruct bt; destruct p.
-    + injection H1 as H1. subst. apply rel_reftype. apply rel_bt. apply rel_tunit.
-    + injection H1 as H1. subst. apply rel_reftype. apply rel_bt. apply rel_tint.
-    + injection H1 as H1. subst. apply rel_reftype. apply rel_bt. apply rel_tlong.
-  - intros ts ef t IHts IHt ct g g' i H. inversion H.
-    unfold SimplExpr.bind in H1.
-    destruct (transBeePL_types transBeePL_type ts g) as [|ct' g'' i'] eqn:Htypes; try discriminate.
-    destruct (transBeePL_type t g'') as [|ct'' g''' i''] eqn:Htype; try discriminate.
-    injection H1 as H1. subst. apply rel_ftype.
-    + eapply IHts. apply Htypes.
-    + eapply IHt. apply Htype.
-    + eapply transBeePL_types_length. apply Htypes.
-  - intros. injection H as H. subst. apply rel_tnil.
-  - intros t ts IHt IHts cts g g' i H. inversion H.
-    unfold SimplExpr.bind in H1.
-    destruct (transBeePL_type t g) as [|ct g'' i'] eqn:Htype; try discriminate.
-    destruct (transBeePL_types transBeePL_type ts g'') as [|ct' g''' i''] eqn:Htypes; try discriminate.
-    injection H1 as H1. subst. apply rel_tcons.
-    + eapply IHt. apply Htype.
-    + eapply IHts. apply Htypes.
+  apply beepl_type_ind_mut with
+    (Pt := fun t => forall ct,
+           transBeePL_type t = ct ->
+           rel_type t ct)
+    (Pptr := fun ptr => forall cptr,
+             transBeePL_ptr_type ptr = cptr ->
+             rel_ptr_type ptr cptr)
+    (Pts := fun ts => forall cts,
+           transBeePL_types transBeePL_type ts = cts ->
+           rel_types ts cts);
+  intros.
+  - destruct bt eqn:Ebt; try destruct p eqn:Ep; subst cptr; repeat constructor.
+  - inv H. destruct pt.
+    + apply rel_vptype with (ct := Ctypes.Tint I8 Unsigned noattr). constructor.
+    + apply rel_vptype with (ct := Ctypes.Tint i s a). constructor.
+    + apply rel_vptype with (ct := Ctypes.Tlong s a). constructor.
+  - constructor. auto.
+  - subst cptr. constructor; auto.
+    eapply transBeePL_types_length. eauto.
+  - subst cptr. constructor.
+  - subst ct. constructor.
+  - subst ct. constructor.
+  - destruct pt; constructor.
+  - constructor; auto.
+  - subst ct. constructor.
+  - subst ct. constructor; auto.
+    eapply transBeePL_types_length. eauto.
+  - subst ct. constructor.
+  - subst cts. constructor.
+  - subst cts. constructor; auto.
 Qed.
 
-
+(*
 Lemma transBeePL_type_int : forall t g g' i sz s a,
 transBeePL_type t g = Res (Ctypes.Tint sz s a) g' i ->
 t = Ptype (Tint sz s a) \/ t = Ptype Tbool.

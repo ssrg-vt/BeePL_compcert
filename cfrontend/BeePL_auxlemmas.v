@@ -11,27 +11,6 @@ access_mode_type ty = md ->
 transBeePL_type ty =  cty ->
 Ctypes.access_mode cty = md.
 Proof.
-  intros ty cty md HACCESS HTRANS.
-  destruct ty eqn:Htype.
-  (* Prim *)
-  - destruct p eqn:Hp;
-    simpl in *;
-    subst;
-    reflexivity.
-  (* Ref *)
-  - destruct b; simpl in *.
-    + destruct p; simpl in *;
-      subst;
-      reflexivity.
-    + subst. reflexivity.
-  (* Ftype *)
-  - destruct e; simpl in *;
-    subst;
-    reflexivity.
-  (* Stype *)
-  - subst. reflexivity.
-  (* Otype *)
-  - subst. admit.
 Admitted.
 
 Lemma non_volatile_type_preserved : forall ty cty b,
@@ -39,27 +18,6 @@ type_is_volatile (transBeePL_type ty) = b ->
 transBeePL_type ty = cty ->
 Ctypes.type_is_volatile cty = b.
 Proof.
-  intros ty cty b HVOL HTRANS.
-  destruct ty eqn:Htype.
-  (* Prim *)
-  - destruct p eqn:Hp; 
-    simpl in *;
-    subst;
-    reflexivity.
-  (* Ref *)
-  - destruct b0; simpl in *.
-    + destruct p; simpl in *;
-      subst;
-      reflexivity.
-    + admit.
-  (* Ftype *)
-  - destruct e; simpl in *;
-    subst;
-    reflexivity.
-  (* Stype *)
-  - subst. reflexivity.
-  (* Otype *)
-  - subst. admit.
 Admitted.
 
 (* Lemma typec_expr : forall e ct ce g' g'' i',
@@ -86,22 +44,6 @@ transBeePL_type t = r ->
 transBeePL_type t = r'->
 r = r'.
 Proof. (* use inductive principle proved in BeeTypes.v *)
-  intro t.
-  apply transBeePL_type_ind with (t := t); intros.
-  (* Prim *)
-  - unfold transBeePL_type in *.
-    destruct t0;
-    subst;
-    reflexivity.
-  (* Ref *)
-  - unfold transBeePL_type in *.
-    destruct bt; simpl in *.
-    + destruct p;
-      subst;
-      reflexivity.
-    + subst. reflexivity.
-  (* Ftype *)
-  - admit.
 Admitted.
 
 (* Lemma transBeePL_expr_expr_type_equiv : forall e ce g g' i,
