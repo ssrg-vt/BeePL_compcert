@@ -4,7 +4,6 @@ Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Linking Ctypes C
 Require Import BeePL_aux BeePL_mem BeeTypes BeePL_values BeePL BeePL_typesystem Csyntax Csem Clight Globalenvs BeePL_Csyntax.
 Require Import Initializersproof Cstrategy BeePL_auxlemmas Coqlib Errors.
 
-
 From mathcomp Require Import all_ssreflect. 
 
 (***** Correctness proof for the Csyntax generation from BeePL using BeePL compiler *****)
@@ -843,56 +842,11 @@ Inductive match_function : BeePL.function -> Csyntax.function -> Prop :=
   sim_bexpr_cstmt vm (BeePL.fn_body bf) (Csyntax.fn_body cf) ->
   match_function bf cf.
 
-<<<<<<< HEAD
-Lemma transBeePL_function_spec: forall bf cf,
-transBeePL_function_function bf = OK cf ->
-match_function bf cf.
-Proof.
-  intros.
-  unfold transBeePL_function_function in H.
-  destruct (transBeePL_type (BeePL.fn_return bf) (initial_generator tt)) as [|crt g1 i1] eqn:Hreturn; try discriminate.
-  destruct (transBeePL_types transBeePL_type (BeePL_aux.unzip2 (fn_args bf)) (initial_generator tt)) as [|pt g2 i2] eqn:Hargs; try discriminate.
-  destruct (transBeePL_types transBeePL_type (BeePL_aux.unzip2 (BeePL.fn_vars bf)) (initial_generator tt)) as [|vt g3 i3] eqn:Hvars; try discriminate.
-  destruct (transBeePL_expr_st (BeePL.fn_body bf) (initial_generator tt)) as [|fbody g4 i4] eqn:Hbody; try discriminate.
-  injection H as H.
-  erewrite <- H.
-  eapply match_fun with (vm := benv); cbn in *.
-  - eauto.
-  - eauto.
-  - apply transBeePL_types_length in Hargs.
-    eapply unzip1_cancel.
-    rewrite unzip2_preserves_length in Hargs.
-    rewrite <- unzip1_preserves_length in Hargs.
-    apply Hargs.
-  - rewrite <- unzip2_cancel.
-    + rewrite to_typelist_cancel.
-      eauto.
-    + apply transBeePL_types_length in Hargs.
-      rewrite unzip2_preserves_length in Hargs.
-      rewrite <- unzip1_preserves_length in Hargs.
-      eauto.
-  - apply transBeePL_types_length in Hvars.
-    eapply unzip1_cancel.
-    rewrite unzip2_preserves_length in Hvars.
-    rewrite <- unzip1_preserves_length in Hvars.
-    apply Hvars.
-  - rewrite <- unzip2_cancel.
-    + rewrite to_typelist_cancel.
-      eauto.
-    + apply transBeePL_types_length in Hvars.
-      rewrite unzip2_preserves_length in Hvars.
-      rewrite <- unzip1_preserves_length in Hvars.
-      eauto.
-  - eapply transBeePL_expr_stmt_spec.
-    eauto.
-Qed.
-=======
 (* Lemma tranBeePL_function_spec: forall bf cf,
 transBeePL_function_function bf = OK cf ->
 match_function bf cf.
 Proof.
 Admitted. *)
->>>>>>> bwip
 
 (* Relates the fundef of BeePL and Csyntax *)
 (* Fix me: Add external function rel later *) 
