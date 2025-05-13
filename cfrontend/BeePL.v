@@ -205,12 +205,6 @@ match f with
 | External ef ts t cc => get_ef_eapp ef
 end.
 
-(*Inductive init_data : Set :=
-| Init_int8 : int -> init_data
-| Init_int16 : int -> init_data
-| Init_int32 : int -> init_data
-| Init_int64 : int64 -> init_data.*)
-
 Definition globvar (V : Type) := AST.globvar V.
 
 Definition globdef (F V : Type) := AST.globdef F V.

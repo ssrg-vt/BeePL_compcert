@@ -658,28 +658,39 @@ match gs with
 | g :: gs => transBeePL_init_data_init_data g :: transBeePL_init_datas_init_datas gs
 end. *)
 
-(* Translates BeePL global variable to C global variable *) 
-Definition transBeePLglobvar_globvar (gv : BeePL.globvar type) : (AST.globvar Ctypes.type)  :=
-let gvt := transBeePL_type (gv.(gvar_info)) in
-{| AST.gvar_info := gvt; 
-   AST.gvar_init := (gv.(gvar_init)); 
-   AST.gvar_readonly := gv.(gvar_readonly); 
-   AST.gvar_volatile :=  gv.(gvar_volatile)|}.
-
-Definition transBeePL_globdef_globdef (cenv : bcomposite_env) (gd : BeePL.globdef BeePL.fundef BeeTypes.type) (is : list (ident * string)) : res ((AST.globdef fundef Ctypes.type) * list (ident * string)) :=
-match gd with 
-| AST.Gfun f => do (cf, is') <- transBeePL_fundef_fundef cenv f is;
-                OK ((AST.Gfun cf), is')
-| AST.Gvar g => let cg := transBeePLglobvar_globvar g in
-                OK ((AST.Gvar cg), is)
+(* Translates BeePL global variable to C global variable *)
+Definition transBeePLglobvar_globvar (gv : BeePL.globvar type) : (AST.globvar Ctypes.type * list composite_definition) :=
+match (gv.(gvar_info)) with 
+| Maptype s i n kt vt => let nbc := (Composite s Struct
+                                       (Ctypes.Member_plain (ident_of_string "type") (tptr (tarray tint (Int.intval i))) ::
+                                        Ctypes.Member_plain (ident_of_string "max_entries") (tptr (tarray tint n)) ::
+                                        Ctypes.Member_plain (ident_of_string "key") (transBeePL_type kt) :: 
+                                        Ctypes.Member_plain (ident_of_string "value") (transBeePL_type vt) :: nil) noattr) in
+                         ({| AST.gvar_info := Tstruct s noattr; 
+                            AST.gvar_init := (gv.(gvar_init)); 
+                            AST.gvar_readonly := gv.(gvar_readonly); 
+                            AST.gvar_volatile :=  gv.(gvar_volatile)|}, (nbc :: nil))
+| _ => let gvt := transBeePL_type (gv.(gvar_info)) in
+       ({| AST.gvar_info := gvt; 
+           AST.gvar_init := (gv.(gvar_init)); 
+           AST.gvar_readonly := gv.(gvar_readonly); 
+           AST.gvar_volatile :=  gv.(gvar_volatile)|}, nil)
 end.
 
-Fixpoint transBeePL_globdefs_globdefs (cenv : bcomposite_env) (gds : list (BeePL.globdef BeePL.fundef BeeTypes.type)) (is : list (ident * string)) : res (list (AST.globdef fundef Ctypes.type) * list (ident * string)) :=
+Definition transBeePL_globdef_globdef (cenv : bcomposite_env) (gd : BeePL.globdef BeePL.fundef BeeTypes.type) (is : list (ident * string)) : res ((AST.globdef fundef Ctypes.type) * list (ident * string) * list composite_definition) :=
+match gd with 
+| AST.Gfun f => do (cf, is') <- transBeePL_fundef_fundef cenv f is;
+                OK ((AST.Gfun cf), is', nil)
+| AST.Gvar g => let cg := transBeePLglobvar_globvar g in
+                OK ((AST.Gvar (fst cg)), is, (snd cg))
+end.
+
+Fixpoint transBeePL_globdefs_globdefs (cenv : bcomposite_env) (gds : list (BeePL.globdef BeePL.fundef BeeTypes.type)) (is : list (ident * string)) : res (list (AST.globdef fundef Ctypes.type) * list (ident * string) * list composite_definition) :=
 match gds with 
-| nil => OK (nil, is)
+| nil => OK (nil, is, nil)
 | d :: ds => do (gd, is') <-  transBeePL_globdef_globdef cenv d is; 
-             do (gds, is'') <- transBeePL_globdefs_globdefs cenv ds is';
-             OK ((gd :: gds), is'')
+             do (gds, is'') <- transBeePL_globdefs_globdefs cenv ds (snd gd);
+             OK ((fst gd :: fst gds), (snd gds), (is' ++ is'')%list)
 end.
 
 (* Missing list of public functions *) 
@@ -688,6 +699,6 @@ Definition BeePL_compcert (p : BeePL.program) : res (Csyntax.program * list (ide
   let ncs := get_bcs_from_program cp in 
   do (pds, is') <- transBeePL_globdefs_globdefs (prog_comp_env(p)) (unzip2 (p.(prog_defs))) (p.(prog_ident_to_string));
   let cs := (map bcomposite_ccomposite_definition ncs) in 
-  let mcs := wrapper_beepl_struct_ebpf_struct cs in
-  do cprog <- make_program mcs (zip (unzip1 p.(prog_defs)) pds) (prog_public p) (prog_main p);
-  OK (cprog, is').
+  let mcs := wrapper_beepl_struct_ebpf_struct (is' ++ cs)  in
+  do cprog <- make_program mcs (zip (unzip1 p.(prog_defs)) (fst pds)) (prog_public p) (prog_main p);
+  OK (cprog, snd pds).
