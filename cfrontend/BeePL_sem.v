@@ -39,7 +39,7 @@ match e with
 | Enone t => false
 | Esome e t => is_stateful_expr e
 | Match e ps es t => is_stateful_expr e || has is_stateful_expr es
- 
+| Ebytes es t => has is_stateful_expr es
 end.
 
 Fixpoint is_stateful_exprs (es : list BeePL.expr) : bool :=

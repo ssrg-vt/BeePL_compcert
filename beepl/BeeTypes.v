@@ -751,6 +751,11 @@ Definition sizeof_type (env : bcomposite_env) (t : type) : Z :=
   | Bytes => match env!bytes_t with Some co => co_sizeof co | None => 0 end
   end.
 
+Fixpoint sizeof_types (env : bcomposite_env) (ts : list type) : Z :=
+match ts with 
+| nil => 0
+| t :: ts => sizeof_type env t + sizeof_types env ts
+end.
 
 (* Used for extracting the correct type for a Ref's fresh variable *)
 Definition ref_to_prim (ty : type) : mon type :=

@@ -430,6 +430,7 @@ match e with
                                      else Error (msg "TYPE ERROR: Type of Match expr should be an option to ref type and all its elements should be of same type")
                      | _ => Error (msg "TYPE ERROR: Type of Match expr should be an option type")
                      end
+| Ebytes es t => Error (msg "TYPE ERROR: Type of Bitstrings are not supported yet")
                      
 end.
 
