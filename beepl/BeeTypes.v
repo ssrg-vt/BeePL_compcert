@@ -1,3 +1,4 @@
+
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL PeanoNat Coq.NArith.BinNat Ctypes Errors Ctypes Coq.ZArith.Znumtheory.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps SimplExpr Coq.Strings.BinaryString  Coq.Numbers.DecimalString.
@@ -56,7 +57,9 @@ with type : Type :=
 | Ptrtype : ptr_type -> type                              (* pointer type : can be ref, option or function pointer*)
 | Stype : ident -> attr -> type                           (* struct type *)
 | Ftype : list type -> effect -> type -> type             (* function type *)
-| Bytes : type.                                           (* bytes type of size n *)
+| Bytes : type                                            (* bytes type of size n *)
+| Maptype : ident -> int -> Z -> 
+            type -> type -> type                          (* map type - it gets translated to struct map of ebpf *).
 
 Section beepl_type_ind.
 Context (Pt : BeeTypes.type -> Prop).
@@ -157,7 +160,8 @@ Inductive wtype : Type :=
 | Twv : wtype
 | Twptr : wtype
 | Twfun : wtype
-| Twbytes : wtype.
+| Twbytes : wtype
+| Twmap : wtype.
 
 Definition attr_of_primitive_type (t : primitive_type) : attr :=
 match t with 
@@ -183,6 +187,7 @@ match t with
 | Stype x a => a
 | Ftype ts e t => noattr
 | Bytes => noattr
+| Maptype s i n kt vt => noattr 
 end.
 
 (****** Translation from BeePL types to Csyntax types ******)
@@ -255,6 +260,7 @@ match t with
            cc_unproto := false;
            cc_structret := false |})
   | Bytes => (Tstruct bytes_t noattr)
+  | Maptype s i n kt vt => Tstruct s noattr 
   end
 with transBeePL_ptr_type (pt : ptr_type) : Ctypes.type :=
   match pt with 
@@ -414,6 +420,7 @@ match t with
 | Ftype es ef t => false
 | Stype x a => false
 | Bytes => false
+| Maptype s i n kt vt => false
 end. 
 
 Definition is_ref_ptr_type (pt : ptr_type) : bool :=
@@ -436,6 +443,7 @@ match t with
 | Ftype es ef t => false
 | Stype x a => true
 | Bytes => false
+| Maptype s i n kt vt => false
 end. 
 
 Definition is_utype (t : type) : bool :=
@@ -446,6 +454,7 @@ match t with
 | Ftype es ef t => false
 | Stype x a => false
 | Bytes => false
+| Maptype s i n kt vt => false
 end. 
 
 Definition is_funtype (t : type) : bool :=
@@ -557,7 +566,8 @@ Definition signedness_of_type (t : type) : option signedness :=
   | Stype _ _ => None
   | Ftype _ _ _ => None
   | Bytes => None
-  end.
+  | Maptype s i n kt vt => None
+end.
 
 Definition wtype_of_primitive (pt : primitive_type) : wtype :=
   match pt with
@@ -587,6 +597,7 @@ Definition wtype_of_type (t : type) : wtype :=
   | Stype _ _ => Twst
   | Ftype _ _ _ => Twfun
   | Bytes => Twbytes
+  | Maptype s i n kt vt => Twmap
   end.
 
 Fixpoint wtypes_of_types (t : list type) : list wtype :=
@@ -721,6 +732,7 @@ Definition access_mode_type (t : type) : mode :=
   | Stype _ _ => By_reference
   | Ftype _ _ _ => By_reference
   | Bytes => By_reference
+  | Maptype s i n kt vt => By_reference
   end.
 
 Section Eq_basic_types.
@@ -765,6 +777,11 @@ Fixpoint eq_type (t1 t2 : type) : bool :=
   | Ftype ts1 ef1 t1', Ftype ts2 ef2 t2' =>
       eq_types eq_type ts1 ts2 && eq_effect ef1 ef2 && eq_type t1' t2'
   | Bytes, Bytes => true
+  | Maptype s i n kt vt, Maptype s' i' n' kt' vt' => ident_eq s s' && 
+                                                     (Int.eq i i') && 
+                                                     (n =? n')%Z &&
+                                                     eq_type kt kt' &&
+                                                     eq_type vt vt'
   | _, _ => false
   end
 
@@ -798,6 +815,7 @@ Definition eq_wtype (w1 w2 : wtype) : bool :=
   | Twptr, Twptr => true
   | Twfun, Twfun => true
   | Twbytes, Twbytes => true
+  | Twmap, Twmap => true
   | _, _ => false
   end.
 
@@ -836,8 +854,15 @@ Definition sizeof_type (env : bcomposite_env) (t : type) : Z :=
   | Stype x _ => match env!x with Some co => co_sizeof co | None => 0 end
   | Ftype _ _ _ => 1
   | Bytes => match env!bytes_t with Some co => co_sizeof co | None => 0 end
+  | Maptype s i n kt vt => 0 (* it doesn't consume space in the program's runtime stack or heap. 
+                                It just informs the kernel to allocate a map of roughly : takes space in kernel memory *)
   end.
 
+Fixpoint sizeof_types (env : bcomposite_env) (ts : list type) : Z :=
+match ts with 
+| nil => 0
+| t :: ts => sizeof_type env t + sizeof_types env ts
+end.
 
 (* Used for extracting the correct type for a Ref's fresh variable *)
 Definition ref_to_prim (ty : type) : mon type :=

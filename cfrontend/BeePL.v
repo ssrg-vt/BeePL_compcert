@@ -28,7 +28,8 @@ Inductive builtin : Type :=
 (* Used in pattern matching in the match constructor *) 
 Inductive pattern : Type :=
 | Pnone : pattern
-| Psome : ident -> pattern.
+| Psome : ident -> pattern
+| Pbytes : list (ident * type) -> pattern.
 
 Fixpoint idents_eq (xs ys : list ident) : bool :=
 match xs, ys with 
@@ -41,7 +42,11 @@ Definition eq_pattern (p1 p2 : pattern) : bool :=
 match p1, p2 with 
 | Pnone, Pnone => true 
 | Psome x, Psome x' => ident_eq x x' 
-(*| Bstring xs ts, Bstring xs' ts' => idents_eq xs xs' && eq_types eq_type ts ts'*)
+| Pbytes xs, Pbytes xs' => let ids := unzip1 xs in
+                           let ts := unzip2 xs in 
+                           let ids' := unzip1 xs' in
+                           let ts' := unzip2 xs' in 
+                           idents_eq ids ids' && eq_types eq_type ts ts'
 | _, _ => false
 end. 
 
@@ -99,7 +104,8 @@ Inductive expr : Type :=
 | For : expr -> expr -> dir -> expr -> type -> expr                     (* for loop - constant bound *)
 | Enone : type -> expr                                                  (* none: option *)
 | Esome : expr -> type -> expr                                          (* some: option *)
-| Match : expr -> list pattern -> list expr -> type -> expr             (* pattern matching *).
+| Match : expr -> list pattern -> list expr -> type -> expr             (* pattern matching *)
+| Ebytes : list expr -> type -> expr                                    (* bitstrings *).
 
 (* for i = 1 to 5 Upto e *)
 (*
@@ -247,6 +253,7 @@ match e with
 | Enone t => t
 | Esome e t => t
 | Match e ps es t => t
+| Ebytes es t => t
 end.
 
 Fixpoint typeof_exprs (e : list expr) : list BeeTypes.type :=
@@ -295,12 +302,6 @@ match f with
 | Internal fd => fn_effect fd
 | External ef ts t cc => get_ef_eapp ef
 end.
-
-(*Inductive init_data : Set :=
-| Init_int8 : int -> init_data
-| Init_int16 : int -> init_data
-| Init_int32 : int -> init_data
-| Init_int64 : int64 -> init_data.*)
 
 Definition globvar (V : Type) := AST.globvar V.
 
@@ -572,6 +573,7 @@ Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
   | Enone t => Enone t 
   | Esome e t => Esome (subst x se e) t
   | Match e ps es t => Match (subst x se e) ps (map (subst x se) es) t
+  | Ebytes es t => Ebytes (map (subst x se) es) t
   end.
 
 

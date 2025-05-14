@@ -2,6 +2,7 @@ Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx Coq.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Coq.Lists.List.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes Coqlib SimplExpr Csyntaxdefs BeePL_notations.
 Require Import BeePL_aux BeePL BeeTypes Csyntax Errors SimplExpr BeePL_values DecimalString BeePL_Bytes_Struct BeePL_Check_Reserved_Struct.
+Require Import BeePL_Wrapper_Pass.
 
 Local Open Scope string_scope.
 Local Open Scope gensym_monad_scope.
@@ -45,7 +46,7 @@ match t with
 | Tunion h a => error (msg "Tunion not allowed")
 end.
 
-Definition default_expr := (Eval (Values.Vundef) Tvoid).
+Definition default_expr := (Eval (Values.Vint (Int.repr 0)) Tvoid).
 
 (* This function exists to handle creating fresh variables for converting Ref to
    CompCert C. 
@@ -227,6 +228,13 @@ match fields with
                     ret (Ssequence ff rs)
 end.
 
+Fixpoint use_comma_rec (ces : list Csyntax.expr) : expr :=
+match ces with 
+| nil => default_expr
+| ce :: ces => let ces' := (use_comma_rec ces) in
+               (Ecomma ce ces' (Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr))
+end.
+
 Fixpoint transBeePL_expr_expr (e : BeePL.expr) (fn_ctx : list (ident * BeeTypes.type * string)) : mon (Csyntax.expr * (list (ident * BeeTypes.type * string))) := 
 match e with 
 | Val v t => ret (Eval (trans_bvalue_cvalue v) (transBeePL_type t), fn_ctx) 
@@ -369,8 +377,11 @@ end
                               | _, _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
                               end
                           else error (msg "COMPILER ERROR: Match can be only performed on option type")
-                     | _ => error (msg "COMPILER ERROR: Match can be only performed on ptr type")
+                     | Bytes => ret (fst ce, snd ce)
+                     | _ => error (msg "COMPILER ERROR: Match can be only performed on ptr type or bytes type")
                      end
+| Ebytes es t => do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx); 
+                 error (msg "COMPILER ERROR: Bitstring translation is not supported yet")
 end.
 
 Definition check_var_const (e : BeePL.expr) : bool :=
@@ -380,7 +391,20 @@ match e with
 | _ => false
 end.
 
-Fixpoint transBeePL_expr_st (e : BeePL.expr ) (ctx : list (ident * BeeTypes.type * string)) : mon (Csyntax.statement * list (ident * BeeTypes.type * string)) :=
+Fixpoint assign_array_cast (a : ident) (sz : Z) (ts : list Ctypes.type) (ces : list Csyntax.expr) : mon Csyntax.statement :=
+match ces, ts with 
+| nil, nil => ret Sskip
+| ce1 :: ce2 :: ces1, t1 :: t2 :: ts1 => 
+  do rs <- assign_array_cast a sz ts1 ces1;
+  ret (Ssequence (Sdo (Eassign (Ederef (Ecast (Evalof (Evar a (tarray tschar sz)) (tarray tschar sz)) (tptr t1)) t1)
+                                                        ce1 t1))
+                 (Ssequence (Sdo (Eassign (Ederef (Ecast (Ebinop Cop.Oadd (Evalof (Evar a (tarray tschar sz)) (tarray tschar sz))
+                                                                          (Esizeof t1 t2) t2) (tptr t2)) t2)
+                                     ce2 t2)) rs))
+| _, _ => error (msg "COMPILER ERROR: The length of type list and expression list should be same in bitstring")
+end.  
+                                   
+Fixpoint transBeePL_expr_st (cenv : bcomposite_env) (e : BeePL.expr ) (ctx : list (ident * BeeTypes.type * string)) : mon (Csyntax.statement * list (ident * BeeTypes.type * string)) :=
 match e with 
 | Val v t => let vt := (transBeePL_type t) in
              ret (Sreturn (Some (Eval (trans_bvalue_cvalue v) vt)), ctx) 
@@ -451,19 +475,19 @@ match e with
                            end
                  end 
 | Bind x t e e' t' => let ct := (transBeePL_type t) in
-                      do (ce', ctx') <- (transBeePL_expr_st e' ctx);
+                      do (ce', ctx') <- (transBeePL_expr_st cenv e' ctx);
                       match e with 
                       | Prim Massgn es t => do (ce, ctx'') <- (transBeePL_expr_expr e ctx'); ret (Ssequence (Sdo ce) ce', ctx'') 
-                      | For e1 e2 d e3 t => do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')  
-                      | Screate sx ids es t =>  do (cs, ctx'') <- (transBeePL_expr_st e ctx'); ret (Ssequence cs ce', ctx'')  
+                      | For e1 e2 d e3 t => do (cs, ctx'') <- (transBeePL_expr_st cenv e ctx'); ret (Ssequence cs ce', ctx'')  
+                      | Screate sx ids es t =>  do (cs, ctx'') <- (transBeePL_expr_st cenv e ctx'); ret (Ssequence cs ce', ctx'')  
                       | _ => do (ce, ctx'') <- (transBeePL_expr_expr e ctx');
                                     ret (Ssequence (Sdo (Eassign (Evar x ct) ce Tvoid)) 
                                            (ce'), ctx'')
 
                       end
 | Cond e e' e'' t' => do (ce, ctx') <- (transBeePL_expr_expr e ctx);
-                      do (ce', ctx'') <- (transBeePL_expr_st e' ctx');
-                      do (ce'', ctx''') <- (transBeePL_expr_st e'' ctx'');
+                      do (ce', ctx'') <- (transBeePL_expr_st cenv e' ctx');
+                      do (ce'', ctx''') <- (transBeePL_expr_st cenv e'' ctx'');
                       let ct' := (transBeePL_type t') in
                       ret (Sifthenelse ce ce' ce'', ctx''')
                       (*if (check_var_const e' && check_var_const e'') (* check for expressions with side-effects *)
@@ -498,7 +522,7 @@ match e with
                      do (ce2, ctx3) <- transBeePL_expr_expr e2 ctx2;
                      do (high, strh) <- (fresh_ident (List.map unzip_ident ctx3) max_fresh);
                      let ctx4 := (high, typeof_expr e2, strh) :: ctx3 in
-                     do (ce3, ctx5) <- transBeePL_expr_st e ctx4;
+                     do (ce3, ctx5) <- transBeePL_expr_st cenv e ctx4;
                      do (i, stri) <- (fresh_ident (List.map unzip_ident ctx4) max_fresh);
                      let ctx6 := (i, typeof_expr e1, stri) :: ctx5 in
                      match d with 
@@ -527,7 +551,7 @@ match e with
              end
 | Esome e t => match t with 
                | Ptrtype t' => if is_option_ptr_type t' 
-                             then transBeePL_expr_st e ctx
+                             then transBeePL_expr_st cenv e ctx
                              else error (msg "COMPILER ERROR: Option type of Some should contain a pointer in BeePL")
                | _ => error (msg "COMPILER ERROR: Some should be of Option type")
               end
@@ -539,16 +563,16 @@ match e with
                          then match ps, es with 
                               | nil, nil => error (msg "COMPILER ERROR: No pattern matching cases found")
                               | (Pnone :: Psome x :: nil), (e1 :: e2 :: nil) => 
-                                  do ce1 <- transBeePL_expr_st e1 ctx;
-                                  do ce2 <- transBeePL_expr_st e2 (snd ce1);
+                                  do ce1 <- transBeePL_expr_st cenv e1 ctx;
+                                  do ce2 <- transBeePL_expr_st cenv e2 (snd ce1);
                                   ret ((Sifthenelse (Ebinop Cop.Oeq (fst ce) 
                                                        (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
                                                        (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
                                           (fst ce1)
                                           (fst ce2)), snd (ce2))
                               | (Psome x :: Pnone :: nil), (e1 :: e2 :: nil) => 
-                                  do ce1 <- transBeePL_expr_st e1 ctx;
-                                  do ce2 <- transBeePL_expr_st e2 (snd ce1);
+                                  do ce1 <- transBeePL_expr_st cenv e1 ctx;
+                                  do ce2 <- transBeePL_expr_st cenv e2 (snd ce1);
                                   ret ((Sifthenelse (Ebinop Cop.Oeq (fst ce) 
                                                        (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
                                                        (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
@@ -557,13 +581,29 @@ match e with
                               | _, _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
                               end
                           else error (msg "COMPILER ERROR: Match can be only performed on option type containing types other than ref")
-                     | _ =>  error (msg "COMPILER ERROR: Match can be only performed on option type")
+                     | Bytes => do (i, str) <- (fresh_ident (List.map unzip_ident (snd ce)) max_fresh);
+                                let ct := transBeePL_type Bytes in 
+                                let ctx'' := (i, Bytes, str) :: (snd ce) in
+                                ret (Sdo (Eassign (Evar i (tptr ct)) (Ecast (fst ce) ct) ct), snd ce)
+                     | _ =>  error (msg "COMPILER ERROR: Match can be only performed on option and bytes type")
                      end
+| Ebytes es t => do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx); 
+                 error (msg "COMPILER ERROR: Bitstring translation is not supported yet")
+                 (*do (i, str) <- (fresh_ident (List.map unzip_ident ctx') max_fresh);
+                 let ctx'' := (i, trint8u, str) :: ctx' in
+                 let sz := sizeof_types cenv (map typeof_expr es) in 
+                 let tcs := map typeof (exprlist_list_expr ces) in 
+                 do rs <- assign_array_cast i sz tcs (exprlist_list_expr ces);
+                 ret (Ssequence (Sdo (Evar i (tarray tschar sz)))
+                                 rs, ctx'')*)
+                 (*ret (Sdo (Ecast (hd default_expr (exprlist_list_expr ces)) (Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr)), ctx')*)
+     
+                                
 end.
 
 
 (* Translates the BeePL function declaration to C function *) 
-Definition transBeePL_function_function (fd : BeePL.function) (is : list (ident * string)) : res (Csyntax.function * list (ident * string)) :=
+Definition transBeePL_function_function (cenv : bcomposite_env) (fd : BeePL.function) (is : list (ident * string)) : res (Csyntax.function * list (ident * string)) :=
   let crt := (transBeePL_type (fd.(BeePL.fn_return))) in
   let pt := (transBeePL_types transBeePL_type (unzip2 (fd.(fn_args)))) in 
   
@@ -573,7 +613,7 @@ Definition transBeePL_function_function (fd : BeePL.function) (is : list (ident 
   | Err msg => Error msg
   | Res fn_ctx g i =>
   
-  match (transBeePL_expr_st (BeePL.fn_body fd) fn_ctx (initial_generator tt)) with 
+  match (transBeePL_expr_st cenv (BeePL.fn_body fd) fn_ctx (initial_generator tt)) with 
   | Err msg => Error msg
   | Res (fbody, fn_ctx') g i => 
   
@@ -593,9 +633,9 @@ end.
 
 Local Open Scope error_monad_scope.
 
-Definition transBeePL_fundef_fundef (fd : BeePL.fundef) (is : list (ident * string)) : res (Csyntax.fundef * list (ident * string)) :=
+Definition transBeePL_fundef_fundef (cenv : bcomposite_env) (fd : BeePL.fundef) (is : list (ident * string)) : res (Csyntax.fundef * list (ident * string)) :=
 match fd with 
-| Internal f => do (tf, is') <- transBeePL_function_function f is;
+| Internal f => do (tf, is') <- transBeePL_function_function cenv f is;
                 OK (Ctypes.Internal tf, is')
 | External ef ts t cc => let cef := (befunction_to_cefunction ef) in
                          let cts := (transBeePL_types transBeePL_type ts) in 
@@ -620,34 +660,47 @@ match gs with
 | g :: gs => transBeePL_init_data_init_data g :: transBeePL_init_datas_init_datas gs
 end. *)
 
-(* Translates BeePL global variable to C global variable *) 
-Definition transBeePLglobvar_globvar (gv : BeePL.globvar type) : (AST.globvar Ctypes.type)  :=
-let gvt := transBeePL_type (gv.(gvar_info)) in
-{| AST.gvar_info := gvt; 
-   AST.gvar_init := (gv.(gvar_init)); 
-   AST.gvar_readonly := gv.(gvar_readonly); 
-   AST.gvar_volatile :=  gv.(gvar_volatile)|}.
-
-Definition transBeePL_globdef_globdef (gd : BeePL.globdef BeePL.fundef BeeTypes.type) (is : list (ident * string)) : res ((AST.globdef fundef Ctypes.type) * list (ident * string)) :=
-match gd with 
-| AST.Gfun f => do (cf, is') <- transBeePL_fundef_fundef f is;
-                OK ((AST.Gfun cf), is')
-| AST.Gvar g => let cg := transBeePLglobvar_globvar g in
-                OK ((AST.Gvar cg), is)
+(* Translates BeePL global variable to C global variable *)
+Definition transBeePLglobvar_globvar (gv : BeePL.globvar type) : (AST.globvar Ctypes.type * list composite_definition) :=
+match (gv.(gvar_info)) with 
+| Maptype s i n kt vt => let nbc := (Composite s Struct
+                                       (Ctypes.Member_plain (ident_of_string "type") (tptr (tarray tint (Int.intval i))) ::
+                                        Ctypes.Member_plain (ident_of_string "max_entries") (tptr (tarray tint n)) ::
+                                        Ctypes.Member_plain (ident_of_string "key") (transBeePL_type kt) :: 
+                                        Ctypes.Member_plain (ident_of_string "value") (transBeePL_type vt) :: nil) noattr) in
+                         ({| AST.gvar_info := Tstruct s noattr; 
+                            AST.gvar_init := (gv.(gvar_init)); 
+                            AST.gvar_readonly := gv.(gvar_readonly); 
+                            AST.gvar_volatile :=  gv.(gvar_volatile)|}, (nbc :: nil))
+| _ => let gvt := transBeePL_type (gv.(gvar_info)) in
+       ({| AST.gvar_info := gvt; 
+           AST.gvar_init := (gv.(gvar_init)); 
+           AST.gvar_readonly := gv.(gvar_readonly); 
+           AST.gvar_volatile :=  gv.(gvar_volatile)|}, nil)
 end.
 
-Fixpoint transBeePL_globdefs_globdefs (gds : list (BeePL.globdef BeePL.fundef BeeTypes.type)) (is : list (ident * string)) : res (list (AST.globdef fundef Ctypes.type) * list (ident * string)) :=
+Definition transBeePL_globdef_globdef (cenv : bcomposite_env) (gd : BeePL.globdef BeePL.fundef BeeTypes.type) (is : list (ident * string)) : res ((AST.globdef fundef Ctypes.type) * list (ident * string) * list composite_definition) :=
+match gd with 
+| AST.Gfun f => do (cf, is') <- transBeePL_fundef_fundef cenv f is;
+                OK ((AST.Gfun cf), is', nil)
+| AST.Gvar g => let cg := transBeePLglobvar_globvar g in
+                OK ((AST.Gvar (fst cg)), is, (snd cg))
+end.
+
+Fixpoint transBeePL_globdefs_globdefs (cenv : bcomposite_env) (gds : list (BeePL.globdef BeePL.fundef BeeTypes.type)) (is : list (ident * string)) : res (list (AST.globdef fundef Ctypes.type) * list (ident * string) * list composite_definition) :=
 match gds with 
-| nil => OK (nil, is)
-| d :: ds => do (gd, is') <-  transBeePL_globdef_globdef d is; 
-             do (gds, is'') <- transBeePL_globdefs_globdefs ds is';
-             OK ((gd :: gds), is'')
+| nil => OK (nil, is, nil)
+| d :: ds => do (gd, is') <-  transBeePL_globdef_globdef cenv d is; 
+             do (gds, is'') <- transBeePL_globdefs_globdefs cenv ds (snd gd);
+             OK ((fst gd :: fst gds), (snd gds), (is' ++ is'')%list)
 end.
 
 (* Missing list of public functions *) 
 Definition BeePL_compcert (p : BeePL.program) : res (Csyntax.program * list (ident * string)) :=
   do cp <- check_struct_from_program p;
   let ncs := get_bcs_from_program cp in 
-  do (pds, is') <- transBeePL_globdefs_globdefs (unzip2 (p.(prog_defs))) (p.(prog_ident_to_string));
-  do cprog <- make_program (map bcomposite_ccomposite_definition ncs) (zip (unzip1 p.(prog_defs)) pds) (prog_public p) (prog_main p);
-  OK (cprog, is').
+  do (pds, is') <- transBeePL_globdefs_globdefs (prog_comp_env(p)) (unzip2 (p.(prog_defs))) (p.(prog_ident_to_string));
+  let cs := (map bcomposite_ccomposite_definition ncs) in 
+  let mcs := wrapper_beepl_struct_ebpf_struct (is' ++ cs)  in
+  do cprog <- make_program mcs (zip (unzip1 p.(prog_defs)) (fst pds)) (prog_public p) (prog_main p);
+  OK (cprog, snd pds).
