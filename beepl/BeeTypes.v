@@ -76,6 +76,7 @@ Context (Hptr : forall ptr, Pptr ptr -> Pt (Ptrtype ptr)).
 Context (Hs : forall i a, Pt (Stype i a)).
 Context (Hf : forall ts e t, Pts ts -> Pt t -> Pt (Ftype ts e t)).
 Context (Hb : Pt Bytes).
+Context (Hmp : forall a n i t1 t2, Pt t1 -> Pt t2 -> Pt (Maptype a n i t1 t2)).
 Context (Hnil : Pts nil).
 Context (Hcons : forall t ts, Pt t -> Pts ts -> Pts (t :: ts)).
 
@@ -111,6 +112,9 @@ Proof.
         -- apply Hcons. apply IHt. apply IHl.
       * apply IHt.
     + apply Hb.
+    + apply Hmp.
+      * apply IHt.
+      * apply IHt.
   assert (forall ts, Pts ts) as Htypes.
   - fix IHts 1.
     destruct ts.

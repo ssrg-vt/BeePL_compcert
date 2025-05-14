@@ -132,7 +132,7 @@ Inductive sem_allocate_fields : positive -> ptrofs -> ident -> list ident -> lis
 
 Section Big_Step_Semantics.
 
-Variable (ge : genv).
+Variable (ge : BeePL.genv).
 
 (* Big step semantics without lv, rv, or context *) 
 Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> value -> Prop := 
@@ -304,6 +304,7 @@ Scheme bsem_expr_ind_mut := Induction for bsem_expr Sort Prop
 Combined Scheme bsem_exprs_bsem_expr_ind_mut from bsem_exprs_ind_mut, bsem_expr_ind_mut.
 
 Section bsem_expr_ind.
+Variable (ge : BeePL.genv).
 Context (Pbs : vmap -> Memory.mem -> list BeePL.expr -> Memory.mem -> vmap -> list value -> Prop).
 Context (Pb : vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> value -> Prop).
 Context (Hbvalue : forall vm m v t, 
@@ -323,7 +324,7 @@ Context (Hbconsti : forall vm m i t,
 Context (Hbconstl : forall vm m i t, 
                   Pb vm m (Const (ConsLong i) t) m vm (Vint64 i)).
 Context (Hbconstu : forall vm m,
-                  Pb vm m (Const (ConsUnit) (Ptype Tunit)) m vm (Vunit)).
+                  Pb vm m (Const (ConsUnit) (Utype)) m vm (Vunit)).
 Context (Hbappr : forall vm1 vm2 m1 e es t l fd m2 m3 m4 m5 m6 vs rv vm3 vm4 vm5,
                   Pb vm1 m1 e m2 vm2 (Vloc l Ptrofs.zero) ->
                   Genv.find_funct ge (trans_bvalue_cvalue (Vloc l Ptrofs.zero)) = Some (Internal fd) ->

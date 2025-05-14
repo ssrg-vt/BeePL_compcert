@@ -149,12 +149,13 @@ Lemma expr_list_expr_ind_mut:
     (forall (e : expr) (t : type), Pe e -> Pe (Esome e t)) ->
     (forall (e : expr) (ps : list pattern) (es : list expr) (t : type),
       Pe e -> Pl es -> Pe (Match e ps es t)) ->
+    (forall (es : list expr) (t : type), Pl es -> Pe (Ebytes es t)) ->
     (Pl nil) ->
     (forall (e : BeePL.expr) (es : list BeePL.expr),
       Pe e -> Pl es -> Pl (e :: es)) ->
     (forall e, Pe e) /\ (forall es, Pl es).
 Proof.
-  intros Pe Pl HVal HVar HConst HApp HPrim HBind HCond HUnit HAddr HHexpr HEapp Hcreate HSfield HFor HNone HSome HMatch Hnil Hcons.
+  intros Pe Pl HVal HVar HConst HApp HPrim HBind HCond HUnit HAddr HHexpr HEapp Hcreate HSfield HFor HNone HSome HMatch HEbytes Hnil Hcons.
   
   (* Main proof strategy: induction on the structure of expressions and lists *)
   assert (forall e, Pe e) as He.
@@ -202,6 +203,8 @@ Proof.
     - apply HMatch.
       + apply IHe.
       + induction l0; auto.
+    - apply HEbytes.
+      + induction l; auto.
   }
   
   assert (forall l, Pl l) as Hl.
