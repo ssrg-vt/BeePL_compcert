@@ -95,7 +95,7 @@ Inductive expr : Type :=
 | Addr : linfo -> ptrofs -> type -> expr                                (* address: Addr: not intended to be written by programmers: *)
 | Hexpr : Memory.mem -> expr -> type -> expr                            (* heap effect *)
 | Eapp : external_function -> list type -> list expr -> type -> expr    (* external function *)
-| Screate : ident -> list ident -> list expr -> type -> expr                (* struct creation *)
+| Sinit : ident -> list ident -> list expr -> type -> expr                (* struct creation *)
 | Sfield : expr -> ident -> type -> expr                                (* access to a member of struct *)
 | For : expr -> expr -> dir -> expr -> type -> expr                     (* for loop - constant bound *)
 | Enone : type -> expr                                                  (* none: option *)
@@ -145,7 +145,7 @@ match e with
 | Addr l p t => t
 | Hexpr h e t => t
 | Eapp ef ts es t => t
-| Screate _ _ _ t => t
+| Sinit _ _ _ t => t
 | Sfield e x t => t
 | For e1 e2 d e t => t
 | Enone t => t
@@ -167,7 +167,8 @@ Record function : Type := mkfunction { (*fn_sec: option string; XDP ==> SEC("xdp
                                        fn_callconv: calling_convention;
                                        fn_args: list (ident * type);
                                        fn_vars: list (ident * type);
-                                       fn_body: expr }.
+                                       fn_body: expr;
+                                       is_ebpf : bool }.
 
 Inductive fundef : Type :=
 | Internal : function -> fundef
@@ -255,6 +256,27 @@ Definition mkbprogram (types: list bcomposite_definition)
      prog_comp_env := ce;
      prog_comp_env_eq := EQ; 
      prog_ident_to_string := ident_to_string |}.
+
+Definition get_args_ebpf_gbdef (gd : globdef fundef type) : list (ident * type) :=
+match gd with 
+| Gfun fd => match fd with 
+             | Internal f => if f.(is_ebpf) then f.(fn_args) else nil
+             | External _ _ _ _ => nil
+             end
+| Gvar v => nil
+end.
+
+Fixpoint get_args_ebpf_gbdefs (gd : list (globdef fundef type)) : list (ident * type) :=
+match gd with 
+| nil => nil
+| gd :: gds => get_args_ebpf_gbdef gd  ++ get_args_ebpf_gbdefs gds
+end.
+
+Definition get_args (p : program) : list (ident * type) :=
+match unzip2 p.(prog_defs) with 
+| nil => nil
+| gd :: gds => get_args_ebpf_gbdef gd ++ get_args_ebpf_gbdefs gds
+end.
 
 (************************** Operation Semantics **************************************)
 (* Global environments are a component of the dynamic semantics of
@@ -465,7 +487,7 @@ Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
   | Addr l p t => Addr l p t
   | Hexpr h e t => Hexpr h (subst x se e) t
   | Eapp ef ts es t => Eapp ef ts (map (subst x se) es) t
-  | Screate x ids es t => Screate x ids (map (subst x se) es) t (* fix we need to make comparison with ids? *)
+  | Sinit x ids es t => Sinit x ids (map (subst x se) es) t (* fix we need to make comparison with ids? *)
   | Sfield e fld t => Sfield (subst x se e) fld t
   | For e1 e2 d e' t => For (subst x se e1) (subst x se e2) d (subst x se e') t
   | Enone t => Enone t 
