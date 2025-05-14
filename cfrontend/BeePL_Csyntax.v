@@ -579,10 +579,14 @@ match e with
                               | _, _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
                               end
                           else error (msg "COMPILER ERROR: Match can be only performed on option type containing types other than ref")
-                     | Bytes => do (i, str) <- (fresh_ident (List.map unzip_ident (snd ce)) max_fresh);
-                                let ct := transBeePL_type Bytes in 
-                                let ctx'' := (i, Bytes, str) :: (snd ce) in
-                                ret (Sdo (Eassign (Evar i (tptr ct)) (Ecast (fst ce) ct) ct), snd ce)
+                     | Bytes => match ps with 
+                                | (Pbytes x (Stype s noattr) :: nil) => 
+                                     ret (Ssequence (Sdo (Eassign (Efield (fst ce) (ident_of_string "bytes_start") (tptr tschar)) 
+                                                           (Ecast (fst ce) (tptr (tschar))) (tptr (tschar))))
+                                                   (Sdo (Evar x (Tstruct s noattr))), ctx) 
+                                    (*ret (Sdo (Efield (fst ce) (ident_of_string "bytes_start") (tptr tschar)), snd ce)*)
+                                | _ => error (msg "COMPILER ERROR: Match on bytes only pattern match on Pbytes pattern")
+                                end
                      | _ =>  error (msg "COMPILER ERROR: Match can be only performed on option and bytes type")
                      end
 | Ebytes es t => do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx); 
@@ -696,9 +700,10 @@ end.
 (* Missing list of public functions *) 
 Definition BeePL_compcert (p : BeePL.program) : res (Csyntax.program * list (ident * string)) :=
   do cp <- check_struct_from_program p;
-  let ncs := get_bcs_from_program cp in 
   do (pds, is') <- transBeePL_globdefs_globdefs (prog_comp_env(p)) (unzip2 (p.(prog_defs))) (p.(prog_ident_to_string));
-  let cs := (map bcomposite_ccomposite_definition ncs) in 
-  let mcs := wrapper_beepl_struct_ebpf_struct (is' ++ cs)  in
+  let ncs := get_bcs_from_globdefs (unzip2 (p.(prog_defs))) in 
+  let cs := (map bcomposite_ccomposite_definition p.(prog_types)) in 
+  let mcs := (ncs ++ wrapper_beepl_struct_ebpf_struct (is' ++ cs))%list  in
   do cprog <- make_program mcs (zip (unzip1 p.(prog_defs)) (fst pds)) (prog_public p) (prog_main p);
   OK (cprog, snd pds).
+

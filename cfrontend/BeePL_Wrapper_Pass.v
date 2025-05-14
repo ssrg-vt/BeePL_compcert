@@ -11,13 +11,16 @@ Fixpoint wrapper_beepl_struct_ebpf_struct (cs : list composite_definition) : lis
 match cs with 
 | nil => nil
 | c1 :: cs1 => match c1 with 
-               | (Composite _xdp_md Struct
+               | (Composite _xdp_md_bee Struct
                    (Ctypes.Member_plain _data (Tstruct bytes_t {| attr_volatile := false; attr_alignas := None |}) :: rest) 
                    {| attr_volatile := false; attr_alignas := None |})
-                   => (Composite _xdp_md Struct
-                        (Ctypes.Member_plain _data (Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr) :: 
-                         Ctypes.Member_plain (ident_of_string "data_end") (Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr) :: rest)
-                                           noattr) :: wrapper_beepl_struct_ebpf_struct cs1
+                   => (Composite (ident_of_string "xdp_md") Struct
+                        (Ctypes.Member_plain _data (Ctypes.Tint I32 Unsigned noattr)  :: 
+                         Ctypes.Member_plain (ident_of_string "data_end") (Ctypes.Tint I32 Unsigned noattr)  :: rest) noattr) :: c1 ::
+                      (*(Composite (ident_of_string "xdp_md_wrapper") Struct
+                        (Ctypes.Member_plain (ident_of_string "start") (Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr) :: 
+                         Ctypes.Member_plain (ident_of_string "end")  (Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr) :: rest) noattr) ::*)
+                       wrapper_beepl_struct_ebpf_struct cs1
               | _ => c1 :: wrapper_beepl_struct_ebpf_struct cs1
               end
 end.

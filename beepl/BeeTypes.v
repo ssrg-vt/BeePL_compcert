@@ -1,6 +1,6 @@
 
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
-Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL PeanoNat Coq.NArith.BinNat Ctypes Errors Ctypes Coq.ZArith.Znumtheory.
+Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL PeanoNat Coq.NArith.BinNat Ctypes Errors Ctypes Coq.ZArith.Znumtheory Coqlib.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps SimplExpr Coq.Strings.BinaryString  Coq.Numbers.DecimalString.
 From mathcomp Require Import all_ssreflect. 
 From compcert Require Import Csyntaxdefs. 
@@ -137,6 +137,15 @@ Inductive bmember : Type :=
 | Member_plain : ident -> BeeTypes.type -> bmember
 | Member_bitfield : ident -> intsize -> signedness -> attr -> Z -> bool -> bmember.
 
+Definition type_bmember (m: bmember) : type :=
+  match m with
+  | Member_plain _ t => t
+  | Member_bitfield _ sz sg a w _ =>
+      (* An unsigned bitfield of width < size of type reads with a signed type *)
+      let sg' := if zlt w (bitsize_intsize sz) then Signed else sg in
+      Vtype (Tint sz sg' a)
+  end.
+
 Open Scope Z_scope.
 
 Record bcomposite : Type := Build_bcomposite
@@ -265,10 +274,40 @@ Definition bcomposite_composite_env (benv : bcomposite_env) : composite_env :=
     benv
     (PTree.empty composite).
 
+(** ** Complete types *)
+
+(** A type is complete if it fully describes an object.
+  All struct and union names appearing in the type must be defined,
+  unless they occur under a pointer or function type.  [void] and
+  function types are incomplete types. *)
+Fixpoint bcomplete_type (env: bcomposite_env) (t: type) : bool :=
+  match t with
+  | Utype => false
+  | Vtype pt => true
+  | Ptrtype pt => true 
+  | Stype s _ => match env!s with Some co => true | None => false end
+  | Ftype _ _ _ => false
+  | Bytes => true 
+  | Maptype _ _ _ _ _ => false
+  end.
+
+Definition bcomplete_or_function_type (env: bcomposite_env) (t: type) : bool :=
+  match t with
+  | Ftype _ _ _ => true
+  | _ => bcomplete_type env t
+  end.
+
+
+Fixpoint bcomplete_members (env: bcomposite_env) (ms: list bmember) : bool :=
+  match ms with
+  | nil => true
+  | m :: ms => bcomplete_type env (type_bmember m) && bcomplete_members env ms
+  end.
+
 Program Definition bcomposite_of_def
      (env: bcomposite_env) (id: ident) (su: struct_or_union) (m: list bmember) (a: attr)
      : res bcomposite :=
-  match env!id, complete_members (bcomposite_composite_env env) (bmembers_cmembers m) return _ with
+  match env!id, bcomplete_members env m return _ with
   | Some _, _ =>
       Error (MSG "Multiple definitions of struct or union " :: CTX id :: nil)
   | None, false =>
