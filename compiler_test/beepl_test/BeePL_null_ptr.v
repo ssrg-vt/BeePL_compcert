@@ -46,7 +46,8 @@ Definition f_null_ptr : BeePL.function := {|
                                                       (Pnone :: Psome _p :: nil) 
                                                       (cint (Int.repr (-1)%Z) tint32s ::
                                                         (Prim (Deref) (Var _r (toint32s) :: nil) tint32s) :: nil) tint32s)
-                                               (Var _t tint32s) tint32s|}.
+                                               (Var _t tint32s) tint32s;
+                                   is_ebpf := false|}.
 
 
 (* int main() {
@@ -72,7 +73,8 @@ Definition f_ptr_add : BeePL.function := {|
                                                        (Prim (Bop Cop.Oadd) 
                                                            (Prim (Deref) (Var _r (toint32s) :: nil) tint32s ::
                                                             cint (Int.repr 1) tint32s :: nil) tint32s) :: nil) tint32s)
-                                               (Var _t tint32s) tint32s|}.
+                                               (Var _t tint32s) tint32s;
+                                   is_ebpf := false |}.
 
 
 (* int main() {
@@ -100,7 +102,8 @@ Definition f_ptr_assgn : BeePL.function := {|
                                                           (Prim (Bop Cop.Oadd) 
                                                            (Prim (Deref) (Var _r (toint32s) :: nil) tint32s ::
                                                             cint (Int.repr 1) tint32s :: nil) tint32s) :: nil) tunit)
-                                                         (Prim Deref (Var _r (toint32s) :: nil) tint32s) tint32s) :: nil) tint32s)|}.
+                                                         (Prim Deref (Var _r (toint32s) :: nil) tint32s) tint32s) :: nil) tint32s);
+                                  is_ebpf := false|}.
 
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 

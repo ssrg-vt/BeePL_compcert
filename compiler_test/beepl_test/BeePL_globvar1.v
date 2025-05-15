@@ -39,7 +39,7 @@ Definition v_x := {|
 |}.
 
 Definition f_main := {| fn_return := tint32s;
-                          fn_effect := Read mem_ident :: Write mem_ident :: nil;
+                          fn_effect := Read mem_ident :: Write mem_ident :: Read mem_ident :: nil;
                           fn_callconv := cc_default;
                           fn_args := nil;
                           fn_vars := (_r, tint32s) :: nil;
@@ -49,7 +49,8 @@ Definition f_main := {| fn_return := tint32s;
                                         (Prim (Bop Cop.Oadd) 
                                            (Prim Deref (Var _x trint32s :: nil) tint32s ::
                                             cint (Int.repr 1) tint32s :: nil) tint32s) :: nil) tunit)
-                           (Prim Deref (Var _x trint32s :: nil) tint32s) tint32s
+                           (Prim Deref (Var _x trint32s :: nil) tint32s) tint32s;
+                          is_ebpf := false
                                    
                           |}.
 
@@ -69,3 +70,14 @@ Proof.
   unfold build_bcomposite_env; simpl; constructor. 
 Qed.
 
+(*Definition example1 : BeePL.program := @mkbprogram bcomposites 
+                                                   global_definitions 
+                                                   public_idents 
+                                                   _main 
+                                                   bcomposite_correct
+                                                   ident_to_string.
+
+Compute (type_check_expr example1.(prog_comp_env) 
+                         (bind_vars (bind_vars empty_context f_main.(fn_args)) f_main.(fn_vars)) empty_context f_main.(fn_body)).
+
+Compute (type_check_program example1).*)  (* Type checks! *)

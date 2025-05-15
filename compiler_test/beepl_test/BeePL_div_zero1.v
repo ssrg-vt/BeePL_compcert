@@ -45,7 +45,8 @@ Definition f_div_zero : BeePL.function := {|
                                                       (Prim (Bop Cop.Odiv) 
                                                             (Var _x tint32u :: 
                                                              Var _y tint32u :: nil) tint32u)
-                                                      (Var _r tint32u) tint32u) tint32u) tint32u |}.
+                                                      (Var _r tint32u) tint32u) tint32u) tint32u;
+                                  is_ebpf := false |}.
 
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
@@ -69,5 +70,5 @@ Qed.
                                                    bcomposite_correct
                                                    ident_to_string.
 
-Compute (type_check_program example1).*) (* Type checks *)
+Compute (type_check_program example1). *) (* Type checks *)
 

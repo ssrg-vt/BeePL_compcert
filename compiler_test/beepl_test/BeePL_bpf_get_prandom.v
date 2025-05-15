@@ -72,7 +72,8 @@ Definition f_xdp_prog : BeePL.function := {|
                                    fn_body := Bind 
                                                 (_rand) tint32u
                                                 (App (Var _bpf_get_prandom_u32 (tfun nil nil tint32u)) nil tint32u)
-                                                (cint (Int.repr 1) tint32s) tint32s |}.
+                                                (cint (Int.repr 1) tint32s) tint32s;
+                                   is_ebpf := true |}.
 
 Definition bcomposites : list bcomposite_definition :=
 (Bcomposite _xdp_md Struct
@@ -108,4 +109,4 @@ Qed.
                                                    ident_to_string.
 
 
-Compute (type_check_program example1).*) (* Type checks *)
+Compute (type_check_program example1). *) (* Type checks *)

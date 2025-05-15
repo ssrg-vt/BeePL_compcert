@@ -60,7 +60,8 @@ Definition f_add : BeePL.function := {|
                                                 (Prim (Bop Cop.Oadd) 
                                                       (Var _x tint32s :: 
                                                        Var _y tint32s :: nil) tint32s)
-                                                (Var _r tint32s) tint32s |}.
+                                                (Var _r tint32s) tint32s;
+                                   is_ebpf := false |}.
 
 
 Definition f_compute : BeePL.function := {| 
@@ -73,7 +74,8 @@ Definition f_compute : BeePL.function := {|
                                    fn_vars := nil;
                                    fn_body := (App (Var _fp (tpfun (tint32s :: tint32s :: nil) nil tint32s))
                                                    (Var _x tint32s :: 
-                                                    Var _y tint32s :: nil) tint32s) |}.
+                                                    Var _y tint32s :: nil) tint32s);
+                                   is_ebpf := false |}.
 
 
 Definition f_main : BeePL.function := {| 
@@ -91,7 +93,8 @@ Definition f_main : BeePL.function := {|
                                                          cint (Int.repr 4) tint32s ::
                                                          Var _add (tfun (tint32s :: tint32s :: nil) nil tint32s) :: nil) 
                                                          tint32s)
-                                                   (Var _r tint32s) tint32s |}.
+                                                   (Var _r tint32s) tint32s; 
+                                   is_ebpf := false |}.
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
    := (_add, AST.Gfun(BeePL.Internal (f_add))) ::
@@ -109,7 +112,7 @@ Proof.
   unfold build_bcomposite_env; simpl; reflexivity.
 Qed.
 
-Definition example1 : BeePL.program := @mkbprogram bcomposites 
+(*Definition example1 : BeePL.program := @mkbprogram bcomposites 
                                                    global_definitions 
                                                    public_idents 
                                                    _main 
@@ -117,6 +120,6 @@ Definition example1 : BeePL.program := @mkbprogram bcomposites
                                                    ident_to_string.
 
 
-(*Compute (type_check_program example1).*) (* Type checks *)
+Compute (type_check_program example1). *) (* Type checks *)
 
 

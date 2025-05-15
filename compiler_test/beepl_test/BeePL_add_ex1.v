@@ -37,7 +37,8 @@ Definition f_add : BeePL.function := {|
                                                    (Bind _r tint32u (Prim (Bop Cop.Oadd) ((Var _x tint32u) ::
                                                                                           (Var _y tint32u) :: nil) tint32u)
                                                         (Var _r tint32u) tint32u) tint32u)
-                                                tint32u |}.
+                                                tint32u;
+                                   is_ebpf := false|}.
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
    := (_main, AST.Gfun(BeePL.Internal (f_add))) :: nil.

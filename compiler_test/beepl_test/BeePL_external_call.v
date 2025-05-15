@@ -63,7 +63,8 @@ Definition f_external_call : BeePL.function := {|
                                                            (Var _a tint32s :: 
                                                             Prim (Ref) 
                                                                  (Var _b tint32s :: nil) trint32s :: nil) tint32s)
-                                                      (Var _c tint32s) tint32s) tint32s) tint32s |}.
+                                                      (Var _c tint32s) tint32s) tint32s) tint32s;
+                                   is_ebpf := false |}.
 
 
 Definition add_external_function : BeePL.external_function
@@ -90,7 +91,7 @@ Proof.
   unfold build_bcomposite_env; simpl; reflexivity.
 Qed.
 
-Definition example1 : BeePL.program := @mkbprogram bcomposites 
+(*Definition example1 : BeePL.program := @mkbprogram bcomposites 
                                                    global_definitions 
                                                    public_idents 
                                                    _main 
@@ -98,7 +99,7 @@ Definition example1 : BeePL.program := @mkbprogram bcomposites
                                                    ident_to_string.
 
 
-(*Compute (type_check_expr example1.(prog_comp_env) 
+Compute (type_check_expr example1.(prog_comp_env) 
                          (bind_vars (bind_vars empty_context f_external_call.(fn_args)) f_external_call.(fn_vars)) empty_context f_external_call.(fn_body)).
 
-Compute (type_check_program example1).*) (* Type checks *)
+Compute (type_check_program example1). *) (* Type checks *)

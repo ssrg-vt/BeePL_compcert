@@ -26,11 +26,12 @@ Definition f_struct : BeePL.function := {| fn_return := tint32s;
                                            fn_effect :=  nil;
                                            fn_callconv := cc_default;
                                            fn_args := nil;
-                                           fn_vars := ((_p1, (Reftype mem_ident (Bstruct _Point noattr) noattr)) :: nil);  (* p1 is a struct variable on stack *)
+                                           fn_vars := ((_p1, (Ptrtype (Reftype mem_ident (Bstruct _Point noattr) noattr))) :: nil);  (* p1 is a struct variable on stack *)
                                            fn_body := (Bind _x tint32s 
-                                                         (Screate _p1 (_x :: _y :: nil) (cint (Int.repr 10) tint32s :: cint (Int.repr 20) tint32s :: nil) 
-                                                           (Reftype mem_ident (Bstruct _Point noattr) noattr))
-                                                        (cint (Int.repr 0) tint32s) tint32s)
+                                                         (Sinit _p1 (_x :: _y :: nil) (cint (Int.repr 10) tint32s :: cint (Int.repr 20) tint32s :: nil) 
+                                                           (Ptrtype (Reftype mem_ident (Bstruct _Point noattr) noattr)))
+                                                        (cint (Int.repr 0) tint32s) tint32s);
+                                          is_ebpf := false
                                                        |}.
                                                       
 
@@ -62,7 +63,7 @@ Qed.
 Compute (type_check_expr example1.(prog_comp_env) 
                          (bind_vars (bind_vars empty_context f_struct.(fn_args)) f_struct.(fn_vars)) empty_context f_struct.(fn_body)).
 
-Compute (type_check_program example1).*)
+Compute (type_check_program example1). *) (* Type checks! *)
 
 
 
