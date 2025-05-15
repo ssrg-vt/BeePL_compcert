@@ -34,7 +34,8 @@ Definition f_main := {| fn_return := tint32s;
                           fn_callconv := cc_default;
                           fn_args := nil;
                           fn_vars := nil;
-                          fn_body := (cint (Int.repr 0) tint32s)        
+                          fn_body := (cint (Int.repr 0) tint32s);
+                          is_ebpf := false;
                           |}.
 
 

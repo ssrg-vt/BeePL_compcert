@@ -33,7 +33,7 @@ match e with
 | Addr l ofs t => false
 | Hexpr m e t => false (* fix me *)
 | BeePL.Eapp ef ts es t => true (* fix me *)
-| Screate _ _ _ _ => true
+| Sinit _ _ _ _ => true
 | Sfield _ _ _ => true
 | For e1 e2 d e t => is_stateful_expr e 
 | Enone t => false
@@ -248,7 +248,7 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                  t = Stype st sa ->
                  (*bsem_expr vm3 m3 (Var fid (Ptype t)) m'' vm'' (Val (Vloc loc ofs) (Reftype h t a)) -> *)
                  sem_allocate_fields loc ofs x ids vs (map typeof_expr es) m3 m4 ->
-                 bsem_expr p vm1 m1 (Screate x ids es t) m2 vm2 (Vloc loc ofs) 
+                 bsem_expr p vm1 m1 (Sinit x ids es t) m2 vm2 (Vloc loc ofs) 
 | bsem_sfield : forall p b ofs id co delta bf f vm m vm' m' e t sid sa, (* bitfield is lost *)
                 bsem_expr p vm m e m' vm' (Vloc b ofs) ->
                 typeof_expr e = (Ptrtype (Sptype sid sa)) ->
@@ -450,7 +450,7 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
               ssem_expr p vm m (BeePL.Eapp ef ts es ty) m'' vm' (Val bv ty)
 | ssem_screate1 : forall p x ids t vm1 m1 es vm2 m2 es',
                   ssem_exprs p vm1 m1 es m2 vm2 es' ->
-                  ssem_expr p vm1 m1 (Screate x ids es t) m2 vm2 (Screate x ids es' t)
+                  ssem_expr p vm1 m1 (Sinit x ids es t) m2 vm2 (Sinit x ids es' t)
 | ssem_screate2 : forall p x ids t vm1 m1 vm2 m2 m3 vs fid loc ofs ts h a st sa,
                   create_fresh_ident (unzip1 (extract_variables_globdefs (unzip2 p.(prog_defs)))) = fid ->
                   alloc_variables ge vm1 m1 ((fid, t) :: nil) vm2 m2 ->
@@ -459,7 +459,7 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                   typeof_values (extract_values_exprs vs) ts ->
                   (*bsem_expr vm3 m3 (Var fid (Ptype t)) m'' vm'' (Val (Vloc loc ofs) (Reftype h t a)) -> *)
                   sem_allocate_fields loc ofs x ids (extract_values_exprs vs) ts m2 m3 ->
-                  ssem_expr p vm1 m1 (Screate x ids vs t) m3 vm2 (Val (Vloc loc ofs) (Ptrtype (Reftype h (Bstruct st sa) a))) 
+                  ssem_expr p vm1 m1 (Sinit x ids vs t) m3 vm2 (Val (Vloc loc ofs) (Ptrtype (Reftype h (Bstruct st sa) a))) 
 | ssem_sfield1 : forall p vm m e m' vm' e' f t, 
                  ssem_expr p vm m e m' vm' e' ->
                  ssem_expr p vm m (Sfield e f t) m' vm' (Sfield e' f t) 

@@ -12,7 +12,7 @@ Local Open Scope csyntax_scope.
 *)
 
 (* attr_alignas is optional *)
-Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
+(*Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
 Definition _x : ident := $"x".
 Definition _y : ident := $"y".
 Definition _r : ident := $"r".
@@ -59,4 +59,4 @@ Definition f_ref2 : BeePL.function := {|
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
    := (_main, AST.Gfun(BeePL.Internal (f_ref))) :: nil.
 
-Definition public_idents : list ident := (_main :: nil).
+Definition public_idents : list ident := (_main :: nil).*)

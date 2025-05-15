@@ -372,7 +372,7 @@ match e with
                    end
 | Hexpr h e t =>  Error (msg "TYPE ERROR: Hexpr is not yet supported")
 | Eapp ef ts es t => Error (msg "TYPE ERROR: We have no use case of builtin function as of now")
-| Screate x ids es t => do (tes, efs) <- type_check_exprs type_check_expr cenv Gamma Sigma es;
+| Sinit x ids es t => do (tes, efs) <- type_check_exprs type_check_expr cenv Gamma Sigma es;
                         match t with 
                         | Ptrtype (Reftype mem_ident (Bstruct id a) a') => match cenv!id with 
                                                                  | Some co => do cts <- type_of_members 

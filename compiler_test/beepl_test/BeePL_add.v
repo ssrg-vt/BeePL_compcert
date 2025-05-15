@@ -50,7 +50,8 @@ Definition f_add : BeePL.function := {|
                                                       (Var _r (Vtype (BeeTypes.Tint I32 Unsigned dattr)))
                                                       (Vtype (BeeTypes.Tint I32 Unsigned dattr)))
                                                    (Vtype (BeeTypes.Tint I32 Unsigned dattr)))
-                                                (Vtype (BeeTypes.Tint I32 Unsigned dattr)) |}.
+                                                (Vtype (BeeTypes.Tint I32 Unsigned dattr));
+                                    is_ebpf := false|}.
 
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 

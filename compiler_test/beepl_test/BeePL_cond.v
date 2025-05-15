@@ -42,7 +42,8 @@ Definition f_conditional_1 : BeePL.function := {|
                                                              cint (Int.repr 3) tint32s :: nil)
                                                              tbbool)
                                                       (cint (Int.repr 0) tint32s) 
-                                                      (cint (Int.repr 2) tint32s) tint32s) tint32s |}.
+                                                      (cint (Int.repr 2) tint32s) tint32s) tint32s;
+                                   is_ebpf := false |}.
 
 (*  int main(void) {
  *    int x;
@@ -72,7 +73,8 @@ Definition f_conditional_2 : BeePL.function := {|
                                                                   tbbool)
                                                             (cint (Int.repr 0) tint32s)
                                                             (cint (Int.repr 2) tint32s) tint32s)
-                                                      (Var _y tint32s) tint32s) tint32s |}.
+                                                      (Var _y tint32s) tint32s) tint32s;
+                                  is_ebpf := false |}.
 
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
@@ -96,5 +98,5 @@ Qed.
                                                    bcomposite_correct
                                                    ident_to_string.
 
-Compute (type_check_program example1).*)  (* Type Checks *)
+Compute (type_check_program example1). *) (* Type Checks! *)
 

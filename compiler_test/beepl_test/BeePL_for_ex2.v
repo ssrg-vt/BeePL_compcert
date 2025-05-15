@@ -44,7 +44,8 @@ Definition f_for : BeePL.function := {|
                                                                       (Prim (Bop Cop.Oadd) 
                                                                         (Prim Deref (Var _x trint32s :: nil) tint32s ::
                                                                          cint (Int.repr 1) tint32s :: nil) tint32s) :: nil) tunit) tunit)
-                                                        (Prim Deref (Var _x trint32s :: nil)  tint32s) tint32s) tint32s) |}.
+                                                        (Prim Deref (Var _x trint32s :: nil)  tint32s) tint32s) tint32s);
+                                   is_ebpf := false |}.
 
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
@@ -71,4 +72,4 @@ Qed.
 
 Compute (type_check_expr example1.(prog_comp_env) 
                          (bind_vars (bind_vars empty_context f_for.(fn_args)) f_for.(fn_vars)) empty_context f_for.(fn_body)).
-Compute (type_check_program example1). *) (* Type checks *)
+Compute (type_check_program example1).  *) (* Type checks *)

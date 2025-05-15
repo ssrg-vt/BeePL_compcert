@@ -6,7 +6,6 @@ Require Import BeePL_aux BeePL BeeTypes Csyntax Errors SimplExpr BeePL_values De
 Local Open Scope string_scope.
 Local Open Scope gensym_monad_scope.
 
-(* Missing list of public functions *) 
 Fixpoint wrapper_beepl_struct_ebpf_struct (cs : list composite_definition) : list composite_definition :=
 match cs with 
 | nil => nil
@@ -24,3 +23,15 @@ match cs with
               | _ => c1 :: wrapper_beepl_struct_ebpf_struct cs1
               end
 end.
+
+
+Fixpoint transform_ctx_ebpf_ctx (args : list (ident * type)) : res (list (ident * Ctypes.type)) :=
+let i := (ident_of_string "ctx") in
+match args with 
+| nil => OK nil
+| (i, (Ptrtype (Sptype  _xdp_md_bee noattr))) :: nil => 
+  OK ((ident_of_string "ctx", Tpointer (Tstruct (ident_of_string "xdp_md") noattr) noattr) :: nil)
+| _ => Error (msg "COMPILER ERROR: eBPF program should take only one argument (context)")
+end.
+
+

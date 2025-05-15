@@ -48,7 +48,8 @@ Definition f_add : BeePL.function := {|
                                                 (Prim (Bop Cop.Oadd) 
                                                       (Var _x tint32s :: 
                                                        Var _y tint32s :: nil) tint32s)
-                                                (Var _r tint32s) tint32s |}.
+                                                (Var _r tint32s) tint32s;
+                                   is_ebpf := false |}.
 
 (*
  *  int add_with_one_ref(int x, int *y) {
@@ -71,7 +72,8 @@ Definition f_add_with_one_ref : BeePL.function := {|
                                                       (Var _x tint32s :: 
                                                        Prim (Deref) 
                                                             (Var _y trint32s :: nil) tint32s :: nil) tint32s)
-                                                (Var _r tint32s) tint32s |}.
+                                                (Var _r tint32s) tint32s;
+                                   is_ebpf := false |}.
 
 (*
  *  int add_with_two_ref(int *x, int *y) {
@@ -95,7 +97,8 @@ Definition f_add_with_two_ref : BeePL.function := {|
                                                             (Var _x trint32s :: nil) tint32s :: 
                                                         Prim (Deref) 
                                                              (Var _y trint32s :: nil) tint32s :: nil) tint32s)
-                                                (Var _r tint32s) tint32s |}.
+                                                (Var _r tint32s) tint32s;
+                                   is_ebpf := false |}.
 
 (*  int main(void) {
  *    int a = 1;
@@ -143,7 +146,8 @@ Definition f_main : BeePL.function := {|
                                                                         (cint (Int.repr 5) tint32s :: nil) trint32s ::
                                                                    Prim (Ref) 
                                                                         (cint (Int.repr 173) tint32s :: nil) trint32s :: nil) tint32s)
-                                                             (Var _b tint32s) tint32s) tint32s) tint32s) tint32s |}.
+                                                             (Var _b tint32s) tint32s) tint32s) tint32s) tint32s;
+                                   is_ebpf := false |}.
 
 (*  int main(void) {
  *    int a = 1;
@@ -194,7 +198,7 @@ Proof.
   unfold build_bcomposite_env; simpl; reflexivity.
 Qed.
 
-Definition example1 : BeePL.program := @mkbprogram bcomposites 
+(*Definition example1 : BeePL.program := @mkbprogram bcomposites 
                                                    global_definitions 
                                                    public_idents 
                                                    _main 
@@ -202,7 +206,7 @@ Definition example1 : BeePL.program := @mkbprogram bcomposites
                                                    ident_to_string.
 
 
-(*Compute (type_check_expr example1.(prog_comp_env) 
+Compute (type_check_expr example1.(prog_comp_env) 
                          (bind_vars (bind_vars empty_context f_main.(fn_args)) f_main.(fn_vars)) empty_context f_main.(fn_body)).
 
 Compute (type_check_program example1).*) (* Type checks *)

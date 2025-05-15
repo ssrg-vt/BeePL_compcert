@@ -45,7 +45,8 @@ Definition f_for : BeePL.function := {|
                                                                       (Prim (Bop Cop.Oadd) 
                                                                         (Prim Deref (Var _x trint32s :: nil) tint32s ::
                                                                          cint (Int.repr 1) tint32s :: nil) tint32s) :: nil) tunit) tunit)
-                                                        (Prim Deref (Var _x trint32s :: nil)  tint32s) tint32s) tint32s) |}.
+                                                        (Prim Deref (Var _x trint32s :: nil)  tint32s) tint32s) tint32s);
+                                   is_ebpf := false |}.
 
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
