@@ -41,8 +41,8 @@ Inductive sim_bexpr_cexpr : vmap -> BeePL.expr -> function_ctx -> Csyntax.expr -
                 fresh_ident (List.map unzip_ident ctx') max_fresh g = Res (id, str) g' i ->
                 length es = 1%nat ->
                 ref_to_prim t g' = Res pty g'' i' ->
-                transBeePL_type (Ptype pty) = cpty ->
-                (id, (Ptype pty), str) :: ctx' = ctx'' ->
+                transBeePL_type pty = cpty ->
+                (id, pty, str) :: ctx' = ctx'' ->
                 sim_bexpr_cexpr le (BeePL.Prim Ref es t) ctx
                            (Csyntax.Ecomma 
                               (Csyntax.Eassign (Csyntax.Evar id cpty) 
@@ -171,8 +171,8 @@ Inductive sim_bexpr_cstmt : vmap -> BeePL.expr -> function_ctx -> Csyntax.statem
                    fresh_ident (List.map unzip_ident ctx') max_fresh g = Res (id, str) g' i ->
                    length es = 1%nat ->
                    ref_to_prim t g' = Res pty g'' i' ->
-                   transBeePL_type (Ptype pty) = cpty ->
-                   (id, (Ptype pty), str) :: ctx' = ctx'' ->
+                   transBeePL_type pty = cpty ->
+                   (id, pty, str) :: ctx' = ctx'' ->
                    sim_bexpr_cstmt le (BeePL.Prim Ref es t) ctx
                                   (Csyntax.Ssequence
                                        (Sdo (Csyntax.Eassign (Csyntax.Evar id cpty) (hd default_expr (exprlist_list_expr ces)) cpty))
@@ -216,7 +216,7 @@ Inductive sim_bexpr_cstmt : vmap -> BeePL.expr -> function_ctx -> Csyntax.statem
 | sim_bind_for_st : forall le ctx ctx' ctx'' x t e e' t' ct cs ce' e1 e2 d e3,
                     transBeePL_type t = ct ->
                     sim_bexpr_cstmt le e' ctx ce' ctx' ->
-                    e = For x e1 e2 d e3 t ->
+                    e = For e1 e2 d e3 t ->
                     sim_bexpr_cstmt le e ctx' cs ctx'' ->
                     sim_bexpr_cstmt le (BeePL.Bind x t e e' t') ctx
                                        (Csyntax.Ssequence cs ce') ctx''
@@ -226,33 +226,6 @@ Inductive sim_bexpr_cstmt : vmap -> BeePL.expr -> function_ctx -> Csyntax.statem
                 sim_bexpr_cexpr le e ctx' ce ctx'' ->
                 sim_bexpr_cstmt le (BeePL.Bind x t e e' t') ctx
                                    (Csyntax.Ssequence (Sdo (Eassign (Csyntax.Evar x ct) ce Tvoid)) ce') ctx''
-(*
-| sim_cond_vars_st : forall le e1 e2 e3 t ct ce1 ce2 ce3 g g' i',
-                     transBeePL_type t g = Res ct g' i' ->
-                     sim_bexpr_cexpr le e1 ce1 ->
-                     sim_bexpr_cexpr le e2 ce2 ->
-                     sim_bexpr_cexpr le e3 ce3 ->
-                     check_var_const e2 ->
-                     check_var_const e3 ->
-                     sim_bexpr_cstmt le (BeePL.Cond e1 e2 e3 t) 
-                                        (Csyntax.Sifthenelse ce1 (Csyntax.Sreturn (Some (Evalof ce2 ct))) (Csyntax.Sreturn (Some (Evalof ce3 ct))))
-| sim_cond_var1_st : forall le e1 e2 e3 t ct ce1 ce2 ce3 g g' i',
-                     transBeePL_type t g = Res ct g' i' ->
-                     sim_bexpr_cexpr le e1 ce1 ->
-                     sim_bexpr_cexpr le e2 ce2 ->
-                     sim_bexpr_cexpr le e3 ce3 ->
-                     check_var_const e2 ->
-                     sim_bexpr_cstmt le (BeePL.Cond e1 e2 e3 t) 
-                                        (Csyntax.Sifthenelse ce1 (Csyntax.Sreturn (Some (Evalof ce2 ct))) (Csyntax.Sdo ce3))
-| sim_cond_var2_st : forall le e1 e2 e3 t ct ce1 ce2 ce3 g g' i',
-                     transBeePL_type t g = Res ct g' i' ->
-                     sim_bexpr_cexpr le e1 ce1 ->
-                     sim_bexpr_cexpr le e2 ce2 ->
-                     sim_bexpr_cexpr le e3 ce3 ->
-                     check_var_const e3 ->
-                     sim_bexpr_cstmt le (BeePL.Cond e1 e2 e3 t) 
-                                        (Csyntax.Sifthenelse ce1 (Csyntax.Sdo ce2) (Csyntax.Sreturn (Some (Evalof ce3 ct))))
-*)                    
 | sim_cond_st : forall le ctx ctx' ctx'' ctx''' e1 e2 e3 t ct ce1 ce2 ce3,
                 transBeePL_type t = ct ->
                 sim_bexpr_cexpr le e1 ctx ce1 ctx' ->
@@ -275,66 +248,97 @@ Inductive sim_bexpr_cstmt : vmap -> BeePL.expr -> function_ctx -> Csyntax.statem
                sim_bexprs_cexprs le es ctx ces ctx' ->
                sim_bexpr_cstmt le (BeePL.Eapp ef ts es t) ctx
                               (Csyntax.Sdo (Csyntax.Ebuiltin cef cts ces ct)) ctx
+| sim_screate_st : forall le ctx ctx' ctx'' sx ids es t ces temp strl pty rs g1 g2 i1 g3 i2 g4 i3,
+                   sim_bexprs_cexprs le es ctx ces ctx' ->
+                   fresh_ident (List.map unzip_ident ctx') max_fresh g1 = Res (temp, strl) g2 i1 ->
+                   ref_to_prim t g2 = Res pty g3 i2 ->
+                   ctx'' = (temp, pty, strl) :: ctx' ->
+                   init_struct_fields sx (zip ids (exprlist_list_expr ces)) (transBeePL_type t) (transBeePL_type pty) g3 = Res rs g4 i3 ->
+                   sim_bexpr_cstmt le (BeePL.Screate sx ids es t) ctx (Csyntax.Ssequence (Sdo (Eassign (Csyntax.Evar sx (transBeePL_type t)) 
+                                                                           (Csyntax.Eaddrof (Csyntax.Evar temp (transBeePL_type pty)) (transBeePL_type t)) (transBeePL_type t)))
+                                                                            rs) ctx''
 | sim_sfield_st : forall le ctx ctx' e x t ce ct,
                   transBeePL_type t = ct ->
                   sim_bexpr_cexpr le e ctx ce ctx' ->
                   sim_bexpr_cstmt le (BeePL.Sfield e x t) ctx
                                      (Csyntax.Sdo (Evalof (Csyntax.Efield (Evalof ce (transBeePL_type (typeof_expr e))) x ct) ct)) ctx'
-| sim_for_up_st : forall le ctx ctx' ctx'' ctx''' x e1 e2 d e t ce1 ce2 ce3,
-                  sim_bexpr_cexpr le e1 ctx ce1 ctx' ->
-                  sim_bexpr_cexpr le e2 ctx' ce2 ctx'' ->
-                  sim_bexpr_cstmt le e ctx'' ce3 ctx''' ->
-                  is_primunsigned_int_long (typeof_expr e1) (typeof_expr e2) = true ->
-                  check_range_expr e1 e2 d = true ->
+| sim_for_up_st : forall le ctx1 ctx2 ctx3 ctx4 ctx5 ctx6 e1 ce1 low strl e2 ce2 high strh e ce3 j strj d t g g' i g'' i' g''' i'',
+                  sim_bexpr_cexpr le e1 ctx1 ce1 ctx2 ->
+                  fresh_ident (List.map unzip_ident ctx1) max_fresh g = Res (low, strl) g' i ->
+                  ctx2 = (low, typeof_expr e1, strl) :: ctx1 ->
+                  sim_bexpr_cexpr le e2 ctx2 ce2 ctx3 ->
+                  fresh_ident (List.map unzip_ident ctx3) max_fresh g' = Res (high, strh) g'' i' ->
+                  ctx4 = (high, typeof_expr e2, strh) :: ctx3 ->
+                  sim_bexpr_cstmt le e ctx4 ce3 ctx5 ->
+                  fresh_ident (List.map unzip_ident ctx4) max_fresh g'' = Res (j, strj) g''' i'' ->
+                  ctx6 = (j, typeof_expr e1, strj) :: ctx5 ->
                   d = Up ->
-                  sim_bexpr_cstmt le (BeePL.For x e1 e2 d e t) ctx (Csyntax.Sfor (Sdo (Eassign (Csyntax.Evar x (Ctypes.Tint I32 Unsigned noattr)) ce1 (Ctypes.Tint I32 Unsigned noattr)))
-                                                   (Csyntax.Ebinop Cop.Ole (Evalof (Csyntax.Evar x (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr))
-                                                    ce2 (Ctypes.Tint I32 Unsigned noattr))
-                                                   (Sdo (Epostincr Cop.Incr (Csyntax.Evar x (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr)))
-                                                   ce3) ctx'''
-| sim_for_down_st : forall le ctx ctx' ctx'' ctx''' x e1 e2 d e t ce1 ce2 ce3,
-                  sim_bexpr_cexpr le e1 ctx ce1 ctx' ->
-                  sim_bexpr_cexpr le e2 ctx' ce2 ctx'' ->
-                  sim_bexpr_cstmt le e ctx'' ce3 ctx''' ->
-                  is_primunsigned_int_long (typeof_expr e1) (typeof_expr e2) = true ->
-                  check_range_expr e1 e2 d = true ->
+                  sim_bexpr_cstmt le (BeePL.For e1 e2 d e t) ctx1 (Csyntax.Ssequence (Csyntax.Ssequence (Sdo (Eassign (Csyntax.Evar low (Csyntax.typeof ce1)) ce1 (Csyntax.typeof ce1)))
+                                                                                       (Sdo (Eassign (Csyntax.Evar high (Csyntax.typeof ce2)) ce2 (Csyntax.typeof ce2))))
+                                                                 (Csyntax.Sifthenelse (Csyntax.Ebinop Cop.Ole (Csyntax.Evar low (Csyntax.typeof ce1)) (Csyntax.Evar high (Csyntax.typeof ce2)) (Csyntax.typeof ce1))
+                                                                              (Csyntax.Sfor (Sdo (Eassign (Csyntax.Evar j (Csyntax.typeof ce1)) (Csyntax.Evar low (Csyntax.typeof ce1)) (Csyntax.typeof ce1)))
+                                                                                    (Csyntax.Ebinop Cop.Ole (Evalof (Csyntax.Evar j (Csyntax.typeof ce2)) (Csyntax.typeof ce2)) (Csyntax.Evar high (Csyntax.typeof ce2)) (Csyntax.typeof ce2))
+                                                                                    (Sdo (Epostincr Cop.Incr (Csyntax.Evar j (Csyntax.typeof ce2)) (Csyntax.typeof ce2)))
+                                                          ce3) Csyntax.Sskip)) ctx6
+| sim_for_down_st : forall le ctx1 ctx2 ctx3 ctx4 ctx5 ctx6 e1 ce1 low strl e2 ce2 high strh e ce3 j strj d t g g' i g'' i' g''' i'',
+                  sim_bexpr_cexpr le e1 ctx1 ce1 ctx2 ->
+                  fresh_ident (List.map unzip_ident ctx1) max_fresh g = Res (low, strl) g' i ->
+                  ctx2 = (low, typeof_expr e1, strl) :: ctx1 ->
+                  sim_bexpr_cexpr le e2 ctx2 ce2 ctx3 ->
+                  fresh_ident (List.map unzip_ident ctx3) max_fresh g' = Res (high, strh) g'' i' ->
+                  ctx4 = (high, typeof_expr e2, strh) :: ctx3 ->
+                  sim_bexpr_cstmt le e ctx4 ce3 ctx5 ->
+                  fresh_ident (List.map unzip_ident ctx4) max_fresh g'' = Res (j, strj) g''' i'' ->
+                  ctx6 = (j, typeof_expr e1, strj) :: ctx5 ->
                   d = Down ->
-                  sim_bexpr_cstmt le (BeePL.For x e1 e2 d e t) ctx (Csyntax.Sfor (Sdo (Eassign (Csyntax.Evar x (Ctypes.Tint I32 Unsigned noattr)) ce1 (Ctypes.Tint I32 Unsigned noattr)))
-                                                   (Csyntax.Ebinop Cop.Oge (Evalof (Csyntax.Evar x (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr))
-                                                    ce2 (Ctypes.Tint I32 Unsigned noattr))
-                                                   (Sdo (Epostincr Cop.Decr (Csyntax.Evar x (Ctypes.Tint I32 Unsigned noattr)) (Ctypes.Tint I32 Unsigned noattr)))
-                                                   ce3) ctx'''
+                  sim_bexpr_cstmt le (BeePL.For e1 e2 d e t) ctx1 (Csyntax.Ssequence (Csyntax.Ssequence (Sdo (Eassign (Csyntax.Evar low (Csyntax.typeof ce1)) ce1 (Csyntax.typeof ce1)))
+                                                                                       (Sdo (Eassign (Csyntax.Evar high (Csyntax.typeof ce2)) ce2 (Csyntax.typeof ce2))))
+                                                                 (Csyntax.Sifthenelse (Csyntax.Ebinop Cop.Oge (Csyntax.Evar low (Csyntax.typeof ce1)) (Csyntax.Evar high (Csyntax.typeof ce2)) (Csyntax.typeof ce1))
+                                                                              (Csyntax.Sfor (Sdo (Eassign (Csyntax.Evar j (Csyntax.typeof ce1)) (Csyntax.Evar low (Csyntax.typeof ce1)) (Csyntax.typeof ce1)))
+                                                                                    (Csyntax.Ebinop Cop.Oge (Evalof (Csyntax.Evar j (Csyntax.typeof ce2)) (Csyntax.typeof ce2)) (Csyntax.Evar high (Csyntax.typeof ce2)) (Csyntax.typeof ce2))
+                                                                                    (Sdo (Epostincr Cop.Decr (Csyntax.Evar j (Csyntax.typeof ce2)) (Csyntax.typeof ce2)))
+                                                          ce3) Csyntax.Sskip)) ctx6
 | sim_enone_st : forall le ctx t t',
-                 t = Otype t' ->
-                 is_reftype t' = true ->
+                 t = Ptrtype t' ->
+                 is_option_ptr_type t' = true ->
                  sim_bexpr_cstmt le (BeePL.Enone t) ctx (Csyntax.Sdo ((Csyntax.Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t))))) ctx
 | sim_esome_st : forall le ctx e t t' cs,
-                 t = Otype t' ->
-                 is_reftype t' = true ->
+                 t = Ptrtype t' ->
+                 is_option_ptr_type t' = true ->
                  sim_bexpr_cstmt le e ctx cs ctx ->
                  sim_bexpr_cstmt le (BeePL.Esome e t) ctx cs ctx
-| sim_match_fst_st : forall le ctx ctx' ctx'' ctx''' e pes t ce e1 e2 x ce1 ce2,
-                     sim_bexpr_cexpr le e ctx ce ctx' -> 
-                     length pes = 2%nat ->
-                     pes = ((Pnone, e1) :: (Psome x, e2) :: nil) ->
-                     sim_bexpr_cstmt le e1 ctx' ce1 ctx'' ->
-                     sim_bexpr_cstmt le e2 ctx'' ce2 ctx''' ->
-                     sim_bexpr_cstmt le (BeePL.Match e pes t) ctx
-                                  (Csyntax.Sifthenelse (Csyntax.Ebinop Cop.Oeq ce
-                                                (Csyntax.Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
-                                               (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
-                                  ce1 ce2) ctx''
-| sim_match_snd_st : forall le ctx ctx' ctx'' ctx''' e pes t ce e1 e2 x ce1 ce2,
-                     sim_bexpr_cexpr le e ctx ce ctx' -> 
-                     length pes = 2%nat ->
-                     pes = ((Psome x, e1) :: (Pnone, e2) :: nil) ->
-                     sim_bexpr_cstmt le e1 ctx' ce1 ctx'' ->
-                     sim_bexpr_cstmt le e2 ctx'' ce2 ctx''' ->
-                     sim_bexpr_cstmt le (BeePL.Match e pes t) ctx
-                                  (Csyntax.Sifthenelse (Csyntax.Ebinop Cop.Oeq ce
-                                                (Csyntax.Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
-                                               (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
-                                  ce2 ce1) ctx''.
+| sim_match_ptr_fst_st : forall le ctx1 ctx2 ctx3 ctx4 e ps es t ce t' x e1 e2 ce1 ce2,
+                         sim_bexpr_cexpr le e ctx1 ce ctx2 ->
+                         typeof_expr e = Ptrtype t' ->
+                         is_option_ptr_type t' = true ->
+                         ps = Psome x :: Pnone :: nil ->
+                         es = e1 :: e2 :: nil ->
+                         sim_bexpr_cstmt le e1 ctx1 ce1 ctx3 ->
+                         sim_bexpr_cstmt le e2 ctx3 ce2 ctx4 ->
+                         sim_bexpr_cstmt le (BeePL.Match e ps es t) ctx1 (Csyntax.Sifthenelse (Csyntax.Ebinop Cop.Oeq ce 
+                                                       (Csyntax.Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                                       (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
+                                          ce2 ce1) ctx4
+| sim_match_ptr_snd_st : forall le ctx1 ctx2 ctx3 ctx4 e ps es t ce t' x e1 e2 ce1 ce2,
+                         sim_bexpr_cexpr le e ctx1 ce ctx2 ->
+                         typeof_expr e = Ptrtype t' ->
+                         is_option_ptr_type t' = true ->
+                         ps = Pnone :: Psome x :: nil ->
+                         es = e1 :: e2 :: nil ->
+                         sim_bexpr_cstmt le e1 ctx1 ce1 ctx3 ->
+                         sim_bexpr_cstmt le e2 ctx3 ce2 ctx4 ->
+                         sim_bexpr_cstmt le (BeePL.Match e ps es t) ctx1 (Csyntax.Sifthenelse (Csyntax.Ebinop Cop.Oeq ce 
+                                                       (Csyntax.Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                                       (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
+                                          ce1 ce2) ctx4
+| sim_match_bytes_st : forall le ctx ctx' e ps es t ce x s,
+                       sim_bexpr_cexpr le e ctx ce ctx' ->
+                       typeof_expr e = Bytes ->
+                       ps = Pbytes x (Stype s noattr) :: nil ->
+                       sim_bexpr_cstmt le (BeePL.Match e ps es t) ctx (Csyntax.Ssequence (Sdo (Eassign (Csyntax.Efield ce (ident_of_string "bytes_start") (tptr tschar)) 
+                                                           (Csyntax.Ecast ce (tptr (tschar))) (tptr (tschar))))
+                                                           (Sdo (Csyntax.Evar x (Tstruct s noattr)))) ctx.
+
 
 
 
