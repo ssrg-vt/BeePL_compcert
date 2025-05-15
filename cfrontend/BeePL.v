@@ -29,7 +29,7 @@ Inductive builtin : Type :=
 Inductive pattern : Type :=
 | Pnone : pattern
 | Psome : ident -> pattern
-| Pbytes : ident -> type -> pattern.
+| Pbytes : ident -> type -> list (ident * type) -> pattern.
 
 Fixpoint idents_eq (xs ys : list ident) : bool :=
 match xs, ys with 
@@ -42,7 +42,8 @@ Definition eq_pattern (p1 p2 : pattern) : bool :=
 match p1, p2 with 
 | Pnone, Pnone => true 
 | Psome x, Psome x' => ident_eq x x' 
-| Pbytes x t, Pbytes x' t' => ident_eq x x' && eq_type t t'
+| Pbytes x t xs, Pbytes x' t' xs' => ident_eq x x' && eq_type t t' &&
+                                     idents_eq (unzip1 xs) (unzip1 xs') && eq_types eq_type (unzip2 xs) (unzip2 xs')
 | _, _ => false
 end. 
 

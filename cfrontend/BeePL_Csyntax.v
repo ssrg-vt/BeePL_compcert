@@ -409,6 +409,35 @@ match ces, ts with
 | _, _ => error (msg "COMPILER ERROR: The length of type list and expression list should be same in bitstring")
 end.  
 
+Fixpoint copy_buffer (to : ident) (sto : ident) (t : Ctypes.type) (xts : list (ident * Ctypes.type)) (from : ident) : Csyntax.statement :=
+match xts with 
+| nil => Sskip
+| x :: xs => let bs :=  copy_buffer to sto t xs from in
+             (Ssequence (Sdo (Eassign (Efield (Evalof (Evar to (Tstruct sto noattr))
+                     (Tstruct sto noattr)) (fst x) tuint)
+                 (Evalof (Efield (Evalof (Ederef (Evalof (Evar from (tptr (Tstruct sto noattr)))
+                                                  (tptr (Tstruct sto noattr)))
+                         (Tstruct sto noattr)) (Tstruct sto noattr))
+                     (fst x) tuint) tuint) tuint)) bs)
+end.
+
+Definition incr_data_ptr (wv : ident) (s : ident) (bv : ident) : Csyntax.statement :=
+(Sdo (Eassign (Efield (Evalof (Efield (Evalof
+                             (Evar wv (Tstruct s noattr))
+                             (Tstruct s noattr)) (ident_of_string "data")
+                           (Tstruct (ident_of_string "bytes_t") noattr))
+                         (Tstruct (ident_of_string "bytes_t") noattr)) (ident_of_string "bytes_start") (tptr tuchar))
+                     (Ebinop Cop.Oadd (Evalof (Efield (Evalof (Efield (Evalof
+                                 (Evar wv (Tstruct s noattr))
+                                 (Tstruct s noattr)) (ident_of_string "data")
+                               (Tstruct (ident_of_string "bytes_t") noattr))
+                             (Tstruct (ident_of_string "bytes_t") noattr)) (ident_of_string "bytes_start") (tptr tuchar))
+                         (tptr tuchar))
+                       (Esizeof (Tstruct bv noattr) tulong)
+                       (tptr tuchar)) (tptr tuchar))).
+
+
+
 Fixpoint transBeePL_expr_st (cenv : bcomposite_env) (e : BeePL.expr ) (ctx : list (ident * BeeTypes.type * string)) (bctx : bcompiler_ctx) : 
 mon (Csyntax.statement * list (ident * BeeTypes.type * string) * bcompiler_ctx) :=
 match e with 
@@ -590,7 +619,8 @@ match e with
                               end
                           else error (msg "COMPILER ERROR: Match can be only performed on option type containing types other than ref")
                      | Bytes => match ps with 
-                                | (Pbytes x (Stype s noattr) :: nil) => 
+                                | (Pbytes x (Stype s noattr) xts :: nil) => 
+                                    let cxts := zip (unzip1 xts) (from_typelist (transBeePL_types transBeePL_type (unzip2 xts))) in 
                                     match bctx.(arg_ctx) with 
                                     | (argi, (Ptrtype (Sptype istruct noattr))) :: nil =>
                                         do (i, str) <- (fresh_ident (List.map unzip_ident (snd ce)) max_fresh);
@@ -645,7 +675,9 @@ match e with
                                                                                           (Tstruct (ident_of_string "bytes_t") noattr)) 
                                                                                   (Tstruct (ident_of_string "bytes_t") noattr)) (ident_of_string "bytes_start")
                                                                                   (tptr tuchar)) (tptr tuchar)) (tptr (Tstruct s noattr)))
-                                                                           (tptr (Tstruct s noattr)))) Sskip)))),
+                                                                           (tptr (Tstruct s noattr))))
+                                                                (Ssequence (copy_buffer x s (tptr (Tstruct s noattr)) cxts i')
+                                                                           (incr_data_ptr i istruct s)))))),  
                                               ctx''', bctx') 
                                         | _ => error (msg "COMPILER ERROR: eBPF program supports only one argument")
                                         end

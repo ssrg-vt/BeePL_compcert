@@ -39,7 +39,7 @@ Definition f_bytes : BeePL.function := {| fn_return := tint32s;
                                            fn_vars := (_cv, Stype _dstruct noattr) :: (_data, Bytes) :: nil;  
                                            fn_body := (*Bind _cv (Stype _dstruct noattr)*)
                                                         (Match (Sfield (Var _ctx (tpstruct _xdp_md_bee)) _data Bytes)  
-                                                         (Pbytes _cv (Stype _dstruct noattr)  :: nil)  
+                                                         (Pbytes _cv (Stype _dstruct noattr) ((_dst, tint32s) :: (_src, tint32s) :: nil) :: nil)  
                                                          (cint (Int.repr 1) tint32s :: cint (Int.repr 2) tint32s :: nil) tint32s);
                                                         (*(Var _cv (Stype _dstruct noattr)) (Stype _dstruct noattr)*)
                                            is_ebpf := true; 
