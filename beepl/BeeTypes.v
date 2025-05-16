@@ -43,7 +43,8 @@ Inductive primitive_type : Type :=
 
 Inductive basic_type : Type :=  
 | Bprim : primitive_type -> basic_type
-| Bstruct : ident -> attr -> basic_type.
+| Bstruct : ident -> attr -> basic_type
+| Barray : primitive_type -> Z -> attr -> basic_type.
 
 Inductive ptr_type : Type :=
 | Reftype : ident -> basic_type -> attr -> ptr_type       (* Pointer to primitive types and struct : box - introduced in prog *)
@@ -51,26 +52,29 @@ Inductive ptr_type : Type :=
 | Otype : ptr_type -> ptr_type                            (* Option type *)          
 | Fptype : list type -> effect -> type -> ptr_type        (* function/arrow pointer type *)
 | Sptype : ident -> attr -> ptr_type                      (* struct pointer - often used when it comes from helper functions *)
+| Aptype : type -> Z -> attr -> ptr_type                  (* array pointer - often used in ebpf structs *)
 with type : Type :=
 | Utype : type                                            (* Unit type *)
 | Vtype : primitive_type -> type                          (* Value types *)
 | Ptrtype : ptr_type -> type                              (* pointer type : can be ref, option or function pointer*)
 | Stype : ident -> attr -> type                           (* struct type *)
+| Atype : type -> Z -> attr -> type                       (* array types ([ty[len]]) *)
 | Ftype : list type -> effect -> type -> type             (* function type *)
-| Bytes : type                                            (* bytes type of size n *)
-| Maptype : int -> Z -> 
-            type -> type -> type                          (* map type - it gets translated to struct map of ebpf *).
+| Bytes : type                                            (* bytes type of size n *).
+
 
 Fixpoint get_data_type (pt : ptr_type) : type :=
 match pt with 
 | Reftype h bt a => match bt with 
                     | Bprim p => Vtype p
                     | Bstruct s a => Stype s a 
+                    | Barray p z a => Atype (Vtype p) z a
                     end
 | Vptype pt => Vtype pt
 | Otype pt => get_data_type pt
 | Fptype ts ef t => Ftype ts ef t
 | Sptype s a => Stype s a
+| Aptype t z a => Atype t z a
 end.
 
 Inductive wtype : Type :=
@@ -82,8 +86,10 @@ Inductive wtype : Type :=
 | Twpv : wtype
 | Twot : wtype
 | Twpst : wtype
+| Twpa : wtype
 | Twfunptr : wtype
 | Twst : wtype
+| Twa : wtype
 | Twf : wtype
 | Twv : wtype
 | Twptr : wtype
@@ -105,6 +111,7 @@ match t with
 | Otype t => attr_of_ptr_type t
 | Fptype ts ef t => noattr
 | Sptype h a => a
+| Aptype t z a => a
 end.
 
 Definition attr_of_type (t : type) : attr :=
@@ -113,9 +120,9 @@ match t with
 | Vtype pt => attr_of_primitive_type pt
 | Ptrtype pt => attr_of_ptr_type pt
 | Stype x a => a
+| Atype t z a => a 
 | Ftype ts e t => noattr
 | Bytes => noattr
-| Maptype i n kt vt => noattr 
 end.
 
 (****** Translation from BeePL types to Csyntax types ******)
@@ -189,6 +196,7 @@ Fixpoint transBeePL_type (t : BeeTypes.type) : Ctypes.type :=
                 end
   | Ptrtype pt => (transBeePL_ptr_type pt)
   | Stype s a => (Tstruct s a) 
+  | Atype t z a => (Tarray (transBeePL_type t) z a)
   | Ftype ts ef t' =>
       let cts := transBeePL_types transBeePL_type ts in 
       let ct := transBeePL_type t' in 
@@ -197,7 +205,6 @@ Fixpoint transBeePL_type (t : BeeTypes.type) : Ctypes.type :=
            cc_unproto := false;
            cc_structret := false |})
   | Bytes => (Tstruct bytes_t noattr)
-  | Maptype i n kt vt => Tstruct (ident_of_string "bpf_map") noattr 
   end
 with transBeePL_ptr_type (pt : ptr_type) : Ctypes.type :=
   match pt with 
@@ -207,6 +214,11 @@ with transBeePL_ptr_type (pt : ptr_type) : Ctypes.type :=
       | Bprim (Tint sz s a') => Ctypes.Tpointer (Ctypes.Tint sz s a') a
       | Bprim (Tlong s a') => Ctypes.Tpointer (Ctypes.Tlong s a') a
       | Bstruct s a' => Ctypes.Tpointer (Tstruct s a') a
+      | Barray bt z a' =>  match bt with  
+                           | Tbool => Ctypes.Tpointer (Tarray (Ctypes.Tint I8 Unsigned noattr) z a') a
+                           | Tint sz s ai => Ctypes.Tpointer (Tarray (Ctypes.Tint sz s ai) z a') a
+                           | Tlong s al => Ctypes.Tpointer (Tarray (Ctypes.Tlong s al) z a') a
+                           end
       end
   | Vptype pt => match pt with 
                  | Tbool => tptr tvoid (*Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr*)
@@ -224,6 +236,7 @@ with transBeePL_ptr_type (pt : ptr_type) : Ctypes.type :=
              cc_structret := false |})
         noattr)
   | Sptype s a => (Ctypes.Tpointer (Tstruct s a) a)
+  | Aptype t' z a => (Ctypes.Tpointer (Tarray (transBeePL_type t') z a) a)
   end.
 
 (*** Composite Definitions related to BeePL ***)
@@ -286,9 +299,9 @@ Fixpoint bcomplete_type (env: bcomposite_env) (t: type) : bool :=
   | Vtype pt => true
   | Ptrtype pt => true 
   | Stype s _ => match env!s with Some co => true | None => false end
+  | Atype t z a => bcomplete_type env t
   | Ftype _ _ _ => false
   | Bytes => true 
-  | Maptype _ _ _ _ => false
   end.
 
 Definition bcomplete_or_function_type (env: bcomposite_env) (t: type) : bool :=
@@ -371,8 +384,8 @@ match t with
 | Ptrtype pt => true 
 | Ftype es ef t => false
 | Stype x a => false
+| Atype t z a => false
 | Bytes => false
-| Maptype i n kt vt => false
 end. 
 
 Definition is_ref_ptr_type (pt : ptr_type) : bool :=
@@ -400,9 +413,20 @@ match t with
 | Ptrtype pt => false 
 | Ftype es ef t => false
 | Stype x a => true
+| Atype t z a => false
 | Bytes => false
-| Maptype i n kt vt => false
 end. 
+
+Definition is_atype (t : type) : bool :=
+match t with 
+| Utype => false
+| Vtype vt => false
+| Ptrtype pt => false 
+| Ftype es ef t => false
+| Stype x a => false
+| Atype t z a => true
+| Bytes => false
+end.
 
 Definition is_utype (t : type) : bool :=
 match t with 
@@ -411,8 +435,8 @@ match t with
 | Ptrtype pt => false 
 | Ftype es ef t => false
 | Stype x a => false
+| Atype t z a => false
 | Bytes => false
-| Maptype i n kt vt => false
 end. 
 
 Definition is_funtype (t : type) : bool :=
@@ -505,6 +529,7 @@ Definition signedness_of_basic (bt : basic_type) : option signedness :=
   match bt with
   | Bprim pt => signedness_of_primitive pt
   | Bstruct _ _ => None
+  | Barray _ _ _ => None
   end.
 
 Fixpoint signedness_of_ptr_type (pt : ptr_type) : option signedness :=
@@ -514,6 +539,7 @@ Fixpoint signedness_of_ptr_type (pt : ptr_type) : option signedness :=
   | Otype pt' => signedness_of_ptr_type pt'
   | Fptype _ _ _=> None
   | Sptype _ _ => None
+  | Aptype _ _ _ => None
   end.
 
 Definition signedness_of_type (t : type) : option signedness :=
@@ -522,9 +548,9 @@ Definition signedness_of_type (t : type) : option signedness :=
   | Vtype pt => signedness_of_primitive pt
   | Ptrtype pt => signedness_of_ptr_type pt
   | Stype _ _ => None
+  | Atype t z a => None
   | Ftype _ _ _ => None
   | Bytes => None
-  | Maptype i n kt vt => None
 end.
 
 Definition wtype_of_primitive (pt : primitive_type) : wtype :=
@@ -540,11 +566,13 @@ Definition wtype_of_ptr_type (pt : ptr_type) : wtype :=
       match bt with
       | Bprim _ => Twref
       | Bstruct _ _ => Twpst
+      | Barray _ _ _ => Twpa
       end
   | Vptype _ => Twpv
   | Otype _ => Twot
   | Fptype _ _ _ => Twfunptr
   | Sptype _ _ => Twptr
+  | Aptype _ _ _ => Twpa
   end.
 
 Definition wtype_of_type (t : type) : wtype :=
@@ -553,9 +581,9 @@ Definition wtype_of_type (t : type) : wtype :=
   | Vtype pt => wtype_of_primitive pt
   | Ptrtype pt => wtype_of_ptr_type pt
   | Stype _ _ => Twst
+  | Atype t z a => Twa
   | Ftype _ _ _ => Twfun
   | Bytes => Twbytes
-  | Maptype i n kt vt => Twmap
   end.
 
 Fixpoint wtypes_of_types (t : list type) : list wtype :=
@@ -679,7 +707,8 @@ end.
 Definition access_mode_basic (t : basic_type) : mode :=
 match t with 
 | Bprim t => access_mode_prim t
-| Bstruct x a => By_copy
+| Bstruct x a => By_reference
+| Barray t z a => By_reference
 end.
 
 Definition access_mode_type (t : type) : mode :=
@@ -688,9 +717,9 @@ Definition access_mode_type (t : type) : mode :=
   | Vtype pt => access_mode_prim pt
   | Ptrtype _ => By_reference
   | Stype _ _ => By_reference
+  | Atype t z a => By_reference
   | Ftype _ _ _ => By_reference
   | Bytes => By_reference
-  | Maptype i n kt vt => By_reference
   end.
 
 Section Eq_basic_types.
@@ -710,6 +739,7 @@ Definition eq_basic_type (b1 b2 : basic_type) : bool :=
 match b1, b2 with 
 | Bprim p1, Bprim p2 => eq_primitive_type p1 p2
 | Bstruct x1 a1, Bstruct x2 a2 => (x1 =? x2)%positive && attr_eq a1 a2
+| Barray p1 n1 a1, Barray p2 n2 a2 => eq_primitive_type p1 p2 && (n1 =? n2)%Z && attr_eq a1 a2
 | _, _ => false
 end.
 
@@ -732,13 +762,10 @@ Fixpoint eq_type (t1 t2 : type) : bool :=
   | Vtype p1, Vtype p2 => eq_primitive_type p1 p2
   | Ptrtype pt1, Ptrtype pt2 => eq_ptr_type pt1 pt2
   | Stype id1 a1, Stype id2 a2 => (id1 =? id2)%positive && attr_eq a1 a2
+  | Atype t1 z1 a1, Atype t2 z2 a2 => eq_type t1 t2 && (z1 =? z2)%Z && attr_eq a1 a2
   | Ftype ts1 ef1 t1', Ftype ts2 ef2 t2' =>
       eq_types eq_type ts1 ts2 && eq_effect ef1 ef2 && eq_type t1' t2'
   | Bytes, Bytes => true
-  | Maptype i n kt vt, Maptype i' n' kt' vt' => (Int.eq i i') && 
-                                                (n =? n')%Z &&
-                                                eq_type kt kt' &&
-                                                eq_type vt vt'
   | _, _ => false
   end
 
@@ -767,8 +794,10 @@ Definition eq_wtype (w1 w2 : wtype) : bool :=
   | Twpv, Twpv => true
   | Twot, Twot => true
   | Twpst, Twpst => true
+  | Twpa, Twpa => true
   | Twfunptr, Twfunptr => true
   | Twst, Twst => true
+  | Twa, Twa => true 
   | Twf, Twf => true
   | Twv, Twv => true
   | Twptr, Twptr => true
@@ -794,6 +823,7 @@ Definition sizeof_btype (env : bcomposite_env) (t : basic_type) : Z :=
 match t with 
 | Bprim t => sizeof_ptype t 
 | Bstruct x a => match env!x with Some co => co_sizeof co | None => 0 end
+| Barray pt n a => sizeof_ptype pt * Z.max 0 n
 end. 
 
 Fixpoint sizeof_ptr_type (env : bcomposite_env) (pt : ptr_type) : Z :=
@@ -803,18 +833,18 @@ Fixpoint sizeof_ptr_type (env : bcomposite_env) (pt : ptr_type) : Z :=
   | Otype t => sizeof_ptr_type env t
   | Fptype _ _ _ => 1
   | Sptype x a => 1
+  | Aptype t z a => 1
   end.
 
-Definition sizeof_type (env : bcomposite_env) (t : type) : Z :=
+Fixpoint sizeof_type (env : bcomposite_env) (t : type) : Z :=
   match t with
   | Utype => 0
   | Vtype pt => sizeof_ptype pt
   | Ptrtype pt => sizeof_ptr_type env pt
   | Stype x _ => match env!x with Some co => co_sizeof co | None => 0 end
+  | Atype t' z a => sizeof_type env t' * Z.max 0 z
   | Ftype _ _ _ => 1
   | Bytes => match env!bytes_t with Some co => co_sizeof co | None => 0 end
-  | Maptype i n kt vt => 0 (* it doesn't consume space in the program's runtime stack or heap. 
-                                It just informs the kernel to allocate a map of roughly : takes space in kernel memory *)
   end.
 
 Fixpoint sizeof_types (env : bcomposite_env) (ts : list type) : Z :=

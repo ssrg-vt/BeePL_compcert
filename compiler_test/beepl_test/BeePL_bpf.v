@@ -79,7 +79,10 @@ Definition ident_to_string_pt_regs : list (ident * string) := ((_pt_regs, "pt_re
                                                                (_ss, "ss") ::
                                                                (_ctx, "ctx") :: nil).
 
+
+(********************** xdp_md struct *******************************)
 Definition _xdp_md : ident := $"xdp_md".
+Definition _xdp_md_bee : ident := $"xdp_md_bee".
 Definition _data : ident := $"data".
 Definition _data_end : ident := $"data_end".
 Definition _data_meta : ident := $"data_meta".
@@ -88,7 +91,7 @@ Definition _rx_queue_index : ident := $"rx_queue_index".
 Definition _egress_ifindex : ident := $"egress_ifindex".
 
 
-Definition ident_to_string_xdp_md : list (ident * string) := ((_xdp_md, "xdp_md") ::
+Definition ident_to_string_xdp_md : list (ident * string) := ((_xdp_md, "xdp_md") :: (_xdp_md_bee, "xdp_md_bee") ::
                                                               (_data, "data") ::
                                                               (_data_end, "data_end") ::
                                                               (_data_meta, "data_meta") :: 
@@ -96,6 +99,7 @@ Definition ident_to_string_xdp_md : list (ident * string) := ((_xdp_md, "xdp_md"
                                                               (_rx_queue_index, "rx_queue_index") ::
                                                               (_egress_ifindex, "egress_ifindex") :: nil).
 
+(** xdp_md struct **)
 Definition bcomposites_xdp_md : list bcomposite_definition := 
 (Bcomposite _xdp_md Struct
    (Member_plain _data tint32u :: 
@@ -107,7 +111,59 @@ Definition bcomposites_xdp_md : list bcomposite_definition :=
    noattr :: nil).
 
 
+(** BeePL xdp_md struct **)
+Definition bcomposites_xdp_md_bee : list bcomposite_definition :=
+(Bcomposite _xdp_md_bee Struct
+   (Member_plain _data Bytes :: 
+    Member_plain _data_meta tint32u ::
+    Member_plain _ingress_ifindex tint32u :: 
+    Member_plain _rx_queue_index tint32u :: 
+    Member_plain _egress_ifindex tint32u :: nil)
+   noattr :: nil).
 
+
+(******************** ethhdr struct ***************************)
+
+Definition _eth_hdr : ident := $"eth_hdr".
+Definition _h_dest : ident := $"h_dest".
+Definition _h_source : ident := $"h_source".
+Definition _h_proto : ident := $"h_proto".
+
+Definition ident_to_string_eth_hdr : list (ident * string) := ((_eth_hdr, "eth_hdr") ::
+                                                               (_h_dest, "h_dest") ::
+                                                               (_h_source, "h_source") ::
+                                                               (_h_proto, "h_proto") :: nil).
+ 
+(** ethhdr struct **)
+Definition bcomposites_ethhdr : list bcomposite_definition :=
+(Bcomposite _eth_hdr Struct 
+  (Member_plain _h_dest (tbarray tint8u 6 noattr) ::
+   Member_plain _h_source (tbarray tint8u 6 noattr) ::
+   Member_plain _h_proto tint16u :: nil) noattr :: nil).
+
+(******************* BPF map struct **************************)
+
+Definition _type : ident := $"type".
+Definition _max_entries : ident := $"max_entries".
+Definition _key : ident := $"key".
+Definition _value : ident := $"value".
+Definition _bpf_map_type_hash : ident := $"bpf_map_type_hash".
+
+
+Definition ident_to_string_bpf_map_type_hash : list (ident * string) := ((_bpf_map_type_hash, "bpf_map_type_hash") ::
+                                                                         (_type, "type") ::
+                                                                         (_max_entries, "max_entries") ::
+                                                                         (_key, "key") ::
+                                                                         (_value, "value") :: nil).
+ 
+
+Definition bcomposites_bpf_map_type_hash : list bcomposite_definition := (* once we support enum types these can be generalized to one def *)
+(Bcomposite _bpf_map_type_hash Struct
+  (Member_plain _type (Ptrtype (Aptype tint32s 1 noattr)) ::
+   Member_plain _max_entries (Ptrtype (Aptype tint32s 5000000 noattr)) ::
+   Member_plain _key trlongu ::
+   Member_plain _value trlongu :: nil) noattr :: nil).
+   
 (**** Helper functions ****)
 Definition bpf_get_current_uid_gid : ident := $"bpf_get_current_uid_gid".
 Definition bpf_map_lookup_elem : ident := $"bpf_map_lookup_elem".

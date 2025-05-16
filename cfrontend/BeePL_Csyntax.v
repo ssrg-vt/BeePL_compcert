@@ -797,22 +797,11 @@ end. *)
 (* Translates BeePL global variable to C global variable *)
 Definition transBeePLglobvar_globvar (gv : BeePL.globvar type) : 
 (AST.globvar Ctypes.type * list composite_definition) :=
-match (gv.(gvar_info)) with 
-| Maptype i n kt vt => let nbc := (Composite (ident_of_string "bpf_map") Struct
-                                       (Ctypes.Member_plain (ident_of_string "type") (tptr (tarray tint (Int.intval i))) ::
-                                        Ctypes.Member_plain (ident_of_string "max_entries") (tptr (tarray tint n)) ::
-                                        Ctypes.Member_plain (ident_of_string "key") (transBeePL_type kt) :: 
-                                        Ctypes.Member_plain (ident_of_string "value") (transBeePL_type vt) :: nil) noattr) in
-                         ({| AST.gvar_info := Tstruct (ident_of_string "bpf_map") noattr; 
-                            AST.gvar_init := (gv.(gvar_init)); 
-                            AST.gvar_readonly := gv.(gvar_readonly); 
-                            AST.gvar_volatile :=  gv.(gvar_volatile)|}, (nbc :: nil))
-| _ => let gvt := transBeePL_type (gv.(gvar_info)) in
+let gvt := transBeePL_type (gv.(gvar_info)) in
        ({| AST.gvar_info := gvt; 
            AST.gvar_init := (gv.(gvar_init)); 
            AST.gvar_readonly := gv.(gvar_readonly); 
-           AST.gvar_volatile :=  gv.(gvar_volatile)|}, nil)
-end.
+           AST.gvar_volatile :=  gv.(gvar_volatile)|}, nil).
 
 Definition transBeePL_globdef_globdef (cenv : bcomposite_env) (gd : BeePL.globdef BeePL.fundef BeeTypes.type) (is : list (ident * string)) (bctx : bcompiler_ctx) : 
 res ((AST.globdef fundef Ctypes.type) * list (ident * string) * list composite_definition * bcompiler_ctx) :=

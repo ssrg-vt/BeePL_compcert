@@ -51,7 +51,7 @@ Definition _r : ident := $"r".
 Definition _ctx : ident := $"ctx".
 Definition _hash_map_example : ident := $"hash_map_example".
 
-Definition ident_to_string : list (ident * string) := ident_to_string_pt_regs ++ ident_to_string_hf ++
+Definition ident_to_string : list (ident * string) := ident_to_string_bpf_map_type_hash ++ ident_to_string_pt_regs ++ ident_to_string_hf ++
                                                       ((_val, "val") ::
                                                        (_counter_table, "counter_table") ::
                                                        (_uid, "uid") ::
@@ -64,20 +64,20 @@ Definition ident_to_string : list (ident * string) := ident_to_string_pt_regs ++
                                                  
 
 Definition v_val := {|
-  gvar_info := Maptype (Int.repr 1) 5000000 trlongu trlongu;
+  gvar_info := Stype (ident_of_string "bpf_map_type_hash") noattr;
   gvar_init := (Init_int32 (Int.repr 0) :: nil);
   gvar_readonly := false;
   gvar_volatile := false
 |}.
 
 Definition v_counter_table := {|
-  gvar_info := (tostruct (ident_of_string "bpf_map") noattr);
+  gvar_info := (tostruct (ident_of_string "bpf_map_type_hash") noattr);
   gvar_init := (Init_addrof _val Ptrofs.zero :: nil);
   gvar_readonly := false;
   gvar_volatile := false
 |}.
 
-Definition bcomposites : list bcomposite_definition := bcomposites_pt_regs.
+Definition bcomposites : list bcomposite_definition := bcomposites_pt_regs ++ bcomposites_bpf_map_type_hash.
 
 Definition f_hash_map_example : BeePL.function := {| 
   fn_return := tint32s;
