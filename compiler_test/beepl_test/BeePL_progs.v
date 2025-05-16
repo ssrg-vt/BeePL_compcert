@@ -5,13 +5,7 @@ From Coq Require Import String.
 Require Import BeePL_add BeePL_add_ptr BeePL_div_zero1 BeePL_div_zero BeePL_add_ex1
 BeePL_cond BeePL_app BeePL_funptr_ex1 BeePL_bpf_get_prandom BeePL_for_ex1 BeePL_for_ex2
 BeePL_external_call BeePL_match_fail_ex1 BeePL_null_ptr BeePL_bitstring1 BeePL_globvar1
-BeePL_globvar2. 
-
-
-
-(* BeePL_app  BeePL_external_call BeePL_ref.
-Require Import BeePL_struct_ex2 BeePL_for_ex1 BeePL_for_ex2 BeePL_globvar1.
-Require Import BeePL_bpf_get_prandom BeePL_bpf_ktime_get_ns.*) (*BeePL_null_ptr BeePL_match_fail_ex1.*)
+BeePL_globvar2 BeePL_bpf_xdp_packet_count BeePL_bpf_xdp_packet_count1 BeePL_bpf_map_example1. 
 
 (* In this file you will see two definitions. One for example1 and the other for
    example1_atom_of_string. Those two definitions are extracted to OCaml by 
@@ -30,11 +24,11 @@ Require Import BeePL_bpf_get_prandom BeePL_bpf_ktime_get_ns.*) (*BeePL_null_ptr 
 
 (* Construct the BeePL.program *)
 
-Definition example1 : BeePL.program := @mkbprogram BeePL_div_zero.bcomposites 
-                                                   BeePL_div_zero.global_definitions 
-                                                   BeePL_div_zero.public_idents 
-                                                   BeePL_div_zero._main 
-                                                   BeePL_div_zero.bcomposite_correct
-                                                   BeePL_div_zero.ident_to_string.
+Definition example1 : BeePL.program := @mkbprogram BeePL_bpf_get_prandom.bcomposites 
+                                                   BeePL_bpf_get_prandom.global_definitions 
+                                                   BeePL_bpf_get_prandom.public_idents 
+                                                   BeePL_bpf_get_prandom._xdp_prog 
+                                                   BeePL_bpf_get_prandom.bcomposite_correct
+                                                   BeePL_bpf_get_prandom.ident_to_string.
 
 

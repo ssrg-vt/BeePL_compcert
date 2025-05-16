@@ -23,7 +23,7 @@ Definition  ident_to_string : list (ident * string) := ((_counter_table, "counte
                                                         (_main, "main") :: nil).
 
 Definition v_counter_table:= {|
-  gvar_info := Maptype _counter_table (Int.repr 1) 5000000 trlongu trlongu;
+  gvar_info := Maptype (Int.repr 1) 5000000 trlongu trlongu;
   gvar_init := (Init_int32 (Int.repr 0) :: nil);
   gvar_readonly := false;
   gvar_volatile := false

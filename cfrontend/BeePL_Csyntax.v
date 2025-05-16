@@ -457,7 +457,7 @@ match e with
 | App e es t => do (ce, ctx') <- (transBeePL_expr_expr e ctx bctx);
                 do (ces, ctx'') <- (transBeePL_expr_exprs transBeePL_expr_expr es (snd ce) ctx');
                 let ct := (transBeePL_type t) in
-                ret (Sreturn (Some (Ecall (fst ce) (fst ces) ct)), snd ces, ctx'')  
+                ret (Sdo (Ecall (fst ce) (fst ces) ct), snd ces, ctx'')  
 | Prim b es t => match b with 
                  | Ref => (* TODO: figure out how to recude duplicate code between here and transBeePL_expr_st *)
                           do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx bctx);
@@ -512,9 +512,10 @@ match e with
 | Bind x t e e' t' => let ct := (transBeePL_type t) in
                       do (ce', ctx') <- (transBeePL_expr_st cenv e' ctx bctx);
                       match e with 
-                      | Prim Massgn es t => do (ce, ctx'') <- (transBeePL_expr_expr e (snd ce') ctx'); ret (Ssequence (Sdo (fst ce)) (fst ce'), snd ce, ctx'') 
+                      | Prim Massgn es t => do (ce, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst ce) (fst ce'), snd ce, ctx'') 
                       | For e1 e2 d e3 t => do (cs, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst cs) (fst ce'), snd cs, ctx'')  
-                      | Sinit sx ids es t =>  do (cs, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst cs) (fst ce'), snd cs, ctx'')  
+                      | Sinit sx ids es t =>  do (cs, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst cs) (fst ce'), snd cs, ctx'') 
+                      | Bind x1 t1 e1 e1' t1' =>  do (cs, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst cs) (fst ce'), snd cs, ctx'') 
                       | _ => do (ce, ctx'') <- (transBeePL_expr_expr e (snd ce') ctx');
                                     ret (Ssequence (Sdo (Eassign (Evar x ct) (fst ce) Tvoid)) 
                                            (fst ce'), snd ce, ctx'')
@@ -797,12 +798,12 @@ end. *)
 Definition transBeePLglobvar_globvar (gv : BeePL.globvar type) : 
 (AST.globvar Ctypes.type * list composite_definition) :=
 match (gv.(gvar_info)) with 
-| Maptype s i n kt vt => let nbc := (Composite s Struct
+| Maptype i n kt vt => let nbc := (Composite (ident_of_string "bpf_map") Struct
                                        (Ctypes.Member_plain (ident_of_string "type") (tptr (tarray tint (Int.intval i))) ::
                                         Ctypes.Member_plain (ident_of_string "max_entries") (tptr (tarray tint n)) ::
                                         Ctypes.Member_plain (ident_of_string "key") (transBeePL_type kt) :: 
                                         Ctypes.Member_plain (ident_of_string "value") (transBeePL_type vt) :: nil) noattr) in
-                         ({| AST.gvar_info := Tstruct s noattr; 
+                         ({| AST.gvar_info := Tstruct (ident_of_string "bpf_map") noattr; 
                             AST.gvar_init := (gv.(gvar_init)); 
                             AST.gvar_readonly := gv.(gvar_readonly); 
                             AST.gvar_volatile :=  gv.(gvar_volatile)|}, (nbc :: nil))

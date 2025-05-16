@@ -58,7 +58,7 @@ with type : Type :=
 | Stype : ident -> attr -> type                           (* struct type *)
 | Ftype : list type -> effect -> type -> type             (* function type *)
 | Bytes : type                                            (* bytes type of size n *)
-| Maptype : ident -> int -> Z -> 
+| Maptype : int -> Z -> 
             type -> type -> type                          (* map type - it gets translated to struct map of ebpf *).
 
 Fixpoint get_data_type (pt : ptr_type) : type :=
@@ -115,7 +115,7 @@ match t with
 | Stype x a => a
 | Ftype ts e t => noattr
 | Bytes => noattr
-| Maptype s i n kt vt => noattr 
+| Maptype i n kt vt => noattr 
 end.
 
 (****** Translation from BeePL types to Csyntax types ******)
@@ -197,7 +197,7 @@ Fixpoint transBeePL_type (t : BeeTypes.type) : Ctypes.type :=
            cc_unproto := false;
            cc_structret := false |})
   | Bytes => (Tstruct bytes_t noattr)
-  | Maptype s i n kt vt => Tstruct s noattr 
+  | Maptype i n kt vt => Tstruct (ident_of_string "bpf_map") noattr 
   end
 with transBeePL_ptr_type (pt : ptr_type) : Ctypes.type :=
   match pt with 
@@ -288,7 +288,7 @@ Fixpoint bcomplete_type (env: bcomposite_env) (t: type) : bool :=
   | Stype s _ => match env!s with Some co => true | None => false end
   | Ftype _ _ _ => false
   | Bytes => true 
-  | Maptype _ _ _ _ _ => false
+  | Maptype _ _ _ _ => false
   end.
 
 Definition bcomplete_or_function_type (env: bcomposite_env) (t: type) : bool :=
@@ -372,7 +372,7 @@ match t with
 | Ftype es ef t => false
 | Stype x a => false
 | Bytes => false
-| Maptype s i n kt vt => false
+| Maptype i n kt vt => false
 end. 
 
 Definition is_ref_ptr_type (pt : ptr_type) : bool :=
@@ -395,7 +395,7 @@ match t with
 | Ftype es ef t => false
 | Stype x a => true
 | Bytes => false
-| Maptype s i n kt vt => false
+| Maptype i n kt vt => false
 end. 
 
 Definition is_utype (t : type) : bool :=
@@ -406,7 +406,7 @@ match t with
 | Ftype es ef t => false
 | Stype x a => false
 | Bytes => false
-| Maptype s i n kt vt => false
+| Maptype i n kt vt => false
 end. 
 
 Definition is_funtype (t : type) : bool :=
@@ -518,7 +518,7 @@ Definition signedness_of_type (t : type) : option signedness :=
   | Stype _ _ => None
   | Ftype _ _ _ => None
   | Bytes => None
-  | Maptype s i n kt vt => None
+  | Maptype i n kt vt => None
 end.
 
 Definition wtype_of_primitive (pt : primitive_type) : wtype :=
@@ -549,7 +549,7 @@ Definition wtype_of_type (t : type) : wtype :=
   | Stype _ _ => Twst
   | Ftype _ _ _ => Twfun
   | Bytes => Twbytes
-  | Maptype s i n kt vt => Twmap
+  | Maptype i n kt vt => Twmap
   end.
 
 Fixpoint wtypes_of_types (t : list type) : list wtype :=
@@ -684,7 +684,7 @@ Definition access_mode_type (t : type) : mode :=
   | Stype _ _ => By_reference
   | Ftype _ _ _ => By_reference
   | Bytes => By_reference
-  | Maptype s i n kt vt => By_reference
+  | Maptype i n kt vt => By_reference
   end.
 
 Section Eq_basic_types.
@@ -729,11 +729,10 @@ Fixpoint eq_type (t1 t2 : type) : bool :=
   | Ftype ts1 ef1 t1', Ftype ts2 ef2 t2' =>
       eq_types eq_type ts1 ts2 && eq_effect ef1 ef2 && eq_type t1' t2'
   | Bytes, Bytes => true
-  | Maptype s i n kt vt, Maptype s' i' n' kt' vt' => ident_eq s s' && 
-                                                     (Int.eq i i') && 
-                                                     (n =? n')%Z &&
-                                                     eq_type kt kt' &&
-                                                     eq_type vt vt'
+  | Maptype i n kt vt, Maptype i' n' kt' vt' => (Int.eq i i') && 
+                                                (n =? n')%Z &&
+                                                eq_type kt kt' &&
+                                                eq_type vt vt'
   | _, _ => false
   end
 
@@ -806,7 +805,7 @@ Definition sizeof_type (env : bcomposite_env) (t : type) : Z :=
   | Stype x _ => match env!x with Some co => co_sizeof co | None => 0 end
   | Ftype _ _ _ => 1
   | Bytes => match env!bytes_t with Some co => co_sizeof co | None => 0 end
-  | Maptype s i n kt vt => 0 (* it doesn't consume space in the program's runtime stack or heap. 
+  | Maptype i n kt vt => 0 (* it doesn't consume space in the program's runtime stack or heap. 
                                 It just informs the kernel to allocate a map of roughly : takes space in kernel memory *)
   end.
 

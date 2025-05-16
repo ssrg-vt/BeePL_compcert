@@ -64,8 +64,7 @@ Definition toint32u := Ptrtype (Otype (Vptype pint32u)).
 Definition toint32s := Ptrtype (Otype (Vptype pint32s)).
 Definition tolongu := Ptrtype (Otype (Vptype plongu)).
 Definition tolongs := Ptrtype (Otype (Vptype plongs)).
+Definition tostruct s a := Ptrtype (Otype (Sptype s a)).
 Definition tpfun ts ef t := Ptrtype (Fptype ts ef t).
 Definition tunit := Utype.
-
-
 
