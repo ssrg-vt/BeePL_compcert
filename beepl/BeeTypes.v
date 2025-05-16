@@ -387,6 +387,12 @@ match t with
 | _ => false
 end. 
 
+Definition is_option_type (t : type) : bool :=
+match t with 
+| Ptrtype (Otype t) => true
+| _ => false
+end. 
+
 Definition is_stype (t : type) : bool :=
 match t with 
 | Utype => false
@@ -745,6 +751,8 @@ with eq_ptr_type (p1 p2 : ptr_type) : bool :=
   | Fptype ts1 ef1 t1, Fptype ts2 ef2 t2 =>
       eq_types eq_type ts1 ts2 && eq_effect ef1 ef2 && eq_type t1 t2
   | Sptype id1 a1, Sptype id2 a2 => (id1 =? id2)%positive && attr_eq a1 a2
+  | Otype t1, _ => true   (* we need this special case: all pointer type can be void * *)
+  | _, Otype t1 => true   (* we need this special case: all pointer type can be void * *)
   | _, _ => false
   end.
 

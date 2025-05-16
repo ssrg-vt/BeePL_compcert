@@ -130,7 +130,7 @@ Definition bpf_get_current_uid_gid_ef : BeePL.external_function
 Definition bpf_map_lookup_elem_ef : BeePL.external_function
    := EF_external "bpf_map_lookup_elem" 
       {| bsig_args := (tostruct (ident_of_string "bpf_map") noattr :: tolongu :: nil);
-         bsig_ef := nil;
+         bsig_ef := Read mem_ident :: nil;
          bsig_res := tolongu;
          bsig_cc := cc_default
       |}.
@@ -138,7 +138,7 @@ Definition bpf_map_lookup_elem_ef : BeePL.external_function
 Definition bpf_map_update_elem_ef : BeePL.external_function
    := EF_external "bpf_map_update_elem" 
       {| bsig_args := (tostruct (ident_of_string "bpf_map") noattr :: tolongu :: tolongu :: tlongu :: nil);
-         bsig_ef := nil;
+         bsig_ef := Read mem_ident :: Write mem_ident :: nil;
          bsig_res := tlongu;
          bsig_cc := cc_default
       |}.

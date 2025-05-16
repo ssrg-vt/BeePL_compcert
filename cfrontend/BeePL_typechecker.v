@@ -22,7 +22,12 @@ Notation "m [ a ]" := (PTree.get (ident_of_string a) m) (at level 10, left assoc
 Definition  beepl_ef_env : ef_env :=
 ef_empty_map ["bpf_get_prandom_u32" <- (nil, (tint32u, nil))]
              ["bpf_ktime_get_ns" <- (nil, (tlongu, nil))]
-             ["add" <- ((tint32s :: trint32s :: nil), (tint32s, nil))].
+             ["add" <- ((tint32s :: trint32s :: nil), (tint32s, nil))]
+             ["bpf_get_current_uid_gid" <- (nil, (tlongu, nil))]
+             ["bpf_map_lookup_elem" <- ((tostruct (ident_of_string "bpf_map") noattr :: tolongu :: nil), 
+                                            (tolongu, (Read mem_ident :: nil)))]
+             ["bpf_map_update_elem" <- ((tostruct (ident_of_string "bpf_map") noattr :: tolongu :: tolongu :: tlongu :: nil), 
+                                           (tlongu, (Read mem_ident :: Write mem_ident :: nil)))].
 
 Definition get_ef_type (efenv : ef_env) (s : string) : res ef_info :=
 match efenv[s] with 
@@ -354,7 +359,9 @@ match e with
 | Bind x t e1 e2 t' => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
                        do (te2, ef2) <- type_check_expr cenv (extend_context Gamma x t) Sigma e2;
                        if eq_type te2 t'
-                       then OK (te2, ef1 ++ ef2)
+                       then if is_option_type t 
+                            then OK (te2, (Write mem_ident :: nil) ++ ef1 ++ ef2) 
+                            else OK (te2, ef1 ++ ef2)
                        else Error (msg "TYPE ERROR: Type of bind does not match the inferred type")
 | Cond e1 e2 e3 t =>  do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
                       do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
@@ -426,9 +433,9 @@ match e with
                      do (tes, efs) <- type_check_exprs type_check_expr cenv Gamma Sigma es;
                      match te with 
                      | Ptrtype t' => if is_option_ptr_type t' && all_eq_types tes 
-                                     then OK(t, ef ++ efs)
+                                     then OK(t, (Read mem_ident :: nil) ++ ef ++ efs)
                                      else Error (msg "TYPE ERROR: Type of Match expr should be an option to ref type and all its elements should be of same type")
-                     | _ => Error (msg "TYPE ERROR: Type of Match expr should be an option type")
+                     | _ => Error (msg "TYPE ERROR: Type of Match expr should be an option or bytes type")
                      end
 | Ebytes es t => Error (msg "TYPE ERROR: Type of Bitstrings are not supported yet")
                      

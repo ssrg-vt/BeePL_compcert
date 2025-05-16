@@ -81,7 +81,8 @@ Definition bcomposites : list bcomposite_definition := bcomposites_pt_regs.
 
 Definition f_hash_map_example : BeePL.function := {| 
   fn_return := tint32s;
-  fn_effect := Alloc mem_ident :: Alloc mem_ident :: nil;
+  fn_effect := Alloc mem_ident :: Alloc mem_ident :: Write mem_ident :: Write mem_ident :: Read mem_ident :: Read mem_ident :: 
+               Read mem_ident :: Write mem_ident :: Read mem_ident :: Write mem_ident :: Read mem_ident :: Write mem_ident :: nil;
   fn_callconv := cc_default;
   fn_args := (_ctx, tpstruct _pt_regs) :: nil ;
   fn_vars := ((_uid, trlongu) :: (_counter, trlongu) :: (_p, tolongu) :: nil); 
@@ -96,7 +97,7 @@ Definition f_hash_map_example : BeePL.function := {|
                                         clong (Int64.repr 4294967295) tlongu :: nil) tlongu :: nil) tunit)
                          (Bind _p tolongu 
                             (App (Var bpf_map_lookup_elem 
-                                        (tfun (tostruct _counter_table noattr :: tolongu :: nil) nil tolongu)) 
+                                        (tfun (tostruct (ident_of_string "bpf_map") noattr :: tolongu :: nil) (Read mem_ident :: nil) tolongu)) 
                                         (Var _counter_table (tostruct (ident_of_string "bpf_map") noattr) ::
                                          Var _uid trlongu :: nil) tolongu)
                            (Match (Var _p (tolongu)) 
@@ -104,14 +105,15 @@ Definition f_hash_map_example : BeePL.function := {|
                                      (cint (Int.repr (-1)%Z) tint32s ::
                                        (Bind (_r) trlongu 
                                         (Prim Massgn (Var _counter trlongu ::
-                                                      Prim (Deref) (Var _p (tolongu) :: nil) tlongu :: nil) tlongu)
+                                                      Prim (Deref) (Var _p (tolongu) :: nil) tlongu :: nil) tunit)
                                         (Bind _r tint32s 
                                            (Bind _r trlongu 
                                                  (Prim Massgn (Var _counter trlongu ::
-                                                               Prim (Bop Cop.Oadd) (Prim Deref (Var _counter tlongu :: nil) tlongu ::
-                                                                                    clong (Int64.repr 1) tlongu :: nil) tlongu :: nil) tlongu)
+                                                               Prim (Bop Cop.Oadd) (Prim Deref (Var _counter trlongu :: nil) tlongu ::
+                                                                                    clong (Int64.repr 1) tlongu :: nil) tlongu :: nil) tunit)
                                                     (App (Var bpf_map_update_elem 
-                                                         (tfun (tostruct _counter_table noattr :: trlongu :: trlongu :: tlongu :: nil) nil tlongu)) 
+                                                         (tfun (tostruct (ident_of_string "bpf_map") noattr :: trlongu :: trlongu :: tlongu :: nil)
+                                                          (Read mem_ident :: Write mem_ident :: nil) tlongu)) 
                                                     (Var _counter_table (tostruct (ident_of_string "bpf_map") noattr) ::
                                                        Var _uid trlongu :: 
                                                        Var _counter trlongu :: 
@@ -120,7 +122,6 @@ Definition f_hash_map_example : BeePL.function := {|
                                         
                                                     
   is_ebpf := true |}.
-                                                
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
    := (_counter_table, Gvar v_counter_table) :: (_val, Gvar v_val) :: 
@@ -155,4 +156,5 @@ Compute (type_check_expr example1.(prog_comp_env)
                          (bind_vars (bind_vars empty_context f_hash_map_example.(fn_args)) 
                          f_hash_map_example.(fn_vars)) empty_context f_hash_map_example.(fn_body)).
 
-Compute (type_check_program example1). *) 
+Compute (type_check_program example1). *) (* Type checks! *) 
+
