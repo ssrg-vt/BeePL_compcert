@@ -16,7 +16,7 @@ Inductive effect_label : Type :=
 | Read : ident -> effect_label       (* read heap effect *)
 | Write : ident -> effect_label      (* write heap effect *)
 | Alloc : ident -> effect_label      (* allocation heap effect *)
-| Hstate : ident -> effect_label     (* state heap effect *).
+| Io : effect_label                  (* input/output unsafe effect *).
 
 Definition effect := list effect_label.  (* row of effects *)
 
@@ -27,7 +27,7 @@ match ef with
 | Read h => true 
 | Write h => true 
 | Alloc h => true 
-| Hstate h => true
+| Io => true
 end.
 
 Fixpoint is_stateful_effect (e : effect) : bool :=
@@ -571,7 +571,7 @@ match e1, e2 with
 | Read id1, Read id2 => (id1 =? id2)%positive
 | Write id1, Write id2 => (id1 =? id2)%positive
 | Alloc id1, Alloc id2 => (id1 =? id2)%positive
-| Hstate id1, Hstate id2 => (id1 =? id2)%positive
+| Io, Io => true
 | _, _ => false
 end.
 

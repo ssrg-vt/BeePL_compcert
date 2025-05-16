@@ -81,8 +81,8 @@ Definition bcomposites : list bcomposite_definition := bcomposites_pt_regs.
 
 Definition f_hash_map_example : BeePL.function := {| 
   fn_return := tint32s;
-  fn_effect := Alloc mem_ident :: Alloc mem_ident :: Write mem_ident :: Write mem_ident :: Read mem_ident :: Read mem_ident :: 
-               Read mem_ident :: Write mem_ident :: Read mem_ident :: Write mem_ident :: Read mem_ident :: Write mem_ident :: nil;
+  fn_effect := Alloc mem_ident :: Alloc mem_ident :: Write mem_ident :: Io :: Io :: Io :: 
+               Read mem_ident :: Write mem_ident :: Read mem_ident :: Write mem_ident :: Io :: nil;
   fn_callconv := cc_default;
   fn_args := (_ctx, tpstruct _pt_regs) :: nil ;
   fn_vars := ((_uid, trlongu) :: (_counter, trlongu) :: (_p, tolongu) :: nil); 
@@ -97,7 +97,7 @@ Definition f_hash_map_example : BeePL.function := {|
                                         clong (Int64.repr 4294967295) tlongu :: nil) tlongu :: nil) tunit)
                          (Bind _p tolongu 
                             (App (Var bpf_map_lookup_elem 
-                                        (tfun (tostruct (ident_of_string "bpf_map") noattr :: tolongu :: nil) (Read mem_ident :: nil) tolongu)) 
+                                        (tfun (tostruct (ident_of_string "bpf_map") noattr :: tolongu :: nil) (Io :: nil) tolongu)) 
                                         (Var _counter_table (tostruct (ident_of_string "bpf_map") noattr) ::
                                          Var _uid trlongu :: nil) tolongu)
                            (Match (Var _p (tolongu)) 
@@ -113,7 +113,7 @@ Definition f_hash_map_example : BeePL.function := {|
                                                                                     clong (Int64.repr 1) tlongu :: nil) tlongu :: nil) tunit)
                                                     (App (Var bpf_map_update_elem 
                                                          (tfun (tostruct (ident_of_string "bpf_map") noattr :: trlongu :: trlongu :: tlongu :: nil)
-                                                          (Read mem_ident :: Write mem_ident :: nil) tlongu)) 
+                                                          (Io :: nil) tlongu)) 
                                                     (Var _counter_table (tostruct (ident_of_string "bpf_map") noattr) ::
                                                        Var _uid trlongu :: 
                                                        Var _counter trlongu :: 
