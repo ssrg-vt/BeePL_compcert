@@ -11,6 +11,7 @@ Local Open Scope gensym_monad_scope.
 
 Record bcompiler_ctx := { arg_ctx : list (ident * type);
                           benv : bcomposite_env; }.
+Definition function_ctx := list (ident * BeeTypes.type * string).
 
 Section transBeePL_exprs.
 

@@ -248,13 +248,13 @@ Inductive sim_bexpr_cstmt : vmap -> BeePL.expr -> function_ctx -> Csyntax.statem
                sim_bexprs_cexprs le es ctx ces ctx' ->
                sim_bexpr_cstmt le (BeePL.Eapp ef ts es t) ctx
                               (Csyntax.Sdo (Csyntax.Ebuiltin cef cts ces ct)) ctx
-| sim_screate_st : forall le ctx ctx' ctx'' sx ids es t ces temp strl pty rs g1 g2 i1 g3 i2 g4 i3,
+| sim_sinit_st : forall le ctx ctx' ctx'' sx ids es t ces temp strl pty rs g1 g2 i1 g3 i2 g4 i3,
                    sim_bexprs_cexprs le es ctx ces ctx' ->
                    fresh_ident (List.map unzip_ident ctx') max_fresh g1 = Res (temp, strl) g2 i1 ->
                    ref_to_prim t g2 = Res pty g3 i2 ->
                    ctx'' = (temp, pty, strl) :: ctx' ->
                    init_struct_fields sx (zip ids (exprlist_list_expr ces)) (transBeePL_type t) (transBeePL_type pty) g3 = Res rs g4 i3 ->
-                   sim_bexpr_cstmt le (BeePL.Screate sx ids es t) ctx (Csyntax.Ssequence (Sdo (Eassign (Csyntax.Evar sx (transBeePL_type t)) 
+                   sim_bexpr_cstmt le (BeePL.Sinit sx ids es t) ctx (Csyntax.Ssequence (Sdo (Eassign (Csyntax.Evar sx (transBeePL_type t)) 
                                                                            (Csyntax.Eaddrof (Csyntax.Evar temp (transBeePL_type pty)) (transBeePL_type t)) (transBeePL_type t)))
                                                                             rs) ctx''
 | sim_sfield_st : forall le ctx ctx' e x t ce ct,

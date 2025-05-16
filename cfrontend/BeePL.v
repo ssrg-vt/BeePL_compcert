@@ -138,7 +138,7 @@ Lemma expr_list_expr_ind_mut:
     (forall (ef : external_function) (ts : list type) (es : list BeePL.expr) (t : type),
       Pl es -> Pe (Eapp ef ts es t)) ->
     (forall (i : ident) (idents : list ident) (es : list expr) (t : type),
-      Pl es -> Pe (Screate i idents es t)) ->
+      Pl es -> Pe (Sinit i idents es t)) ->
     (forall (e : expr) (x : ident) (t : type), Pe e -> Pe (Sfield e x t)) ->
     (forall (e1 e2 : expr) (d : dir) (e3 : expr) (t : type), 
       Pe e1 -> Pe e2 -> Pe e3 -> Pe (For e1 e2 d e3 t)) ->
@@ -152,7 +152,7 @@ Lemma expr_list_expr_ind_mut:
       Pe e -> Pl es -> Pl (e :: es)) ->
     (forall e, Pe e) /\ (forall es, Pl es).
 Proof.
-  intros Pe Pl HVal HVar HConst HApp HPrim HBind HCond HUnit HAddr HHexpr HEapp Hcreate HSfield HFor HNone HSome HMatch HEbytes Hnil Hcons.
+  intros Pe Pl HVal HVar HConst HApp HPrim HBind HCond HUnit HAddr HHexpr HEapp HSinit HSfield HFor HNone HSome HMatch HEbytes Hnil Hcons.
   
   (* Main proof strategy: induction on the structure of expressions and lists *)
   assert (forall e, Pe e) as He.
@@ -187,7 +187,7 @@ Proof.
         | nil => Hnil
         | e :: es => Hcons e es (IHe e) (IHl es)
         end).
-    - apply Hcreate.
+    - apply HSinit.
       apply (fix IHl (l : list BeePL.expr) : Pl l :=
         match l with
         | nil => Hnil
