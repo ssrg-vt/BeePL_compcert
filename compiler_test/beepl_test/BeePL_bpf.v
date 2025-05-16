@@ -84,6 +84,7 @@ Definition ident_to_string_pt_regs : list (ident * string) := ((_pt_regs, "pt_re
 Definition _xdp_md : ident := $"xdp_md".
 Definition _xdp_md_bee : ident := $"xdp_md_bee".
 Definition _data : ident := $"data".
+Definition _data_bee : ident := $"data_bee".
 Definition _data_end : ident := $"data_end".
 Definition _data_meta : ident := $"data_meta".
 Definition _ingress_ifindex : ident := $"ingress_ifindex".
@@ -91,7 +92,7 @@ Definition _rx_queue_index : ident := $"rx_queue_index".
 Definition _egress_ifindex : ident := $"egress_ifindex".
 
 
-Definition ident_to_string_xdp_md : list (ident * string) := ((_xdp_md, "xdp_md") :: (_xdp_md_bee, "xdp_md_bee") ::
+Definition ident_to_string_xdp_md : list (ident * string) := ((_xdp_md, "xdp_md") :: (_xdp_md_bee, "xdp_md_bee") :: (_data_bee, "data_bee") ::
                                                               (_data, "data") ::
                                                               (_data_end, "data_end") ::
                                                               (_data_meta, "data_meta") :: 
@@ -114,7 +115,7 @@ Definition bcomposites_xdp_md : list bcomposite_definition :=
 (** BeePL xdp_md struct **)
 Definition bcomposites_xdp_md_bee : list bcomposite_definition :=
 (Bcomposite _xdp_md_bee Struct
-   (Member_plain _data Bytes :: 
+   (Member_plain _data_bee Bytes :: 
     Member_plain _data_meta tint32u ::
     Member_plain _ingress_ifindex tint32u :: 
     Member_plain _rx_queue_index tint32u :: 
@@ -164,16 +165,18 @@ Definition bcomposites_bpf_map_type_hash : list bcomposite_definition := (* once
    Member_plain _key trlongu ::
    Member_plain _value trlongu :: nil) noattr :: nil).
    
-(**** Helper functions ****)
+(********************** Helper functions *********************************)
 Definition bpf_get_current_uid_gid : ident := $"bpf_get_current_uid_gid".
 Definition bpf_map_lookup_elem : ident := $"bpf_map_lookup_elem".
 Definition bpf_map_update_elem : ident := $"bpf_map_update_elem".
 Definition bpf_get_prandom_u32 : ident := $"bpf_get_prandom_u32".
+Definition htons : ident := $"htons".
 
 Definition ident_to_string_hf : list (ident * string) := ((bpf_get_current_uid_gid, "bpf_get_current_uid_gid") ::
                                                           (bpf_map_lookup_elem, "bpf_map_lookup_elem") ::
                                                           (bpf_map_update_elem, "bpf_map_update_elem") ::
-                                                          (bpf_get_prandom_u32, "bpf_get_prandom_u32") :: nil).
+                                                          (bpf_get_prandom_u32, "bpf_get_prandom_u32") :: 
+                                                          (htons, "htons") :: nil).
 
 Definition bpf_get_current_uid_gid_ef : BeePL.external_function
    := EF_external "bpf_get_current_uid_gid" 
@@ -207,3 +210,17 @@ Definition bpf_get_prandom_u32_ef : BeePL.external_function
          bsig_res := tint32u;
          bsig_cc := cc_default
       |}.
+
+
+Definition htons_ef : BeePL.external_function
+   := EF_external "htons" 
+      {| bsig_args := tint16u :: nil;
+         bsig_ef := nil;
+         bsig_res := tint16u;
+         bsig_cc := cc_default
+      |}.
+
+
+
+(************************* Functions *******************************)
+

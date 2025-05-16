@@ -1,12 +1,5 @@
-struct $6127156262475;
 struct pt_regs;
-struct $6127156262475 {
-  int (*$20551837)[1];
-  int (*$-4354297124645891434)[5000000];
-  unsigned long long *$402324;
-  unsigned long long *$1316573855;
-};
-
+struct bpf_map_type_hash;
 struct pt_regs {
   unsigned long long r15;
   unsigned long long r14;
@@ -29,9 +22,16 @@ struct pt_regs {
   unsigned long long sp;
 };
 
-extern struct $6127156262475 *counter_table;
+struct bpf_map_type_hash {
+  int (*type)[1];
+  int (*max_entries)[5000000];
+  unsigned long long *key;
+  unsigned long long *value;
+};
 
-extern struct $6127156262475 val;
+extern struct bpf_map_type_hash *counter_table;
+
+extern struct bpf_map_type_hash val;
 
 extern int hash_map_example(struct pt_regs *);
 
@@ -73,9 +73,9 @@ extern long long __compcert_i64_smulh(long long, long long);
 
 extern unsigned long long __compcert_i64_umulh(unsigned long long, unsigned long long);
 
-struct $6127156262475 *counter_table = &val;
+struct bpf_map_type_hash *counter_table = &val;
 
-struct $6127156262475 val = { 0, };
+struct bpf_map_type_hash val = { 0, };
 
 extern unsigned long long bpf_get_current_uid_gid(void);
 

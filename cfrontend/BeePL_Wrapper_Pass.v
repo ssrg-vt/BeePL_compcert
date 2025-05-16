@@ -1,6 +1,6 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx Coq.Strings.BinaryString.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Coq.Lists.List.
-Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes Coqlib SimplExpr Csyntaxdefs BeePL_notations.
+Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes Coqlib SimplExpr Csyntaxdefs BeePL_notations BeePL_bpf.
 Require Import BeePL_aux BeePL BeeTypes Csyntax Errors SimplExpr BeePL_values DecimalString BeePL_Bytes_Struct BeePL_Check_Reserved_Struct.
 
 Local Open Scope string_scope.
@@ -11,7 +11,7 @@ match cs with
 | nil => nil
 | c1 :: cs1 => match c1 with 
                | (Composite _xdp_md_bee Struct
-                   (Ctypes.Member_plain _data (Tstruct bytes_t {| attr_volatile := false; attr_alignas := None |}) :: rest) 
+                   (Ctypes.Member_plain _data_bee (Tstruct bytes_t {| attr_volatile := false; attr_alignas := None |}) :: rest) 
                    {| attr_volatile := false; attr_alignas := None |})
                    => (Composite (ident_of_string "xdp_md") Struct
                         (Ctypes.Member_plain _data (Ctypes.Tint I32 Unsigned noattr)  :: 
