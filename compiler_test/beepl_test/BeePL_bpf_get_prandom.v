@@ -24,7 +24,6 @@ char _license[] SEC("license") = "GPL";
 
 Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
 Definition _rand : ident := $"rand".
-Definition _bpf_get_prandom_u32 : ident := $"bpf_get_prandom_u32".
 Definition _ctx : ident := $"ctx".
 Definition _xdp_prog : ident := $"xdp_prog".
 Definition _x : ident := $"x".
@@ -33,10 +32,9 @@ Definition _main : ident := $"main".
 Definition _h : ident := $"h". (* supposed to represent heap for Reftype *)
 
 
-Definition ident_to_string : list (ident * string) := ident_to_string_xdp_md ++ 
+Definition ident_to_string : list (ident * string) := ident_to_string_hf ++ ident_to_string_xdp_md ++ 
                                                       ((_ctx, "ctx") ::
                                                        (_rand, "rand") :: 
-                                                       (_bpf_get_prandom_u32, "bpf_get_prandom_u32") :: 
                                                        (_xdp_prog, "xdp_prog") :: 
                                                        (_x, "x") ::
                                                        (_main, "main") :: nil).
@@ -50,7 +48,7 @@ Definition f_xdp_prog : BeePL.function := {|
                                                 nil);
                                    fn_body := Bind 
                                                 (_rand) tint32u
-                                                (App (Var _bpf_get_prandom_u32 (tfun nil nil tint32u)) nil tint32u)
+                                                (App (Var bpf_get_prandom_u32 (tfun nil nil tint32u)) nil tint32u)
                                                 (cint (Int.repr 2) tint32s) tint32s;
                                    is_ebpf := true |}.
 
@@ -58,7 +56,7 @@ Definition bcomposites : list bcomposite_definition := bcomposites_xdp_md.
 
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
-   := (_bpf_get_prandom_u32, AST.Gfun(BeePL.External bpf_get_prandom_u32
+   := (bpf_get_prandom_u32, AST.Gfun(BeePL.External bpf_get_prandom_u32_ef
                                      nil tint32u
                                      (cc_default))) :: 
       (_xdp_prog, AST.Gfun(BeePL.Internal (f_xdp_prog))) :: nil.

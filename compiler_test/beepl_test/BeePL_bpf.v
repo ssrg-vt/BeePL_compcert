@@ -109,7 +109,17 @@ Definition bcomposites_xdp_md : list bcomposite_definition :=
 
 
 (**** Helper functions ****)
-Definition bpf_get_current_uid_gid : BeePL.external_function
+Definition bpf_get_current_uid_gid : ident := $"bpf_get_current_uid_gid".
+Definition bpf_map_lookup_elem : ident := $"bpf_map_lookup_elem".
+Definition bpf_map_update_elem : ident := $"bpf_map_update_elem".
+Definition bpf_get_prandom_u32 : ident := $"bpf_get_prandom_u32".
+
+Definition ident_to_string_hf : list (ident * string) := ((bpf_get_current_uid_gid, "bpf_get_current_uid_gid") ::
+                                                          (bpf_map_lookup_elem, "bpf_map_lookup_elem") ::
+                                                          (bpf_map_update_elem, "bpf_map_update_elem") ::
+                                                          (bpf_get_prandom_u32, "bpf_get_prandom_u32") :: nil).
+
+Definition bpf_get_current_uid_gid_ef : BeePL.external_function
    := EF_external "bpf_get_current_uid_gid" 
       {| bsig_args := nil;
          bsig_ef := nil;
@@ -117,7 +127,7 @@ Definition bpf_get_current_uid_gid : BeePL.external_function
          bsig_cc := cc_default
       |}.
 
-Definition bpf_map_lookup_elem : BeePL.external_function
+Definition bpf_map_lookup_elem_ef : BeePL.external_function
    := EF_external "bpf_map_lookup_elem" 
       {| bsig_args := (tostruct (ident_of_string "bpf_map") noattr :: tolongu :: nil);
          bsig_ef := nil;
@@ -125,16 +135,16 @@ Definition bpf_map_lookup_elem : BeePL.external_function
          bsig_cc := cc_default
       |}.
 
-Definition bpf_map_update_elem : BeePL.external_function
+Definition bpf_map_update_elem_ef : BeePL.external_function
    := EF_external "bpf_map_update_elem" 
-      {| bsig_args := (tostruct (ident_of_string "bpf_map") noattr :: trlongu :: trlongu :: tlongu :: nil);
+      {| bsig_args := (tostruct (ident_of_string "bpf_map") noattr :: tolongu :: tolongu :: tlongu :: nil);
          bsig_ef := nil;
          bsig_res := tlongu;
          bsig_cc := cc_default
       |}.
 
 
-Definition bpf_get_prandom_u32 : BeePL.external_function
+Definition bpf_get_prandom_u32_ef : BeePL.external_function
    := EF_external "bpf_get_prandom_u32" 
       {| bsig_args := nil;
          bsig_ef := nil;
