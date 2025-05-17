@@ -123,6 +123,7 @@ Definition f_hash_map_example : BeePL.function := {|
                                                     
   is_ebpf := true |}.
 
+
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
    := (_counter_table, Gvar v_counter_table) :: (_val, Gvar v_val) :: 
       (bpf_get_current_uid_gid, AST.Gfun(BeePL.External (bpf_get_current_uid_gid_ef)

@@ -1,4 +1,4 @@
-Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values BeePL_typechecker BeePL_notations BeePL_bpf BeePL_Bytes_Struct BeePL_aux BeePL_Csyntax. 
+Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values BeePL_typechecker BeePL_notations BeePL_bpf BeePL_Bytes_Struct BeePL_aux BeePL_Csyntax Maps.
 From Coq Require Import String ZArith.
 From compcert Require Import Csyntaxdefs.
 Import Csyntaxdefs.CsyntaxNotations.
@@ -51,14 +51,17 @@ Definition f_xdp_drop_prog : BeePL.function := {|
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
                                    fn_args := (_ctx, tpstruct _xdp_md_bee) :: nil ;
-                                   fn_vars := (_eth, Stype _eth_hdr noattr) :: (_data, Bytes) :: (_hproto, tint16u) :: nil;
-                                   fn_body := Match (Sfield (Var _ctx (tpstruct _xdp_md_bee)) _data Bytes)  
+                                   fn_vars := (_eth, Stype _eth_hdr noattr) :: (_data_bee, Bytes) :: (_hproto, tint16u) :: nil;
+                                   fn_body := Match (Sfield (Var _ctx (tpstruct _xdp_md_bee)) _data_bee Bytes)  
                                                     (Pbytes _eth (Stype _eth_hdr noattr) ((_h_proto, tint16u) :: nil) :: nil)  
                                                      (Bind _hproto tint16u 
                                                          (Sfield (Var _eth (Stype _eth_hdr noattr)) _h_proto tint16u) 
                                                          (Cond (Prim (Bop Cop.Oeq) (Var _hproto tint16u :: 
-                                                                                   (App (Var htons (tfun (tint16u :: nil) nil tint16u)) 
-                                                                                        (cint (Int.repr 0x86DD) tint16u :: nil) tint16u) :: nil) tint32u)
+                                                                                    App (Var htons (tfun (tint16u :: nil) nil tint16u)) 
+                                                                                        (Prim (Bop (Cop.Oand)) 
+                                                                                                      (cint (Int.repr 0x86DD) tint32s ::  
+                                                                                                       cint (Int.repr 65535) tint32s :: nil) tint16u :: nil) tint16u :: nil) 
+                                                                                   tint32s)
                                                                (cint (Int.repr 1) tint32s) 
                                                                (cint (Int.repr 2) tint32s) tint32s) tint32s ::
                                                       cint (Int.repr 1) tint32s :: nil) tint32s;
@@ -88,9 +91,9 @@ Qed.
                                                    ident_to_string.
 
 Compute (type_check_expr example1.(prog_comp_env) 
-                         (bind_vars (bind_vars empty_context f_hash_map_example.(fn_args)) 
-                         f_hash_map_example.(fn_vars)) empty_context f_hash_map_example.(fn_body)).
+                         (bind_vars (bind_vars empty_context f_xdp_drop_prog.(fn_args)) 
+                         f_xdp_drop_prog.(fn_vars)) empty_context f_xdp_drop_prog.(fn_body)).
 
-Compute (type_check_program example1). *) (* Type checks! *)
+Compute (type_check_program example1). *) (* After having lexer and parser, type checker should work *)
 
 

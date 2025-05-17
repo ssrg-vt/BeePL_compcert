@@ -16,9 +16,6 @@ match cs with
                    => (Composite (ident_of_string "xdp_md") Struct
                         (Ctypes.Member_plain _data (Ctypes.Tint I32 Unsigned noattr)  :: 
                          Ctypes.Member_plain (ident_of_string "data_end") (Ctypes.Tint I32 Unsigned noattr)  :: rest) noattr) :: c1 ::
-                      (*(Composite (ident_of_string "xdp_md_wrapper") Struct
-                        (Ctypes.Member_plain (ident_of_string "start") (Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr) :: 
-                         Ctypes.Member_plain (ident_of_string "end")  (Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr) :: rest) noattr) ::*)
                        wrapper_beepl_struct_ebpf_struct cs1
               | _ => c1 :: wrapper_beepl_struct_ebpf_struct cs1
               end
@@ -29,8 +26,10 @@ Fixpoint transform_ctx_ebpf_ctx (args : list (ident * type)) : res (list (ident 
 let i := (ident_of_string "ctx") in
 match args with 
 | nil => OK nil
-| (i, (Ptrtype (Sptype  _xdp_md_bee noattr))) :: nil => 
-  OK ((ident_of_string "ctx", Tpointer (Tstruct (ident_of_string "xdp_md") noattr) noattr) :: nil)
+| (i, t) :: nil => 
+  if eq_type t (Ptrtype (Sptype  _xdp_md_bee noattr)) 
+  then OK ((ident_of_string "ctx", Tpointer (Tstruct (ident_of_string "xdp_md") noattr) noattr) :: nil)
+  else OK ((i, (transBeePL_type t)) :: nil)
 | _ => Error (msg "COMPILER ERROR: eBPF program should take only one argument (context)")
 end.
 

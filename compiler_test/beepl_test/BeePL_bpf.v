@@ -164,18 +164,62 @@ Definition bcomposites_bpf_map_type_hash : list bcomposite_definition := (* once
    Member_plain _max_entries (Ptrtype (Aptype tint32s 5000000 noattr)) ::
    Member_plain _key trlongu ::
    Member_plain _value trlongu :: nil) noattr :: nil).
-   
+
+(******************* trace_entry stuct **************************)
+Definition _preempt_count : ident := $"preempt_count".
+Definition _pid : ident := $"pid".
+Definition _trace_entry : ident := $"trace_entry".
+
+Definition ident_to_string_trace_entry : list (ident * string) := ((_trace_entry, "trace_entry") ::
+                                                                   (_type, "type") :: 
+                                                                   (_flags, "flags") ::
+                                                                   (_preempt_count, "preempt_count") ::
+                                                                   (_pid, "pid") :: nil).
+
+Definition bcomposites_trace_entry : list bcomposite_definition :=
+(Bcomposite _trace_entry Struct 
+  (Member_plain _type tint16u ::
+   Member_plain _flags tint8u ::
+   Member_plain _preempt_count tint8u :: 
+   Member_plain _pid tint32s :: nil) noattr :: nil).
+
+(******************* trace_event_raw_sys_enter struct *********************)
+Definition _trace_event_raw_sys_enter : ident := $"trace_event_raw_sys_enter".
+Definition _ent : ident := $"ent".
+Definition _id : ident := $"id".
+Definition _args : ident := $"args".
+Definition _tdata : ident := $"__data".
+
+Definition ident_to_string_trace_event_raw_sys_enter : list (ident * string) := 
+                                                                  ((_trace_event_raw_sys_enter, "trace_event_raw_sys_enter") ::
+                                                                   (_ent, "ent") :: 
+                                                                   (_id, "id") ::
+                                                                   (_args, "args") ::
+                                                                   (_tdata, "__data") :: nil).
+                                                                   
+
+Definition bcomposites_trace_event_raw_sys_enter : list bcomposite_definition :=
+(Bcomposite _trace_event_raw_sys_enter Struct 
+  (Member_plain _ent (Stype _trace_entry noattr) ::
+   Member_plain _id tlongs ::
+   Member_plain _args (tbarray tlongu 6 noattr) :: 
+   Member_plain _tdata (tbarray tint8u 0 noattr):: nil) noattr :: nil).
+
 (********************** Helper functions *********************************)
 Definition bpf_get_current_uid_gid : ident := $"bpf_get_current_uid_gid".
 Definition bpf_map_lookup_elem : ident := $"bpf_map_lookup_elem".
 Definition bpf_map_update_elem : ident := $"bpf_map_update_elem".
 Definition bpf_get_prandom_u32 : ident := $"bpf_get_prandom_u32".
+Definition bpf_get_current_pid_tgid : ident := $"bpf_get_current_pid_tgid".
+Definition bpf_printk : ident := $"bpf_printk".
 Definition htons : ident := $"htons".
 
 Definition ident_to_string_hf : list (ident * string) := ((bpf_get_current_uid_gid, "bpf_get_current_uid_gid") ::
                                                           (bpf_map_lookup_elem, "bpf_map_lookup_elem") ::
                                                           (bpf_map_update_elem, "bpf_map_update_elem") ::
-                                                          (bpf_get_prandom_u32, "bpf_get_prandom_u32") :: 
+                                                          (bpf_get_prandom_u32, "bpf_get_prandom_u32") ::
+                                                          (bpf_get_current_pid_tgid, "bpf_get_current_pid_tgid") ::
+                                                          (bpf_printk, "bpf_printk") ::
                                                           (htons, "htons") :: nil).
 
 Definition bpf_get_current_uid_gid_ef : BeePL.external_function
@@ -188,7 +232,7 @@ Definition bpf_get_current_uid_gid_ef : BeePL.external_function
 
 Definition bpf_map_lookup_elem_ef : BeePL.external_function
    := EF_external "bpf_map_lookup_elem" 
-      {| bsig_args := (tostruct (ident_of_string "bpf_map") noattr :: tolongu :: nil);
+      {| bsig_args := (tostruct (ident_of_string "bpf_map_type_hash") noattr :: tolongu :: nil);
          bsig_ef := Io :: nil;
          bsig_res := tolongu;
          bsig_cc := cc_default
@@ -196,7 +240,7 @@ Definition bpf_map_lookup_elem_ef : BeePL.external_function
 
 Definition bpf_map_update_elem_ef : BeePL.external_function
    := EF_external "bpf_map_update_elem" 
-      {| bsig_args := (tostruct (ident_of_string "bpf_map") noattr :: tolongu :: tolongu :: tlongu :: nil);
+      {| bsig_args := (tostruct (ident_of_string "bpf_map_type_hash") noattr :: tolongu :: tolongu :: tlongu :: nil);
          bsig_ef := Io :: nil;
          bsig_res := tlongu;
          bsig_cc := cc_default
@@ -211,7 +255,23 @@ Definition bpf_get_prandom_u32_ef : BeePL.external_function
          bsig_cc := cc_default
       |}.
 
+Definition bpf_get_current_pid_tgid_ef : BeePL.external_function
+   := EF_external "bpf_get_current_pid_tgid"
+      {| bsig_args := nil;
+         bsig_ef := nil;
+         bsig_res := tlongu;
+         bsig_cc := cc_default
+      |}.
 
+Definition bpf_printk_ef : BeePL.external_function 
+   := EF_external "bpf_printk"
+      {| bsig_args := (Ptrtype (Aptype tint8s 4 noattr) :: nil);
+         bsig_ef := nil;
+         bsig_res := tint32s;
+         bsig_cc := {|cc_vararg:=(Some (Z.of_nat 1)); cc_unproto:=false; cc_structret:=false|}
+      |}.
+
+(************************* External functions *******************************)
 Definition htons_ef : BeePL.external_function
    := EF_external "htons" 
       {| bsig_args := tint16u :: nil;
@@ -219,8 +279,3 @@ Definition htons_ef : BeePL.external_function
          bsig_res := tint16u;
          bsig_cc := cc_default
       |}.
-
-
-
-(************************* Functions *******************************)
-

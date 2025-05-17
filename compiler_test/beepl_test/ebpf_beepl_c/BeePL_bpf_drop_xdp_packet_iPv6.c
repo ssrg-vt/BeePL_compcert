@@ -77,7 +77,7 @@ int xdp_drop_prog(struct xdp_md *ctx)
   struct eth_hdr *__fresh__999;
   struct xdp_md_bee __fresh__1000;
   struct eth_hdr eth;
-  struct bytes_t data;
+  struct bytes_t data_bee;
   unsigned short hproto;
   __fresh__1000.data_bee.bytes_start = (unsigned char *) ((*ctx)).data;
   __fresh__1000.data_bee.bytes_end = (unsigned char *) ((*ctx)).data_end;
@@ -91,7 +91,7 @@ int xdp_drop_prog(struct xdp_md *ctx)
     __fresh__1000.data_bee.bytes_start =
       __fresh__1000.data_bee.bytes_start + sizeof(struct eth_hdr);
     hproto = eth.h_proto;
-    if (hproto == htons(34525)) {
+    if (hproto == htons(34525 & 65535)) {
       return 1;
     } else {
       return 2;

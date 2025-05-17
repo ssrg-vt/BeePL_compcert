@@ -24,9 +24,9 @@ ef_empty_map ["bpf_get_prandom_u32" <- (nil, (tint32u, nil))]
              ["bpf_ktime_get_ns" <- (nil, (tlongu, nil))]
              ["add" <- ((tint32s :: trint32s :: nil), (tint32s, nil))]
              ["bpf_get_current_uid_gid" <- (nil, (tlongu, nil))]
-             ["bpf_map_lookup_elem" <- ((tostruct (ident_of_string "bpf_map") noattr :: tolongu :: nil), 
+             ["bpf_map_lookup_elem" <- ((tostruct (ident_of_string "bpf_map_type_hash") noattr :: tolongu :: nil), 
                                             (tolongu, (Io :: nil)))]
-             ["bpf_map_update_elem" <- ((tostruct (ident_of_string "bpf_map") noattr :: tolongu :: tolongu :: tlongu :: nil), 
+             ["bpf_map_update_elem" <- ((tostruct (ident_of_string "bpf_map_type_hash") noattr :: tolongu :: tolongu :: tlongu :: nil), 
                                            (tlongu, (Io :: nil)))].
 
 Definition get_ef_type (efenv : ef_env) (s : string) : res ef_info :=
@@ -403,6 +403,14 @@ match e with
                                                else Error (msg "TYPE ERROR: Wrong type inferred for the struct field")
                                   | None => Error (msg "TYPE ERROR: The field accessed from the struct is not found in composite env")
                                   end
+                  | Ptrtype (Sptype id a) => match cenv!id with 
+                                             | Some co => do ct <- type_of_member a x (bmembers_cmembers co.(co_members));
+                                               do bt <- trans_ctype_btype ct;
+                                               if eq_type t bt 
+                                               then OK (bt, ef)
+                                               else Error (msg "TYPE ERROR: Wrong type inferred for the struct field")
+                                             | None => Error (msg "TYPE ERROR: The field accessed from the struct is not found in composite env")
+                                            end
                   | _ => Error (msg "TYPE ERROR: Should be a struct type")
                   end
 | For e1 e2 d e t =>   do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
@@ -471,12 +479,17 @@ match fn with
 | External ef ts t cc => match ef with 
                          | EF_external fn fs => do efs <- get_ef_type efenv (get_name_eapp ef);
                                                 if eq_type t (get_rt_eapp ef) 
-                                                   && eq_types eq_type ts (get_at_eapp ef) 
-                                                   && eq_types eq_type ts (fst efs) 
-                                                   && eq_type t (fst (snd efs))
-                                                   && eq_effect (get_ef_eapp ef) (snd (snd efs)) 
-                                                then OK "SUCCESS: Fundef type checks!" 
-                                                else Error (msg "TYPE ERROR: Type of external function is not as expected")
+                                                then if eq_types eq_type ts (get_at_eapp ef)
+                                                     then if eq_types eq_type ts (fst efs) 
+                                                          then if eq_type t (fst (snd efs))
+                                                               then if eq_effect (get_ef_eapp ef) (snd (snd efs)) 
+                                                                    then OK "SUCCESS: Fundef type checks!" 
+                                                                    else Error (msg "TYPE ERROR: Effect of external function is not as expected")
+                                                               else Error (msg "TYPE ERROR: Return type of external function is not as expected")
+                                                          else Error (msg "TYPE ERROR: Argument types of external function is not as expected")
+                                                      else Error (msg "TYPE ERROR: Argument types of external function is not as given in signature")
+                                                else Error (msg "TYPE ERROR: Return type of external function is not as given in signature")
+                                                
                          end
 end.
 
