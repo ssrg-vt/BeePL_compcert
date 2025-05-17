@@ -265,7 +265,7 @@ Definition bpf_get_current_pid_tgid_ef : BeePL.external_function
 
 Definition bpf_printk_ef : BeePL.external_function 
    := EF_external "bpf_printk"
-      {| bsig_args := (Ptrtype (Aptype tint8s 4 noattr) :: nil);
+      {| bsig_args := (trint8s :: nil);
          bsig_ef := nil;
          bsig_res := tint32s;
          bsig_cc := {|cc_vararg:=(Some (Z.of_nat 1)); cc_unproto:=false; cc_structret:=false|}

@@ -31,6 +31,7 @@ int handle_tp(void *ctx)
 
 Definition _pid_filter : ident := $"pid_filter".
 Definition _pid : ident := $"pid".
+Definition _t : ident := $"t".
 Definition ___stringlit_1 : ident := $"__stringlit_1".
 Definition _handle_tp : ident := $"handle_tp".
 
@@ -39,20 +40,20 @@ Definition ident_to_string : list (ident * string) := ident_to_string_hf ++ iden
                                                       ident_to_string_trace_event_raw_sys_enter ++
                                                       ((_ctx, "ctx") :: (___stringlit_1, "__stringlit_1") ::
                                                        (_pid_filter, "pid_filter") ::
-                                                       (_pid, "pid") :: 
+                                                       (_pid, "pid") :: (_t, "t") :: 
                                                        (_handle_tp, "handle_tp") :: nil).
 
 Definition v___stringlit_1 := {|
-  gvar_info := tbarray tint8s 4 noattr;
-  gvar_init := (Init_int8 (Int.repr 37) :: Init_int8 (Int.repr 108) ::
-                Init_int8 (Int.repr 100) :: Init_int8 (Int.repr 0) :: nil);
+  gvar_info := tbarray tint8s 3 noattr;
+  gvar_init := (Init_int8 (Int.repr 37) :: Init_int8 (Int.repr 100) ::
+                Init_int8 (Int.repr 0) :: nil);
   gvar_readonly := true;
   gvar_volatile := false
 |}.
 
 Definition v_pid_filter := {|
-  gvar_info := tlongu;
-  gvar_init := (Init_int64 (Int64.repr 0) :: nil);
+  gvar_info := tint32s;
+  gvar_init := (Init_int32 (Int.repr 0) :: nil);
   gvar_readonly := true;
   gvar_volatile := false
 |}.
@@ -62,23 +63,25 @@ Definition f_handle_tp : BeePL.function := {|
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
                                    fn_args := (_ctx, tpstruct _trace_event_raw_sys_enter) :: nil ;
-                                   fn_vars := ((_pid, tlongu) :: 
+                                   fn_vars := ((_pid, tint32s) :: (_t, tint32s) :: 
                                                 nil);
                                    fn_body := Bind 
-                                                (_pid) tlongu
+                                                (_pid) tint32s
                                                 (Prim (Bop Cop.Oshr) 
                                                    (App (Var bpf_get_current_pid_tgid (tfun nil nil tlongu)) nil tlongu ::
-                                                    clong (Int64.repr 32) tlongu :: nil) tlongu)
-                                                (Cond (Prim (Bop Cop.One) 
-                                                         ((Prim (Bop Cop.Oand) 
-                                                            (Var _pid_filter tlongu :: Var _pid tlongu :: nil) tlongu) ::
-                                                          (Var _pid_filter tlongu) :: nil) tlongu)
-                                                 (cint (Int.repr 0) tint32s)
-                                                 (App (Var bpf_printk (tfun (Ptrtype (Aptype tint8s 4 noattr) :: nil) (Io :: nil) tint32s))
-                                                      (Var ___stringlit_1 (tbarray tint8s 4 noattr) ::
-                                                       Var _pid tlongu :: nil) tlongu) tlongu) tint32s;
+                                                    clong (Int64.repr 32) tlongu :: nil) tint32s)
+                                                (Cond (Var _pid_filter tint32s)
+                                                      (Cond (Prim (Bop Cop.One) 
+                                                                  (Var _pid_filter tint32s :: Var _pid tint32s :: nil) tint32s)
+                                                             (cint (Int.repr 0) tint32s)
+                                                             (Bind _t tint32s
+                                                               (App (Var bpf_printk (tfun (trint8s :: nil) (Io :: nil) tint32s))
+                                                                  (Var ___stringlit_1 (tbarray tint8s 3 noattr) ::
+                                                                  Var _pid tint32s :: nil) tint32s)
+                                                               (cint (Int.repr 0) tint32s) tint32s) tint32s)
+                                                         (cint (Int.repr 0) tint32s) tint32s) tint32s
+                                                 ;
                                    is_ebpf := true |}.
-
 
 Definition bcomposites : list bcomposite_definition := bcomposites_trace_entry ++ bcomposites_trace_event_raw_sys_enter.
 
@@ -88,7 +91,7 @@ Definition global_definitions : list (ident * AST.globdef BeePL.fundef type)
                                      nil tlongu
                                      (cc_default))) :: 
        (bpf_printk, AST.Gfun(BeePL.External bpf_printk_ef
-                                     (Ptrtype (Aptype tint8s 4 noattr) :: nil) tint32s
+                                     (trint8s :: nil) tint32s
                                      {|cc_vararg:=(Some (Z.of_nat 1)); cc_unproto:=false; cc_structret:=false|})) ::
        (_handle_tp, AST.Gfun(BeePL.Internal (f_handle_tp))) :: nil.
 
@@ -108,6 +111,8 @@ Qed.
                                                    _handle_tp 
                                                    bcomposite_correct
                                                    ident_to_string.
+
+Compute (example1.(prog_types)).
 
 Compute (type_check_program example1). *)
 

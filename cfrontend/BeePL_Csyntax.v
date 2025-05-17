@@ -716,7 +716,7 @@ if fd.(is_ebpf) then
   
   (* Pull out any ident * string pairs that were added to fn_ctx during transBeePL_expr_st *)
   let is' := merge_ident_string (snd fbody) is in
-  (* convert the beepl context to ebpf context *)
+  (* convert the beepl context as argument to ebpf context *)
   match (transform_ctx_ebpf_ctx (zip (unzip1 (fd.(fn_args))) (unzip2 (fd.(fn_args))))) with
   | Error msg => Error msg
   | OK params => 
@@ -818,8 +818,8 @@ Definition BeePL_compcert (p : BeePL.program) : res (Csyntax.program * list (ide
   let bctx := {| arg_ctx := get_args_ebpf_gbdefs (unzip2 p.(prog_defs)); benv := p.(prog_comp_env) |} in 
   do cp <- check_struct_from_program p;
   do (pds, is') <- transBeePL_globdefs_globdefs (prog_comp_env(p)) (unzip2 (p.(prog_defs))) (p.(prog_ident_to_string)) bctx;
-  let ncs := get_bcs_from_globdefs (unzip2 (p.(prog_defs))) in 
+  let ncs := get_bcs_from_globdefs (unzip2 (p.(prog_defs))) in (* adds bytes_t in composite *)
   let cs := (map bcomposite_ccomposite_definition p.(prog_types)) in 
-  let mcs := (ncs ++ wrapper_beepl_struct_ebpf_struct (snd pds ++ cs))%list in
+  let mcs := (ncs ++ snd pds ++ wrapper_beepl_struct_ebpf_struct cs)%list in
   do cprog <- make_program mcs (zip (unzip1 p.(prog_defs)) (fst (fst pds))) (prog_public p) (prog_main p);
   OK (cprog, snd (fst pds)).
