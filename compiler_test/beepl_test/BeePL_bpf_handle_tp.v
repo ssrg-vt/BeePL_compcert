@@ -13,16 +13,14 @@ Local Open Scope csyntax_scope.
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 
-typedef unsigned int u32;
-typedef int pid_t;
-const pid_t pid_filter = 0;
+const long pid_filter = 0;
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
 SEC("tp/syscalls/sys_enter_write")
 int handle_tp(void *ctx)
 {
- pid_t pid = bpf_get_current_pid_tgid() >> 32;
+ long pid = bpf_get_current_pid_tgid() >> 32;
  if (pid_filter && pid != pid_filter)
   return 0;
  bpf_printk("BPF triggered sys_enter_write from PID %d.\n", pid);
@@ -35,7 +33,6 @@ Definition _t : ident := $"t".
 Definition ___stringlit_1 : ident := $"__stringlit_1".
 Definition _handle_tp : ident := $"handle_tp".
 
-
 Definition ident_to_string : list (ident * string) := ident_to_string_hf ++ ident_to_string_trace_entry ++ 
                                                       ident_to_string_trace_event_raw_sys_enter ++
                                                       ((_ctx, "ctx") :: (___stringlit_1, "__stringlit_1") ::
@@ -44,16 +41,16 @@ Definition ident_to_string : list (ident * string) := ident_to_string_hf ++ iden
                                                        (_handle_tp, "handle_tp") :: nil).
 
 Definition v___stringlit_1 := {|
-  gvar_info := tbarray tint8s 3 noattr;
-  gvar_init := (Init_int8 (Int.repr 37) :: Init_int8 (Int.repr 100) ::
+  gvar_info := tbarray tint8s 4 noattr;
+  gvar_init := (Init_int8 (Int.repr 37) :: Init_int8 (Int.repr 108) ::  Init_int8 (Int.repr 100) ::
                 Init_int8 (Int.repr 0) :: nil);
   gvar_readonly := true;
   gvar_volatile := false
 |}.
 
 Definition v_pid_filter := {|
-  gvar_info := tint32s;
-  gvar_init := (Init_int32 (Int.repr 0) :: nil);
+  gvar_info := tlongu;
+  gvar_init := (Init_int64 (Int64.repr 0) :: nil);
   gvar_readonly := true;
   gvar_volatile := false
 |}.
@@ -63,21 +60,21 @@ Definition f_handle_tp : BeePL.function := {|
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
                                    fn_args := (_ctx, tpstruct _trace_event_raw_sys_enter) :: nil ;
-                                   fn_vars := ((_pid, tint32s) :: (_t, tint32s) :: 
+                                   fn_vars := ((_pid, tlongu) :: (_t, tlongu) :: 
                                                 nil);
                                    fn_body := Bind 
-                                                (_pid) tint32s
+                                                (_pid) tlongu
                                                 (Prim (Bop Cop.Oshr) 
                                                    (App (Var bpf_get_current_pid_tgid (tfun nil nil tlongu)) nil tlongu ::
-                                                    clong (Int64.repr 32) tlongu :: nil) tint32s)
-                                                (Cond (Var _pid_filter tint32s)
+                                                    Const (ConsLong (Int64.repr 32)) tlongu :: nil) tlongu)
+                                                (Cond (Var _pid_filter tlongu)
                                                       (Cond (Prim (Bop Cop.One) 
-                                                                  (Var _pid_filter tint32s :: Var _pid tint32s :: nil) tint32s)
+                                                                  (Var _pid_filter tlongu :: Var _pid tlongu :: nil) tlongu)
                                                              (cint (Int.repr 0) tint32s)
-                                                             (Bind _t tint32s
+                                                             (Bind _t tlongu
                                                                (App (Var bpf_printk (tfun (trint8s :: nil) (Io :: nil) tint32s))
                                                                   (Var ___stringlit_1 (tbarray tint8s 3 noattr) ::
-                                                                  Var _pid tint32s :: nil) tint32s)
+                                                                  Var _pid tlongu :: nil) tint32s)
                                                                (cint (Int.repr 0) tint32s) tint32s) tint32s)
                                                          (cint (Int.repr 0) tint32s) tint32s) tint32s
                                                  ;

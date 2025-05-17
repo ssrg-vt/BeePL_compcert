@@ -14,9 +14,9 @@ struct trace_event_raw_sys_enter {
   unsigned char __data[0];
 };
 
-extern int const pid_filter;
+extern unsigned long long const pid_filter;
 
-extern signed char const __stringlit_1[3];
+extern signed char const __stringlit_1[4];
 
 extern int handle_tp(struct trace_event_raw_sys_enter *);
 
@@ -58,9 +58,9 @@ extern long long __compcert_i64_smulh(long long, long long);
 
 extern unsigned long long __compcert_i64_umulh(unsigned long long, unsigned long long);
 
-int const pid_filter = 0;
+unsigned long long const pid_filter = 0LL;
 
-signed char const __stringlit_1[3] = "%d";
+signed char const __stringlit_1[4] = "%ld";
 
 extern unsigned long long bpf_get_current_pid_tgid(void);
 
@@ -68,9 +68,9 @@ extern int bpf_printk(signed char *, ...);
 
 int handle_tp(struct trace_event_raw_sys_enter *ctx)
 {
-  int pid;
-  int t;
-  pid = 32LLU < 32 ? 0 : bpf_get_current_pid_tgid() >> 32LLU;
+  unsigned long long pid;
+  unsigned long long t;
+  pid = 32LLU < 64LLU ? 0LLU : bpf_get_current_pid_tgid() >> 32LLU;
   if (pid_filter) {
     if (pid_filter != pid) {
       return 0;
