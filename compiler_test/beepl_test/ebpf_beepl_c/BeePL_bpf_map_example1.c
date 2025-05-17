@@ -79,9 +79,9 @@ struct bpf_map_type_hash val = { 0, };
 
 extern unsigned long long bpf_get_current_uid_gid(void);
 
-extern void *bpf_map_lookup_elem(struct $6127156262475 *, void *);
+extern void *bpf_map_lookup_elem(struct bpf_map_type_hash *, void *);
 
-extern unsigned long long bpf_map_update_elem(struct $6127156262475 *, void *, void *, unsigned long long);
+extern unsigned long long bpf_map_update_elem(struct bpf_map_type_hash *, void *, void *, unsigned long long);
 
 int hash_map_example(struct pt_regs *ctx)
 {
@@ -103,3 +103,5 @@ int hash_map_example(struct pt_regs *ctx)
     return 0;
   }
 }
+
+

@@ -5,7 +5,7 @@ From Coq Require Import String.
 Require Import BeePL_add BeePL_add_ptr BeePL_div_zero1 BeePL_div_zero BeePL_add_ex1
 BeePL_cond BeePL_app BeePL_funptr_ex1 BeePL_bpf_get_prandom BeePL_for_ex1 BeePL_for_ex2
 BeePL_external_call BeePL_match_fail_ex1 BeePL_null_ptr BeePL_bitstring1 BeePL_globvar1
-BeePL_globvar2 BeePL_bpf_xdp_packet_count BeePL_bpf_xdp_packet_count1 BeePL_bpf_map_example1. 
+BeePL_bpf_xdp_packet_count BeePL_bpf_xdp_packet_count1 BeePL_bpf_map_example1 BeePL_bpf_drop_xdp_packet_iPv6. 
 
 (* In this file you will see two definitions. One for example1 and the other for
    example1_atom_of_string. Those two definitions are extracted to OCaml by 
@@ -24,11 +24,11 @@ BeePL_globvar2 BeePL_bpf_xdp_packet_count BeePL_bpf_xdp_packet_count1 BeePL_bpf_
 
 (* Construct the BeePL.program *)
 
-Definition example1 : BeePL.program := @mkbprogram BeePL_bpf_get_prandom.bcomposites 
-                                                   BeePL_bpf_get_prandom.global_definitions 
-                                                   BeePL_bpf_get_prandom.public_idents 
-                                                   BeePL_bpf_get_prandom._xdp_prog 
-                                                   BeePL_bpf_get_prandom.bcomposite_correct
-                                                   BeePL_bpf_get_prandom.ident_to_string.
+Definition example1 : BeePL.program := @mkbprogram BeePL_bpf_drop_xdp_packet_iPv6.bcomposites 
+                                                   BeePL_bpf_drop_xdp_packet_iPv6.global_definitions 
+                                                   BeePL_bpf_drop_xdp_packet_iPv6.public_idents 
+                                                   BeePL_bpf_drop_xdp_packet_iPv6._xdp_drop_prog 
+                                                   BeePL_bpf_drop_xdp_packet_iPv6.bcomposite_correct
+                                                   BeePL_bpf_drop_xdp_packet_iPv6.ident_to_string.
 
 

@@ -64,14 +64,14 @@ Definition ident_to_string : list (ident * string) := ident_to_string_bpf_map_ty
                                                  
 
 Definition v_val := {|
-  gvar_info := Stype (ident_of_string "bpf_map_type_hash") noattr;
+  gvar_info := Stype _bpf_map_type_hash noattr;
   gvar_init := (Init_int32 (Int.repr 0) :: nil);
   gvar_readonly := false;
   gvar_volatile := false
 |}.
 
 Definition v_counter_table := {|
-  gvar_info := (tostruct (ident_of_string "bpf_map_type_hash") noattr);
+  gvar_info := (tostruct _bpf_map_type_hash noattr);
   gvar_init := (Init_addrof _val Ptrofs.zero :: nil);
   gvar_readonly := false;
   gvar_volatile := false
@@ -97,8 +97,8 @@ Definition f_hash_map_example : BeePL.function := {|
                                         clong (Int64.repr 4294967295) tlongu :: nil) tlongu :: nil) tunit)
                          (Bind _p tolongu 
                             (App (Var bpf_map_lookup_elem 
-                                        (tfun (tostruct (ident_of_string "bpf_map") noattr :: tolongu :: nil) (Io :: nil) tolongu)) 
-                                        (Var _counter_table (tostruct (ident_of_string "bpf_map") noattr) ::
+                                        (tfun (tostruct _bpf_map_type_hash noattr :: tolongu :: nil) (Io :: nil) tolongu)) 
+                                        (Var _counter_table (tostruct _bpf_map_type_hash noattr) ::
                                          Var _uid trlongu :: nil) tolongu)
                            (Match (Var _p (tolongu)) 
                                      (Pnone :: Psome _p :: nil) 
@@ -112,9 +112,9 @@ Definition f_hash_map_example : BeePL.function := {|
                                                                Prim (Bop Cop.Oadd) (Prim Deref (Var _counter trlongu :: nil) tlongu ::
                                                                                     clong (Int64.repr 1) tlongu :: nil) tlongu :: nil) tunit)
                                                     (App (Var bpf_map_update_elem 
-                                                         (tfun (tostruct (ident_of_string "bpf_map") noattr :: trlongu :: trlongu :: tlongu :: nil)
+                                                         (tfun (tostruct _bpf_map_type_hash noattr :: trlongu :: trlongu :: tlongu :: nil)
                                                           (Io :: nil) tlongu)) 
-                                                    (Var _counter_table (tostruct (ident_of_string "bpf_map") noattr) ::
+                                                    (Var _counter_table (tostruct _bpf_map_type_hash noattr) ::
                                                        Var _uid trlongu :: 
                                                        Var _counter trlongu :: 
                                                        clong (Int64.repr 0) tlongu :: nil) tlongu) tlongu)
@@ -129,10 +129,10 @@ Definition global_definitions : list (ident * AST.globdef BeePL.fundef type)
                                      nil tlongu
                                      (cc_default))) ::
       (bpf_map_lookup_elem, AST.Gfun(BeePL.External (bpf_map_lookup_elem_ef)
-                                     (tostruct (ident_of_string "bpf_map") noattr :: tolongu :: nil) tolongu
+                                     (tostruct _bpf_map_type_hash noattr :: tolongu :: nil) tolongu
                                      (cc_default))) ::
       (bpf_map_update_elem, AST.Gfun(BeePL.External (bpf_map_update_elem_ef)
-                                     (tostruct (ident_of_string "bpf_map") noattr :: tolongu :: tolongu :: tlongu :: nil) tlongu
+                                     (tostruct _bpf_map_type_hash noattr :: tolongu :: tolongu :: tlongu :: nil) tlongu
                                      (cc_default))) ::
       (_hash_map_example, AST.Gfun(BeePL.Internal (f_hash_map_example))) :: nil.
 
