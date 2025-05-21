@@ -41,14 +41,14 @@ Definition ident_to_string : list (ident * string) := ident_to_string_hf ++ iden
 
 Definition f_xdp_prog : BeePL.function := {| 
                                    fn_return := tint32s;
-                                   fn_effect := nil;
+                                   fn_effect := Io :: nil;
                                    fn_callconv := cc_default;
                                    fn_args := (_ctx, tpstruct _xdp_md) :: nil ;
                                    fn_vars := ((_rand, tint32s) :: 
                                                 nil);
                                    fn_body := Bind 
                                                 (_rand) tint32u
-                                                (App (Var bpf_get_prandom_u32 (tfun nil nil tint32u)) nil tint32u)
+                                                (App (Var bpf_get_prandom_u32 (tfun nil (Io :: nil) tint32u)) nil tint32u)
                                                 (cint (Int.repr 2) tint32s) tint32s;
                                    is_ebpf := true |}.
 
@@ -77,5 +77,7 @@ Qed.
                                                    bcomposite_correct
                                                    ident_to_string.
 
+Compute (type_check_expr example1.(prog_comp_env) 
+                         (bind_vars (bind_vars empty_context f_xdp_prog.(fn_args)) f_xdp_prog.(fn_vars)) empty_context f_xdp_prog.(fn_body)).
 
 Compute (type_check_program example1). *) (* Type checks *)

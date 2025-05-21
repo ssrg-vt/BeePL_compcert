@@ -24,21 +24,21 @@ struct {
 SEC("ksyscall/execve")
 
 int hello(void *ctx) {
-    uint64_t uid;
-    uint64_t counter = 0;
-    uint64_t *p;
+    uint64_t uid; (* alloc *)
+    uint64_t counter = 0; (* alloc *)
+    uint64_t *p; 
     
 
-    uid = bpf_get_current_uid_gid() & 0xFFFFFFFF;   //returns a 64 bits integer containing the current GID and UID
+    uid = bpf_get_current_uid_gid() & 0xFFFFFFFF;   //returns a 64 bits integer containing the current GID and UID (* io, write *)
                                                     //gets the user id that is running the process that trigegered this krpobe event. 
                                                     //user-id is held in lowest 32 bits of the 64-bit value that gets returned. (top 32 holds the group id)
-    p = bpf_map_lookup_elem(&counter_table, (&uid)); //returns a pointer to the corresponding value in the hash table 
+    p = bpf_map_lookup_elem(&counter_table, (&uid)); //returns a pointer to the corresponding value in the hash table (* read; io *)
     if (p!= 0) {
-        counter = *p;
+        counter = *p; (*write, read *)
     }
 
-    counter++;
-    bpf_map_update_elem(&counter_table, &uid, &counter, 0);
+    counter++; (* write; read *)
+    bpf_map_update_elem(&counter_table, &uid, &counter, 0); (* write, io *)
     return 0;
 }*)
 Definition _val : ident := $"val".
@@ -81,8 +81,8 @@ Definition bcomposites : list bcomposite_definition := bcomposites_pt_regs ++ bc
 
 Definition f_hash_map_example : BeePL.function := {| 
   fn_return := tint32s;
-  fn_effect := Alloc mem_ident :: Alloc mem_ident :: Write mem_ident :: Io :: Io :: Io :: 
-               Read mem_ident :: Write mem_ident :: Read mem_ident :: Write mem_ident :: Io :: nil;
+  fn_effect := Alloc mem_ident :: Alloc mem_ident :: Io :: Write mem_ident :: Read mem_ident :: Io :: 
+               Read mem_ident :: Write mem_ident :: Read mem_ident :: Write mem_ident :: Write mem_ident :: Io :: nil;
   fn_callconv := cc_default;
   fn_args := (_ctx, tpstruct _pt_regs) :: nil ;
   fn_vars := ((_uid, trlongu) :: (_counter, trlongu) :: (_p, tolongu) :: nil); 
@@ -93,11 +93,11 @@ Definition f_hash_map_example : BeePL.function := {|
                 (Bind (_r) trlongu
                   (Prim Massgn (Var (_uid) trlongu ::
                                 Prim (Bop Cop.Oand) 
-                                     (App (Var bpf_get_current_uid_gid (tfun nil nil tlongu)) nil tlongu ::
+                                     (App (Var bpf_get_current_uid_gid (tfun nil (Io :: nil) tlongu)) nil tlongu ::
                                         clong (Int64.repr 4294967295) tlongu :: nil) tlongu :: nil) tunit)
                          (Bind _p tolongu 
                             (App (Var bpf_map_lookup_elem 
-                                        (tfun (tostruct _bpf_map_type_hash noattr :: tolongu :: nil) (Io :: nil) tolongu)) 
+                                        (tfun (tostruct _bpf_map_type_hash noattr :: tolongu :: nil) (Read mem_ident :: Io :: nil) tolongu)) 
                                         (Var _counter_table (tostruct _bpf_map_type_hash noattr) ::
                                          Var _uid trlongu :: nil) tolongu)
                            (Match (Var _p (tolongu)) 
@@ -113,7 +113,7 @@ Definition f_hash_map_example : BeePL.function := {|
                                                                                     clong (Int64.repr 1) tlongu :: nil) tlongu :: nil) tunit)
                                                     (App (Var bpf_map_update_elem 
                                                          (tfun (tostruct _bpf_map_type_hash noattr :: trlongu :: trlongu :: tlongu :: nil)
-                                                          (Io :: nil) tlongu)) 
+                                                          (Write mem_ident :: Io :: nil) tlongu)) 
                                                     (Var _counter_table (tostruct _bpf_map_type_hash noattr) ::
                                                        Var _uid trlongu :: 
                                                        Var _counter trlongu :: 
@@ -157,5 +157,5 @@ Compute (type_check_expr example1.(prog_comp_env)
                          (bind_vars (bind_vars empty_context f_hash_map_example.(fn_args)) 
                          f_hash_map_example.(fn_vars)) empty_context f_hash_map_example.(fn_body)).
 
-Compute (type_check_program example1). *) (* Type checks! *) 
+Compute (type_check_program example1). *)  (* Type checks! *) 
 

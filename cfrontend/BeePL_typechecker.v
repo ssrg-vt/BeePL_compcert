@@ -20,14 +20,14 @@ Notation "m [ a ]" := (PTree.get (ident_of_string a) m) (at level 10, left assoc
 
 (* Add all external functions needed for BeePL *)
 Definition  beepl_ef_env : ef_env :=
-ef_empty_map ["bpf_get_prandom_u32" <- (nil, (tint32u, nil))]
-             ["bpf_ktime_get_ns" <- (nil, (tlongu, nil))]
+ef_empty_map ["bpf_get_prandom_u32" <- (nil, (tint32u, (Io :: nil)))]
+             ["bpf_ktime_get_ns" <- (nil, (tlongu, (Io :: nil)))]
              ["add" <- ((tint32s :: trint32s :: nil), (tint32s, nil))]
-             ["bpf_get_current_uid_gid" <- (nil, (tlongu, nil))]
+             ["bpf_get_current_uid_gid" <- (nil, (tlongu, (Io :: nil)))]
              ["bpf_map_lookup_elem" <- ((tostruct (ident_of_string "bpf_map_type_hash") noattr :: tolongu :: nil), 
-                                            (tolongu, (Io :: nil)))]
+                                            (tolongu, (Read mem_ident :: Io :: nil)))]
              ["bpf_map_update_elem" <- ((tostruct (ident_of_string "bpf_map_type_hash") noattr :: tolongu :: tolongu :: tlongu :: nil), 
-                                           (tlongu, (Io :: nil)))].
+                                           (tlongu, (Write mem_ident :: Io :: nil)))].
 
 Definition get_ef_type (efenv : ef_env) (s : string) : res ef_info :=
 match efenv[s] with 
@@ -359,9 +359,7 @@ match e with
 | Bind x t e1 e2 t' => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
                        do (te2, ef2) <- type_check_expr cenv (extend_context Gamma x t) Sigma e2;
                        if eq_type te2 t'
-                       then if is_option_type t 
-                            then OK (te2, (Io :: nil) ++ ef1 ++ ef2) 
-                            else OK (te2, ef1 ++ ef2)
+                       then OK (te2, ef1 ++ ef2)
                        else Error (msg "TYPE ERROR: Type of bind does not match the inferred type")
 | Cond e1 e2 e3 t =>  do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
                       do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
@@ -441,7 +439,7 @@ match e with
                      do (tes, efs) <- type_check_exprs type_check_expr cenv Gamma Sigma es;
                      match te with 
                      | Ptrtype t' => if is_option_ptr_type t' && all_eq_types tes 
-                                     then OK(t, (Io :: nil) ++ ef ++ efs)
+                                     then OK(t, ef ++ efs)
                                      else Error (msg "TYPE ERROR: Type of Match expr should be an option to ref type and all its elements should be of same type")
                      | _ => Error (msg "TYPE ERROR: Type of Match expr should be an option or bytes type")
                      end

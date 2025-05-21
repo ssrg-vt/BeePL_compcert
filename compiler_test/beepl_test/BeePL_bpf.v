@@ -225,7 +225,7 @@ Definition ident_to_string_hf : list (ident * string) := ((bpf_get_current_uid_g
 Definition bpf_get_current_uid_gid_ef : BeePL.external_function
    := EF_external "bpf_get_current_uid_gid" 
       {| bsig_args := nil;
-         bsig_ef := nil;
+         bsig_ef := Io :: nil;
          bsig_res := tlongu;
          bsig_cc := cc_default
       |}.
@@ -233,7 +233,7 @@ Definition bpf_get_current_uid_gid_ef : BeePL.external_function
 Definition bpf_map_lookup_elem_ef : BeePL.external_function
    := EF_external "bpf_map_lookup_elem" 
       {| bsig_args := (tostruct (ident_of_string "bpf_map_type_hash") noattr :: tolongu :: nil);
-         bsig_ef := Io :: nil;
+         bsig_ef := Read mem_ident :: Io :: nil;
          bsig_res := tolongu;
          bsig_cc := cc_default
       |}.
@@ -241,7 +241,7 @@ Definition bpf_map_lookup_elem_ef : BeePL.external_function
 Definition bpf_map_update_elem_ef : BeePL.external_function
    := EF_external "bpf_map_update_elem" 
       {| bsig_args := (tostruct (ident_of_string "bpf_map_type_hash") noattr :: tolongu :: tolongu :: tlongu :: nil);
-         bsig_ef := Io :: nil;
+         bsig_ef := Write mem_ident :: Io :: nil;
          bsig_res := tlongu;
          bsig_cc := cc_default
       |}.
@@ -250,7 +250,7 @@ Definition bpf_map_update_elem_ef : BeePL.external_function
 Definition bpf_get_prandom_u32_ef : BeePL.external_function
    := EF_external "bpf_get_prandom_u32" 
       {| bsig_args := nil;
-         bsig_ef := nil;
+         bsig_ef := Io :: nil;
          bsig_res := tint32u;
          bsig_cc := cc_default
       |}.
@@ -258,7 +258,7 @@ Definition bpf_get_prandom_u32_ef : BeePL.external_function
 Definition bpf_get_current_pid_tgid_ef : BeePL.external_function
    := EF_external "bpf_get_current_pid_tgid"
       {| bsig_args := nil;
-         bsig_ef := nil;
+         bsig_ef := Io :: nil;
          bsig_res := tlongu;
          bsig_cc := cc_default
       |}.
@@ -266,7 +266,7 @@ Definition bpf_get_current_pid_tgid_ef : BeePL.external_function
 Definition bpf_printk_ef : BeePL.external_function 
    := EF_external "bpf_printk"
       {| bsig_args := (trint8s :: nil);
-         bsig_ef := nil;
+         bsig_ef := Io :: nil;
          bsig_res := tint32s;
          bsig_cc := {|cc_vararg:=(Some (Z.of_nat 1)); cc_unproto:=false; cc_structret:=false|}
       |}.

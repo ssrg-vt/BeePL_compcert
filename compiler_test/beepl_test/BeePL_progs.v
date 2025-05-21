@@ -6,7 +6,7 @@ Require Import BeePL_add BeePL_add_ptr BeePL_div_zero1 BeePL_div_zero BeePL_add_
 BeePL_cond BeePL_app BeePL_funptr_ex1 BeePL_bpf_get_prandom BeePL_for_ex1 BeePL_for_ex2
 BeePL_external_call BeePL_match_fail_ex1 BeePL_null_ptr BeePL_bitstring1 BeePL_globvar1
 BeePL_bpf_xdp_packet_count BeePL_bpf_xdp_packet_count1 BeePL_bpf_map_example1 BeePL_bpf_drop_xdp_packet_iPv6
-BeePL_bpf BeePL_bpf_handle_tp. 
+BeePL_bpf BeePL_bpf_handle_tp BeePL_add_ref. 
 
 (* In this file you will see two definitions. One for example1 and the other for
    example1_atom_of_string. Those two definitions are extracted to OCaml by 
@@ -25,11 +25,11 @@ BeePL_bpf BeePL_bpf_handle_tp.
 
 (* Construct the BeePL.program *)
 
-Definition example1 : BeePL.program := @mkbprogram BeePL_bpf_handle_tp.bcomposites 
-                                                   BeePL_bpf_handle_tp.global_definitions 
-                                                   BeePL_bpf_handle_tp.public_idents 
-                                                   BeePL_bpf_handle_tp._handle_tp 
-                                                   BeePL_bpf_handle_tp.bcomposite_correct
-                                                   BeePL_bpf_handle_tp.ident_to_string.
+Definition example1 : BeePL.program := @mkbprogram BeePL_bpf_map_example1.bcomposites 
+                                                   BeePL_bpf_map_example1.global_definitions 
+                                                   BeePL_bpf_map_example1.public_idents 
+                                                   BeePL_bpf_map_example1._hash_map_example
+                                                   BeePL_bpf_map_example1.bcomposite_correct
+                                                   BeePL_bpf_map_example1.ident_to_string.
 
 
