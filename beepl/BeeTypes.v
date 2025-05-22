@@ -3,7 +3,7 @@ Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL PeanoNat Coq.NArith.BinNat Ctypes Errors Ctypes Coq.ZArith.Znumtheory Coqlib.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps SimplExpr Coq.Strings.BinaryString  Coq.Numbers.DecimalString.
 From mathcomp Require Import all_ssreflect. 
-From compcert Require Import Csyntaxdefs. 
+From compcert Require Import Csyntaxdefs Ctyping. 
 Import Csyntaxdefs.CsyntaxNotations.
 
 Local Open Scope string_scope.
@@ -386,6 +386,12 @@ match t with
 | Stype x a => false
 | Atype t z a => false
 | Bytes => false
+end. 
+
+Definition is_ptrtype_stype (t : type) : bool :=
+match t with 
+| Ptrtype (Sptype x a) => true
+| _ => false
 end. 
 
 Definition is_ref_ptr_type (pt : ptr_type) : bool :=
@@ -874,6 +880,70 @@ match sts, ats with
 | _, _ => false
 end.
 
+Fixpoint typelist_to_list_type (cts : typelist) : list Ctypes.type :=
+match cts with 
+| Tnil => nil
+| Tcons t ts => t :: (typelist_to_list_type ts)
+end.
+
+Fixpoint list_type_to_typelist (cts : list Ctypes.type) : typelist :=
+match cts with
+| nil => Tnil
+| t :: ts => Tcons t (list_type_to_typelist ts)
+end.
+
+Section Trans_ctypes_btypes.
+
+Variable trans_ctype_btype : Ctypes.type -> res BeeTypes.type.
+
+Fixpoint trans_ctypes_btypes (ct : list Ctypes.type) : res (list BeeTypes.type) :=
+match ct with 
+| nil => OK nil
+| ct :: cts => do bt <- trans_ctype_btype ct;
+                  do bts <- trans_ctypes_btypes cts;
+                  OK (bt :: bts)
+end.
+
+End Trans_ctypes_btypes.
+
+Definition trans_ctype_btype (ct : Ctypes.type) : res BeeTypes.type :=
+match ct with 
+| Ctypes.Tvoid => OK Utype
+| Ctypes.Tint sz s a => OK (BeeTypes.Vtype (Tint sz s a))
+| Ctypes.Tlong s a => OK (BeeTypes.Vtype (Tlong s a))
+| Ctypes.Tfloat _ _ => Error (msg "TYPE ERROR: Float is not supported in BeePL")
+| Ctypes.Tpointer t a => match t with 
+                  | Ctypes.Tvoid => Error (msg "TYPE ERROR: Void* is not supported in BeePL")
+                  | Ctypes.Tint sz s a => OK (Ptrtype (Reftype mem_ident (Bprim (Tint sz s a)) a))
+                  | Ctypes.Tlong s a => OK (Ptrtype (Reftype mem_ident (Bprim (Tlong s a)) a))
+                  | _ => Error (msg "TYPE ERROR: Not supported in ref type")
+                  end 
+| Tarray t z a => Error (msg "TYPE ERROR: Array is not supported in BeePL")
+| Tfunction ts t cc => Error (msg "TYPE ERROR: Cannot compute the effect, hence translation is not possible from ctype to btype in case of function")
+| Tstruct x a => OK (Stype x a)
+| Tunion x a => Error (msg "TYPE ERROR: Union is not supported in BeePL")
+end.
+
+Fixpoint type_of_members (xs : list (attr * ident)) (m : members) {struct xs} : res (list Ctypes.type) :=
+match xs with 
+| nil => OK nil
+| (a, x) :: xs => do t <- type_of_member a x m;
+                  do ts <- type_of_members xs m;
+                  OK (t :: ts)
+end.
+
+Fixpoint all_eq_types (ts : list type) : bool :=
+match ts with
+| nil => true
+| t1 :: ts' => forallb (fun t => eq_type t1 t) ts'
+end. 
+
+Fixpoint construct_list_type (t : type) (n : nat) : list type :=
+match n with 
+| O => nil
+| S n' => t :: construct_list_type t n'
+end.
+
 (* Typing context *)
 Definition ty_context := PTree.t type.
 
@@ -889,6 +959,13 @@ Definition extend_context (Gamma : ty_context) (k : ident) (t : type) := PTree.s
 Definition empty_stcontext := (PTree.empty type).
 
 Definition extend_stcontext (Sigma : store_context) (k : ident) (t : type) := PTree.set k t Sigma. 
+
+Fixpoint extends_context (Gamma : ty_context) (ks : list ident) (ts : list type) := 
+match ks, ts with 
+| nil, nil => Gamma
+| k :: ks, t :: ts => extends_context (extend_context Gamma k t) ks ts
+| _, _ => Gamma
+end.
 
 (*** Auxillary lemmas related to types and effects ***)
 (* Complete Me: Easy *)

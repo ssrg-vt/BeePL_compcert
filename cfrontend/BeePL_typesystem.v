@@ -5,177 +5,218 @@ Require Import Csyntax Csem SimplExpr Ctypes Memtype.
 Require Import BeePL_aux BeePL_mem BeeTypes BeePL BeePL_auxlemmas Errors BeePL_values BeePL_notations.
 From mathcomp Require Import all_ssreflect. 
 
-Definition empty_effect : effect := nil. 
-
-Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> Prop :=
+Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> effect -> type -> Prop :=
 (*For all value expression, we can assume any effect type, including the empty effect *)
-| ty_valu : forall Gamma Sigma,
-            type_expr Gamma Sigma (Val Vunit tunit) nil tunit
-| ty_vali : forall Gamma Sigma i sz s a,
-            type_expr Gamma Sigma (Val (Vint i) (Vtype (Tint sz s a))) nil (Vtype (Tint sz s a))
-| ty_vall : forall Gamma Sigma i s a,
-            type_expr Gamma Sigma (Val (Vint64 i) (Vtype (Tlong s a))) nil (Vtype (Tlong s a))
-| ty_valloc : forall Gamma Sigma l ofs h t a,
+| ty_valu : forall cenv Gamma Sigma,
+            type_expr cenv Gamma Sigma (Val Vunit tunit) nil tunit
+| ty_vali : forall cenv Gamma Sigma i sz s a,
+            type_expr cenv Gamma Sigma (Val (Vint i) (Vtype (Tint sz s a))) nil (Vtype (Tint sz s a))
+| ty_vall : forall cenv Gamma Sigma i s a,
+            type_expr cenv Gamma Sigma (Val (Vint64 i) (Vtype (Tlong s a))) nil (Vtype (Tlong s a))
+| ty_valloc : forall cenv Gamma Sigma l ofs h t a,
               PTree.get l Sigma = Some (Ptrtype (Reftype h t a)) ->
-              type_expr Gamma Sigma (Val (Vloc l ofs) (Ptrtype (Reftype h t a))) nil (Ptrtype (Reftype h t a))
-| ty_var : forall Gamma Sigma x t, 
+              type_expr cenv Gamma Sigma (Val (Vloc l ofs) (Ptrtype (Reftype h t a))) nil (Ptrtype (Reftype h t a))
+| ty_var : forall cenv Gamma Sigma x t, 
            PTree.get x (extend_context Gamma x t) = Some t ->
-           type_expr Gamma Sigma (Var x t) nil t
-| ty_constint : forall Gamma Sigma sz s a i,
-                type_expr Gamma Sigma (Const (ConsInt i) (Vtype (Tint sz s a))) nil (Vtype (Tint sz s a))
-| ty_constlong : forall Gamma Sigma s a i,
-                 type_expr Gamma Sigma (Const (ConsLong i) (Vtype (Tlong s a))) nil (Vtype (Tlong s a))
-| ty_constunit : forall Gamma Sigma,
-                 type_expr Gamma Sigma (Const (ConsUnit) tunit) nil tunit
-| ty_app : forall Gamma Sigma e es rt efs ts ef efs',
-           type_expr Gamma Sigma e ef (Ftype ts efs rt) -> 
-           type_exprs Gamma Sigma es efs' ts -> 
-           type_expr Gamma Sigma (App e es rt) (ef ++ efs ++ efs') rt
-| ty_appp : forall Gamma Sigma e es rt efs ts ef efs', 
-           type_expr Gamma Sigma e ef (Ptrtype (Fptype ts efs rt)) -> 
-           type_exprs Gamma Sigma es efs' ts -> 
-           type_expr Gamma Sigma (App e es rt) (ef ++ efs ++ efs') rt
-| ty_ref : forall Gamma Sigma e ef h bt a, 
-           type_expr Gamma Sigma e ef (Vtype bt) ->
-           type_expr Gamma Sigma (Prim Ref (e::nil) (Ptrtype (Reftype h (Bprim bt) a))) (ef ++ (Alloc h :: nil)) (Ptrtype (Reftype h (Bprim bt) a)) 
-| ty_deref : forall Gamma Sigma e ef pt h, (* inner expression should be unrestricted as it will be used later *)
-             type_expr Gamma Sigma e ef (Ptrtype pt) -> 
-             type_expr Gamma Sigma (Prim Deref (e::nil) (get_data_type pt)) (ef ++ (Read h :: nil)) (get_data_type pt)
-(*| ty_massgn : forall Gamma Sigma e e' h bt ef a ef', 
-              type_expr Gamma Sigma e ef (Reftype h (Bprim bt) a) ->
-              type_expr Gamma Sigma e' ef' (Ptype bt) ->
-              type_expr Gamma Sigma (Prim Massgn (e::e'::nil) (Ptype Tunit)) (ef ++ ef' ++ (Write h :: nil)) (Ptype Tunit)
-| ty_notbool : forall Gamma Sigma e ef,
-               type_expr Gamma Sigma e ef (Ptype Tbool) ->
-               type_expr Gamma Sigma (Prim (Uop Cop.Onotbool) (e::nil) (Ptype Tbool)) ef (Ptype Tbool)
-| ty_notint : forall Gamma Sigma e ef t,
+           type_expr cenv Gamma Sigma (Var x t) nil t
+| ty_constint : forall cenv Gamma Sigma sz s a i,
+                type_expr cenv Gamma Sigma (Const (ConsInt i) (Vtype (Tint sz s a))) nil (Vtype (Tint sz s a))
+| ty_constlong : forall cenv Gamma Sigma s a i,
+                 type_expr cenv Gamma Sigma (Const (ConsLong i) (Vtype (Tlong s a))) nil (Vtype (Tlong s a))
+| ty_constunit : forall cenv Gamma Sigma,
+                 type_expr cenv Gamma Sigma (Const (ConsUnit) tunit) nil tunit
+| ty_app : forall cenv Gamma Sigma e es rt efs ts ef efs',
+           type_expr cenv Gamma Sigma e ef (Ftype ts efs rt) -> 
+           type_exprs cenv Gamma Sigma es efs' ts -> 
+           type_expr cenv Gamma Sigma (App e es rt) (ef ++ efs ++ efs') rt
+| ty_appp : forall cenv Gamma Sigma e es rt efs ts ef efs', 
+           type_expr cenv Gamma Sigma e ef (Ptrtype (Fptype ts efs rt)) -> 
+           type_exprs cenv Gamma Sigma es efs' ts -> 
+           type_expr cenv Gamma Sigma (App e es rt) (ef ++ efs ++ efs') rt
+| ty_ref : forall cenv Gamma Sigma e ef h bt a, 
+           type_expr cenv Gamma Sigma e ef (Vtype bt) ->
+           type_expr cenv Gamma Sigma (Prim Ref (e::nil) (Ptrtype (Reftype h (Bprim bt) a))) (ef ++ (Alloc h :: nil)) (Ptrtype (Reftype h (Bprim bt) a)) 
+| ty_deref : forall cenv Gamma Sigma e ef pt h, (* inner expression should be unrestricted as it will be used later *)
+             type_expr cenv Gamma Sigma e ef (Ptrtype pt) -> 
+             is_option_ptr_type pt = false ->
+             type_expr cenv Gamma Sigma (Prim Deref (e::nil) (get_data_type pt)) (ef ++ (Read h :: nil)) (get_data_type pt)
+| ty_massgn : forall cenv Gamma Sigma e e' h pt ef ef', 
+              type_expr cenv Gamma Sigma e ef (Ptrtype pt) ->
+              type_expr cenv Gamma Sigma e' ef' (get_data_type pt) ->
+              type_expr cenv Gamma Sigma (Prim Massgn (e::e'::nil) tunit) (ef ++ ef' ++ (Write h :: nil)) tunit
+| ty_notbool : forall cenv Gamma Sigma e ef,
+               type_expr cenv Gamma Sigma e ef (Vtype Tbool) ->
+               type_expr cenv Gamma Sigma (Prim (Uop Cop.Onotbool) (e::nil) (Vtype Tbool)) ef (Vtype Tbool)
+| ty_notint : forall cenv Gamma Sigma e ef t,
               is_primint t || is_primlong t ->
-              type_expr Gamma Sigma e ef t ->
-              type_expr Gamma Sigma (Prim (Uop Cop.Onotint) (e::nil) t) ef t
-| ty_neg : forall Gamma Sigma e ef t,
+              type_expr cenv Gamma Sigma e ef t ->
+              type_expr cenv Gamma Sigma (Prim (Uop Cop.Onotint) (e::nil) t) ef t
+| ty_neg : forall cenv Gamma Sigma e ef t,
            is_primint t || is_primlong t ->
-           type_expr Gamma Sigma e ef t ->
-           type_expr Gamma Sigma (Prim (Uop Cop.Oneg) (e::nil) t) ef t
-| ty_add : forall Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef t ->
+           type_expr cenv Gamma Sigma (Prim (Uop Cop.Oneg) (e::nil) t) ef t
+| ty_add : forall cenv Gamma Sigma e ef t e',
            is_primint t || is_primlong t ->
-           type_expr Gamma Sigma e ef t ->
-           type_expr Gamma Sigma e' ef t ->
-           type_expr Gamma Sigma (Prim (Bop Cop.Oadd) (e::e'::nil) t) ef t 
-| ty_sub : forall Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef t ->
+           type_expr cenv Gamma Sigma e' ef t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oadd) (e::e'::nil) t) ef t 
+| ty_sub : forall cenv Gamma Sigma e ef t e',
            is_primint t || is_primlong t ->
-           type_expr Gamma Sigma e ef t ->
-           type_expr Gamma Sigma e' ef t ->
-           type_expr Gamma Sigma (Prim (Bop Cop.Osub) (e::e'::nil) t) ef t
-| ty_mul : forall Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef t ->
+           type_expr cenv Gamma Sigma e' ef t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Osub) (e::e'::nil) t) ef t
+| ty_mul : forall cenv Gamma Sigma e ef t e',
            is_primint t || is_primlong t ->
-           type_expr Gamma Sigma e ef t ->
-           type_expr Gamma Sigma e' ef t ->
-           type_expr Gamma Sigma (Prim (Bop Cop.Omul) (e::e'::nil) t) ef t 
-| ty_div : forall Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef t ->
+           type_expr cenv Gamma Sigma e' ef t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Omul) (e::e'::nil) t) ef t 
+| ty_div : forall cenv Gamma Sigma e ef t e',
            is_primint t || is_primlong t ->
-           type_expr Gamma Sigma e ef t ->
-           type_expr Gamma Sigma e' ef t ->
-           type_expr Gamma Sigma (Prim (Bop Cop.Odiv) (e::e'::nil) t) ef t
-| ty_mod : forall Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef t ->
+           type_expr cenv Gamma Sigma e' ef t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Odiv) (e::e'::nil) t) ef t
+| ty_mod : forall cenv Gamma Sigma e ef t e',
            is_primint t || is_primlong t ->
-           type_expr Gamma Sigma e ef t ->
-           type_expr Gamma Sigma e' ef t ->
-           type_expr Gamma Sigma (Prim (Bop Cop.Omod) (e::e'::nil) t) ef t
-| ty_and : forall Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef t ->
+           type_expr cenv Gamma Sigma e' ef t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Omod) (e::e'::nil) t) ef t
+| ty_and : forall cenv Gamma Sigma e ef t e',
            is_primint t || is_primlong t ->
-           type_expr Gamma Sigma e ef t ->
-           type_expr Gamma Sigma e' ef t ->
-           type_expr Gamma Sigma (Prim (Bop Cop.Oand) (e::e'::nil) t) ef t
-| ty_or : forall Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef t ->
+           type_expr cenv Gamma Sigma e' ef t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oand) (e::e'::nil) t) ef t
+| ty_or : forall cenv Gamma Sigma e ef t e',
            is_primint t || is_primlong t ->
-           type_expr Gamma Sigma e ef t ->
-           type_expr Gamma Sigma e' ef t ->
-           type_expr Gamma Sigma (Prim (Bop Cop.Oor) (e::e'::nil) t) ef t
-| ty_xor : forall Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef t ->
+           type_expr cenv Gamma Sigma e' ef t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oor) (e::e'::nil) t) ef t
+| ty_xor : forall cenv Gamma Sigma e ef t e',
            is_primint t || is_primlong t ->
-           type_expr Gamma Sigma e ef t ->
-           type_expr Gamma Sigma e' ef t ->
-           type_expr Gamma Sigma (Prim (Bop Cop.Oxor) (e::e'::nil) t) ef t
-| ty_shl : forall Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef t ->
+           type_expr cenv Gamma Sigma e' ef t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oxor) (e::e'::nil) t) ef t
+| ty_shl : forall cenv Gamma Sigma e ef t e',
            is_primint t || is_primlong t ->
-           type_expr Gamma Sigma e ef t ->
-           type_expr Gamma Sigma e' ef t ->
-           type_expr Gamma Sigma (Prim (Bop Cop.Oshl) (e::e'::nil) t) ef t
-| ty_shr : forall Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef t ->
+           type_expr cenv Gamma Sigma e' ef t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oshl) (e::e'::nil) t) ef t
+| ty_shr : forall cenv Gamma Sigma e ef t e',
            is_primint t || is_primlong t ->
-           type_expr Gamma Sigma e ef t ->
-           type_expr Gamma Sigma e' ef t ->
-           type_expr Gamma Sigma (Prim (Bop Cop.Oshr) (e::e'::nil) t) ef t
-| ty_eq : forall Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef t ->
+           type_expr cenv Gamma Sigma e' ef t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oshr) (e::e'::nil) t) ef t
+| ty_eq : forall cenv Gamma Sigma e ef t e',
            is_primint t || is_primlong t || is_primbool t ->
-           type_expr Gamma Sigma e ef t ->
-           type_expr Gamma Sigma e' ef t ->
-           type_expr Gamma Sigma (Prim (Bop Cop.Oeq) (e::e'::nil) (Ptype Tbool)) ef (Ptype Tbool)
-| ty_ne : forall Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef t ->
+           type_expr cenv Gamma Sigma e' ef t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oeq) (e::e'::nil) (Vtype Tbool)) ef (Vtype Tbool)
+| ty_ne : forall cenv Gamma Sigma e ef t e',
            is_primint t || is_primlong t || is_primbool t ->
-           type_expr Gamma Sigma e ef t ->
-           type_expr Gamma Sigma e' ef t ->
-           type_expr Gamma Sigma (Prim (Bop Cop.One) (e::e'::nil) (Ptype Tbool)) ef (Ptype Tbool)
-| ty_lt : forall Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef t ->
+           type_expr cenv Gamma Sigma e' ef t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.One) (e::e'::nil) (Vtype Tbool)) ef (Vtype Tbool)
+| ty_lt : forall cenv Gamma Sigma e ef t e',
            is_primint t || is_primlong t ->
-           type_expr Gamma Sigma e ef t ->
-           type_expr Gamma Sigma e' ef t ->
-           type_expr Gamma Sigma (Prim (Bop Cop.Olt) (e::e'::nil) (Ptype Tbool)) ef (Ptype Tbool)
-| ty_gt : forall Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef t ->
+           type_expr cenv Gamma Sigma e' ef t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Olt) (e::e'::nil) (Vtype Tbool)) ef (Vtype Tbool)
+| ty_gt : forall cenv Gamma Sigma e ef t e',
            is_primint t || is_primlong t ->
-           type_expr Gamma Sigma e ef t ->
-           type_expr Gamma Sigma e' ef t ->
-           type_expr Gamma Sigma (Prim (Bop Cop.Ogt) (e::e'::nil) (Ptype Tbool)) ef (Ptype Tbool)
-| ty_le : forall Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef t ->
+           type_expr cenv Gamma Sigma e' ef t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Ogt) (e::e'::nil) (Vtype Tbool)) ef (Vtype Tbool)
+| ty_le : forall cenv Gamma Sigma e ef t e',
            is_primint t || is_primlong t  ->
-           type_expr Gamma Sigma e ef t ->
-           type_expr Gamma Sigma e' ef t ->
-           type_expr Gamma Sigma (Prim (Bop Cop.Ole) (e::e'::nil) (Ptype Tbool)) ef (Ptype Tbool)
-| ty_ge : forall Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef t ->
+           type_expr cenv Gamma Sigma e' ef t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Ole) (e::e'::nil) (Vtype Tbool)) ef (Vtype Tbool)
+| ty_ge : forall cenv Gamma Sigma e ef t e',
            is_primint t || is_primlong t ->
-           type_expr Gamma Sigma e ef t ->
-           type_expr Gamma Sigma e' ef t ->
-           type_expr Gamma Sigma (Prim (Bop Cop.Oge) (e::e'::nil) (Ptype Tbool)) ef (Ptype Tbool)
-| ty_bind : forall Gamma Sigma x t e e' t' ef ef',
-            type_expr Gamma Sigma e ef t ->
-            type_expr (extend_context Gamma x t) Sigma e' ef' t' ->
-            type_expr Gamma Sigma (Bind x t e e' t') (ef ++ ef') t'
-| ty_cond : forall Gamma Sigma e1 e2 e3 t ef1 ef2, 
-            type_expr Gamma Sigma e1 ef1 (Ptype Tbool) ->
-            type_expr Gamma Sigma e2 ef2 t ->
-            type_expr Gamma Sigma e3 ef2 t ->
-            type_expr Gamma Sigma (Cond e1 e2 e3 t) (ef1 ++ ef2) t
-| ty_unit : forall Gamma Sigma,
-            type_expr Gamma Sigma (Unit (Ptype Tunit)) empty_effect (Ptype Tunit)
-| ty_addr : forall Gamma Sigma l ofs h t a,
-            PTree.get l.(lname) Sigma = Some (Reftype h t a) ->
+           type_expr cenv Gamma Sigma e ef t ->
+           type_expr cenv Gamma Sigma e' ef t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oge) (e::e'::nil) (Vtype Tbool)) ef (Vtype Tbool)
+| ty_bind : forall cenv Gamma Sigma x t e e' t' ef ef',
+            type_expr cenv Gamma Sigma e ef t ->
+            type_expr cenv (extend_context Gamma x t) Sigma e' ef' t' ->
+            type_expr cenv Gamma Sigma (Bind x t e e' t') (ef ++ ef') t'
+| ty_cond : forall cenv Gamma Sigma e1 e2 e3 t ef1 ef2, 
+            type_expr cenv Gamma Sigma e1 ef1 (Vtype Tbool) ->
+            type_expr cenv Gamma Sigma e2 ef2 t ->
+            type_expr cenv Gamma Sigma e3 ef2 t ->
+            type_expr cenv Gamma Sigma (Cond e1 e2 e3 t) (ef1 ++ ef2) t
+| ty_unit : forall cenv Gamma Sigma,
+            type_expr cenv Gamma Sigma (Unit tunit) nil tunit
+| ty_addr : forall cenv Gamma Sigma l ofs h t a,
+            PTree.get l.(lname) Sigma = Some (Ptrtype (Reftype h t a)) ->
             (*t' = (Reftype h t a) ->*)
-            type_expr Gamma Sigma (Addr l ofs (Reftype h t a)) empty_effect (Reftype h t a) 
+            type_expr cenv Gamma Sigma (Addr l ofs (Ptrtype (Reftype h t a))) nil (Ptrtype (Reftype h t a)) 
 (* return type, arg types, and effect must agree with the signature
    eBPF helper functions never return a void type and a function  *)
-| ty_ext : forall Gamma Sigma exf ts es ef rt,
+(*| ty_ext : forall Gamma Sigma exf ts es ef rt,
            rt = get_rt_eapp exf ->
            rt <> Ptype Tunit /\ is_funtype rt = false -> 
            ts = get_at_eapp exf ->
            type_exprs Gamma Sigma es ef ts ->
-           type_expr Gamma Sigma (Eapp exf ts es rt) ((get_ef_eapp exf) ++ ef) rt
-| ty_subt : forall Gamma Sigma e ef t ef', 
-           type_expr Gamma Sigma e ef t ->
-           sub_effect ef ef' ->
-           type_expr Gamma Sigma e ef' t
+           type_expr Gamma Sigma (Eapp exf ts es rt) ((get_ef_eapp exf) ++ ef) rt *)
+| ty_sinit : forall cenv Gamma Sigma x es efs h id a a' co ids cts bts, 
+             type_exprs cenv Gamma Sigma es efs bts ->
+             PTree.get id cenv = Some co ->
+             type_of_members (combine (map Ctypes.attr_of_type (typelist_to_list_type (transBeePL_types transBeePL_type bts))) ids) 
+                             (bmembers_cmembers co.(co_members)) = OK cts ->
+             trans_ctypes_btypes trans_ctype_btype cts = OK bts ->
+             type_expr cenv Gamma Sigma (Sinit x ids es (Ptrtype (Reftype h (Bstruct id a) a'))) efs (Ptrtype (Reftype h (Bstruct id a) a'))
+| ty_sfield : forall cenv Gamma Sigma e x id a te ef co ct bt,
+              type_expr cenv Gamma Sigma e ef te ->
+              (eq_type te (Stype id a)) \/ (eq_type te (Ptrtype (Sptype id a))) ->
+              PTree.get id cenv = Some co ->
+              Ctyping.type_of_member a x (bmembers_cmembers co.(co_members)) = OK ct ->
+              trans_ctype_btype ct = OK bt ->
+              type_expr cenv Gamma Sigma (Sfield e x bt) ef bt
+| ty_for : forall cenv Gamma Sigma e1 e2 d e ef1 t1 ef2 t2 fv1 fv2 fv ef t,
+           type_expr cenv Gamma Sigma e1 ef1 t1 ->
+           type_expr cenv Gamma Sigma e2 ef2 t2 ->
+           type_expr cenv Gamma Sigma e ef t -> 
+           eq_type t1 t2 ->
+           is_primint t || is_primlong t ->
+           free_variables e1 = fv1 ->
+           free_variables e2 = fv2 ->
+           free_variables e = fv ->
+           disjoint_vars fv fv1 ->
+           disjoint_vars fv fv2 ->
+           type_expr cenv Gamma Sigma (For e1 e2 d e t) (ef1 ++ ef2 ++ ef) t
+| ty_none : forall cenv Gamma Sigma t,
+            is_option_ptr_type t ->
+            type_expr cenv Gamma Sigma (Enone (Ptrtype t)) nil (Ptrtype t)
+| ty_some : forall cenv Gamma Sigma t e te ef,
+            type_expr cenv Gamma Sigma e ef te ->
+            is_option_ptr_type t ->
+            te = get_data_type t ->
+            type_expr cenv Gamma Sigma (Esome e (Ptrtype t)) ef (Ptrtype t)
+| ty_matcho : forall cenv Gamma Sigma e ef te ps es t efs ts fvs,
+              get_patterns_var ps = fvs ->
+              type_expr cenv Gamma Sigma e ef te ->
+              type_exprs cenv (extends_context Gamma fvs (construct_list_type t (length fvs))) Sigma es efs ts ->
+              is_option_type te ->
+              all_eq_types ts ->
+              type_expr cenv Gamma Sigma (Match e ps es (hd tunit ts)) (ef ++ efs) t
+(* add rule for match on bytes *)
+| ty_subt : forall cenv Gamma Sigma e ef t ef', 
+            type_expr cenv Gamma Sigma e ef t ->
+            sub_effect ef ef' ->
+            type_expr cenv Gamma Sigma e ef' t
 (* fix me : Run *)
 (* fix me : Hexpr *)
 (*| ty_hexpr : forall Gamma Sigma m e h ef t a, 
              type_expr Gamma Sigma e ef (Reftype h (Bprim t) a) ->
              type_expr Gamma Sigma (Hexpr m e (Reftype h (Bprim t) a)) ef (Reftype h (Bprim t) a)*)
-(* fix me : Add typing rule for external function *)*)
-with type_exprs : ty_context -> store_context -> list expr -> effect -> list type -> Prop :=
-| ty_nil : forall Gamma Sigma,
-           type_exprs Gamma Sigma nil nil nil
-| ty_cons : forall Gamma Sigma e es ef efs t ts,
-            type_expr Gamma Sigma e ef t ->
-            type_exprs Gamma Sigma es efs ts ->
-            type_exprs Gamma Sigma (e :: es) (ef ++ efs) (t :: ts).
+(* fix me : Add typing rule for external function *)
+with type_exprs : bcomposite_env -> ty_context -> store_context -> list expr -> effect -> list type -> Prop :=
+| ty_nil : forall cenv Gamma Sigma,
+           type_exprs cenv Gamma Sigma nil nil nil
+| ty_cons : forall cenv Gamma Sigma e es ef efs t ts,
+            type_expr cenv Gamma Sigma e ef t ->
+            type_exprs cenv Gamma Sigma es efs ts ->
+            type_exprs cenv Gamma Sigma (e :: es) (ef ++ efs) (t :: ts).
            
 Scheme type_expr_ind_mut := Induction for type_expr Sort Prop
   with type_exprs_ind_mut := Induction for type_exprs Sort Prop.

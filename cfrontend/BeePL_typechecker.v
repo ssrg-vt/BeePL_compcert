@@ -59,64 +59,6 @@ match v with
 | Voption o => Twot
 end.
 
-Fixpoint typelist_to_list_type (cts : typelist) : list Ctypes.type :=
-match cts with 
-| Tnil => nil
-| Tcons t ts => t :: (typelist_to_list_type ts)
-end.
-
-Fixpoint list_type_to_typelist (cts : list Ctypes.type) : typelist :=
-match cts with
-| nil => Tnil
-| t :: ts => Tcons t (list_type_to_typelist ts)
-end.
-
-Section Trans_ctypes_btypes.
-
-Variable trans_ctype_btype : Ctypes.type -> res BeeTypes.type.
-
-Fixpoint trans_ctypes_btypes (ct : list Ctypes.type) : res (list BeeTypes.type) :=
-match ct with 
-| nil => OK nil
-| ct :: cts => do bt <- trans_ctype_btype ct;
-                  do bts <- trans_ctypes_btypes cts;
-                  OK (bt :: bts)
-end.
-
-End Trans_ctypes_btypes.
-
-Definition trans_ctype_btype (ct : Ctypes.type) : res BeeTypes.type :=
-match ct with 
-| Tvoid => OK Utype
-| Ctypes.Tint sz s a => OK (BeeTypes.Vtype (Tint sz s a))
-| Ctypes.Tlong s a => OK (BeeTypes.Vtype (Tlong s a))
-| Tfloat _ _ => Error (msg "TYPE ERROR: Float is not supported in BeePL")
-| Tpointer t a => match t with 
-                  | Tvoid => Error (msg "TYPE ERROR: Void* is not supported in BeePL")
-                  | Ctypes.Tint sz s a => OK (Ptrtype (Reftype mem_ident (Bprim (Tint sz s a)) a))
-                  | Ctypes.Tlong s a => OK (Ptrtype (Reftype mem_ident (Bprim (Tlong s a)) a))
-                  | _ => Error (msg "TYPE ERROR: Not supported in ref type")
-                  end 
-| Tarray t z a => Error (msg "TYPE ERROR: Array is not supported in BeePL")
-| Tfunction ts t cc => Error (msg "TYPE ERROR: Cannot compute the effect, hence translation is not possible from ctype to btype in case of function")
-| Tstruct x a => OK (Stype x a)
-| Tunion x a => Error (msg "TYPE ERROR: Union is not supported in BeePL")
-end.
-
-Fixpoint type_of_members (xs : list (attr * ident)) (m : members) {struct xs} : res (list Ctypes.type) :=
-match xs with 
-| nil => OK nil
-| (a, x) :: xs => do t <- type_of_member a x m;
-                  do ts <- type_of_members xs m;
-                  OK (t :: ts)
-end.
-
-Fixpoint all_eq_types (ts : list type) : bool :=
-match ts with
-| nil => true
-| t1 :: ts' => forallb (fun t => eq_type t1 t) ts'
-end. 
-
 Section Type_check_exprs. 
 
 Variable type_check_expr : bcomposite_env -> ty_context -> store_context -> expr -> res (type * effect).
@@ -131,7 +73,6 @@ end.
 
 End Type_check_exprs. 
                                                                                                       
-
 Fixpoint type_check_expr (cenv : bcomposite_env) (Gamma : ty_context) (Sigma : store_context) (e : expr) {struct e} : res (type * effect) :=
 match e with 
 | Val v t => OK (t, nil)
@@ -398,15 +339,17 @@ match e with
                                             end
                   | _ => Error (msg "TYPE ERROR: Should be a struct type")
                   end
-(* add free variable check here free(e1) intersect free(e) = empty /\ free(e2) intersect free(e) = empty *)
 | For e1 e2 d e t =>   do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
                        do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                        do (te, ef) <- type_check_expr cenv Gamma Sigma e;
+                       let fv1 := free_variables e1 in 
+                       let fv2 := free_variables e2 in
+                       let fv := free_variables e in 
                        if (eq_type te1 te2 
                            && eq_effect ef1 nil 
                            && eq_effect ef2 nil 
                            && ((is_primint te1) || (is_primlong te2))
-                           && eq_type te t)
+                           && eq_type te t && disjoint_vars fv fv1 && disjoint_vars fv fv2)
                        then OK(te, ef1 ++ ef2 ++ ef)
                        else Error (msg "TYPE ERROR: The range type should be unsigned int or long and the inferred type does not match")
                                                           
@@ -418,15 +361,16 @@ match e with
              end
 | Esome e t => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                match t with 
-               | Ptrtype t' => if is_option_ptr_type t' 
+               | Ptrtype t' => if is_option_ptr_type t' && eq_type te (get_data_type t') 
                                then OK(t, ef)
                                else Error (msg "TYPE ERROR: Type of Esome should be an option to ref type")
                | _ => Error (msg "TYPE ERROR: Type of Esome should be an option type")
                end
-| Match e ps es t => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
-                     do (tes, efs) <- type_check_exprs type_check_expr cenv Gamma Sigma es;
+| Match e ps es t => let fvs :=  get_patterns_var ps in 
+                     do (te, ef) <- type_check_expr cenv Gamma Sigma e;
+                     do (tes, efs) <- type_check_exprs type_check_expr cenv (extends_context Gamma fvs (construct_list_type t (length fvs))) Sigma es;
                      match te with 
-                     | Ptrtype t' => if is_option_ptr_type t' && all_eq_types tes 
+                     | Ptrtype t' => if is_option_ptr_type t' && all_eq_types tes && eq_type t (hd tunit tes) 
                                      then OK(t, ef ++ efs)
                                      else Error (msg "TYPE ERROR: Type of Match expr should be an option to ref type and all its elements should be of same type")
                      | _ => Error (msg "TYPE ERROR: Type of Match expr should be an option or bytes type")

@@ -31,6 +31,19 @@ Inductive pattern : Type :=
 | Psome : ident -> pattern
 | Pbytes : ident -> type -> list (ident * type) -> pattern.
 
+Definition get_pattern_var (p : pattern) : list ident :=
+match p with 
+| Pnone => nil
+| Psome x => (x :: nil)
+| Pbytes x t ys => (x :: unzip1 ys)
+end.
+
+Fixpoint get_patterns_var (ps : list pattern) : list ident :=
+match ps with 
+| nil => nil
+| p :: ps => get_pattern_var p ++ get_patterns_var ps
+end.
+
 Fixpoint idents_eq (xs ys : list ident) : bool :=
 match xs, ys with 
 | nil, nil => true 
@@ -104,25 +117,45 @@ Inductive expr : Type :=
 | Match : expr -> list pattern -> list expr -> type -> expr             (* pattern matching *)
 | Ebytes : list expr -> type -> expr                                    (* bitstrings *).
 
-(* for i = 1 to 5 Upto e *)
-(*
-      e0 --> None (expr)
-      e1 --> v1  
-------------------------------- None 
-match(e0, e1, x2, e2) --> v1
 
-      e0 --> Some v0 (val v0)
-      (subst x2 v0 e2) --> v2
--------------------------------- Some 
-match(e0, e1, x2, e2) --> v2 *)
-(* Use case for checking null derefencing *)
-
-Definition is_value (e : expr) : bool :=
+(* Free variables *) 
+Fixpoint free_variables (e : expr) : list ident  :=
 match e with 
-| Val v t => true 
-| _ => false
+| Val v t => nil
+| Var x t => (x :: nil)
+| Const c t => nil
+| App e es t => let fvs := map free_variables es in 
+                let fve := free_variables e in 
+                fve ++ flatten fvs
+| Prim b es t => flatten (map free_variables es)
+| Bind x r e1 e2 t => free_variables e1 ++ (remove ident_eq x (free_variables e2))
+| Cond e1 e2 e3 t => free_variables e1 ++ free_variables e2 ++ free_variables e3
+| Unit t => nil
+| Addr l o t => nil
+| Hexpr m e t => nil
+| Eapp ef ts es t => flatten (map free_variables es)
+| Sinit x ids es t => flatten (map free_variables es)
+| Sfield e x t => free_variables e 
+| For e1 e2 d e t => free_variables e1 ++ free_variables e2 ++ free_variables e
+| Enone t => nil
+| Esome e t => free_variables e 
+| Match e ps es t => free_variables e ++ flatten (map free_variables es) 
+| Ebytes es t => flatten (map free_variables es)
+end.
+ 
+Fixpoint in_vars (x : ident) (xs : list ident) : bool :=
+match xs with 
+| nil => true
+| y :: ys => if ident_eq x y then true else in_vars x ys
 end.
 
+Fixpoint disjoint_vars (l1 l2 : list ident) : bool :=
+match l1 with
+| nil => true
+| x :: xs =>
+      if in_vars x l2 then false
+      else disjoint_vars xs l2
+end.
 
 Definition is_pointer (e : expr) : bool :=
 match e with 
