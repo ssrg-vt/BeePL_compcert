@@ -47,6 +47,7 @@ Definition _uid : ident := $"uid".
 Definition _tuid : ident := $"tuid".
 Definition _counter : ident := $"counter".
 Definition _p : ident := $"p".
+Definition _p1 : ident := $"p1".
 Definition _r : ident := $"r".
 Definition _ctx : ident := $"ctx".
 Definition _hash_map_example : ident := $"hash_map_example".
@@ -57,7 +58,7 @@ Definition ident_to_string : list (ident * string) := ident_to_string_bpf_map_ty
                                                        (_uid, "uid") ::
                                                        (_tuid, "tuid") ::
                                                        (_counter, "counter") ::
-                                                       (_p, "p") ::
+                                                       (_p, "p") :: (_p1, "p1") ::
                                                        (_r, "r") ::
                                                        (_ctx, "ctx") ::
                                                        (_hash_map_example, "hash_map_example") :: nil).
@@ -85,7 +86,7 @@ Definition f_hash_map_example : BeePL.function := {|
                Read mem_ident :: Write mem_ident :: Read mem_ident :: Write mem_ident :: Write mem_ident :: Io :: nil;
   fn_callconv := cc_default;
   fn_args := (_ctx, tpstruct _pt_regs) :: nil ;
-  fn_vars := ((_uid, trlongu) :: (_counter, trlongu) :: (_p, tolongu) :: nil); 
+  fn_vars := ((_uid, trlongu) :: (_counter, trlongu) :: (_p, tolongu) :: (_p1, trlongu) :: nil); 
   fn_body := Bind (_uid) trlongu
                (Prim Ref (clong (Int64.repr 0) tlongu :: nil) (trlongu))
                (Bind (_counter) trlongu
@@ -101,11 +102,11 @@ Definition f_hash_map_example : BeePL.function := {|
                                         (Var _counter_table (tostruct _bpf_map_type_hash noattr) ::
                                          Var _uid trlongu :: nil) tolongu)
                            (Match (Var _p (tolongu)) 
-                                     (Pnone :: Psome _p :: nil) 
+                                     (Pnone :: Psome _p1 :: nil) 
                                      (cint (Int.repr (-1)%Z) tint32s ::
                                        (Bind (_r) trlongu 
                                         (Prim Massgn (Var _counter trlongu ::
-                                                      Prim (Deref) (Var _p (tolongu) :: nil) tlongu :: nil) tunit)
+                                                      Prim (Deref) (Var _p1 (trlongu) :: nil) tlongu :: nil) tunit)
                                         (Bind _r tint32s 
                                            (Bind _r trlongu 
                                                  (Prim Massgn (Var _counter trlongu ::

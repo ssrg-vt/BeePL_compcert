@@ -2,44 +2,46 @@ Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Globalenvs Coqlib Memory. 
 Require Import Csyntax Csem SimplExpr Ctypes Memtype.
-Require Import BeePL_aux BeePL_mem BeeTypes BeePL BeePL_auxlemmas Errors BeePL_values.
+Require Import BeePL_aux BeePL_mem BeeTypes BeePL BeePL_auxlemmas Errors BeePL_values BeePL_notations.
 From mathcomp Require Import all_ssreflect. 
 
-(*Definition empty_effect : effect := nil. 
+Definition empty_effect : effect := nil. 
 
 Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> Prop :=
 (*For all value expression, we can assume any effect type, including the empty effect *)
 | ty_valu : forall Gamma Sigma,
-            type_expr Gamma Sigma (Val Vunit (Ptype Tunit)) nil (Ptype Tunit)
+            type_expr Gamma Sigma (Val Vunit tunit) nil tunit
 | ty_vali : forall Gamma Sigma i sz s a,
-            type_expr Gamma Sigma (Val (Vint i) (Ptype (Tint sz s a))) nil (Ptype (Tint sz s a))
+            type_expr Gamma Sigma (Val (Vint i) (Vtype (Tint sz s a))) nil (Vtype (Tint sz s a))
 | ty_vall : forall Gamma Sigma i s a,
-            type_expr Gamma Sigma (Val (Vint64 i) (Ptype (Tlong s a))) nil (Ptype (Tlong s a))
+            type_expr Gamma Sigma (Val (Vint64 i) (Vtype (Tlong s a))) nil (Vtype (Tlong s a))
 | ty_valloc : forall Gamma Sigma l ofs h t a,
-              PTree.get l Sigma = Some (Reftype h t a) ->
-              type_expr Gamma Sigma (Val (Vloc l ofs) (Reftype h t a)) nil (Reftype h t a)
+              PTree.get l Sigma = Some (Ptrtype (Reftype h t a)) ->
+              type_expr Gamma Sigma (Val (Vloc l ofs) (Ptrtype (Reftype h t a))) nil (Ptrtype (Reftype h t a))
 | ty_var : forall Gamma Sigma x t, 
            PTree.get x (extend_context Gamma x t) = Some t ->
            type_expr Gamma Sigma (Var x t) nil t
 | ty_constint : forall Gamma Sigma sz s a i,
-                type_expr Gamma Sigma (Const (ConsInt i) (Ptype (Tint sz s a))) nil (Ptype (Tint sz s a))
+                type_expr Gamma Sigma (Const (ConsInt i) (Vtype (Tint sz s a))) nil (Vtype (Tint sz s a))
 | ty_constlong : forall Gamma Sigma s a i,
-                 type_expr Gamma Sigma (Const (ConsLong i) (Ptype (Tlong s a))) nil (Ptype (Tlong s a))
+                 type_expr Gamma Sigma (Const (ConsLong i) (Vtype (Tlong s a))) nil (Vtype (Tlong s a))
 | ty_constunit : forall Gamma Sigma,
-                 type_expr Gamma Sigma (Const (ConsUnit) (Ptype Tunit)) nil (Ptype Tunit)
-(* Fix me *)
-| ty_app : forall Gamma Sigma e es rt efs ts ef efs', 
+                 type_expr Gamma Sigma (Const (ConsUnit) tunit) nil tunit
+| ty_app : forall Gamma Sigma e es rt efs ts ef efs',
            type_expr Gamma Sigma e ef (Ftype ts efs rt) -> 
            type_exprs Gamma Sigma es efs' ts -> 
            type_expr Gamma Sigma (App e es rt) (ef ++ efs ++ efs') rt
-
+| ty_appp : forall Gamma Sigma e es rt efs ts ef efs', 
+           type_expr Gamma Sigma e ef (Ptrtype (Fptype ts efs rt)) -> 
+           type_exprs Gamma Sigma es efs' ts -> 
+           type_expr Gamma Sigma (App e es rt) (ef ++ efs ++ efs') rt
 | ty_ref : forall Gamma Sigma e ef h bt a, 
-           type_expr Gamma Sigma e ef (Ptype bt) ->
-           type_expr Gamma Sigma (Prim Ref (e::nil) (Reftype h (Bprim bt) a)) (ef ++ (Alloc h :: nil)) (Reftype h (Bprim bt) a) 
-| ty_deref : forall Gamma Sigma e ef h bt a, (* inner expression should be unrestricted as it will be used later *)
-             type_expr Gamma Sigma e ef (Reftype h (Bprim bt) a) -> 
-             type_expr Gamma Sigma (Prim Deref (e::nil) (Ptype bt)) (ef ++ (Read h :: nil)) (Ptype bt)
-| ty_massgn : forall Gamma Sigma e e' h bt ef a ef', 
+           type_expr Gamma Sigma e ef (Vtype bt) ->
+           type_expr Gamma Sigma (Prim Ref (e::nil) (Ptrtype (Reftype h (Bprim bt) a))) (ef ++ (Alloc h :: nil)) (Ptrtype (Reftype h (Bprim bt) a)) 
+| ty_deref : forall Gamma Sigma e ef pt h, (* inner expression should be unrestricted as it will be used later *)
+             type_expr Gamma Sigma e ef (Ptrtype pt) -> 
+             type_expr Gamma Sigma (Prim Deref (e::nil) (get_data_type pt)) (ef ++ (Read h :: nil)) (get_data_type pt)
+(*| ty_massgn : forall Gamma Sigma e e' h bt ef a ef', 
               type_expr Gamma Sigma e ef (Reftype h (Bprim bt) a) ->
               type_expr Gamma Sigma e' ef' (Ptype bt) ->
               type_expr Gamma Sigma (Prim Massgn (e::e'::nil) (Ptype Tunit)) (ef ++ ef' ++ (Write h :: nil)) (Ptype Tunit)
@@ -166,7 +168,7 @@ Inductive type_expr : ty_context -> store_context -> expr -> effect -> type -> P
 (*| ty_hexpr : forall Gamma Sigma m e h ef t a, 
              type_expr Gamma Sigma e ef (Reftype h (Bprim t) a) ->
              type_expr Gamma Sigma (Hexpr m e (Reftype h (Bprim t) a)) ef (Reftype h (Bprim t) a)*)
-(* fix me : Add typing rule for external function *)
+(* fix me : Add typing rule for external function *)*)
 with type_exprs : ty_context -> store_context -> list expr -> effect -> list type -> Prop :=
 | ty_nil : forall Gamma Sigma,
            type_exprs Gamma Sigma nil nil nil
@@ -178,7 +180,7 @@ with type_exprs : ty_context -> store_context -> list expr -> effect -> list typ
 Scheme type_expr_ind_mut := Induction for type_expr Sort Prop
   with type_exprs_ind_mut := Induction for type_exprs Sort Prop.
 Combined Scheme type_exprs_type_expr_ind_mut from type_exprs_ind_mut, type_expr_ind_mut.
-
+(*
 (* Value typing *)
 (* A value does not produce any effect *)
 Lemma value_typing : forall Gamma Sigma ef t v,

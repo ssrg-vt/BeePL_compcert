@@ -861,6 +861,19 @@ Definition ref_to_prim (ty : type) : mon type :=
   | _ => error (msg "ref_to_prim: expected only reftype")
   end.
 
+Fixpoint check_fun_ptr_fun (sts : list type) (ats : list type) : bool :=
+match sts, ats with 
+| nil, nil => true 
+| t :: ts, t' :: ts' => match t, t' with 
+                        | Ptrtype (Fptype ts1 ef1 t1), Ftype ts1' ef1' t1' => 
+                          if eq_types eq_type ts1 ts1' && eq_type t1 t1' && eq_effect ef1 ef1'
+                          then check_fun_ptr_fun ts ts'
+                          else false
+                        | _, _ => eq_type t t' && check_fun_ptr_fun ts ts'
+                        end 
+| _, _ => false
+end.
+
 (* Typing context *)
 Definition ty_context := PTree.t type.
 

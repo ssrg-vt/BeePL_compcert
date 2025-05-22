@@ -129,20 +129,7 @@ match es with
              OK (te :: tes, efe ++ efes)
 end.
 
-End Type_check_exprs.
-
-Fixpoint check_fun_ptr_fun (sts : list type) (ats : list type) : bool :=
-match sts, ats with 
-| nil, nil => true 
-| t :: ts, t' :: ts' => match t, t' with 
-                        | Ptrtype (Fptype ts1 ef1 t1), Ftype ts1' ef1' t1' => 
-                          if eq_types eq_type ts1 ts1' && eq_type t1 t1' && eq_effect ef1 ef1'
-                          then check_fun_ptr_fun ts ts'
-                          else false
-                        | _, _ => eq_type t t' && check_fun_ptr_fun ts ts'
-                        end 
-| _, _ => false
-end. 
+End Type_check_exprs. 
                                                                                                       
 
 Fixpoint type_check_expr (cenv : bcomposite_env) (Gamma : ty_context) (Sigma : store_context) (e : expr) {struct e} : res (type * effect) :=
@@ -179,7 +166,7 @@ match e with
                  | Deref => match es with 
                             | e :: nil => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                                           match te with 
-                                          | Ptrtype pt => if eq_type t (get_data_type pt) 
+                                          | Ptrtype pt => if eq_type t (get_data_type pt) && (is_option_ptr_type pt == false) 
                                                           then OK (get_data_type pt, (ef ++ (Read mem_ident :: nil)))
                                                           else Error (msg "Dereftype does not match the inferred type")
                                           | _ => Error (msg "TYPE ERROR: Argument of dereferencing should be a ref type")
@@ -411,6 +398,7 @@ match e with
                                             end
                   | _ => Error (msg "TYPE ERROR: Should be a struct type")
                   end
+(* add free variable check here free(e1) intersect free(e) = empty /\ free(e2) intersect free(e) = empty *)
 | For e1 e2 d e t =>   do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
                        do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                        do (te, ef) <- type_check_expr cenv Gamma Sigma e;
@@ -491,6 +479,7 @@ match fn with
                          end
 end.
 
+
 (* Fix me *)
 Definition type_check_globvar (efenv : ef_env) (Gamma : ty_context) (Sigma : store_context) (gv : BeePL.globvar type) : res type :=
 OK (gv.(gvar_info)).
@@ -515,7 +504,7 @@ match gd with
             OK "SUCCESS: Program type checks!"
 end.
 
-(* Fix Store context: How to compute this? *) 
+(* Store context: Not needed in the executable type checker because location is never used by programmer, it only comes as intermediate results in semantics *) 
 Definition type_check_program (p : BeePL.program) : res string :=
 let Gamma := bind_globdef (PTree.empty _) p.(prog_defs) in
 let cenv := p.(prog_comp_env) in 
