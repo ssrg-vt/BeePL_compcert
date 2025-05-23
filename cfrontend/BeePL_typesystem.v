@@ -25,12 +25,9 @@ Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> e
                  type_expr cenv Gamma Sigma (Const (ConsLong i) (Vtype (Tlong s a))) nil (Vtype (Tlong s a))
 | ty_constunit : forall cenv Gamma Sigma,
                  type_expr cenv Gamma Sigma (Const (ConsUnit) tunit) nil tunit
-| ty_app : forall cenv Gamma Sigma e es rt efs ts ef efs',
-           type_expr cenv Gamma Sigma e ef (Ftype ts efs rt) -> 
-           type_exprs cenv Gamma Sigma es efs' ts -> 
-           type_expr cenv Gamma Sigma (App e es rt) (ef ++ efs ++ efs') rt
-| ty_appp : forall cenv Gamma Sigma e es rt efs ts ef efs', 
-           type_expr cenv Gamma Sigma e ef (Ptrtype (Fptype ts efs rt)) -> 
+| ty_app : forall cenv Gamma Sigma e te es rt efs ts ef efs',
+           type_expr cenv Gamma Sigma e ef te -> 
+           eq_type te (Ptrtype (Fptype ts efs rt)) || eq_type te (Ftype ts efs rt) ->
            type_exprs cenv Gamma Sigma es efs' ts -> 
            type_expr cenv Gamma Sigma (App e es rt) (ef ++ efs ++ efs') rt
 | ty_ref : forall cenv Gamma Sigma e ef h bt a, 
@@ -55,86 +52,86 @@ Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> e
            is_primint t || is_primlong t ->
            type_expr cenv Gamma Sigma e ef t ->
            type_expr cenv Gamma Sigma (Prim (Uop Cop.Oneg) (e::nil) t) ef t
-| ty_add : forall cenv Gamma Sigma e ef t e',
+| ty_add : forall cenv Gamma Sigma e ef1 ef2 t e',
            is_primint t || is_primlong t ->
-           type_expr cenv Gamma Sigma e ef t ->
-           type_expr cenv Gamma Sigma e' ef t ->
-           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oadd) (e::e'::nil) t) ef t 
-| ty_sub : forall cenv Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef1 t ->
+           type_expr cenv Gamma Sigma e' ef2 t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oadd) (e::e'::nil) t) (ef1 ++ ef2) t 
+| ty_sub : forall cenv Gamma Sigma e ef1 ef2 t e',
            is_primint t || is_primlong t ->
-           type_expr cenv Gamma Sigma e ef t ->
-           type_expr cenv Gamma Sigma e' ef t ->
-           type_expr cenv Gamma Sigma (Prim (Bop Cop.Osub) (e::e'::nil) t) ef t
-| ty_mul : forall cenv Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef1 t ->
+           type_expr cenv Gamma Sigma e' ef2 t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Osub) (e::e'::nil) t) (ef1 ++ ef2) t
+| ty_mul : forall cenv Gamma Sigma e ef1 ef2 t e',
            is_primint t || is_primlong t ->
-           type_expr cenv Gamma Sigma e ef t ->
-           type_expr cenv Gamma Sigma e' ef t ->
-           type_expr cenv Gamma Sigma (Prim (Bop Cop.Omul) (e::e'::nil) t) ef t 
-| ty_div : forall cenv Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef1 t ->
+           type_expr cenv Gamma Sigma e' ef2 t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Omul) (e::e'::nil) t)  (ef1 ++ ef2) t 
+| ty_div : forall cenv Gamma Sigma e ef1 ef2 t e',
            is_primint t || is_primlong t ->
-           type_expr cenv Gamma Sigma e ef t ->
-           type_expr cenv Gamma Sigma e' ef t ->
-           type_expr cenv Gamma Sigma (Prim (Bop Cop.Odiv) (e::e'::nil) t) ef t
-| ty_mod : forall cenv Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef1 t ->
+           type_expr cenv Gamma Sigma e' ef2 t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Odiv) (e::e'::nil) t) (ef1 ++ ef2) t
+| ty_mod : forall cenv Gamma Sigma e ef1 ef2 t e',
            is_primint t || is_primlong t ->
-           type_expr cenv Gamma Sigma e ef t ->
-           type_expr cenv Gamma Sigma e' ef t ->
-           type_expr cenv Gamma Sigma (Prim (Bop Cop.Omod) (e::e'::nil) t) ef t
-| ty_and : forall cenv Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef1 t ->
+           type_expr cenv Gamma Sigma e' ef2 t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Omod) (e::e'::nil) t) (ef1 ++ ef2) t
+| ty_and : forall cenv Gamma Sigma e ef1 ef2 t e',
            is_primint t || is_primlong t ->
-           type_expr cenv Gamma Sigma e ef t ->
-           type_expr cenv Gamma Sigma e' ef t ->
-           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oand) (e::e'::nil) t) ef t
-| ty_or : forall cenv Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef1 t ->
+           type_expr cenv Gamma Sigma e' ef2 t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oand) (e::e'::nil) t) (ef1 ++ ef2) t
+| ty_or : forall cenv Gamma Sigma e ef1 ef2 t e',
            is_primint t || is_primlong t ->
-           type_expr cenv Gamma Sigma e ef t ->
-           type_expr cenv Gamma Sigma e' ef t ->
-           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oor) (e::e'::nil) t) ef t
-| ty_xor : forall cenv Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef1 t ->
+           type_expr cenv Gamma Sigma e' ef2 t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oor) (e::e'::nil) t) (ef1 ++ ef2) t
+| ty_xor : forall cenv Gamma Sigma e ef1 ef2 t e',
            is_primint t || is_primlong t ->
-           type_expr cenv Gamma Sigma e ef t ->
-           type_expr cenv Gamma Sigma e' ef t ->
-           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oxor) (e::e'::nil) t) ef t
-| ty_shl : forall cenv Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef1 t ->
+           type_expr cenv Gamma Sigma e' ef2 t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oxor) (e::e'::nil) t) (ef1 ++ ef2) t
+| ty_shl : forall cenv Gamma Sigma e ef1 ef2 t e',
            is_primint t || is_primlong t ->
-           type_expr cenv Gamma Sigma e ef t ->
-           type_expr cenv Gamma Sigma e' ef t ->
-           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oshl) (e::e'::nil) t) ef t
-| ty_shr : forall cenv Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef1 t ->
+           type_expr cenv Gamma Sigma e' ef2 t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oshl) (e::e'::nil) t) (ef1 ++ ef2) t
+| ty_shr : forall cenv Gamma Sigma e ef1 ef2 t e',
            is_primint t || is_primlong t ->
-           type_expr cenv Gamma Sigma e ef t ->
-           type_expr cenv Gamma Sigma e' ef t ->
-           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oshr) (e::e'::nil) t) ef t
-| ty_eq : forall cenv Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef1 t ->
+           type_expr cenv Gamma Sigma e' ef2 t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oshr) (e::e'::nil) t) (ef1 ++ ef2) t
+| ty_eq : forall cenv Gamma Sigma e ef1 ef2 t e',
            is_primint t || is_primlong t || is_primbool t ->
-           type_expr cenv Gamma Sigma e ef t ->
-           type_expr cenv Gamma Sigma e' ef t ->
-           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oeq) (e::e'::nil) (Vtype Tbool)) ef (Vtype Tbool)
-| ty_ne : forall cenv Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef1 t ->
+           type_expr cenv Gamma Sigma e' ef2 t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oeq) (e::e'::nil) (Vtype Tbool))  (ef1 ++ ef2) (Vtype Tbool)
+| ty_ne : forall cenv Gamma Sigma e ef1 ef2 t e',
            is_primint t || is_primlong t || is_primbool t ->
-           type_expr cenv Gamma Sigma e ef t ->
-           type_expr cenv Gamma Sigma e' ef t ->
-           type_expr cenv Gamma Sigma (Prim (Bop Cop.One) (e::e'::nil) (Vtype Tbool)) ef (Vtype Tbool)
-| ty_lt : forall cenv Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef1 t ->
+           type_expr cenv Gamma Sigma e' ef2 t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.One) (e::e'::nil) (Vtype Tbool))  (ef1 ++ ef2) (Vtype Tbool)
+| ty_lt : forall cenv Gamma Sigma e ef1 ef2 t e',
            is_primint t || is_primlong t ->
-           type_expr cenv Gamma Sigma e ef t ->
-           type_expr cenv Gamma Sigma e' ef t ->
-           type_expr cenv Gamma Sigma (Prim (Bop Cop.Olt) (e::e'::nil) (Vtype Tbool)) ef (Vtype Tbool)
-| ty_gt : forall cenv Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef1 t ->
+           type_expr cenv Gamma Sigma e' ef2 t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Olt) (e::e'::nil) (Vtype Tbool))  (ef1 ++ ef2) (Vtype Tbool)
+| ty_gt : forall cenv Gamma Sigma e ef1 ef2 t e',
            is_primint t || is_primlong t ->
-           type_expr cenv Gamma Sigma e ef t ->
-           type_expr cenv Gamma Sigma e' ef t ->
-           type_expr cenv Gamma Sigma (Prim (Bop Cop.Ogt) (e::e'::nil) (Vtype Tbool)) ef (Vtype Tbool)
-| ty_le : forall cenv Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef1 t ->
+           type_expr cenv Gamma Sigma e' ef2 t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Ogt) (e::e'::nil) (Vtype Tbool)) (ef1 ++ ef2) (Vtype Tbool)
+| ty_le : forall cenv Gamma Sigma e ef1 ef2 t e',
            is_primint t || is_primlong t  ->
-           type_expr cenv Gamma Sigma e ef t ->
-           type_expr cenv Gamma Sigma e' ef t ->
-           type_expr cenv Gamma Sigma (Prim (Bop Cop.Ole) (e::e'::nil) (Vtype Tbool)) ef (Vtype Tbool)
-| ty_ge : forall cenv Gamma Sigma e ef t e',
+           type_expr cenv Gamma Sigma e ef1 t ->
+           type_expr cenv Gamma Sigma e' ef2 t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Ole) (e::e'::nil) (Vtype Tbool))  (ef1 ++ ef2) (Vtype Tbool)
+| ty_ge : forall cenv Gamma Sigma e ef1 ef2 t e',
            is_primint t || is_primlong t ->
-           type_expr cenv Gamma Sigma e ef t ->
-           type_expr cenv Gamma Sigma e' ef t ->
-           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oge) (e::e'::nil) (Vtype Tbool)) ef (Vtype Tbool)
+           type_expr cenv Gamma Sigma e ef1 t ->
+           type_expr cenv Gamma Sigma e' ef2 t ->
+           type_expr cenv Gamma Sigma (Prim (Bop Cop.Oge) (e::e'::nil) (Vtype Tbool))  (ef1 ++ ef2) (Vtype Tbool)
 | ty_bind : forall cenv Gamma Sigma x t e e' t' ef ef',
             type_expr cenv Gamma Sigma e ef t ->
             type_expr cenv (extend_context Gamma x t) Sigma e' ef' t' ->
@@ -221,238 +218,452 @@ with type_exprs : bcomposite_env -> ty_context -> store_context -> list expr -> 
 Scheme type_expr_ind_mut := Induction for type_expr Sort Prop
   with type_exprs_ind_mut := Induction for type_exprs Sort Prop.
 Combined Scheme type_exprs_type_expr_ind_mut from type_exprs_ind_mut, type_expr_ind_mut.
-(*
+
 (* Value typing *)
 (* A value does not produce any effect *)
-Lemma value_typing : forall Gamma Sigma ef t v,
-type_expr Gamma Sigma (Val v t) ef t ->
-type_expr Gamma Sigma (Val v t) nil t. 
+Lemma value_typing : forall cenv Gamma Sigma ef t v,
+type_expr cenv Gamma Sigma (Val v t) ef t ->
+type_expr cenv Gamma Sigma (Val v t) nil t. 
 Proof.
-move=> Gamma Sigma ef t v. move eq : (Val v t)=> v' ht.
+move=> cenv Gamma Sigma ef t v. move eq : (Val v t)=> v' ht.
 elim: ht eq=> //=.
-+ move=> Gamma' Sigma' [] h1; subst. by apply ty_valu.
-+ move=> Gamma' Sigma' i sz s a [] h1; subst. by apply ty_vali.
-+ move=> Gamma' Sigma' i s a [] h1; subst. by apply ty_vall.
-move=> Gamma' Sigma' l ofs h bt a hs [] h1; subst. by apply ty_valloc. 
++ move=> cenv' Gamma' Sigma' [] h1; subst. by apply ty_valu.
++ move=> cenv' Gamma' Sigma' i sz s a [] h1; subst. by apply ty_vali.
++ move=> cenv' Gamma' Sigma' i s a [] h1; subst. by apply ty_vall.
+move=> cenv' Gamma' Sigma' l ofs h bt a hs [] h1; subst. by apply ty_valloc. 
 Qed.
 
-Lemma type_infer_vunit: forall Gamma Sigma ef t t', 
-type_expr Gamma Sigma (Val Vunit t) ef t' ->
-t = Ptype Tunit /\ t' = Ptype Tunit.
+Lemma type_infer_vunit: forall cenv Gamma Sigma ef t t', 
+type_expr cenv Gamma Sigma (Val Vunit t) ef t' ->
+t = tunit /\ t' = tunit.
 Proof.
-move=> Gamma Sigma ef t t'. 
+move=> cenv Gamma Sigma ef t t'. unfold tunit.
 move eq : (Val Vunit t)=> v ht. elim: ht eq=>//=.
-by move=> Gamma' Sigma' [] h; subst.
+by move=> cenv' Gamma' Sigma' [] h; subst.
 Qed.
 
-Lemma type_infer_vbool: forall Gamma Sigma ef b t t', 
-type_expr Gamma Sigma (Val (Vbool b) t) ef t' ->
-t = Ptype Tbool /\ t' = Ptype Tbool.
+Lemma type_infer_vbool: forall cenv Gamma Sigma ef b t t', 
+type_expr cenv Gamma Sigma (Val (Vbool b) t) ef t' ->
+t = Vtype Tbool /\ t' = Vtype Tbool.
 Proof.
-move=> Gamma Sigma ef b t t'. 
+move=> cenv Gamma Sigma ef b t t'. 
 move eq : (Val (Vbool b) t)=> v ht. elim: ht eq=>//=.
 Qed.
 
-Lemma type_infer_int: forall Gamma Sigma i ef t t', 
-type_expr Gamma Sigma (Val (Vint i) t) ef t' ->
-(exists sz s a, t = Ptype (Tint sz s a) /\ t' = Ptype (Tint sz s a)).
+Lemma type_infer_int: forall cenv Gamma Sigma i ef t t', 
+type_expr cenv Gamma Sigma (Val (Vint i) t) ef t' ->
+(exists sz s a, t = Vtype (Tint sz s a) /\ t' = Vtype (Tint sz s a)).
 Proof.
-move=> Gamma Sigma i ef t t'. 
+move=> cenv Gamma Sigma i ef t t'. 
 move eq : (Val (Vint i) t)=> v ht. 
-elim: ht eq=>//=. move=> Gamma' Sigma' i' sz' s' a' [] h1 h2; subst. 
+elim: ht eq=>//=. move=> cenv' Gamma' Sigma' i' sz' s' a' [] h1 h2; subst. 
 by exists sz', s', a'.
 Qed.
 
-Lemma type_infer_long: forall Gamma Sigma i ef t t', 
-type_expr Gamma Sigma (Val (Vint64 i) t) ef t' ->
-(exists s a, t = Ptype (Tlong s a) /\ t' = Ptype (Tlong s a)).
+Lemma type_infer_long: forall cenv Gamma Sigma i ef t t', 
+type_expr cenv Gamma Sigma (Val (Vint64 i) t) ef t' ->
+(exists s a, t = Vtype (Tlong s a) /\ t' = Vtype (Tlong s a)).
 Proof.
-move=> Gamma Sigma i ef t t'. 
+move=> cenv Gamma Sigma i ef t t'. 
 move eq : (Val (Vint64 i) t)=> v ht. 
-elim: ht eq=>//=. move=> Gamma' Sigma' i' s' a' [] h2 h3; subst.
+elim: ht eq=>//=. move=> cenv' Gamma' Sigma' i' s' a' [] h2 h3; subst.
 by exists s', a'.
 Qed.
 
-Lemma type_infer_loc: forall Gamma Sigma l ofs ef t t', 
-type_expr Gamma Sigma (Val (Vloc l ofs) t) ef t' ->
-(exists h bt a, t = Reftype h bt a /\ 
-                t' = Reftype h bt a /\ 
-                PTree.get l Sigma = Some (Reftype h bt a)).
+Lemma type_infer_loc: forall cenv Gamma Sigma l ofs ef t t', 
+type_expr cenv Gamma Sigma (Val (Vloc l ofs) t) ef t' ->
+(exists h bt a, t = Ptrtype (Reftype h bt a) /\ 
+                t' = Ptrtype (Reftype h bt a) /\ 
+                PTree.get l Sigma = Some (Ptrtype (Reftype h bt a))).
 Proof.
-move=> Gamma Sigma l ofs ef t t'. 
+move=> cenv Gamma Sigma l ofs ef t t'. 
 move eq : (Val (Vloc l ofs) t)=> v ht. elim: ht eq=>//=.
-move=> Gamma' Sigma' l' ofs' h' bt' a' hs [] h1 h2 h3; subst. 
+move=> cenv' Gamma' Sigma' l' ofs' h' bt' a' hs [] h1 h2 h3; subst. 
 by exists h', bt', a'.
 Qed.
 
-Lemma type_infer_var : forall Gamma Sigma x t ef t',
-type_expr Gamma Sigma (Var x t) ef t' ->
+Lemma type_infer_var : forall cenv Gamma Sigma x t ef t',
+type_expr cenv Gamma Sigma (Var x t) ef t' ->
 t = t' /\ PTree.get x (extend_context Gamma x t) = Some t.
 Proof.
-move=> Gamma Sigma x t ef t'. 
+move=> cenv Gamma Sigma x t ef t'. 
 move eq: (Var x t)=> v ht. elim: ht eq=> //=.
-by move=> Gamma' Sigma' x' t'' hxt [] h1 h2; subst.
+by move=> cenv' Gamma' Sigma' x' t'' hxt [] h1 h2; subst.
 Qed.
 
-Lemma type_infer_consti: forall Gamma Sigma i ef t t', 
-type_expr Gamma Sigma (Const (ConsInt i) t) ef t' ->
-(exists sz s a, t = Ptype (Tint sz s a) /\ t' = Ptype (Tint sz s a)).
+Lemma type_infer_consti: forall cenv Gamma Sigma i ef t t', 
+type_expr cenv Gamma Sigma (Const (ConsInt i) t) ef t' ->
+(exists sz s a, t = Vtype (Tint sz s a) /\ t' = Vtype (Tint sz s a)).
 Proof.
-move=> Gamma Sigma i ef t t'. 
+move=> cenv Gamma Sigma i ef t t'. 
 move eq : (Const (ConsInt i) t)=> v ht. 
-elim: ht eq=>//=. move=> Gamma' Sigma' sz' s' a' i' [] h1 h2; subst. 
+elim: ht eq=>//=. move=> cenv' Gamma' Sigma' sz' s' a' i' [] h1 h2; subst. 
 by exists sz', s', a'.
 Qed.
 
-Lemma type_infer_constl: forall Gamma Sigma i ef t t', 
-type_expr Gamma Sigma (Const (ConsLong i) t) ef t' ->
-(exists s a, t = Ptype (Tlong s a) /\ t' = Ptype (Tlong s a)).
+Lemma type_infer_constl: forall cenv Gamma Sigma i ef t t', 
+type_expr cenv Gamma Sigma (Const (ConsLong i) t) ef t' ->
+(exists s a, t = Vtype (Tlong s a) /\ t' = Vtype (Tlong s a)).
 Proof.
-move=> Gamma Sigma i ef t t'. 
+move=> cenv Gamma Sigma i ef t t'. 
 move eq : (Const (ConsLong i) t)=> v ht. 
-elim: ht eq=>//=. move=> Gamma' Sigma' s' a' i' [] h1 h2; subst. 
+elim: ht eq=>//=. move=> cenv' Gamma' Sigma' s' a' i' [] h1 h2; subst. 
 by exists s', a'.
 Qed.
 
-Lemma type_infer_constu: forall Gamma Sigma ef t t', 
-type_expr Gamma Sigma (Const ConsUnit t) ef t' ->
-t = Ptype Tunit /\ t' = Ptype Tunit.
+Lemma type_infer_constu: forall cenv Gamma Sigma ef t t', 
+type_expr cenv Gamma Sigma (Const ConsUnit t) ef t' ->
+t = tunit /\ t' = tunit.
 Proof.
-move=> Gamma Sigma ef t t'. 
+move=> cenv Gamma Sigma ef t t'. 
 move eq : (Const ConsUnit t)=> v ht. elim: ht eq=>//=.
-by move=> Gamma' Sigma' [] h1; subst.
+by move=> cenv' Gamma' Sigma' [] h1; subst.
 Qed.
 
-Lemma type_infer_app: forall Gamma Sigma e es rt ef t,
-type_expr Gamma Sigma (App e es rt) ef t ->
+Lemma type_infer_app: forall cenv Gamma Sigma e es rt ef t,
+type_expr cenv Gamma Sigma (App e es rt) ef t ->
 (t = rt /\
-exists ts ef' efs, type_expr Gamma Sigma e ef' (Ftype ts efs rt) /\ 
-exists efs', type_exprs Gamma Sigma es efs' ts).
+exists te ts ef' efs efs', type_expr cenv Gamma Sigma e ef' te /\ 
+(eq_type te (Ptrtype (Fptype ts efs rt)) || eq_type te (Ftype ts efs rt)) /\
+type_exprs cenv Gamma Sigma es efs' ts).
 Proof.
-move=> Gamma Sigma e es rt ef t.
+move=> cenv Gamma Sigma e es rt ef t.
 move eq: (App e es rt)=> ve ht. elim: ht eq=> //=.
-move=> Gamma' Sigma' e' es' rt' efs ts ef' efs' ht1 hin ht2 [] h1 h2 h3; subst; split=> //=.
-exists ts, ef', efs; split=> //=. by exists efs'.
+move=> cenv' Gamma' Sigma' e' te es' rt' efs ts ef' efs' ht1 hin ht2 heq [] h1 h2 h3; subst; split=> //=.
+exists te, ts, ef', efs, efs'; split=> //=.
 Qed.
 
-Lemma type_infer_ref: forall Gamma Sigma e ef t t',
-type_expr Gamma Sigma (Prim Ref [:: e] t) ef t' ->
-(exists h bt a, t = (Reftype h (Bprim bt) a) /\ t' = Reftype h (Bprim bt) a).
+Lemma type_infer_ref: forall cenv Gamma Sigma e ef t t',
+type_expr cenv Gamma Sigma (Prim Ref [:: e] t) ef t' ->
+(exists h bt a, t = Ptrtype (Reftype h (Bprim bt) a) /\ t' = Ptrtype (Reftype h (Bprim bt) a)).
 Proof.
-move=> Gamma Sigma e ef t t'.
+move=> cenv Gamma Sigma e ef t t'.
 move eq: (Prim Ref [:: e] t)=> rv ht.
 elim: ht eq=> //=.
-move=> Gamma' Sigma' e' ef' h' bt' a' ht hin [] h1 h2; subst.
+move=> cenv' Gamma' Sigma' e' ef' h' bt' a' ht hin [] h1 h2; subst.
 by exists h', bt', a'.
 Qed.
 
-Lemma type_infer_deref: forall Gamma Sigma e ef t t',
-type_expr Gamma Sigma (Prim Deref [:: e] t) ef t' ->
-(exists h bt a ef', t = Ptype bt /\ 
-                    t' = Ptype bt /\
-                    type_expr Gamma Sigma e ef' (Reftype h (Bprim bt) a)).
+Lemma type_infer_deref: forall cenv Gamma Sigma e ef t t',
+type_expr cenv Gamma Sigma (Prim Deref [:: e] t) ef t' ->
+(exists pt ef', t = (get_data_type pt) /\ 
+                t' = (get_data_type pt) /\
+                type_expr cenv Gamma Sigma e ef' (Ptrtype pt)).
 Proof.
-move=> Gamma Sigma e ef t t'.
+move=> cenv Gamma Sigma e ef t t'.
 move eq: (Prim Deref [:: e] t)=> rv ht.
 elim: ht eq=> //=.
-move=> Gamma' Sigma' e' ef' h' bt' a' ht1 hin1 [] h1 h2; subst.
-by exists h', bt', a', ef'. 
+move=> cenv' Gamma' Sigma' e' ef' pt h ht1 hin1 h1 [] h2 h3; subst.
+by exists pt, ef'; split=>//=. 
 Qed.
 
-Lemma type_infer_massgn: forall Gamma Sigma e e' ef t t',
-type_expr Gamma Sigma (Prim Massgn [:: e; e'] t) ef t' ->
-(t = Ptype Tunit /\ t' = Ptype Tunit /\
- (exists h bt a ef1 ef2, type_expr Gamma Sigma e ef1 (Reftype h (Bprim bt) a) /\
-                        type_expr Gamma Sigma e' ef2 (Ptype bt))). 
+Lemma type_infer_massgn: forall cenv Gamma Sigma e e' ef t t',
+type_expr cenv Gamma Sigma (Prim Massgn [:: e; e'] t) ef t' ->
+(t = tunit /\ t' = tunit /\
+ (exists pt ef1 ef2, type_expr cenv Gamma Sigma e ef1 (Ptrtype pt) /\
+                     type_expr cenv Gamma Sigma e' ef2 (get_data_type pt))). 
 Proof.
-move=> Gamma Sigma e e' ef t t'.
+move=> cenv Gamma Sigma e e' ef t t'.
 move eq: (Prim Massgn [:: e; e'] t)=> rv ht.
 elim: ht eq=> //=.
-move=> Gamma' Sigma' e1 e2 h bt ef1 a ef2 ht hin ht' hin2 [] h1 h2 h3; subst; split=> //=.
-split=> //=. by exists h, bt, a, ef1, ef2.
+move=> cenv' Gamma' Sigma' e1 e2 h pt ef1 ef2 ht hin ht' h' [] h1 h2 h3; subst; split=> //=.
+split=> //=. by exists pt, ef1, ef2.
 Qed.
 
-(*Lemma type_infer_uop: forall Gamma Sigma e uop t ef t',
-type_expr Gamma Sigma (Prim (Uop uop) [:: e] t) ef t' ->
-t' = t /\ 
-is_reftype t = false /\
-is_unittype t = false /\
-exists ef', type_expr Gamma Sigma e ef' t.
+Lemma type_infer_notbool : forall cenv Gamma Sigma e ef t t',
+type_expr cenv Gamma Sigma (Prim (Uop Cop.Onotbool) (e::nil) t) ef t' ->
+t = (Vtype Tbool) /\ t' = (Vtype Tbool) /\
+exists ef', type_expr cenv Gamma Sigma e ef' (Vtype Tbool).
 Proof.
-Admitted.
-(*move=> Gamma Sigma e uop t ef t'.
-move eq: (Prim (Uop uop) [:: e] t)=> rv ht.
+move=> cenv Gamma Sigma e ef t t'.
+move eq: (Prim (Uop Cop.Onotbool) (e::nil) t)=> rv ht.
 elim: ht eq=> //=.
-move=> Gamma' Sigma' op e' ef' t'' hrt hut hte' hin [] h1 h2 h3; subst; split=> //=.
-split=> //=; split=> //=. by exists ef'. 
-Qed.*)
-
-Lemma type_infer_bop: forall Gamma Sigma e e' t bop ef t',
-type_expr Gamma Sigma (Prim (Bop bop) [:: e; e'] t) ef t' ->
-t' = t /\
-is_reftype t = false /\
-is_unittype t = false /\
-(exists ef', type_expr Gamma Sigma e ef' t /\
-             type_expr Gamma Sigma e' ef' t).
-Proof.
-move=> Gamma Sigma e e' t bop ef t'.
-move eq: (Prim (Bop bop) [:: e; e'] t)=> rv ht.
-elim: ht eq=> //=.
-move=> Gamma' Sigma' op e1 ef1 t1 e2 hrt hut ht1 hin1 ht2 hin2
-       [] h1 h2 h3 h4; subst; split=> //=; split=> //=; split=> //=.
-by exists ef1.
+move=> cenv' Gamma' Sigma' e1 ef1 ht hin [] h1 h2; split=> //=; subst.
+split=> //=. by exists ef1.
 Qed.
 
-Lemma type_infer_bind: forall Gamma Sigma e x t e' t' ef t'',
-type_expr Gamma Sigma (Bind x t e e' t') ef t'' ->
+Lemma type_infer_notint : forall cenv Gamma Sigma e ef t t',
+type_expr cenv Gamma Sigma (Prim (Uop Cop.Onotint) (e::nil) t) ef t' ->
+((is_primint t || is_primlong t)  \/ (is_primint t' || is_primlong t')) /\
+exists ef', type_expr cenv Gamma Sigma e ef' t.
+Proof.
+move=> cenv Gamma Sigma e ef t t'.
+move eq: (Prim (Uop Cop.Onotint) (e::nil) t)=> rv ht.
+elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' e1 ef1 t1 heq ht hin [] h1 h2; split=> //=; subst.
++ by left. by exists ef1.
+Qed.
+
+Lemma type_infer_neg : forall cenv Gamma Sigma e ef t t',
+type_expr cenv Gamma Sigma (Prim (Uop Cop.Oneg) (e::nil) t) ef t' ->
+((is_primint t || is_primlong t)  \/ (is_primint t' || is_primlong t')) /\
+exists ef', type_expr cenv Gamma Sigma e ef' t.
+Proof.
+move=> cenv Gamma Sigma e ef t t'.
+move eq: (Prim (Uop Cop.Oneg) (e::nil) t)=> rv ht.
+elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' e1 ef1 t1 heq ht hin [] h1 h2; split=> //=; subst.
++ by left. by exists ef1.
+Qed.
+
+Lemma type_infer_add : forall cenv Gamma Sigma e e' ef t t',
+type_expr cenv Gamma Sigma (Prim (Bop Cop.Oadd) (e::e'::nil) t) ef t' ->
+((is_primint t || is_primlong t)  \/ (is_primint t' || is_primlong t')) /\
+exists ef1 ef2, type_expr cenv Gamma Sigma e ef1 t /\ type_expr cenv Gamma Sigma e' ef2 t.
+Proof.
+move=> cenv Gamma Sigma e e' ef t t'.
+move eq: (Prim (Bop Cop.Oadd) (e::e'::nil) t)=> rv ht.
+elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' e1 ef1 ef2 t1 e2 heq ht1 hin1 ht2 hin2 [] h1 h2 h3; split=> //=; subst. 
++ by left.
+by exists ef1, ef2.
+Qed.
+
+Lemma type_infer_sub : forall cenv Gamma Sigma e e' ef t t',
+type_expr cenv Gamma Sigma (Prim (Bop Cop.Osub) (e::e'::nil) t) ef t' ->
+((is_primint t || is_primlong t)  \/ (is_primint t' || is_primlong t')) /\
+exists ef1 ef2, type_expr cenv Gamma Sigma e ef1 t /\ type_expr cenv Gamma Sigma e' ef2 t.
+Proof.
+move=> cenv Gamma Sigma e e' ef t t'.
+move eq: (Prim (Bop Cop.Osub) (e::e'::nil) t)=> rv ht.
+elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' e1 ef1 ef2 t1 e2 heq ht1 hin1 ht2 hin2 [] h1 h2 h3; split=> //=; subst. 
++ by left.
+by exists ef1, ef2.
+Qed.
+
+Lemma type_infer_mul : forall cenv Gamma Sigma e e' ef t t',
+type_expr cenv Gamma Sigma (Prim (Bop Cop.Omul) (e::e'::nil) t) ef t' ->
+((is_primint t || is_primlong t)  \/ (is_primint t' || is_primlong t')) /\
+exists ef1 ef2, type_expr cenv Gamma Sigma e ef1 t /\ type_expr cenv Gamma Sigma e' ef2 t.
+Proof.
+move=> cenv Gamma Sigma e e' ef t t'.
+move eq: (Prim (Bop Cop.Omul) (e::e'::nil) t)=> rv ht.
+elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' e1 ef1 ef2 t1 e2 heq ht1 hin1 ht2 hin2 [] h1 h2 h3; split=> //=; subst. 
++ by left.
+by exists ef1, ef2.
+Qed.
+
+Lemma type_infer_div : forall cenv Gamma Sigma e e' ef t t',
+type_expr cenv Gamma Sigma (Prim (Bop Cop.Odiv) (e::e'::nil) t) ef t' ->
+((is_primint t || is_primlong t)  \/ (is_primint t' || is_primlong t')) /\
+exists ef1 ef2, type_expr cenv Gamma Sigma e ef1 t /\ type_expr cenv Gamma Sigma e' ef2 t.
+Proof.
+move=> cenv Gamma Sigma e e' ef t t'.
+move eq: (Prim (Bop Cop.Odiv) (e::e'::nil) t)=> rv ht.
+elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' e1 ef1 ef2 t1 e2 heq ht1 hin1 ht2 hin2 [] h1 h2 h3; split=> //=; subst. 
++ by left.
+by exists ef1, ef2.
+Qed.
+
+Lemma type_infer_mod : forall cenv Gamma Sigma e e' ef t t',
+type_expr cenv Gamma Sigma (Prim (Bop Cop.Omod) (e::e'::nil) t) ef t' ->
+((is_primint t || is_primlong t)  \/ (is_primint t' || is_primlong t')) /\
+exists ef1 ef2, type_expr cenv Gamma Sigma e ef1 t /\ type_expr cenv Gamma Sigma e' ef2 t.
+Proof.
+move=> cenv Gamma Sigma e e' ef t t'.
+move eq: (Prim (Bop Cop.Omod) (e::e'::nil) t)=> rv ht.
+elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' e1 ef1 ef2 t1 e2 heq ht1 hin1 ht2 hin2 [] h1 h2 h3; split=> //=; subst. 
++ by left.
+by exists ef1, ef2.
+Qed.
+
+Lemma type_infer_and : forall cenv Gamma Sigma e e' ef t t',
+type_expr cenv Gamma Sigma (Prim (Bop Cop.Oand) (e::e'::nil) t) ef t' ->
+((is_primint t || is_primlong t)  \/ (is_primint t' || is_primlong t')) /\
+exists ef1 ef2, type_expr cenv Gamma Sigma e ef1 t /\ type_expr cenv Gamma Sigma e' ef2 t.
+Proof.
+move=> cenv Gamma Sigma e e' ef t t'.
+move eq: (Prim (Bop Cop.Oand) (e::e'::nil) t)=> rv ht.
+elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' e1 ef1 ef2 t1 e2 heq ht1 hin1 ht2 hin2 [] h1 h2 h3; split=> //=; subst. 
++ by left.
+by exists ef1, ef2.
+Qed.
+
+Lemma type_infer_or : forall cenv Gamma Sigma e e' ef t t',
+type_expr cenv Gamma Sigma (Prim (Bop Cop.Oor) (e::e'::nil) t) ef t' ->
+((is_primint t || is_primlong t)  \/ (is_primint t' || is_primlong t')) /\
+exists ef1 ef2, type_expr cenv Gamma Sigma e ef1 t /\ type_expr cenv Gamma Sigma e' ef2 t.
+Proof.
+move=> cenv Gamma Sigma e e' ef t t'.
+move eq: (Prim (Bop Cop.Oor) (e::e'::nil) t)=> rv ht.
+elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' e1 ef1 ef2 t1 e2 heq ht1 hin1 ht2 hin2 [] h1 h2 h3; split=> //=; subst. 
++ by left.
+by exists ef1, ef2.
+Qed.
+
+Lemma type_infer_xor : forall cenv Gamma Sigma e e' ef t t',
+type_expr cenv Gamma Sigma (Prim (Bop Cop.Oxor) (e::e'::nil) t) ef t' ->
+((is_primint t || is_primlong t)  \/ (is_primint t' || is_primlong t')) /\
+exists ef1 ef2, type_expr cenv Gamma Sigma e ef1 t /\ type_expr cenv Gamma Sigma e' ef2 t.
+Proof.
+move=> cenv Gamma Sigma e e' ef t t'.
+move eq: (Prim (Bop Cop.Oxor) (e::e'::nil) t)=> rv ht.
+elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' e1 ef1 ef2 t1 e2 heq ht1 hin1 ht2 hin2 [] h1 h2 h3; split=> //=; subst. 
++ by left.
+by exists ef1, ef2.
+Qed.
+
+Lemma type_infer_shl : forall cenv Gamma Sigma e e' ef t t',
+type_expr cenv Gamma Sigma (Prim (Bop Cop.Oshl) (e::e'::nil) t) ef t' ->
+((is_primint t || is_primlong t)  \/ (is_primint t' || is_primlong t')) /\
+exists ef1 ef2, type_expr cenv Gamma Sigma e ef1 t /\ type_expr cenv Gamma Sigma e' ef2 t.
+Proof.
+move=> cenv Gamma Sigma e e' ef t t'.
+move eq: (Prim (Bop Cop.Oshl) (e::e'::nil) t)=> rv ht.
+elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' e1 ef1 ef2 t1 e2 heq ht1 hin1 ht2 hin2 [] h1 h2 h3; split=> //=; subst. 
++ by left.
+by exists ef1, ef2.
+Qed.
+
+Lemma type_infer_shr : forall cenv Gamma Sigma e e' ef t t',
+type_expr cenv Gamma Sigma (Prim (Bop Cop.Oshr) (e::e'::nil) t) ef t' ->
+((is_primint t || is_primlong t)  \/ (is_primint t' || is_primlong t')) /\
+exists ef1 ef2, type_expr cenv Gamma Sigma e ef1 t /\ type_expr cenv Gamma Sigma e' ef2 t.
+Proof.
+move=> cenv Gamma Sigma e e' ef t t'.
+move eq: (Prim (Bop Cop.Oshr) (e::e'::nil) t)=> rv ht.
+elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' e1 ef1 ef2 t1 e2 heq ht1 hin1 ht2 hin2 [] h1 h2 h3; split=> //=; subst. 
++ by left.
+by exists ef1, ef2.
+Qed.
+
+Lemma type_infer_eq : forall cenv Gamma Sigma e e' ef t t',
+type_expr cenv Gamma Sigma (Prim (Bop Cop.Oeq) (e::e'::nil) t) ef t' ->
+t = Vtype Tbool /\ t' = Vtype Tbool /\
+exists t ef1 ef2, type_expr cenv Gamma Sigma e ef1 t /\ type_expr cenv Gamma Sigma e' ef2 t 
+/\ is_primint t || is_primlong t || is_primbool t.
+Proof.
+move=> cenv Gamma Sigma e e' ef t t'.
+move eq: (Prim (Bop Cop.Oeq) (e::e'::nil) t)=> rv ht.
+elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' e1 ef1 ef2 t1 e2 heq ht1 hin1 ht2 hin2 [] h1 h2 h3; split=> //=; subst. 
+split=> /=. + auto. by exists t1, ef1, ef2.
+Qed.
+
+Lemma type_infer_ne : forall cenv Gamma Sigma e e' ef t t',
+type_expr cenv Gamma Sigma (Prim (Bop Cop.One) (e::e'::nil) t) ef t' ->
+t = Vtype Tbool /\ t' = Vtype Tbool /\
+exists t ef1 ef2, type_expr cenv Gamma Sigma e ef1 t /\ type_expr cenv Gamma Sigma e' ef2 t 
+/\ is_primint t || is_primlong t || is_primbool t.
+Proof.
+move=> cenv Gamma Sigma e e' ef t t'.
+move eq: (Prim (Bop Cop.One) (e::e'::nil) t)=> rv ht.
+elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' e1 ef1 ef2 t1 e2 heq ht1 hin1 ht2 hin2 [] h1 h2 h3; split=> //=; subst. 
+split=> /=. + auto. by exists t1, ef1, ef2.
+Qed.
+
+Lemma type_infer_lt : forall cenv Gamma Sigma e e' ef t t',
+type_expr cenv Gamma Sigma (Prim (Bop Cop.Olt) (e::e'::nil) t) ef t' ->
+t = Vtype Tbool /\ t' = Vtype Tbool /\
+exists t ef1 ef2, type_expr cenv Gamma Sigma e ef1 t /\ type_expr cenv Gamma Sigma e' ef2 t 
+/\ is_primint t || is_primlong t.
+Proof.
+move=> cenv Gamma Sigma e e' ef t t'.
+move eq: (Prim (Bop Cop.Olt) (e::e'::nil) t)=> rv ht.
+elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' e1 ef1 ef2 t1 e2 heq ht1 hin1 ht2 hin2 [] h1 h2 h3; split=> //=; subst. 
+split=> /=. + auto. by exists t1, ef1, ef2.
+Qed.
+
+Lemma type_infer_gt : forall cenv Gamma Sigma e e' ef t t',
+type_expr cenv Gamma Sigma (Prim (Bop Cop.Ogt) (e::e'::nil) t) ef t' ->
+t = Vtype Tbool /\ t' = Vtype Tbool /\
+exists t ef1 ef2, type_expr cenv Gamma Sigma e ef1 t /\ type_expr cenv Gamma Sigma e' ef2 t 
+/\ is_primint t || is_primlong t.
+Proof.
+move=> cenv Gamma Sigma e e' ef t t'.
+move eq: (Prim (Bop Cop.Ogt) (e::e'::nil) t)=> rv ht.
+elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' e1 ef1 ef2 t1 e2 heq ht1 hin1 ht2 hin2 [] h1 h2 h3; split=> //=; subst. 
+split=> /=. + auto. by exists t1, ef1, ef2.
+Qed.
+
+Lemma type_infer_le : forall cenv Gamma Sigma e e' ef t t',
+type_expr cenv Gamma Sigma (Prim (Bop Cop.Ole) (e::e'::nil) t) ef t' ->
+t = Vtype Tbool /\ t' = Vtype Tbool /\
+exists t ef1 ef2, type_expr cenv Gamma Sigma e ef1 t /\ type_expr cenv Gamma Sigma e' ef2 t 
+/\ is_primint t || is_primlong t.
+Proof.
+move=> cenv Gamma Sigma e e' ef t t'.
+move eq: (Prim (Bop Cop.Ole) (e::e'::nil) t)=> rv ht.
+elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' e1 ef1 ef2 t1 e2 heq ht1 hin1 ht2 hin2 [] h1 h2 h3; split=> //=; subst. 
+split=> /=. + auto. by exists t1, ef1, ef2.
+Qed.
+
+
+Lemma type_infer_ge : forall cenv Gamma Sigma e e' ef t t',
+type_expr cenv Gamma Sigma (Prim (Bop Cop.Oge) (e::e'::nil) t) ef t' ->
+t = Vtype Tbool /\ t' = Vtype Tbool /\
+exists t ef1 ef2, type_expr cenv Gamma Sigma e ef1 t /\ type_expr cenv Gamma Sigma e' ef2 t 
+/\ is_primint t || is_primlong t.
+Proof.
+move=> cenv Gamma Sigma e e' ef t t'.
+move eq: (Prim (Bop Cop.Oge) (e::e'::nil) t)=> rv ht.
+elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' e1 ef1 ef2 t1 e2 heq ht1 hin1 ht2 hin2 [] h1 h2 h3; split=> //=; subst. 
+split=> /=. + auto. by exists t1, ef1, ef2.
+Qed.
+
+Lemma type_infer_bind: forall cenv Gamma Sigma e x t e' t' ef t'',
+type_expr cenv Gamma Sigma (Bind x t e e' t') ef t'' ->
 (t'' = t' /\
-exists ef' ef'', type_expr Gamma Sigma e ef'' t /\
-                 type_expr (extend_context Gamma x t) Sigma e' ef' t').
+exists ef' ef'', type_expr cenv Gamma Sigma e ef'' t /\
+                 type_expr cenv (extend_context Gamma x t) Sigma e' ef' t').
 Proof.
-move=> Gamma Sigma e x t e' t' ef t''.
+move=> cenv Gamma Sigma e x t e' t' ef t''.
 move eq:(Bind x t e e' t')=> rv ht. elim: ht eq=> //=.
-move=> Gamma' Sigma' x' t1 e1 e2 t2 ef1 ef' ht1 hin ht2 hin'
+move=> cenv' Gamma' Sigma' x' t1 e1 e2 t2 ef1 ef' ht1 hin ht2 hin'
        [] h1 h2 h3 h4 h5; subst; split=> //=. by exists ef', ef1.
 Qed.
 
-Lemma type_infer_cond: forall Gamma Sigma e1 e2 e3 t ef' t',
-type_expr Gamma Sigma (Cond e1 e2 e3 t) ef' t' ->
+Lemma type_infer_cond: forall cenv Gamma Sigma e1 e2 e3 t ef' t',
+type_expr cenv Gamma Sigma (Cond e1 e2 e3 t) ef' t' ->
 t' = t /\
-exists tb ef1 ef2, type_expr Gamma Sigma e1 ef1 tb /\
-                   type_bool tb /\
-                   type_expr Gamma Sigma e2 ef2 t /\
-                   type_expr Gamma Sigma e3 ef2 t.
+exists ef1 ef2, type_expr cenv Gamma Sigma e1 ef1 (Vtype Tbool) /\
+                type_expr cenv Gamma Sigma e2 ef2 t /\
+                type_expr cenv Gamma Sigma e3 ef2 t.
 Proof.
-move=> Gamma Sigma e1 e2 e3 t ef' t'.
+move=> cenv Gamma Sigma e1 e2 e3 t ef' t'.
 move eq: (Cond e1 e2 e3 t)=> rv ht.
 elim: ht eq=> //=.
-move=> Gamma' Sigma' e1' e2' e3' tb t1 ef1 ef2 ht1 hin1 htb
+move=> cenv' Gamma' Sigma' e1' e2' e3' t1 ef1 ef2 ht1 hin1
        ht2 hin2 ht3 hin3 [] h1 h2 h3 h4; subst; split=> //=.
-by exists tb, ef1, ef2.
+by exists ef1, ef2.
 Qed.
 
-Lemma type_infer_unit: forall Gamma Sigma ef t t',
-type_expr Gamma Sigma (Unit t) ef t' ->
-t = Ptype Tunit /\ t' = Ptype Tunit.
+Lemma type_infer_unit: forall cenv Gamma Sigma ef t t',
+type_expr cenv Gamma Sigma (Unit t) ef t' ->
+t = tunit /\ t' = tunit.
 Proof.
-move=> Gamma Sigma ef t t'. move eq: (Unit t)=> rv ht.
-elim: ht eq=> //=. by move=> Gamma' Sigma' [] h; subst.
+move=> cenv Gamma Sigma ef t t'. move eq: (Unit t)=> rv ht.
+elim: ht eq=> //=. by move=> cenv' Gamma' Sigma' [] h; subst.
 Qed.
 
-Lemma type_infer_addr: forall Gamma Sigma l ofs ef t t',
-type_expr Gamma Sigma (Addr l ofs t) ef t' ->
-(exists h bt a, t = Reftype h bt a /\ 
-                t'= Reftype h bt a /\ 
-                PTree.get l.(lname) Sigma = Some (Reftype h bt a)).
+Lemma type_infer_addr: forall cenv Gamma Sigma l ofs ef t t',
+type_expr cenv Gamma Sigma (Addr l ofs t) ef t' ->
+(exists h bt a, t = Ptrtype (Reftype h bt a) /\ 
+                t'= Ptrtype (Reftype h bt a) /\ 
+                PTree.get l.(lname) Sigma = Some (Ptrtype (Reftype h bt a))).
 Proof.
-move=> Gamma Sigma l ofs ef t t'.
+move=> cenv Gamma Sigma l ofs ef t t'.
 move eq: (Addr l ofs t)=> rv ht.
 elim: ht eq=> //=.
-move=> Gamma' Sigma' l' ofs' h' bt' a' hs [] h1 h2; subst.
+move=> cenv' Gamma' Sigma' l' ofs' h' bt' a' hs [] h1 h2; subst.
 by exists h', bt', a'.
 Qed.
 
-Lemma type_infer_eapp: forall Gamma Sigma exf es ef rt t,
+(*Lemma type_infer_eapp: forall Gamma Sigma exf es ef rt t,
 type_expr Gamma Sigma (Eapp exf (get_at_eapp exf) es rt) ef t ->
 rt = get_rt_eapp exf /\ 
 t = rt /\
@@ -467,9 +678,9 @@ elim: ht eq=> //=.
 move=> Gamma' Sigma' exf' ts es' ef' rt' hrt [] hr1 hr2 hts hes' []
        h1 h2 h3 h4; subst; split=> //=; split=> //=; split=> //=; split=> //=.
 by exists (get_at_eapp exf');exists ef';split=> //=.
-Qed.
+Qed.*)
 
-Lemma type_val_reflx : forall Gamma Sigma v t ef t',
+(*Lemma type_val_reflx : forall Gamma Sigma v t ef t',
 type_expr Gamma Sigma (Val v t) ef t' -> 
 t = t'.
 Proof.
@@ -646,4 +857,4 @@ Lemma well_typed_success:
 Proof.
 apply type_exprs_type_expr_ind_mut=> //=.
 Admitted.*)
-*)
+
