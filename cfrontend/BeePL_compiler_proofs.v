@@ -99,7 +99,7 @@ Inductive sim_bexpr_cexpr : vmap -> BeePL.expr -> function_ctx -> Csyntax.expr -
              transBeePL_type t = ct ->
              sim_bexpr_cexpr le e ctx ce ctx' ->
              sim_bexpr_cexpr le e' ctx' ce' ctx'' ->
-             transBeePL_type t' = ct ->
+             transBeePL_type t' = ct' ->
              sim_bexpr_cexpr le (BeePL.Bind x t e e' t') ctx (Csyntax.Ecomma (Eassign (Csyntax.Evar x ct) ce ct) ce' ct') ctx''
 | sim_cond : forall le ctx ctx' ctx'' ctx''' e1 e2 e3 t ct ce1 ce2 ce3,
              sim_bexpr_cexpr le e1 ctx ce1 ctx' ->
@@ -627,7 +627,6 @@ Qed.
  *)
 (***** End of Proof for correctness of type transformation *****)
 
-(*
 Lemma transBeePL_expr_expr_spec: forall vm,
 (forall e ce g g' i ctx ctx' bctx bctx',
   transBeePL_expr_expr e ctx bctx g = Res (ce, ctx', bctx') g' i ->
@@ -669,6 +668,7 @@ Proof.
     inv H3.
     econstructor; eauto.
   (* Prim *)
+  (*
   - destruct b eqn:Hprim; unfold SimplExpr.bind in H0;
     try (destruct (transBeePL_expr_exprs transBeePL_expr_expr es g) as [|cexprs g1 i1] eqn:Hexprs; try discriminate;
       destruct (transBeePL_type t g1) as [|ct g2 i2] eqn:Htype; try discriminate;
@@ -686,13 +686,16 @@ Proof.
       econstructor; eauto.
     inv H0.
     econstructor.
+  *)
+  - admit.
   (* Bind *)
-  - unfold SimplExpr.bind in H1.
-    destruct (transBeePL_type t g) as [| ct g1 i1] eqn:Htype; try discriminate.
-    destruct (transBeePL_type t' g1) as [| ct' g2 i2] eqn:Htype'; try discriminate.
-    destruct (transBeePL_expr_expr e g2) as [| ce' g3 i3] eqn:Hexpr; try discriminate.
-    destruct (transBeePL_expr_expr e' g3) as [| ce'' g4 i4] eqn:Hexpr'; try discriminate.
-    inv H1.
+  - inv H1.
+    repeat unfold SimplExpr.bind2 in H3.
+    repeat unfold SimplExpr.bind in H3.
+    destruct (transBeePL_expr_expr e ctx bctx g) as [|((cexpr, ctx1), bctx1) g1 i1] eqn:Hexpr; try discriminate.
+    simpl in H3.
+    destruct (transBeePL_expr_expr e' ctx1 bctx1 g1) as [|((cexpr', ctx2), bctx2) g2 i2] eqn:Hexpr'; try discriminate.
+    inv H3.
     econstructor; eauto.
   (* Cond *)
   - unfold SimplExpr.bind in H2.
