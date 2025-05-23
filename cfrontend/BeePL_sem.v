@@ -356,9 +356,8 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
               ssem_expr p vm m e m' vm' e' ->
               ssem_expr p vm m (Prim Ref [:: e] (Ptrtype (Reftype h (Bprim t) a))) m' vm' 
                              (Prim Ref [:: e'] (Ptrtype (Reftype h (Bprim t) a)))
-| ssem_ref2 : forall p vm m vm' m' vm'' m'' v fid l ofs t ct h a vars,
+| ssem_ref2 : forall p vm m vm' m' vm'' m'' v fid l ofs t ct h a,
               transBeePL_type (Vtype t) = ct ->
-              extract_variables_globdefs (unzip2 p.(prog_defs)) = vars ->
               create_fresh_ident (unzip1 (extract_variables_globdefs (unzip2 p.(prog_defs)))) = fid ->
               bind_variables ge vm m ((fid, Vtype t) :: nil) (v :: nil) m' ->
               ssem_expr p vm' m' (Var fid (Vtype t)) m'' vm'' (Val (Vloc l ofs) (Ptrtype (Reftype h (Bprim t) a))) -> 
@@ -448,10 +447,10 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
               external_call cef ge (trans_bvalues_cvalues (extract_values_exprs vs)) m' t vres m'' ->
               trans_cvalue_bvalue vres = OK bv ->
               ssem_expr p vm m (BeePL.Eapp ef ts es ty) m'' vm' (Val bv ty)
-| ssem_screate1 : forall p x ids t vm1 m1 es vm2 m2 es',
+| ssem_sinit1 : forall p x ids t vm1 m1 es vm2 m2 es',
                   ssem_exprs p vm1 m1 es m2 vm2 es' ->
                   ssem_expr p vm1 m1 (Sinit x ids es t) m2 vm2 (Sinit x ids es' t)
-| ssem_screate2 : forall p x ids t vm1 m1 vm2 m2 m3 vs fid loc ofs ts h a st sa,
+| ssem_sinit2 : forall p x ids t vm1 m1 vm2 m2 m3 vs fid loc ofs ts h a st sa,
                   create_fresh_ident (unzip1 (extract_variables_globdefs (unzip2 p.(prog_defs)))) = fid ->
                   alloc_variables ge vm1 m1 ((fid, t) :: nil) vm2 m2 ->
                   vm2!fid = Some (loc, t) ->
@@ -463,8 +462,8 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
 | ssem_sfield1 : forall p vm m e m' vm' e' f t, 
                  ssem_expr p vm m e m' vm' e' ->
                  ssem_expr p vm m (Sfield e f t) m' vm' (Sfield e' f t) 
-| ssem_sfield2 : forall p b ofs id co delta bf f vm m t sid sa, (* bitfield is lost *)
-                 ge.(genv_cenv)!id = Some co ->
+| ssem_sfield2 : forall p b ofs co delta bf f vm m t sid sa, (* bitfield is lost *)
+                 ge.(genv_cenv)!sid = Some co ->
                  field_offset (bcomposite_composite_env ge.(genv_cenv)) f (bmembers_cmembers (co_members co)) = OK (delta, bf) ->
                  ssem_expr p vm m (Sfield (Val (Vloc b ofs) (Ptrtype (Sptype sid sa))) f t)  
                                m vm (Val (Vloc b (Ptrofs.add ofs (Ptrofs.repr delta))) t) 
@@ -492,9 +491,11 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
 | ssem_match_none2 : forall p m vm t p1 p2 e1 e2 t',
                      ssem_expr p vm m (Match (Val (Voption None) t) (p1 :: p2 :: nil) (e1 :: e2 :: nil) t') m vm 
                       (if eq_pattern p1 Pnone then e1 else e2) 
-| ssem_match_some : forall p m vm t ve p1 p2 e1 e2 vm' m' t',
-                    ssem_expr p vm m (Match (Val (Voption (Some ve)) t) (p1 :: p2 :: nil) (e1 :: e2 :: nil) t') m' vm' 
-                       (if eq_pattern p1 Pnone then e2 else e1) 
+| ssem_match_some : forall p m vm t ve p1 p2 e1 e2 t',
+                    ssem_expr p vm m (Match (Val (Voption (Some ve)) t) (p1 :: p2 :: nil) (e1 :: e2 :: nil) t') m vm 
+                       (if eq_pattern p1 Pnone then e2 else e1)
+| ssem_match_bytes : forall p vm m e p1 e1 t, (* fix me *)
+                     ssem_expr p vm m (Match e (p1 :: nil) (e1 :: nil) t) m vm e1
 with ssem_exprs : program -> vmap -> Memory.mem -> list BeePL.expr -> Memory.mem -> vmap -> list BeePL.expr -> Prop :=
 | ssem_nil : forall p vm m,
              ssem_exprs p vm m nil m vm nil

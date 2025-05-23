@@ -1,4 +1,4 @@
-Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values BeePL_typechecker BeePL_notations. 
+Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values BeePL_typechecker BeePL_notations BeePL_bpf. 
 From Coq Require Import String ZArith.
 From compcert Require Import Csyntaxdefs.
 Import Csyntaxdefs.CsyntaxNotations.
@@ -44,26 +44,7 @@ Definition _bpf_prog : ident := $"bpf_prog".
 Definition _ts : ident := $"ts".
 Definition _main : ident := $"main".
 
-Definition ident_to_string : list (ident * string) := ((_pt_regs, "pt_regs") ::
-                                                       (_ctx, "ctx") ::
-                                                       (_bpf_ktime_get_ns, "bpf_ktime_get_ns") :: 
-                                                       (_ebx, "ebx") ::
-                                                       (_ecx, "ecx") ::
-                                                       (_edx, "edx") :: 
-                                                       (_esi, "esi") ::
-                                                       (_edi, "edi") ::
-                                                       (_ebp, "ebp") ::
-                                                       (_eax, "eax") ::
-                                                       (_xds, "xds") ::
-                                                       (_xes, "xes") ::
-                                                       (_xfs, "xfs") ::
-                                                       (_xgs, "xgs") ::
-                                                       (_orig_eax, "ebp") ::
-                                                       (_eip, "ebp") ::
-                                                       (_xcs, "xcs") ::
-                                                       (_eflags, "eflags") ::
-                                                       (_esp, "esp") ::
-                                                       (_xss, "xss") ::
+Definition ident_to_string : list (ident * string) := (ident_to_string_pt_regs ++ ident_to_string_hf ++
                                                        (_bpf_prog, "bpf_prog") :: 
                                                        (_ts, "ts") ::
                                                        (_main, "main") :: nil).
@@ -71,7 +52,7 @@ Definition ident_to_string : list (ident * string) := ((_pt_regs, "pt_regs") ::
 Definition bpf_external_function : BeePL.external_function
    := EF_external "bpf_ktime_get_ns" 
       {| bsig_args := nil;
-         bsig_ef := nil;
+         bsig_ef := Io :: nil;
          bsig_res := tlongu;
          bsig_cc := cc_default
       |}.
@@ -87,29 +68,10 @@ Definition f_bpf_prog : BeePL.function := {|
                                                 (_ts) tlongu
                                                 (App (Var _bpf_ktime_get_ns (tfun nil nil tlongu)) nil tlongu)
                                                 (Prim (Bop Cop.Oand) (Var _ts tlongu :: clong (Int64.repr 0xFFFFFFFF) tlongu :: nil) tlongu)
-                                              tlongu|}.
+                                              tlongu;
+                                  is_ebpf := true|}.
 
-Definition bcomposites : list bcomposite_definition :=
-(Bcomposite _pt_regs Struct
-   (Member_plain _ebx tlongs :: 
-    Member_plain _ecx tlongs ::
-    Member_plain _edx tlongs ::
-    Member_plain _esi tlongs ::
-    Member_plain _edi tlongs ::
-    Member_plain _ebp tlongs ::
-    Member_plain _eax tlongs ::
-    Member_plain _xds tint32s ::
-    Member_plain _xes tint32s ::
-    Member_plain _xfs tint32s ::
-    Member_plain _xgs tint32s ::
-    Member_plain _orig_eax tlongs ::
-    Member_plain _eip tlongs ::
-    Member_plain _xcs tint32s ::
-    Member_plain _eflags tlongs ::
-    Member_plain _esp tlongs ::
-    Member_plain _xss tint32s :: nil)
-    noattr :: nil).
-
+Definition bcomposites : list bcomposite_definition := bcomposites_pt_regs.
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
    := (_bpf_ktime_get_ns, AST.Gfun(BeePL.External (bpf_external_function)
@@ -133,4 +95,4 @@ Qed.
                                                    ident_to_string.
 
 
-Compute (type_check_program example1).*) (* Type checks *)
+Compute (type_check_program example1). *) (* Type checks *)

@@ -5,13 +5,8 @@ From Coq Require Import String.
 Require Import BeePL_add BeePL_add_ptr BeePL_div_zero1 BeePL_div_zero BeePL_add_ex1
 BeePL_cond BeePL_app BeePL_funptr_ex1 BeePL_bpf_get_prandom BeePL_for_ex1 BeePL_for_ex2
 BeePL_external_call BeePL_match_fail_ex1 BeePL_null_ptr BeePL_bitstring1 BeePL_globvar1
-BeePL_globvar2. 
-
-
-
-(* BeePL_app  BeePL_external_call BeePL_ref.
-Require Import BeePL_struct_ex2 BeePL_for_ex1 BeePL_for_ex2 BeePL_globvar1.
-Require Import BeePL_bpf_get_prandom BeePL_bpf_ktime_get_ns.*) (*BeePL_null_ptr BeePL_match_fail_ex1.*)
+BeePL_bpf_xdp_packet_count BeePL_bpf_xdp_packet_count1 BeePL_bpf_map_example1 BeePL_bpf_drop_xdp_packet_iPv6
+BeePL_bpf BeePL_bpf_handle_tp BeePL_add_ref. 
 
 (* In this file you will see two definitions. One for example1 and the other for
    example1_atom_of_string. Those two definitions are extracted to OCaml by 
@@ -30,11 +25,11 @@ Require Import BeePL_bpf_get_prandom BeePL_bpf_ktime_get_ns.*) (*BeePL_null_ptr 
 
 (* Construct the BeePL.program *)
 
-Definition example1 : BeePL.program := @mkbprogram BeePL_div_zero.bcomposites 
-                                                   BeePL_div_zero.global_definitions 
-                                                   BeePL_div_zero.public_idents 
-                                                   BeePL_div_zero._main 
-                                                   BeePL_div_zero.bcomposite_correct
-                                                   BeePL_div_zero.ident_to_string.
+Definition example1 : BeePL.program := @mkbprogram BeePL_bpf_map_example1.bcomposites 
+                                                   BeePL_bpf_map_example1.global_definitions 
+                                                   BeePL_bpf_map_example1.public_idents 
+                                                   BeePL_bpf_map_example1._hash_map_example
+                                                   BeePL_bpf_map_example1.bcomposite_correct
+                                                   BeePL_bpf_map_example1.ident_to_string.
 
 

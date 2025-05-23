@@ -20,9 +20,14 @@ Notation "m [ a ]" := (PTree.get (ident_of_string a) m) (at level 10, left assoc
 
 (* Add all external functions needed for BeePL *)
 Definition  beepl_ef_env : ef_env :=
-ef_empty_map ["bpf_get_prandom_u32" <- (nil, (tint32u, nil))]
-             ["bpf_ktime_get_ns" <- (nil, (tlongu, nil))]
-             ["add" <- ((tint32s :: trint32s :: nil), (tint32s, nil))].
+ef_empty_map ["bpf_get_prandom_u32" <- (nil, (tint32u, (Io :: nil)))]
+             ["bpf_ktime_get_ns" <- (nil, (tlongu, (Io :: nil)))]
+             ["add" <- ((tint32s :: trint32s :: nil), (tint32s, nil))]
+             ["bpf_get_current_uid_gid" <- (nil, (tlongu, (Io :: nil)))]
+             ["bpf_map_lookup_elem" <- ((tostruct (ident_of_string "bpf_map_type_hash") noattr :: tolongu :: nil), 
+                                            (tolongu, (Read mem_ident :: Io :: nil)))]
+             ["bpf_map_update_elem" <- ((tostruct (ident_of_string "bpf_map_type_hash") noattr :: tolongu :: tolongu :: tlongu :: nil), 
+                                           (tlongu, (Write mem_ident :: Io :: nil)))].
 
 Definition get_ef_type (efenv : ef_env) (s : string) : res ef_info :=
 match efenv[s] with 
@@ -54,64 +59,6 @@ match v with
 | Voption o => Twot
 end.
 
-Fixpoint typelist_to_list_type (cts : typelist) : list Ctypes.type :=
-match cts with 
-| Tnil => nil
-| Tcons t ts => t :: (typelist_to_list_type ts)
-end.
-
-Fixpoint list_type_to_typelist (cts : list Ctypes.type) : typelist :=
-match cts with
-| nil => Tnil
-| t :: ts => Tcons t (list_type_to_typelist ts)
-end.
-
-Section Trans_ctypes_btypes.
-
-Variable trans_ctype_btype : Ctypes.type -> res BeeTypes.type.
-
-Fixpoint trans_ctypes_btypes (ct : list Ctypes.type) : res (list BeeTypes.type) :=
-match ct with 
-| nil => OK nil
-| ct :: cts => do bt <- trans_ctype_btype ct;
-                  do bts <- trans_ctypes_btypes cts;
-                  OK (bt :: bts)
-end.
-
-End Trans_ctypes_btypes.
-
-Definition trans_ctype_btype (ct : Ctypes.type) : res BeeTypes.type :=
-match ct with 
-| Tvoid => OK Utype
-| Ctypes.Tint sz s a => OK (BeeTypes.Vtype (Tint sz s a))
-| Ctypes.Tlong s a => OK (BeeTypes.Vtype (Tlong s a))
-| Tfloat _ _ => Error (msg "TYPE ERROR: Float is not supported in BeePL")
-| Tpointer t a => match t with 
-                  | Tvoid => Error (msg "TYPE ERROR: Void* is not supported in BeePL")
-                  | Ctypes.Tint sz s a => OK (Ptrtype (Reftype mem_ident (Bprim (Tint sz s a)) a))
-                  | Ctypes.Tlong s a => OK (Ptrtype (Reftype mem_ident (Bprim (Tlong s a)) a))
-                  | _ => Error (msg "TYPE ERROR: Not supported in ref type")
-                  end 
-| Tarray t z a => Error (msg "TYPE ERROR: Array is not supported in BeePL")
-| Tfunction ts t cc => Error (msg "TYPE ERROR: Cannot compute the effect, hence translation is not possible from ctype to btype in case of function")
-| Tstruct x a => OK (Stype x a)
-| Tunion x a => Error (msg "TYPE ERROR: Union is not supported in BeePL")
-end.
-
-Fixpoint type_of_members (xs : list (attr * ident)) (m : members) {struct xs} : res (list Ctypes.type) :=
-match xs with 
-| nil => OK nil
-| (a, x) :: xs => do t <- type_of_member a x m;
-                  do ts <- type_of_members xs m;
-                  OK (t :: ts)
-end.
-
-Fixpoint all_eq_types (ts : list type) : bool :=
-match ts with
-| nil => true
-| t1 :: ts' => forallb (fun t => eq_type t1 t) ts'
-end. 
-
 Section Type_check_exprs. 
 
 Variable type_check_expr : bcomposite_env -> ty_context -> store_context -> expr -> res (type * effect).
@@ -124,22 +71,8 @@ match es with
              OK (te :: tes, efe ++ efes)
 end.
 
-End Type_check_exprs.
-
-Fixpoint check_fun_ptr_fun (sts : list type) (ats : list type) : bool :=
-match sts, ats with 
-| nil, nil => true 
-| t :: ts, t' :: ts' => match t, t' with 
-                        | Ptrtype (Fptype ts1 ef1 t1), Ftype ts1' ef1' t1' => 
-                          if eq_types eq_type ts1 ts1' && eq_type t1 t1' && eq_effect ef1 ef1'
-                          then check_fun_ptr_fun ts ts'
-                          else false
-                        | _, _ => eq_type t t' && check_fun_ptr_fun ts ts'
-                        end 
-| _, _ => false
-end. 
+End Type_check_exprs. 
                                                                                                       
-
 Fixpoint type_check_expr (cenv : bcomposite_env) (Gamma : ty_context) (Sigma : store_context) (e : expr) {struct e} : res (type * effect) :=
 match e with 
 | Val v t => OK (t, nil)
@@ -174,7 +107,7 @@ match e with
                  | Deref => match es with 
                             | e :: nil => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                                           match te with 
-                                          | Ptrtype pt => if eq_type t (get_data_type pt) 
+                                          | Ptrtype pt => if eq_type t (get_data_type pt) && (is_option_ptr_type pt == false) 
                                                           then OK (get_data_type pt, (ef ++ (Read mem_ident :: nil)))
                                                           else Error (msg "Dereftype does not match the inferred type")
                                           | _ => Error (msg "TYPE ERROR: Argument of dereferencing should be a ref type")
@@ -396,16 +329,27 @@ match e with
                                                else Error (msg "TYPE ERROR: Wrong type inferred for the struct field")
                                   | None => Error (msg "TYPE ERROR: The field accessed from the struct is not found in composite env")
                                   end
+                  | Ptrtype (Sptype id a) => match cenv!id with 
+                                             | Some co => do ct <- type_of_member a x (bmembers_cmembers co.(co_members));
+                                               do bt <- trans_ctype_btype ct;
+                                               if eq_type t bt 
+                                               then OK (bt, ef)
+                                               else Error (msg "TYPE ERROR: Wrong type inferred for the struct field")
+                                             | None => Error (msg "TYPE ERROR: The field accessed from the struct is not found in composite env")
+                                            end
                   | _ => Error (msg "TYPE ERROR: Should be a struct type")
                   end
 | For e1 e2 d e t =>   do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
                        do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                        do (te, ef) <- type_check_expr cenv Gamma Sigma e;
+                       let fv1 := free_variables e1 in 
+                       let fv2 := free_variables e2 in
+                       let fv := free_variables e in 
                        if (eq_type te1 te2 
                            && eq_effect ef1 nil 
                            && eq_effect ef2 nil 
                            && ((is_primint te1) || (is_primlong te2))
-                           && eq_type te t)
+                           && eq_type te t && disjoint_vars fv fv1 && disjoint_vars fv fv2)
                        then OK(te, ef1 ++ ef2 ++ ef)
                        else Error (msg "TYPE ERROR: The range type should be unsigned int or long and the inferred type does not match")
                                                           
@@ -417,18 +361,19 @@ match e with
              end
 | Esome e t => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                match t with 
-               | Ptrtype t' => if is_option_ptr_type t' 
+               | Ptrtype t' => if is_option_ptr_type t' && eq_type te (get_data_type t') 
                                then OK(t, ef)
                                else Error (msg "TYPE ERROR: Type of Esome should be an option to ref type")
                | _ => Error (msg "TYPE ERROR: Type of Esome should be an option type")
                end
-| Match e ps es t => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
-                     do (tes, efs) <- type_check_exprs type_check_expr cenv Gamma Sigma es;
+| Match e ps es t => let fvs :=  get_patterns_var ps in 
+                     do (te, ef) <- type_check_expr cenv Gamma Sigma e;
+                     do (tes, efs) <- type_check_exprs type_check_expr cenv (extends_context Gamma fvs (construct_list_type t (length fvs))) Sigma es;
                      match te with 
-                     | Ptrtype t' => if is_option_ptr_type t' && all_eq_types tes 
+                     | Ptrtype t' => if is_option_ptr_type t' && all_eq_types tes && eq_type t (hd tunit tes) 
                                      then OK(t, ef ++ efs)
                                      else Error (msg "TYPE ERROR: Type of Match expr should be an option to ref type and all its elements should be of same type")
-                     | _ => Error (msg "TYPE ERROR: Type of Match expr should be an option type")
+                     | _ => Error (msg "TYPE ERROR: Type of Match expr should be an option or bytes type")
                      end
 | Ebytes es t => Error (msg "TYPE ERROR: Type of Bitstrings are not supported yet")
                      
@@ -464,14 +409,20 @@ match fn with
 | External ef ts t cc => match ef with 
                          | EF_external fn fs => do efs <- get_ef_type efenv (get_name_eapp ef);
                                                 if eq_type t (get_rt_eapp ef) 
-                                                   && eq_types eq_type ts (get_at_eapp ef) 
-                                                   && eq_types eq_type ts (fst efs) 
-                                                   && eq_type t (fst (snd efs))
-                                                   && eq_effect (get_ef_eapp ef) (snd (snd efs)) 
-                                                then OK "SUCCESS: Fundef type checks!" 
-                                                else Error (msg "TYPE ERROR: Type of external function is not as expected")
+                                                then if eq_types eq_type ts (get_at_eapp ef)
+                                                     then if eq_types eq_type ts (fst efs) 
+                                                          then if eq_type t (fst (snd efs))
+                                                               then if eq_effect (get_ef_eapp ef) (snd (snd efs)) 
+                                                                    then OK "SUCCESS: Fundef type checks!" 
+                                                                    else Error (msg "TYPE ERROR: Effect of external function is not as expected")
+                                                               else Error (msg "TYPE ERROR: Return type of external function is not as expected")
+                                                          else Error (msg "TYPE ERROR: Argument types of external function is not as expected")
+                                                      else Error (msg "TYPE ERROR: Argument types of external function is not as given in signature")
+                                                else Error (msg "TYPE ERROR: Return type of external function is not as given in signature")
+                                                
                          end
 end.
+
 
 (* Fix me *)
 Definition type_check_globvar (efenv : ef_env) (Gamma : ty_context) (Sigma : store_context) (gv : BeePL.globvar type) : res type :=
@@ -497,7 +448,7 @@ match gd with
             OK "SUCCESS: Program type checks!"
 end.
 
-(* Fix Store context: How to compute this? *) 
+(* Store context: Not needed in the executable type checker because location is never used by programmer, it only comes as intermediate results in semantics *) 
 Definition type_check_program (p : BeePL.program) : res string :=
 let Gamma := bind_globdef (PTree.empty _) p.(prog_defs) in
 let cenv := p.(prog_comp_env) in 

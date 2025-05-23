@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx Coq.Strings.BinaryString.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Coq.Lists.List.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes Coqlib SimplExpr Csyntaxdefs BeePL_notations.
-Require Import BeePL_aux BeePL BeeTypes Csyntax Errors SimplExpr BeePL_values DecimalString BeePL_Bytes_Struct BeePL_Check_Reserved_Struct.
+Require Import BeePL_aux BeePL BeeTypes Csyntax Errors SimplExpr BeePL_values DecimalString BeePL_Bytes_Struct BeePL_Check_Reserved_Struct BeePL_bpf.
 Require Import BeePL_Wrapper_Pass.
 
 Local Open Scope string_scope.
@@ -410,33 +410,65 @@ match ces, ts with
 | _, _ => error (msg "COMPILER ERROR: The length of type list and expression list should be same in bitstring")
 end.  
 
+(* struct xdp_md_wrapper xdp_md_wrapper;
+    xdp_md_wrapper.data.start = (\* char)ctx->data;
+    xdp_md_wrapper.data.end = (\* char)ctx->data_end; *)
+Definition set_ebpf_struct_bee_struct (beei : ident) (t : Ctypes.type) (fdata : ident) (t' : Ctypes.type) :=
+           (Ssequence (Sdo (Eassign (Efield (Evalof (Efield (Evalof (Evar beei t) t)
+                                                            _data_bee (Tstruct bytes_t noattr)) (Tstruct bytes_t noattr)) (* bees.data *)
+                                             bytes_start (tptr tuchar)) (* bees.data.start *)
+                                    (Ecast (Evalof (Efield (Evalof (Ederef (Evalof (Evar fdata t') t') t') t') _data tulong) tulong) (tptr tuchar)) (tptr tuchar))) (* (star char)ctx->data *) 
+                      (Sdo (Eassign (Efield (Evalof (Efield (Evalof (Evar beei t) t)
+                                                            _data_bee (Tstruct bytes_t noattr)) (Tstruct bytes_t noattr)) (* bees.data *)
+                                             bytes_end (tptr tuchar)) (* bees.data.end *)
+                                    (Ecast (Evalof (Efield (Evalof (Ederef (Evalof (Evar fdata t') t') t') t') _data_end tulong) tulong) (tptr tuchar)) (tptr tuchar)))). (* (star char)ctx->data_end *)
+
+(* if (xdp_md_wrapper.data.start + sizeof(struct ethhdr) > xdp_md_wrapper.data.end) then ee else se *)
+Definition bound_check (input : ident) (t : Ctypes.type) (t' : Ctypes.type) (ee se : Csyntax.statement) := 
+(Sifthenelse (Ebinop Cop.Ogt
+                     (Ebinop Cop.Oadd
+                       (Efield (Evalof (Efield (Evalof (Evar input t) t)
+                                               _data_bee (Tstruct bytes_t noattr)) (Tstruct bytes_t noattr))
+                               bytes_start (tptr tuchar)) 
+                       (Esizeof t' tulong) (tptr tuchar)) (* xdp_md_bee.data.start + sizeof(struct ethhdr) *)
+                     (Efield (Evalof (Efield (Evalof (Evar input t) t) 
+                                             _data_bee (Tstruct bytes_t noattr)) (Tstruct bytes_t noattr)) 
+                               bytes_end (tptr tuchar)) tint) (* xdp_md_bee.data.end *)
+             ee 
+             se).
+
+Definition set_temp_for_copy (temp : ident) (t : Ctypes.type) (from: ident) (t' : Ctypes.type) : Csyntax.statement :=
+(Sdo (Eassign (Evar temp t) (Ecast (Evalof (Efield (Evalof (Efield (Evalof (Evar from t') t') _data_bee
+                                           (Tstruct bytes_t noattr)) 
+                                            (Tstruct bytes_t noattr)) bytes_start
+                                                      (tptr tuchar)) (tptr tuchar)) t) t)).
+
 Fixpoint copy_buffer (to : ident) (sto : ident) (t : Ctypes.type) (xts : list (ident * Ctypes.type)) (from : ident) : Csyntax.statement :=
 match xts with 
 | nil => Sskip
 | x :: xs => let bs :=  copy_buffer to sto t xs from in
              (Ssequence (Sdo (Eassign (Efield (Evalof (Evar to (Tstruct sto noattr))
-                     (Tstruct sto noattr)) (fst x) tuint)
+                                       (Tstruct sto noattr)) (fst x) (snd x))
                  (Evalof (Efield (Evalof (Ederef (Evalof (Evar from (tptr (Tstruct sto noattr)))
                                                   (tptr (Tstruct sto noattr)))
                          (Tstruct sto noattr)) (Tstruct sto noattr))
-                     (fst x) tuint) tuint) tuint)) bs)
+                     (fst x) (snd x)) (snd x)) (snd x))) bs)
 end.
 
 Definition incr_data_ptr (wv : ident) (s : ident) (bv : ident) : Csyntax.statement :=
 (Sdo (Eassign (Efield (Evalof (Efield (Evalof
                              (Evar wv (Tstruct s noattr))
-                             (Tstruct s noattr)) (ident_of_string "data")
-                           (Tstruct (ident_of_string "bytes_t") noattr))
-                         (Tstruct (ident_of_string "bytes_t") noattr)) (ident_of_string "bytes_start") (tptr tuchar))
+                             (Tstruct s noattr)) _data_bee
+                           (Tstruct bytes_t noattr))
+                         (Tstruct bytes_t noattr)) bytes_start (tptr tuchar))
                      (Ebinop Cop.Oadd (Evalof (Efield (Evalof (Efield (Evalof
                                  (Evar wv (Tstruct s noattr))
-                                 (Tstruct s noattr)) (ident_of_string "data")
-                               (Tstruct (ident_of_string "bytes_t") noattr))
-                             (Tstruct (ident_of_string "bytes_t") noattr)) (ident_of_string "bytes_start") (tptr tuchar))
+                                 (Tstruct s noattr)) _data_bee
+                               (Tstruct bytes_t noattr))
+                             (Tstruct bytes_t noattr)) bytes_start (tptr tuchar))
                          (tptr tuchar))
                        (Esizeof (Tstruct bv noattr) tulong)
                        (tptr tuchar)) (tptr tuchar))).
-
 
 
 Fixpoint transBeePL_expr_st (cenv : bcomposite_env) (e : BeePL.expr ) (ctx : list (ident * BeeTypes.type * string)) (bctx : bcompiler_ctx) : 
@@ -458,7 +490,7 @@ match e with
 | App e es t => do (ce, ctx') <- (transBeePL_expr_expr e ctx bctx);
                 do (ces, ctx'') <- (transBeePL_expr_exprs transBeePL_expr_expr es (snd ce) ctx');
                 let ct := (transBeePL_type t) in
-                ret (Sreturn (Some (Ecall (fst ce) (fst ces) ct)), snd ces, ctx'')  
+                ret (Sdo (Ecall (fst ce) (fst ces) ct), snd ces, ctx'')  
 | Prim b es t => match b with 
                  | Ref => (* TODO: figure out how to recude duplicate code between here and transBeePL_expr_st *)
                           do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx bctx);
@@ -513,9 +545,10 @@ match e with
 | Bind x t e e' t' => let ct := (transBeePL_type t) in
                       do (ce', ctx') <- (transBeePL_expr_st cenv e' ctx bctx);
                       match e with 
-                      | Prim Massgn es t => do (ce, ctx'') <- (transBeePL_expr_expr e (snd ce') ctx'); ret (Ssequence (Sdo (fst ce)) (fst ce'), snd ce, ctx'') 
+                      | Prim Massgn es t => do (ce, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst ce) (fst ce'), snd ce, ctx'') 
                       | For e1 e2 d e3 t => do (cs, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst cs) (fst ce'), snd cs, ctx'')  
-                      | Sinit sx ids es t =>  do (cs, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst cs) (fst ce'), snd cs, ctx'')  
+                      | Sinit sx ids es t =>  do (cs, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst cs) (fst ce'), snd cs, ctx'') 
+                      | Bind x1 t1 e1 e1' t1' =>  do (cs, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst cs) (fst ce'), snd cs, ctx'') 
                       | _ => do (ce, ctx'') <- (transBeePL_expr_expr e (snd ce') ctx');
                                     ret (Ssequence (Sdo (Eassign (Evar x ct) (fst ce) Tvoid)) 
                                            (fst ce'), snd ce, ctx'')
@@ -619,9 +652,11 @@ match e with
                               | _, _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
                               end
                           else error (msg "COMPILER ERROR: Match can be only performed on option type containing types other than ref")
-                     | Bytes => match ps with 
-                                | (Pbytes x (Stype s noattr) xts :: nil) => 
+                     | Bytes => match ps, es with 
+                                | (Pbytes x (Stype s noattr) xts :: p2), (e1 :: e2 :: nil) => 
                                     let cxts := zip (unzip1 xts) (from_typelist (transBeePL_types transBeePL_type (unzip2 xts))) in 
+                                    do (ce1, bctx1) <- transBeePL_expr_st cenv e1 (snd ce) bctx';
+                                    do (ce2, bctx2) <- transBeePL_expr_st cenv e2 (snd ce1) bctx1;
                                     match bctx.(arg_ctx) with 
                                     | (argi, (Ptrtype (Sptype istruct noattr))) :: nil =>
                                         do (i, str) <- (fresh_ident (List.map unzip_ident (snd ce)) max_fresh);
@@ -632,54 +667,12 @@ match e with
                                         | OK narg =>
                                         match narg with 
                                         | (argi', (Tpointer (Tstruct istruct' noattr) {|attr_volatile := false;attr_alignas := None|})) :: nil =>
-                                          ret (Ssequence (Sdo (Evar i (transBeePL_type (Stype istruct noattr))))
-                                                         (Ssequence 
-                                                            (Sdo (Eassign (Efield (Evalof (Efield (Evalof (Evar i (transBeePL_type (Stype istruct noattr)))
-                                                                                                (transBeePL_type (Stype istruct noattr))) (ident_of_string "data")
-                                                                                          (Tstruct (ident_of_string "bytes_t") noattr)) 
-                                                                                  (Tstruct (ident_of_string "bytes_t") noattr)) (ident_of_string "bytes_start")
-                                                                        (tptr tuchar))
-                                                              (Ecast (Evalof (Efield (Evalof (Ederef (Evalof (Evar argi' (tptr (Tstruct istruct' noattr)))
-                                                                                                     (tptr (Tstruct istruct' noattr)))
-                                                                                      (Tstruct istruct' noattr)) (Tstruct istruct' noattr)) (ident_of_string "data")
-                                                                                tulong) tulong) (tptr tuchar)) (tptr tuchar)))
-                                                            (Ssequence 
-                                                               (Sdo (Eassign (Efield (Evalof (Efield (Evalof (Evar i (transBeePL_type (Stype istruct noattr)))
-                                                                                                (transBeePL_type (Stype istruct noattr))) (ident_of_string "data")
-                                                                                          (Tstruct (ident_of_string "bytes_t") noattr)) 
-                                                                                  (Tstruct (ident_of_string "bytes_t") noattr)) (ident_of_string "bytes_end")
-                                                                        (tptr tuchar))
-                                                                     (Ecast (Evalof (Efield (Evalof (Ederef (Evalof (Evar argi' (tptr (Tstruct istruct' noattr)))
-                                                                                                     (tptr (Tstruct istruct' noattr)))
-                                                                                      (Tstruct istruct' noattr)) (Tstruct istruct' noattr)) (ident_of_string "data_end")
-                                                                                tulong) tulong) (tptr tuchar)) (tptr tuchar)))
-                                                              (Ssequence 
-                                                               (Sifthenelse (Ebinop Cop.Ogt
-                                                                               (Ebinop Cop.Oadd
-                                                                                   (Efield (Evalof (Efield (Evalof (Evar i (transBeePL_type (Stype istruct noattr)))
-                                                                                                (transBeePL_type (Stype istruct noattr))) (ident_of_string "data")
-                                                                                          (Tstruct (ident_of_string "bytes_t") noattr)) 
-                                                                                    (Tstruct (ident_of_string "bytes_t") noattr)) (ident_of_string "bytes_start")
-                                                                                   (tptr tuchar)) 
-                                                                                   (Esizeof (Tstruct s noattr) tulong) (tptr tuchar))
-                                                                               (Efield (Evalof (Efield (Evalof (Evar i (transBeePL_type (Stype istruct noattr)))
-                                                                                                (transBeePL_type (Stype istruct noattr))) (ident_of_string "data")
-                                                                                          (Tstruct (ident_of_string "bytes_t") noattr)) 
-                                                                                  (Tstruct (ident_of_string "bytes_t") noattr)) (ident_of_string "bytes_end")
-                                                                                (tptr tuchar)) tint)
-                                                                  (Sreturn (Some (Eunop Cop.Oneg (Eval (Values.Vint (Int.repr 1)) tint) tint)))
-                                                                  Sskip)
-                                                                (Ssequence
-                                                                   (Sdo (Eassign (Evar i' (tptr (Tstruct s noattr)))
-                                                                           (Ecast (Evalof (Efield (Evalof (Efield (Evalof (Evar i (transBeePL_type (Stype istruct noattr)))
-                                                                                                (transBeePL_type (Stype istruct noattr))) (ident_of_string "data")
-                                                                                          (Tstruct (ident_of_string "bytes_t") noattr)) 
-                                                                                  (Tstruct (ident_of_string "bytes_t") noattr)) (ident_of_string "bytes_start")
-                                                                                  (tptr tuchar)) (tptr tuchar)) (tptr (Tstruct s noattr)))
-                                                                           (tptr (Tstruct s noattr))))
+                                          ret (Ssequence (set_ebpf_struct_bee_struct i (transBeePL_type (Stype istruct noattr)) argi' (tptr (Tstruct istruct' noattr)))
+                                                            (bound_check i (transBeePL_type (Stype istruct noattr)) (Tstruct s noattr) (fst ce2)
+                                                              (Ssequence (set_temp_for_copy i' (tptr (Tstruct s noattr)) i (transBeePL_type (Stype istruct noattr)))
                                                                 (Ssequence (copy_buffer x s (tptr (Tstruct s noattr)) cxts i')
-                                                                           (incr_data_ptr i istruct s)))))),  
-                                              ctx''', bctx') 
+                                                                   (Ssequence (incr_data_ptr i istruct s) (fst ce1))))),  
+                                              ctx''', bctx2) 
                                         | _ => error (msg "COMPILER ERROR: eBPF program supports only one argument")
                                         end
                                        | Error msg => error (msg)
@@ -687,7 +680,7 @@ match e with
                                     | _ => error (msg "COMPILER ERROR: For now we assume this match is used in only eBPF programs where first argument 
                                                        is some eBPF context ")
                                     end
-                                | _ => error (msg "COMPILER ERROR: Match on bytes only pattern match on Pbytes pattern")
+                                | _, _ => error (msg "COMPILER ERROR: Match on bytes only pattern match on Pbytes pattern")
                                 end
                      | _ =>  error (msg "COMPILER ERROR: Match can be only performed on option and bytes type")
                      end
@@ -724,7 +717,7 @@ if fd.(is_ebpf) then
   
   (* Pull out any ident * string pairs that were added to fn_ctx during transBeePL_expr_st *)
   let is' := merge_ident_string (snd fbody) is in
-  (* convert the beepl context to ebpf context *)
+  (* convert the beepl context as argument to ebpf context *)
   match (transform_ctx_ebpf_ctx (zip (unzip1 (fd.(fn_args))) (unzip2 (fd.(fn_args))))) with
   | Error msg => Error msg
   | OK params => 
@@ -797,22 +790,11 @@ end. *)
 (* Translates BeePL global variable to C global variable *)
 Definition transBeePLglobvar_globvar (gv : BeePL.globvar type) : 
 (AST.globvar Ctypes.type * list composite_definition) :=
-match (gv.(gvar_info)) with 
-| Maptype s i n kt vt => let nbc := (Composite s Struct
-                                       (Ctypes.Member_plain (ident_of_string "type") (tptr (tarray tint (Int.intval i))) ::
-                                        Ctypes.Member_plain (ident_of_string "max_entries") (tptr (tarray tint n)) ::
-                                        Ctypes.Member_plain (ident_of_string "key") (transBeePL_type kt) :: 
-                                        Ctypes.Member_plain (ident_of_string "value") (transBeePL_type vt) :: nil) noattr) in
-                         ({| AST.gvar_info := Tstruct s noattr; 
-                            AST.gvar_init := (gv.(gvar_init)); 
-                            AST.gvar_readonly := gv.(gvar_readonly); 
-                            AST.gvar_volatile :=  gv.(gvar_volatile)|}, (nbc :: nil))
-| _ => let gvt := transBeePL_type (gv.(gvar_info)) in
+let gvt := transBeePL_type (gv.(gvar_info)) in
        ({| AST.gvar_info := gvt; 
            AST.gvar_init := (gv.(gvar_init)); 
            AST.gvar_readonly := gv.(gvar_readonly); 
-           AST.gvar_volatile :=  gv.(gvar_volatile)|}, nil)
-end.
+           AST.gvar_volatile :=  gv.(gvar_volatile)|}, nil).
 
 Definition transBeePL_globdef_globdef (cenv : bcomposite_env) (gd : BeePL.globdef BeePL.fundef BeeTypes.type) (is : list (ident * string)) (bctx : bcompiler_ctx) : 
 res ((AST.globdef fundef Ctypes.type) * list (ident * string) * list composite_definition * bcompiler_ctx) :=
@@ -837,8 +819,8 @@ Definition BeePL_compcert (p : BeePL.program) : res (Csyntax.program * list (ide
   let bctx := {| arg_ctx := get_args_ebpf_gbdefs (unzip2 p.(prog_defs)); benv := p.(prog_comp_env) |} in 
   do cp <- check_struct_from_program p;
   do (pds, is') <- transBeePL_globdefs_globdefs (prog_comp_env(p)) (unzip2 (p.(prog_defs))) (p.(prog_ident_to_string)) bctx;
-  let ncs := get_bcs_from_globdefs (unzip2 (p.(prog_defs))) in 
+  let ncs := get_bcs_from_globdefs (unzip2 (p.(prog_defs))) in (* adds bytes_t in composite *)
   let cs := (map bcomposite_ccomposite_definition p.(prog_types)) in 
-  let mcs := (ncs ++ wrapper_beepl_struct_ebpf_struct (snd pds ++ cs))%list in
+  let mcs := (ncs ++ snd pds ++ wrapper_beepl_struct_ebpf_struct cs)%list in
   do cprog <- make_program mcs (zip (unzip1 p.(prog_defs)) (fst (fst pds))) (prog_public p) (prog_main p);
   OK (cprog, snd (fst pds)).
