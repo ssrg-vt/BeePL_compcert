@@ -369,7 +369,10 @@ Inductive rel_btype : BeeTypes.basic_type -> Ctypes.type -> Prop :=
               rel_ptype p ct ->
               rel_btype (Bprim p) ct
 | rel_bstruct : forall s a,
-                rel_btype (Bstruct s a) (Tstruct s a).
+                rel_btype (Bstruct s a) (Tstruct s a)
+| rel_barray : forall p z a ct,
+               rel_ptype p ct ->
+               rel_btype (Barray p z a) (Tarray ct z a).
 
 Inductive rel_type : BeeTypes.type -> Ctypes.type -> Prop :=
 | rel_utype : rel_type Utype (Ctypes.Tvoid)
@@ -387,11 +390,10 @@ Inductive rel_type : BeeTypes.type -> Ctypes.type -> Prop :=
               length ts = length (from_typelist cts) ->
               rel_type (Ftype ts ef t) (Tfunction cts ct 
                                         {| cc_vararg := Some (Z.of_nat (length ts)); cc_unproto := false; cc_structret := false |}) 
+| rel_atype : forall t z a ct,
+              rel_type t ct ->
+              rel_type (Atype t z a) (Tarray ct z a)
 | rel_bytes : rel_type Bytes (Tstruct bytes_t noattr)
-| rel_maptype : forall s i n kt vt ckt cvt, 
-                rel_type kt ckt -> 
-                rel_type vt cvt ->
-                rel_type (Maptype s i n kt vt) (Tstruct s noattr)
 with rel_ptr_type : BeeTypes.ptr_type -> Ctypes.type -> Prop :=
 | rel_reftype_bool : forall i a,
                      rel_ptr_type (Reftype i (Bprim Tbool) a) (Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr)
@@ -414,6 +416,9 @@ with rel_ptr_type : BeeTypes.ptr_type -> Ctypes.type -> Prop :=
                                               noattr)
 | rel_sptype : forall s a,
                rel_ptr_type (Sptype s a) (Ctypes.Tpointer (Tstruct s a) a)
+| rel_aptype : forall t z a ct,
+               rel_type t ct ->
+               rel_ptr_type (Aptype t z a) (Ctypes.Tpointer (Tarray ct z a) a)
 with rel_types : list BeeTypes.type -> Ctypes.typelist -> Prop :=
 | rel_tnil : rel_types nil Tnil
 | rel_tcons : forall bt bts ct cts,
@@ -437,14 +442,15 @@ Context (Htint : forall sz s a, Rpt (Tint sz s a) (Ctypes.Tint sz s a)).
 Context (Htlong : forall s a, Rpt (Tlong s a) (Ctypes.Tlong s a)).
 Context (Hbprim : forall p ct, Rpt p ct -> Rbt (Bprim p) ct).
 Context (Hbstruct : forall s a, Rbt (Bstruct s a) (Tstruct s a)).
+Context (Hbarray : forall p z a ct, Rpt p ct -> Rbt (Barray p z a) (Tarray ct z a)).
 Context (Hutype : Rt Utype (Ctypes.Tvoid)).
 Context (Hvtype : forall p ct, Rpt p ct -> Rt (Vtype p) ct).
 Context (Hptrtype : forall ptr cptr, Rptr ptr cptr -> Rt (Ptrtype ptr) cptr).
 Context (Hstype : forall s a, Rt (Stype s a) (Tstruct s a)).
 Context (Hftype : forall ts cts ef t ct, Rts ts cts -> Rt t ct -> Rt (Ftype ts ef t) (Tfunction cts ct
                   {| cc_vararg := Some (Z.of_nat (length ts)); cc_unproto := false; cc_structret := false|})).
+Context (Hatype : forall t z a ct, Rt t ct -> Rt (Atype t z a) (Tarray ct z a)).
 Context (Hbytes : Rt Bytes (Tstruct bytes_t noattr)).
-Context (Hmaptype : forall s i n kt vt ckt cvt, Rt kt ckt -> Rt vt cvt -> Rt (Maptype s i n kt vt) (Tstruct s noattr)).
 Context (Hreftypebool : forall i a, Rptr (Reftype i (Bprim Tbool) a) (Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr)).
 Context (Hreftype : forall i bt a ct, Rbt bt ct -> Rptr (Reftype i bt a) (Tpointer ct a)).
 Context (Hvptype : forall pt ct, Rpt pt ct -> Rptr (Vptype pt) (tptr tvoid)).
@@ -452,6 +458,7 @@ Context (Hotype : forall ptr cptr, Rptr ptr cptr -> Rptr (Otype ptr) cptr).
 Context (Hfptype : forall ts cts ef t ct, Rts ts cts -> Rt t ct -> Rptr (Fptype ts ef t) (Tpointer (Tfunction cts ct
                    {| cc_vararg := None; cc_unproto := false; cc_structret := false|}) noattr)).
 Context (Hsptype : forall s a, Rptr (Sptype s a) (Tpointer (Tstruct s a) a)).
+Context (Haptype : forall t z a ct, Rt t ct -> Rptr (Aptype t z a) (Ctypes.Tpointer (Tarray ct z a) a)).
 Context (Hnil : Rts nil Tnil).
 Context (Hcons : forall t ct ts cts, Rt t ct -> Rts ts cts -> Rts (t :: ts) (Tcons ct cts)).
 
@@ -465,6 +472,7 @@ Proof.
   - intros. apply Hreftype. destruct bt.
     + apply Hbprim. inv r. destruct p; inversion H0; auto. 
     + inv r. apply Hbstruct.
+    + inv r. apply Hbarray. destruct p; inversion H3; auto.
   - intros. apply Hvptype with (ct := ct).
     inv r; auto. 
 Qed.
@@ -503,15 +511,16 @@ Proof.
   - subst cptr. constructor; auto.
     eapply transBeePL_types_length. eauto.
   - subst cptr. constructor.
+  - subst cptr. constructor; auto.
   - subst ct. constructor.
   - subst ct. constructor.
   - destruct pt; constructor.
   - constructor; auto.
   - subst ct. constructor.
   - subst ct. constructor; auto.
+  - subst ct. constructor; auto.
     eapply transBeePL_types_length. eauto.
   - subst ct. constructor.
-  - subst ct. econstructor; eauto.
   - subst cts. constructor.
   - subst cts. constructor; auto.
 Qed.
@@ -618,6 +627,7 @@ Qed.
  *)
 (***** End of Proof for correctness of type transformation *****)
 
+(*
 Lemma transBeePL_expr_expr_spec: forall vm,
 (forall e ce g g' i ctx ctx' bctx bctx',
   transBeePL_expr_expr e ctx bctx g = Res (ce, ctx', bctx') g' i ->
@@ -723,7 +733,6 @@ Proof.
     econstructor; eauto.
 Qed.
 
-(*
 Lemma transBeePL_expr_stmt_spec: forall vm e ce g g' i,
 transBeePL_expr_st e g = Res ce g' i ->
 sim_bexpr_cstmt vm e ce.
@@ -850,23 +859,23 @@ Variable benv : BeePL.vmap.
 
 (* Relates global variables of BeePL and Csyntax *)
 Inductive match_globvar : BeePL.globvar type -> AST.globvar Ctypes.type -> Prop :=
-| match_globvar_intro : forall t init t' init' rd vo g g' i,
-  transBeePL_type t g = Res t' g' i ->
+| match_globvar_intro : forall t init t' init' rd vo,
+  transBeePL_type t = t' ->
   rel_type t t' ->
   match_globvar (mkglobvar t init rd vo) (AST.mkglobvar t' init' rd vo).
 
 (* Relates the function definition of BeePL and Csyntax *)
 Inductive match_function : BeePL.function -> Csyntax.function -> Prop :=
-| match_fun : forall vm bf cf g1 i1 g2 i2 g3 i3,
-  transBeePL_type (BeePL.fn_return bf) (initial_generator tt) = Res (Csyntax.fn_return cf) g1 i1 ->
+| match_fun : forall vm bf cf ctx ctx',
+  transBeePL_type (BeePL.fn_return bf) = Csyntax.fn_return cf ->
   BeePL.fn_callconv bf = Csyntax.fn_callconv cf ->
   BeePL_aux.unzip1 (BeePL.fn_args bf) = BeePL_aux.unzip1 (Csyntax.fn_params cf) ->
-  transBeePL_types transBeePL_type (BeePL_aux.unzip2 (BeePL.fn_args bf)) (initial_generator tt) = 
-  Res (to_typelist (BeePL_aux.unzip2 (Csyntax.fn_params cf))) g2 i2 ->
+  transBeePL_types transBeePL_type (BeePL_aux.unzip2 (BeePL.fn_args bf)) = 
+  to_typelist (BeePL_aux.unzip2 (Csyntax.fn_params cf)) ->
   BeePL_aux.unzip1 (BeePL.fn_vars bf) = BeePL_aux.unzip1 (Csyntax.fn_vars cf) ->
-  transBeePL_types transBeePL_type (BeePL_aux.unzip2 (BeePL.fn_vars bf)) (initial_generator tt) = 
-  Res (to_typelist (BeePL_aux.unzip2 (Csyntax.fn_vars cf))) g3 i3 ->
-  sim_bexpr_cstmt vm (BeePL.fn_body bf) (Csyntax.fn_body cf) ->
+  transBeePL_types transBeePL_type (BeePL_aux.unzip2 (BeePL.fn_vars bf)) = 
+  to_typelist (BeePL_aux.unzip2 (Csyntax.fn_vars cf)) ->
+  sim_bexpr_cstmt vm (BeePL.fn_body bf) ctx (Csyntax.fn_body cf) ctx' ->
   match_function bf cf.
 
 (* Lemma tranBeePL_function_spec: forall bf cf,
@@ -881,10 +890,10 @@ Inductive match_fundef : BeePL.fundef -> Csyntax.fundef -> Prop :=
 | match_fundef_internal : forall f cf,
   match_function f cf -> 
   match_fundef (Internal f) (Ctypes.Internal cf)
-| match_fundef_external : forall ef cef ts cts t ct cc gs gs' i'' g g' i' gf gf' if',
-  transBeePL_types transBeePL_type ts gs = Res cts gs' i'' ->
-  transBeePL_type t g = Res ct g' i' ->
-  befunction_to_cefunction ef gf = Res cef gf' if' ->
+| match_fundef_external : forall ef cef ts cts t ct cc,
+  transBeePL_types transBeePL_type ts = cts ->
+  transBeePL_type t = ct ->
+  befunction_to_cefunction ef = cef ->
   match_fundef (External ef ts t cc) (Ctypes.External cef cts ct cc).
 
 (* Lemma transBeePL_fundef_spec : forall f cf, 
@@ -924,7 +933,7 @@ Definition match_program_gen (p1 : BeePL.program) (p2 : Csyntax.program) : Prop 
 
 Definition match_prog (p1: BeePL.program) (p2: Csyntax.program) :=
     match_program_gen p1 p2
- /\ prog_types p1 = Ctypes.prog_types p2. 
+ /\ map bcomposite_ccomposite_definition p1.(prog_types) = Ctypes.prog_types p2. 
 
 (* Lemma transf_program_match:
 forall p cp, BeePL_compcert p = OK cp -> match_prog p cp.
@@ -957,9 +966,9 @@ Qed. *)
 (* Relation between BeePL vmap and Csyntax local env *)
 Record match_env (vm : BeePL.vmap) (cvm : env) : Prop :=
 mk_match_env {
- local_match: forall id b t ct g g' i,
+ local_match: forall id b t ct,
               vm!id = Some (b, t) ->
-              transBeePL_type t g = Res ct g' i ->
+              transBeePL_type t = ct ->
               cvm!id = Some (b, ct);
  global_match: forall id,
                vm!id = None ->
@@ -967,6 +976,7 @@ mk_match_env {
 
 End specifications.
 
+(*
 Section semantic_preservation.
 
 Variable bprog : BeePL.program.
@@ -1136,7 +1146,7 @@ Qed.
 
 
 End semantic_preservation.
-
+ *)
 
 (*
 (* Big step semantics with rvalue *) 

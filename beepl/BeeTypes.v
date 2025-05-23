@@ -72,13 +72,14 @@ Context (Hvptr : forall pt, Pptr (Vptype pt)).
 Context (Hoptr : forall ptr, Pptr ptr -> Pptr (Otype ptr)).
 Context (Hfptr : forall ts e t, Pts ts -> Pt t -> Pptr (Fptype ts e t)).
 Context (Hsptr : forall i a, Pptr (Sptype i a)).
+Context (Haptr : forall t n a, Pt t -> Pptr (Aptype t n a)).
 Context (Hunot : Pt (Utype)).
 Context (Hv : forall pt, Pt (Vtype pt)).
 Context (Hptr : forall ptr, Pptr ptr -> Pt (Ptrtype ptr)).
 Context (Hs : forall i a, Pt (Stype i a)).
+Context (Ha : forall t n a, Pt t -> Pt (Atype t n a)).
 Context (Hf : forall ts e t, Pts ts -> Pt t -> Pt (Ftype ts e t)).
 Context (Hb : Pt Bytes).
-Context (Hmp : forall a n i t1 t2, Pt t1 -> Pt t2 -> Pt (Maptype a n i t1 t2)).
 Context (Hnil : Pts nil).
 Context (Hcons : forall t ts, Pt t -> Pts ts -> Pts (t :: ts)).
 
@@ -105,7 +106,9 @@ Proof.
           ++ apply Hcons. apply IHt. apply IHl.
         -- apply IHt.
       * apply Hsptr.
+      * apply Haptr. apply IHt.
     + apply Hs.
+    + apply Ha. apply IHt.
     + apply Hf.
       * revert l.
         fix IHl 1.
@@ -114,9 +117,6 @@ Proof.
         -- apply Hcons. apply IHt. apply IHl.
       * apply IHt.
     + apply Hb.
-    + apply Hmp.
-      * apply IHt.
-      * apply IHt.
   assert (forall ts, Pts ts) as Htypes.
   - fix IHts 1.
     destruct ts.
@@ -134,6 +134,7 @@ Proof.
       * apply Htypes.
       * apply Htype.
     + apply Hsptr.
+    + apply Haptr. apply Htype.
   split; try split; assumption.
 Qed.
 
