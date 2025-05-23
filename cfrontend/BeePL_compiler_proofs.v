@@ -14,6 +14,8 @@ Variable cenv : Csem.env.
 
 (* The first function_ctx here represents the one that is input into the function,
    while the second one represents the returned context *)
+(* The definition of transBeePL_expr_expr now includes a "bcompiler_ctx", but appears to be invariant
+   other than in the Match Bytes case of transBeePL_expr_st, so not including it for now *)
 Inductive sim_bexpr_cexpr : vmap -> BeePL.expr -> function_ctx -> Csyntax.expr -> function_ctx -> Prop :=
 | sim_val : forall le ctx v t ct, 
             transBeePL_type t = ct ->
@@ -21,6 +23,16 @@ Inductive sim_bexpr_cexpr : vmap -> BeePL.expr -> function_ctx -> Csyntax.expr -
 | sim_var : forall le ctx x t ct,
             transBeePL_type t = ct ->
             sim_bexpr_cexpr le (BeePL.Var x t) ctx (Csyntax.Evar x ct) ctx
+| sim_const_bool_true : forall le ctx b t ct,
+                           transBeePL_type t = ct ->
+                           eqb b true ->
+                           sim_bexpr_cexpr le (BeePL.Const (ConsBool b) t) ctx 
+                                              (Eval (Values.Vint (Int.repr 1)) (transBeePL_type t)) ctx
+| sim_const_bool_false : forall le ctx b t ct,
+                            transBeePL_type t = ct ->
+                            eqb b false ->
+                            sim_bexpr_cexpr le (BeePL.Const (ConsBool b) t) ctx 
+                                              (Eval (Values.Vint (Int.repr 0)) (transBeePL_type t)) ctx
 | sim_const_int : forall le ctx i t ct,
                   transBeePL_type t = ct ->
                   sim_bexpr_cexpr le (BeePL.Const (ConsInt i) t) ctx (Csyntax.Eval (Values.Vint i) ct) ctx
@@ -330,7 +342,8 @@ Inductive sim_bexpr_cstmt : vmap -> BeePL.expr -> function_ctx -> Csyntax.statem
                          sim_bexpr_cstmt le (BeePL.Match e ps es t) ctx1 (Csyntax.Sifthenelse (Csyntax.Ebinop Cop.Oeq ce 
                                                        (Csyntax.Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
                                                        (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
-                                          ce1 ce2) ctx4
+                                          ce1 ce2) ctx4.
+(*
 | sim_match_bytes_st : forall le ctx ctx' e ps es t ce x s,
                        sim_bexpr_cexpr le e ctx ce ctx' ->
                        typeof_expr e = Bytes ->
@@ -338,7 +351,7 @@ Inductive sim_bexpr_cstmt : vmap -> BeePL.expr -> function_ctx -> Csyntax.statem
                        sim_bexpr_cstmt le (BeePL.Match e ps es t) ctx (Csyntax.Ssequence (Sdo (Eassign (Csyntax.Efield ce (ident_of_string "bytes_start") (tptr tschar)) 
                                                            (Csyntax.Ecast ce (tptr (tschar))) (tptr (tschar))))
                                                            (Sdo (Csyntax.Evar x (Tstruct s noattr)))) ctx.
-
+*)
 
 
 
@@ -375,6 +388,10 @@ Inductive rel_type : BeeTypes.type -> Ctypes.type -> Prop :=
               rel_type (Ftype ts ef t) (Tfunction cts ct 
                                         {| cc_vararg := Some (Z.of_nat (length ts)); cc_unproto := false; cc_structret := false |}) 
 | rel_bytes : rel_type Bytes (Tstruct bytes_t noattr)
+| rel_maptype : forall s i n kt vt ckt cvt, 
+                rel_type kt ckt -> 
+                rel_type vt cvt ->
+                rel_type (Maptype s i n kt vt) (Tstruct s noattr)
 with rel_ptr_type : BeeTypes.ptr_type -> Ctypes.type -> Prop :=
 | rel_reftype_bool : forall i a,
                      rel_ptr_type (Reftype i (Bprim Tbool) a) (Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr)
@@ -427,6 +444,7 @@ Context (Hstype : forall s a, Rt (Stype s a) (Tstruct s a)).
 Context (Hftype : forall ts cts ef t ct, Rts ts cts -> Rt t ct -> Rt (Ftype ts ef t) (Tfunction cts ct
                   {| cc_vararg := Some (Z.of_nat (length ts)); cc_unproto := false; cc_structret := false|})).
 Context (Hbytes : Rt Bytes (Tstruct bytes_t noattr)).
+Context (Hmaptype : forall s i n kt vt ckt cvt, Rt kt ckt -> Rt vt cvt -> Rt (Maptype s i n kt vt) (Tstruct s noattr)).
 Context (Hreftypebool : forall i a, Rptr (Reftype i (Bprim Tbool) a) (Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr)).
 Context (Hreftype : forall i bt a ct, Rbt bt ct -> Rptr (Reftype i bt a) (Tpointer ct a)).
 Context (Hvptype : forall pt ct, Rpt pt ct -> Rptr (Vptype pt) (tptr tvoid)).
@@ -442,8 +460,8 @@ Lemma rel_type_indP :
 (forall ptr cptr, rel_ptr_type ptr cptr -> Rptr ptr cptr) /\
 (forall ts cts, rel_types ts cts -> Rts ts cts).
 Proof. 
-  apply rel_type_typelist_ind_mut; auto.
-  - destruct p; intros; inversion r; auto.
+  apply rel_type_typelist_ind_mut; eauto.
+  - destruct p; intros; inversion r; eauto.
   - intros. apply Hreftype. destruct bt.
     + apply Hbprim. inv r. destruct p; inversion H0; auto. 
     + inv r. apply Hbstruct.
@@ -493,6 +511,7 @@ Proof.
   - subst ct. constructor; auto.
     eapply transBeePL_types_length. eauto.
   - subst ct. constructor.
+  - subst ct. econstructor; eauto.
   - subst cts. constructor.
   - subst cts. constructor; auto.
 Qed.
@@ -600,40 +619,44 @@ Qed.
 (***** End of Proof for correctness of type transformation *****)
 
 Lemma transBeePL_expr_expr_spec: forall vm,
-(forall e ce g g' i,
-  transBeePL_expr_expr e g = Res ce g' i ->
-  sim_bexpr_cexpr vm e ce) /\
-(forall es ces g g' i,
-  transBeePL_expr_exprs transBeePL_expr_expr es g = Res ces g' i ->
-  sim_bexprs_cexprs vm es ces).
+(forall e ce g g' i ctx ctx' bctx bctx',
+  transBeePL_expr_expr e ctx bctx g = Res (ce, ctx', bctx') g' i ->
+  sim_bexpr_cexpr vm e ctx ce ctx') /\
+(forall es ces g g' i ctx ctx' bctx bctx',
+  transBeePL_expr_exprs transBeePL_expr_expr es ctx bctx g = Res (ces, ctx', bctx') g' i ->
+  sim_bexprs_cexprs vm es ctx ces ctx').
 Proof.
   intro vm. 
   apply expr_list_expr_ind_mut with
-    (Pe := fun e => forall ce g g' i, transBeePL_expr_expr e g = Res ce g' i -> sim_bexpr_cexpr vm e ce)
-    (Pl := fun es => forall ces g g' i, transBeePL_expr_exprs transBeePL_expr_expr es g = Res ces g' i -> sim_bexprs_cexprs vm es ces);
-  intros;
-  simpl in *.
+    (Pe := fun e => forall ce g g' i ctx ctx' bctx bctx', 
+                    transBeePL_expr_expr e ctx bctx g = Res (ce, ctx', bctx') g' i -> 
+                    sim_bexpr_cexpr vm e ctx ce ctx')
+    (Pl := fun es => forall ces g g' i ctx ctx' bctx bctx', 
+                     transBeePL_expr_exprs transBeePL_expr_expr es ctx bctx g = Res (ces, ctx', bctx') g' i -> 
+                     sim_bexprs_cexprs vm es ctx ces ctx');
+  intros.
   (* Val *)
-  - unfold SimplExpr.bind in H.
-    destruct (transBeePL_type t g) as [| ct g1 i1] eqn:Htype; try discriminate.
-    inv H.
+  - inv H.
     econstructor; eauto.
   (* Var *)
-  - unfold SimplExpr.bind in H.
-    destruct (transBeePL_type t g) as [| ct g1 i1] eqn:Htype; try discriminate.
-    inv H.
+  - inv H.
     econstructor; eauto.
   (* Const *)
-  - destruct c eqn:Hconst; unfold SimplExpr.bind in H;
-    destruct (transBeePL_type t g) as [| ct g1 i1] eqn:Htype; try discriminate;
-    inv H;
-    econstructor; eauto.
+  - destruct c;
+    inv H.
+    + destruct b; inv H1; econstructor; eauto.
+    + econstructor; eauto.
+    + econstructor; eauto.
+    + econstructor; eauto. 
   (* App *)
-  - unfold SimplExpr.bind in H1.
-    destruct (transBeePL_expr_expr e g) as [|cexpr g1 i1] eqn:Hexpr; try discriminate.
-    destruct (transBeePL_expr_exprs transBeePL_expr_expr es g1) as [|cexprs g2 i2] eqn:Hexprs; try discriminate.
-    destruct (transBeePL_type t g2) as [|ct g3 i3] eqn:Htype; try discriminate.
-    inv H1.
+  - inv H1.
+    repeat unfold SimplExpr.bind2 in H3.
+    repeat unfold SimplExpr.bind in H3.
+    destruct (transBeePL_expr_expr e ctx bctx g) as [|((cexpr, ctx1), bctx1) g1 i1] eqn:Hexpr; try discriminate.
+    simpl in H3.
+    destruct (transBeePL_expr_exprs transBeePL_expr_expr es ctx1 bctx1 g1) as [|((cexprs, ctx2), bctx2) g2 i2] eqn:Hexprs; try discriminate.
+    simpl in H3.
+    inv H3.
     econstructor; eauto.
   (* Prim *)
   - destruct b eqn:Hprim; unfold SimplExpr.bind in H0;
