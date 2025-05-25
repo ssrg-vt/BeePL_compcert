@@ -373,6 +373,9 @@ match e with
                      | Ptrtype t' => if is_option_ptr_type t' && all_eq_types tes && eq_type t (hd tunit tes) 
                                      then OK(t, ef ++ efs)
                                      else Error (msg "TYPE ERROR: Type of Match expr should be an option to ref type and all its elements should be of same type")
+                     | Bytes => if all_eq_types tes && eq_type t (hd tunit tes) 
+                                then OK(t, ef ++ efs)
+                                else Error (msg "TYPE ERROR: Type of Match expr should be an option to ref type and all its elements should be of same type")
                      | _ => Error (msg "TYPE ERROR: Type of Match expr should be an option or bytes type")
                      end
 | Ebytes es t => Error (msg "TYPE ERROR: Type of Bitstrings are not supported yet")

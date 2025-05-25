@@ -189,13 +189,13 @@ Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> e
             is_option_ptr_type t ->
             te = get_data_type t ->
             type_expr cenv Gamma Sigma (Esome e (Ptrtype t)) ef (Ptrtype t)
-| ty_matcho : forall cenv Gamma Sigma e ef te ps es t efs ts fvs,
+| ty_matcho : forall cenv Gamma Sigma e ef te ps es efs ts fvs,
               get_patterns_var ps = fvs ->
               type_expr cenv Gamma Sigma e ef te ->
-              type_exprs cenv (extends_context Gamma fvs (construct_list_type t (length fvs))) Sigma es efs ts ->
-              is_option_type te ->
+              type_exprs cenv (extends_context Gamma fvs (construct_list_type (hd tunit ts) (length fvs))) Sigma es efs ts ->
+              is_option_type te \/ is_bytes te ->
               all_eq_types ts ->
-              type_expr cenv Gamma Sigma (Match e ps es (hd tunit ts)) (ef ++ efs) t
+              type_expr cenv Gamma Sigma (Match e ps es (hd tunit ts)) (ef ++ efs) (hd tunit ts)
 (* add rule for match on bytes *)
 | ty_subt : forall cenv Gamma Sigma e ef t ef', 
             type_expr cenv Gamma Sigma e ef t ->
@@ -663,80 +663,149 @@ move=> cenv' Gamma' Sigma' l' ofs' h' bt' a' hs [] h1 h2; subst.
 by exists h', bt', a'.
 Qed.
 
-(*Lemma type_infer_eapp: forall Gamma Sigma exf es ef rt t,
-type_expr Gamma Sigma (Eapp exf (get_at_eapp exf) es rt) ef t ->
-rt = get_rt_eapp exf /\ 
-t = rt /\
-rt <> Ptype Tunit /\ 
-is_funtype rt = false /\ 
-(exists ts ef', ts = get_at_eapp exf /\
-                type_exprs Gamma Sigma es ef' ts).
+Lemma type_infer_sinit : forall cenv Gamma Sigma x ids es t efs t',
+type_expr cenv Gamma Sigma (Sinit x ids es t) efs t' ->
+exists h id a a' efs bts co cts, 
+t = (Ptrtype (Reftype h (Bstruct id a) a')) /\ t' = (Ptrtype (Reftype h (Bstruct id a) a')) /\
+type_exprs cenv Gamma Sigma es efs bts /\ PTree.get id cenv = Some co /\ 
+type_of_members (combine (map Ctypes.attr_of_type (typelist_to_list_type (transBeePL_types transBeePL_type bts))) ids) 
+(bmembers_cmembers co.(co_members)) = OK cts /\ trans_ctypes_btypes trans_ctype_btype cts = OK bts.
 Proof.
-move=> Gamma Sigma exf es ef rt t. 
-move eq: (Eapp exf (get_at_eapp exf) es rt)=> rv ht.
+move=> cenv Gamma Sigma x ids es t efs t'.
+move eq: (Sinit x ids es t)=> rv ht.
 elim: ht eq=> //=.
-move=> Gamma' Sigma' exf' ts es' ef' rt' hrt [] hr1 hr2 hts hes' []
-       h1 h2 h3 h4; subst; split=> //=; split=> //=; split=> //=; split=> //=.
-by exists (get_at_eapp exf');exists ef';split=> //=.
-Qed.*)
+move=> cenv' Gamma' Sigma' x' es' efs' h id a a' co ids' cts bts htes hc htm ht [] h1 h2 h3 h4; subst. 
+by exists h, id, a, a', efs', bts, co, cts; split=> //=.
+Qed.
 
-(*Lemma type_val_reflx : forall Gamma Sigma v t ef t',
-type_expr Gamma Sigma (Val v t) ef t' -> 
+Lemma type_infer_sfield : forall cenv Gamma Sigma e x t ef t',
+type_expr cenv Gamma Sigma (Sfield e x t) ef t' ->
+exists id a co ct ef te, 
+t = (Stype id a) /\ t' = (Ptrtype (Sptype id a)) /\
+type_expr cenv Gamma Sigma e ef te ->
+PTree.get id cenv = Some co /\ 
+Ctyping.type_of_member a x (bmembers_cmembers co.(co_members)) = OK ct /\
+trans_ctype_btype ct = OK t.            
+Proof.
+move=> cenv Gamma Sigma e x t ef t'.
+move eq: (Sfield e x t)=> rv ht.
+elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' e' x' id' a te ef' co ct bt ht hi hi' ho hct ht' [] h1 h2 h3; subst.
+by exists id', a, co, ct, ef', te; split=> //=.
+Qed.
+
+Lemma type_infer_for : forall cenv Gamma Sigma e1 e2 d e t ef t', 
+type_expr cenv Gamma Sigma (For e1 e2 d e t) ef t' ->
+exists te t1 t2 ef1 ef2 efe fv1 fv2 fv, 
+type_expr cenv Gamma Sigma e1 ef1 t1 /\ type_expr cenv Gamma Sigma e2 ef2 t2 /\
+type_expr cenv Gamma Sigma e efe te /\ t = te /\ t' = te /\
+(is_primint t || is_primlong t) /\ (is_primint t' || is_primlong t') /\
+free_variables e1 = fv1 /\ free_variables e2 = fv2 /\ free_variables e = fv /\
+disjoint_vars fv fv1 /\ disjoint_vars fv fv2.
+Proof.
+move=> cenv Gamma Sigma e1 e2 d e t ef t'.
+move eq: (For e1 e2 d e t)=> rv ht.
+elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' e1' e2' d' e' ef1 t1 ef2 t2 fv1 fv2 fv ef' t'' ht1 hin ht2 hin'.
+move=> ht3 hin1 heq heq' hf hf' hf1 hd1 hd2 [] h1 h2 h3 h4 h5; subst.
+by exists t'', t1, t2, ef1, ef2, ef', (free_variables e1'), (free_variables e2'), (free_variables e').
+Qed.
+
+
+Lemma type_infer_none : forall cenv Gamma Sigma t ef t',
+type_expr cenv Gamma Sigma (Enone t) ef t' ->
+exists t1, t = (Ptrtype t1) /\ t' = (Ptrtype t1) /\ is_option_ptr_type t1.
+Proof.
+move=> cenv Gamma Sigma t ef t'.
+move eq: (Enone t)=> rv ht.
+elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' pt ho [] h1; subst.
+by exists pt.
+Qed.
+
+Lemma type_infer_some : forall cenv Gamma Sigma t e ef t',
+type_expr cenv Gamma Sigma (Esome e t) ef t' ->
+exists t1 ef' te, t = (Ptrtype t1) /\ t' = (Ptrtype t1) /\ is_option_ptr_type t1 /\
+type_expr cenv Gamma Sigma e ef' te.
+Proof.
+move=> cenv Gamma Sigma t e ef t'.
+move eq: (Esome e t)=> rv ht.
+elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' pt e' te ef' hte hi ho h1 [] h2 h3; subst.
+by exists pt, ef', (get_data_type pt).
+Qed.
+
+Lemma type_infer_match : forall cenv Gamma Sigma t e ef ps es t',
+type_expr cenv Gamma Sigma (Match e ps es t) ef t' ->
+exists fvs efe te efs ts, t = (hd tunit ts) /\ t' = (hd tunit ts) /\
+get_patterns_var ps = fvs /\ type_expr cenv Gamma Sigma e efe te /\ all_eq_types ts /\
+type_exprs cenv (extends_context Gamma fvs (construct_list_type (hd tunit ts) (length fvs))) Sigma es efs ts.
+Proof.
+move=> cenv Gamma Sigma t e ef ps es t'.
+move eq: (Match e ps es t)=> rv ht.
+elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' e' ef' te ps' es' efs ts fvs hg hte hi hts ho hall [] h1 h2 h3 h4; subst.
+by exists (get_patterns_var ps'), ef', te, efs, ts.
+Qed.
+
+Lemma type_val_reflx : forall cenv Gamma Sigma v t ef t',
+type_expr cenv Gamma Sigma (Val v t) ef t' -> 
 t = t'.
 Proof.
-move=> Gamma Sigma v t ef t'. move eq: (Val v t)=> rv ht. 
+move=> cenv Gamma Sigma v t ef t'. move eq: (Val v t)=> rv ht. 
 elim: ht eq=> //=.  
-+ by move=> Gamma' Sigma' [] h; subst.
-+ by move=> Gamma' Sigma' i sz s a [] h h'; subst.
-+ by move=> Gamma' Sigma' i s a [] h h'; subst.
-by move=> Gamma' Sigma' l ofs h t'' a hs [] h1 h2; subst.
++ by move=> cenv' Gamma' Sigma' [] h; subst.
++ by move=> cenv' Gamma' Sigma' i sz s a [] h h'; subst.
++ by move=> cenv' Gamma' Sigma' i s a [] h h'; subst.
+by move=> cenv' Gamma' Sigma' l ofs h t'' a hs [] h1 h2; subst.
 Qed.
 
 Lemma type_expr_exprs_deterministic: 
-(forall Gamma Sigma es efs ts efs' ts', type_exprs Gamma Sigma es efs ts ->
-                                        type_exprs Gamma Sigma es efs' ts' ->
+(forall cenv Gamma Sigma es efs ts efs' ts', type_exprs cenv Gamma Sigma es efs ts ->
+                                        type_exprs cenv Gamma Sigma es efs' ts' ->
                                         ts = ts') /\
-(forall Gamma Sigma e ef t ef' t', type_expr Gamma Sigma e ef t ->
-                                   type_expr Gamma Sigma e ef' t' ->
-                                   t = t').
+(forall cenv Gamma Sigma e ef t ef' t', type_expr cenv Gamma Sigma e ef t ->
+                                        type_expr cenv Gamma Sigma e ef' t' ->
+                                        t = t').
 Proof.
-suff : (forall Gamma Sigma es efs ts, type_exprs Gamma Sigma es efs ts ->
-                                      forall efs' ts', type_exprs Gamma Sigma es efs' ts' ->
+suff : (forall cenv Gamma Sigma es efs ts, type_exprs cenv Gamma Sigma es efs ts ->
+                          forall efs' ts', type_exprs cenv Gamma Sigma es efs' ts' ->
                                                        ts = ts') /\
-       (forall Gamma Sigma e ef t, type_expr Gamma Sigma e ef t ->
-                                   forall ef' t', type_expr Gamma Sigma e ef' t' ->
+       (forall cenv Gamma Sigma e ef t, type_expr cenv Gamma Sigma e ef t ->
+                         forall ef' t', type_expr cenv Gamma Sigma e ef' t' ->
                                                   t = t').
 + move=> [] ih ih'. split=> //=.
-  + move=> Gamma Sigma es efs ts efs' ts' hes hes'. 
-    by move: (ih Gamma Sigma es efs ts hes efs' ts' hes').
-  move=> Gamma Sigma e ef t ef' t' he he'.
-  by move: (ih' Gamma Sigma e ef t he ef' t' he').
+  + move=> cenv Gamma Sigma es efs ts efs' ts' hes hes'. 
+    by move: (ih cenv Gamma Sigma es efs ts hes efs' ts' hes').
+  move=> cenv Gamma Sigma e ef t ef' t' he he'.
+  by move: (ih' cenv Gamma Sigma e ef t he ef' t' he').
 apply type_exprs_type_expr_ind_mut => //=.
-+ move=> Gamma Sigma ef' t' ht; inversion ht; subst; auto.
-  by have [h1 h2] := type_infer_vunit Gamma Sigma ef' (Ptype Tunit) t' ht.
-+ move=> Gamma Sigma i sz s a ef' t' ht; inversion ht; subst; auto.
-  have := type_infer_int Gamma Sigma i ef' (Ptype (Tint sz s a)) t' ht. 
+(*+ move=> cenv Gamma Sigma ef' t' ht; inversion ht; subst; auto.
+  by have [h1 h2] := type_infer_vunit cenv Gamma Sigma ef' tunit t' ht.
++ move=> cenv Gamma Sigma i sz s a ef' t' ht; inversion ht; subst; auto.
+  have := type_infer_int cenv Gamma Sigma i ef' (Vtype (Tint sz s a)) t' ht. 
   by move=> [] sz' [] s' [] a' [] h1 h2; subst.
-+ move=> Gamma Sigma i s a ef' t' ht; inversion ht; subst; auto.
-  have := type_infer_long Gamma Sigma i ef' (Ptype (Tlong s a)) t' ht.
++ move=> cenv Gamma Sigma i s a ef' t' ht; inversion ht; subst; auto.
+  have := type_infer_long cenv Gamma Sigma i ef' (Vtype (Tlong s a)) t' ht.
   by move=> [] s' [] a' [] h1 h2; subst.
-+ move=> Gamma Sigma l ofs h t a hs ef' t' ht; inversion ht; subst; auto.
-  have := type_infer_loc Gamma Sigma l ofs ef' (Reftype h t a) t' ht.
++ move=> cenv Gamma Sigma l ofs h t a hs ef' t' ht; inversion ht; subst; auto.
+  have := type_infer_loc cenv Gamma Sigma l ofs ef' (Ptrtype (Reftype h t a)) t' ht.
   by move=> [] h' [] bt [] a' [] h1 [] h2 h3; subst.
-+ move=> Gamma Sigma x t ht ef' t' ht'; subst; inversion ht'; subst; auto.
-  by have [h1 h2]:= type_infer_var Gamma Sigma x t ef' t' ht'.
-+ move=> Gamma Sigma sz s a i ef' t' ht; subst; inversion ht; subst; auto.
-  have := type_infer_consti Gamma Sigma i ef' (Ptype (Tint sz s a)) t' ht.
++ move=> cenv Gamma Sigma x t ht ef' t' ht'; subst; inversion ht'; subst; auto.
+  by have [h1 h2]:= type_infer_var cenv Gamma Sigma x t ef' t' ht'.
++ move=> cenv Gamma Sigma sz s a i ef' t' ht; subst; inversion ht; subst; auto.
+  have := type_infer_consti cenv Gamma Sigma i ef' (Vtype (Tint sz s a)) t' ht.
   by move=> [] sz' [] s' [] a' [] h1 h2; subst.
-+ move=> Gamma Sigma s a i ef' t' ht; subst; inversion ht; subst; auto.
-  have := type_infer_constl Gamma Sigma i ef' (Ptype (Tlong s a)) t' ht.
++ move=> cenv Gamma Sigma s a i ef' t' ht; subst; inversion ht; subst; auto.
+  have := type_infer_constl cenv Gamma Sigma i ef' (Vtype (Tlong s a)) t' ht.
   by move=> [] s' [] a' [] h1 h2; subst.
-+ move=> Gamma Sigma ef' t' ht; inversion ht; subst; auto.
-  have := type_infer_constu Gamma Sigma ef' (Ptype Tunit) t' ht.
++ move=> cenv Gamma Sigma ef' t' ht; inversion ht; subst; auto.
+  have := type_infer_constu cenv Gamma Sigma ef' tunit t' ht.
   by move=> [] h h'.
-+ move=> Gamma Sigma e es rt efs ts ef efs' hte hin htes hin' ef' t ht; 
++ move=> cenv Gamma Sigma e es rt efs ts ef efs' hte hin htes hin' ef' t ef'' t' ht; 
   inversion ht; subst; auto.
-  by have [h [ts'] [ef1 [efs1] [] ht' [efs'' hts]]]:= type_infer_app Gamma Sigma e es rt ef' t ht.
+  have := type_infer_app cenv Gamma Sigma.
+  have [h [ts'] [ef1 [efs1] [] ht' [efs'' hts]]]:= type_infer_app cenv Gamma Sigma e es rt ef' t ht.
 + move=> Gamma Sigma e ef h bt a hte hin ef' t' ht; inversion ht; subst; auto.
   have := type_infer_ref Gamma Sigma e ef' (Reftype h (Bprim bt) a) t' ht.
   by move=> [] h' [] bt' [] a' [] h1 h2; subst.
@@ -772,13 +841,13 @@ apply type_exprs_type_expr_ind_mut => //=.
 move=> Gamma Sigma e es ef efs t ts hte hin htes hin' efs' ts' ht;
        inversion ht; subst; auto.
 move: (hin ef0 t0 H3)=> ->. by move: (hin' efs0 ts0 H6)=> ->.
-Qed.
+Qed.*) Admitted.
 
-Lemma type_rel_typeof : forall Gamma Sigma e ef t,
-type_expr Gamma Sigma e ef t ->
+Lemma type_rel_typeof : forall cenv Gamma Sigma e ef t,
+type_expr cenv Gamma Sigma e ef t ->
 typeof_expr e = t.
 Proof.
-by move=> Gamma Sigma e ef t ht; elim: ht=> //=.
+by move=> cenv Gamma Sigma e ef t ht; elim: ht=> //=.
 Qed.
 
 Lemma eq_type_rel : forall v t t',
@@ -786,15 +855,15 @@ eq_type t t' ->
 wtypeof_value v (wtype_of_type t') ->
 wtypeof_value v (wtype_of_type t).
 Proof.
-move=> v t t'. case: t=> //=.
-+ move=> p. case: t'=> //= p'.
+(*move=> v t t'. case: t=> //=.
++ move=> p. case: t' p=> //= p'.
   case:p=> //=.
   + by case: p'=> //=.
   + by case: p'=> //=.
   by case: p'=> //=.
 + by case: t'=> //=. 
 by case: t'=> //=.
-Qed.
+Qed.*) Admitted.
 
 Lemma cty_chunk_rel : forall (ty: Ctypes.type) chunk v,
 Ctypes.access_mode ty = By_value chunk ->
@@ -849,11 +918,11 @@ Qed.
 (* There always exists a C type for BeePL type which is 
    inferred from the typing rules. *)
 Lemma well_typed_success: 
-(forall Gamma Sigma es efs ts, type_exprs Gamma Sigma es efs ts ->
-                               exists cts g i, transBeePL_types transBeePL_type ts g = Res cts g i) /\
-(forall Gamma Sigma e ef t, type_expr Gamma Sigma e ef t ->
-                            exists ct g i, transBeePL_type t g = Res ct g i).
+(forall cenv Gamma Sigma es efs ts, type_exprs cenv Gamma Sigma es efs ts ->
+                               exists cts, transBeePL_types transBeePL_type ts = cts) /\
+(forall cenv Gamma Sigma e ef t, type_expr cenv Gamma Sigma e ef t ->
+                            exists ct, transBeePL_type t = ct).
 Proof.
 apply type_exprs_type_expr_ind_mut=> //=.
-Admitted.*)
+Admitted.
 
