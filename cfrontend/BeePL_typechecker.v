@@ -2,38 +2,12 @@ Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx Coq.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Coq.Lists.List.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes Ctyping.
 Require Import BeePL_aux BeePL BeePL_values BeeTypes BeePL_mem Errors Csyntaxdefs BeePL_notations.
+Require Import BeePL_helper_functions.
 From mathcomp Require Import all_ssreflect. 
 
 Local Open Scope error_monad_scope.
 
 (***** Type checker for BeePL *****)
-
-(***** Map containing information about external calls *****)
-Definition ef_info : Type := list type * (type * effect).
-
-Definition ef_empty_map := PTree.empty ef_info.
-
-Definition ef_env : Type := PTree.t ef_info.
-
-Notation "m [ a <- b ]" := (PTree.set (ident_of_string a) b m) (at level 10, left associativity).
-Notation "m [ a ]" := (PTree.get (ident_of_string a) m) (at level 10, left associativity).
-
-(* Add all external functions needed for BeePL *)
-Definition  beepl_ef_env : ef_env :=
-ef_empty_map ["bpf_get_prandom_u32" <- (nil, (tint32u, (Io :: nil)))]
-             ["bpf_ktime_get_ns" <- (nil, (tlongu, (Io :: nil)))]
-             ["add" <- ((tint32s :: trint32s :: nil), (tint32s, nil))]
-             ["bpf_get_current_uid_gid" <- (nil, (tlongu, (Io :: nil)))]
-             ["bpf_map_lookup_elem" <- ((tostruct (ident_of_string "bpf_map_type_hash") noattr :: tolongu :: nil), 
-                                            (tolongu, (Read mem_ident :: Io :: nil)))]
-             ["bpf_map_update_elem" <- ((tostruct (ident_of_string "bpf_map_type_hash") noattr :: tolongu :: tolongu :: tlongu :: nil), 
-                                           (tlongu, (Write mem_ident :: Io :: nil)))].
-
-Definition get_ef_type (efenv : ef_env) (s : string) : res ef_info :=
-match efenv[s] with 
-| Some t => OK t
-| None => Error (msg "TYPE ERROR: The type signature of external function is not present in ef_env")
-end.
 
 (* Type-checking of constants *)
 (* We type check it with weak type: wtype because it is 
@@ -384,19 +358,6 @@ end.
 
 Open Scope string_scope.
 
-Fixpoint bind_vars (Gamma : ty_context) (l: list (ident * type)) : ty_context :=
-match l with
-| nil => Gamma
-| (id, ty) :: l => bind_vars (PTree.set id ty Gamma) l
-end.
-
-Fixpoint bind_globdef (Gamma: ty_context) (l: list (ident * globdef fundef type)) : ty_context :=
-match l with
-| nil => Gamma
-| (id, Gfun fd) :: l => bind_globdef (PTree.set id (type_of_fundef fd) Gamma) l
-| (id, Gvar v) :: l => bind_globdef (PTree.set id v.(gvar_info) Gamma) l
-end.
-
 Definition type_check_function (cenv : bcomposite_env) (Gamma : ty_context) (Sigma : store_context) (fn : function) : res string :=
 let Gamma' := bind_vars (bind_vars Gamma fn.(fn_args)) fn.(fn_vars) in
 match type_check_expr cenv Gamma' Sigma fn.(fn_body) with 
@@ -427,9 +388,10 @@ match fn with
 end.
 
 
-(* Fix me *)
-Definition type_check_globvar (efenv : ef_env) (Gamma : ty_context) (Sigma : store_context) (gv : BeePL.globvar type) : res type :=
-OK (gv.(gvar_info)).
+Definition type_check_globvar (efenv : ef_env) (Gamma : ty_context) (Sigma : store_context) (gv : BeePL.globvar type) : res (type * effect) :=
+do ef <- construct_ef_gvars gv.(gvar_init);
+OK (gv.(gvar_info), ef).
+
 
 Section Type_check_globdefs.
 

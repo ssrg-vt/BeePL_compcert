@@ -990,35 +990,24 @@ match ks, ts with
 | _, _ => Gamma
 end.
 
-(*** Auxillary lemmas related to types and effects ***)
-(* Complete Me: Easy *)
-Lemma sub_effect_refl : forall ef, 
-sub_effect ef ef = true.
-Proof.
-Admitted.
+Definition construct_ef_gvar (gi : init_data) : res effect := 
+match gi with  
+| Init_int8 _ => OK (Alloc mem_ident :: Write mem_ident :: nil)
+| Init_int16 _ => OK (Alloc mem_ident :: Write mem_ident :: nil)
+| Init_int32 _ => OK (Alloc mem_ident :: Write mem_ident :: nil)
+| Init_int64 _ => OK (Alloc mem_ident :: Write mem_ident :: nil)
+| Init_float32 _ => Error (msg "TYPE ERROR: Float global variable not supported in BeePL")
+| Init_float64 _ => Error (msg "TYPE ERROR: Float global variable not supported in BeePL")
+| Init_space _ => OK (Alloc mem_ident :: nil)
+| Init_addrof _ _ => OK (Alloc mem_ident :: Write mem_ident :: Read mem_ident :: nil)
+end.
 
-(* Complete Me: Easy *)
-Lemma sub_effect_nil : forall ef, 
-sub_effect nil ef = true.
-Proof.
-Admitted.
+Fixpoint construct_ef_gvars (gis : list init_data) : res effect :=
+match gis with 
+| nil => OK nil
+| gi :: gis => do ge <- construct_ef_gvar gi;
+               do ges <- construct_ef_gvars gis;
+               OK (ge ++ ges)%list
+end.
 
-(* Complete Me: Easy *)
-Lemma sub_effect_trans : forall ef1 ef2 ef3, 
-sub_effect ef1 ef2 = true ->
-sub_effect ef2 ef3 = true ->
-sub_effect ef1 ef3 = true.
-Proof.
-Admitted.
 
-(* Complete Me: Easy *)
-Lemma prefix_sub_effect : forall (ef1 ef2 : effect), 
-sub_effect ef1 (ef1 ++ ef2)%list = true.
-Proof. 
-Admitted.
-
-(* Complete Me: Easy *)
-Lemma suffix_sub_effect : forall (ef1 ef2 : effect), 
-sub_effect ef2 (ef1 ++ ef2)%list = true.
-Proof. 
-Admitted.

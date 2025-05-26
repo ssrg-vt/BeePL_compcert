@@ -3,6 +3,7 @@ Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat Pe
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Globalenvs Coqlib Memory. 
 Require Import Csyntax Csem SimplExpr Ctypes Memtype.
 Require Import BeePL_aux BeePL_mem BeeTypes BeePL BeePL_auxlemmas Errors BeePL_values BeePL_notations.
+Require Import BeePL_helper_functions.
 From mathcomp Require Import all_ssreflect. 
 
 Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> effect -> type -> Prop :=
@@ -220,6 +221,32 @@ with type_exprs : bcomposite_env -> ty_context -> store_context -> list expr -> 
 Scheme type_expr_ind_mut := Induction for type_expr Sort Prop
   with type_exprs_ind_mut := Induction for type_exprs Sort Prop.
 Combined Scheme type_exprs_type_expr_ind_mut from type_exprs_ind_mut, type_expr_ind_mut.
+
+(**** Type system for whole program ***)
+Inductive type_function : bcomposite_env -> ty_context -> store_context -> BeePL.function -> Prop :=
+| ty_function : forall fn cenv Gamma Sigma ef tb Gamma',
+                bind_vars (bind_vars Gamma fn.(fn_args)) fn.(fn_vars) = Gamma' -> 
+                type_expr cenv Gamma' Sigma fn.(fn_body) ef tb ->
+                tb = fn.(fn_return) ->
+                ef = fn.(fn_effect) ->
+                type_function cenv Gamma Sigma fn.
+
+Inductive type_fundef : ef_env -> bcomposite_env -> ty_context -> store_context -> BeePL.fundef -> Prop :=
+| ty_ifundef : forall efenv cenv Gamma Sigma fd fn,
+               fd = Internal fn ->
+               type_function cenv Gamma Sigma fn ->
+               type_fundef efenv cenv Gamma Sigma fd
+| ty_efundef : forall efenv cenv Gamma Sigma ef ts t cc fd efs,
+               fd = External ef ts t cc ->
+               get_ef_type efenv (get_name_eapp ef) = OK efs ->
+               t = (get_rt_eapp ef) ->
+               ts = (get_at_eapp ef) ->
+               ts = (fst efs) ->
+               t = (fst (snd efs)) ->
+               (get_ef_eapp ef) = (snd (snd efs)) ->
+               type_fundef efenv cenv Gamma Sigma fd.
+               
+            
 
 (* Value typing *)
 (* A value does not produce any effect *)

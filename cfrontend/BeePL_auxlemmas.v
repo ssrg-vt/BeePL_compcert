@@ -48,6 +48,40 @@ r = r'.
 Proof. (* use inductive principle proved in BeeTypes.v *)
 Admitted.
 
+
+(*** Auxillary lemmas related to types and effects ***)
+(* Complete Me: Easy *)
+Lemma sub_effect_refl : forall ef, 
+sub_effect ef ef = true.
+Proof.
+Admitted.
+
+(* Complete Me: Easy *)
+Lemma sub_effect_nil : forall ef, 
+sub_effect nil ef = true.
+Proof.
+Admitted.
+
+(* Complete Me: Easy *)
+Lemma sub_effect_trans : forall ef1 ef2 ef3, 
+sub_effect ef1 ef2 = true ->
+sub_effect ef2 ef3 = true ->
+sub_effect ef1 ef3 = true.
+Proof.
+Admitted.
+
+(* Complete Me: Easy *)
+Lemma prefix_sub_effect : forall (ef1 ef2 : effect), 
+sub_effect ef1 (ef1 ++ ef2)%list = true.
+Proof. 
+Admitted.
+
+(* Complete Me: Easy *)
+Lemma suffix_sub_effect : forall (ef1 ef2 : effect), 
+sub_effect ef2 (ef1 ++ ef2)%list = true.
+Proof. 
+Admitted.
+
 (* Lemma transBeePL_expr_expr_type_equiv : forall e ce g g' i,
 transBeePL_expr_expr e g = Res ce g' i ->
 transBeePL_type (typeof_expr e) = (Csyntax.typeof ce).

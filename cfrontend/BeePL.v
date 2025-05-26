@@ -542,6 +542,19 @@ Inductive well_formed_value : value -> type -> Prop :=
 
 End Memory_semantics.
 
+Fixpoint bind_vars (Gamma : ty_context) (l: list (ident * type)) : ty_context :=
+match l with
+| nil => Gamma
+| (id, ty) :: l => bind_vars (PTree.set id ty Gamma) l
+end.
+
+Fixpoint bind_globdef (Gamma: ty_context) (l: list (ident * globdef fundef type)) : ty_context :=
+match l with
+| nil => Gamma
+| (id, Gfun fd) :: l => bind_globdef (PTree.set id (type_of_fundef fd) Gamma) l
+| (id, Gvar v) :: l => bind_globdef (PTree.set id v.(gvar_info) Gamma) l
+end.
+
 (*Section Simpl_big_step_semantics.
 
 Variable (vm : vmap).

@@ -358,9 +358,10 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
               ssem_expr p vm m e m' vm' e' ->
               ssem_expr p vm m (Prim Ref [:: e] (Ptrtype (Reftype h bt a))) m' vm' 
                              (Prim Ref [:: e'] (Ptrtype (Reftype h bt a)))
-| ssem_ref2 : forall bge p vm m vm' ml m'' v l bt h a,
+| ssem_ref2 : forall bge p vm m vm' ml m'' v l bt h a Sigma Sigma',
               Mem.alloc m 0 (sizeof_type p.(prog_comp_env) (construct_type_btype bt)) = ml ->
               assign_addr bge (construct_type_btype bt) ml.1 ml.2 Ptrofs.zero Full v m'' v -> 
+              PTree.set l (Ptrtype (Reftype h bt a)) Sigma = Sigma' ->
               ssem_expr p vm m (Prim Ref [:: (Val v (construct_type_btype bt))] (Ptrtype (Reftype h bt a))) m'' vm' 
                              (Val (Vloc l Ptrofs.zero) (Ptrtype (Reftype h bt a)))
 | ssem_deref1 : forall p vm m e t m' vm' e',

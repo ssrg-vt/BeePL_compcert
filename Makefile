@@ -158,7 +158,7 @@ BACKEND=\
 
 # C front-end modules (in cfrontend/)
 
-CFRONTEND=BeePL_mem.v BeePL_aux.v BeePL.v BeePL_notations.v BeePL_auxlemmas.v BeePL_sem.v BeePL_typechecker.v BeePL_typesystem.v \
+CFRONTEND=BeePL_mem.v BeePL_aux.v BeePL.v BeePL_notations.v BeePL_auxlemmas.v BeePL_helper_functions.v BeePL_sem.v BeePL_typechecker.v BeePL_typesystem.v \
   BeePL_safety.v BeePL_typesystem_proofs.v BeePL_Check_Reserved_Struct.v BeePL_Bytes_Struct.v BeePL_Wrapper_Pass.v BeePL_Csyntax.v \
   BeePL_compiler_proofs.v Ctypes.v Cop.v Csyntax.v Csem.v Ctyping.v Cstrategy.v Cexec.v \
   Initializers.v Initializersproof.v \

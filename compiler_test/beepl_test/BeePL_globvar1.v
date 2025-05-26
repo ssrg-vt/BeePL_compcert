@@ -1,4 +1,4 @@
-Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values BeePL_typechecker BeePL_notations. 
+Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values BeePL_typechecker BeePL_notations BeePL_helper_functions. 
 From Coq Require Import String ZArith.
 From compcert Require Import Csyntaxdefs.
 Import Csyntaxdefs.CsyntaxNotations.
@@ -80,4 +80,8 @@ Qed.
 Compute (type_check_expr example1.(prog_comp_env) 
                          (bind_vars (bind_vars empty_context f_main.(fn_args)) f_main.(fn_vars)) empty_context f_main.(fn_body)).
 
-Compute (type_check_program example1).*)  (* Type checks! *)
+Compute (type_check_globvar beepl_ef_env  
+         (bind_vars (bind_vars empty_context f_main.(fn_args)) f_main.(fn_vars)) empty_context 
+         (v_val)).
+
+Compute (type_check_program example1). *)  (* Type checks! *)

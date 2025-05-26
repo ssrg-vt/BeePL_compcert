@@ -340,7 +340,12 @@ apply type_exprs_type_expr_ind_mut=> //=.
     have [ml [m'] [chunk [v' [ha [htv [hs hw']]]]]]:= ref_allocation_succeeds Gamma Sigma p 
     bge vm m v t hw hvt. exists m'. exists vm. 
     exists (Val (Vloc ml.2 Ptrofs.zero) (Ptrtype (Reftype h bt a))). split=> //=.
-    admit.
+    apply type_val_reflx in hte; subst.
+    apply ssem_ref2 with bge (Mem.alloc m 0 (sizeof_type (prog_comp_env p) (construct_type_btype bt))) Sigma
+    (extend_context Sigma (Mem.alloc m 0 (sizeof_type (prog_comp_env p) (construct_type_btype bt))).2 (Ptrtype (Reftype h bt a))).
+    + by auto.
+    + admit. (* needs some aux lemmas for memory *)
+    by rewrite /extend_context.
   (* step *)
   right. move: he. move=> [] m' [] vm' [] e' [] he hv. exists m'.
   exists vm'. exists (Prim Ref [:: e'] (Ptrtype (Reftype h bt a))). 
