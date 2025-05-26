@@ -9,6 +9,8 @@ Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> e
 (*For all value expression, we can assume any effect type, including the empty effect *)
 | ty_valu : forall cenv Gamma Sigma,
             type_expr cenv Gamma Sigma (Val Vunit tunit) nil tunit
+| ty_valb : forall cenv Gamma Sigma b,
+            type_expr cenv Gamma Sigma (Val (Vbool b) (Vtype (Tbool))) nil (Vtype (Tbool))
 | ty_vali : forall cenv Gamma Sigma i sz s a,
             type_expr cenv Gamma Sigma (Val (Vint i) (Vtype (Tint sz s a))) nil (Vtype (Tint sz s a))
 | ty_vall : forall cenv Gamma Sigma i s a,
@@ -17,7 +19,7 @@ Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> e
               PTree.get l Sigma = Some (Ptrtype (Reftype h t a)) ->
               type_expr cenv Gamma Sigma (Val (Vloc l ofs) (Ptrtype (Reftype h t a))) nil (Ptrtype (Reftype h t a))
 | ty_var : forall cenv Gamma Sigma x t, 
-           PTree.get x (extend_context Gamma x t) = Some t ->
+           PTree.get x Gamma = Some t ->
            type_expr cenv Gamma Sigma (Var x t) nil t
 | ty_constint : forall cenv Gamma Sigma sz s a i,
                 type_expr cenv Gamma Sigma (Const (ConsInt i) (Vtype (Tint sz s a))) nil (Vtype (Tint sz s a))
@@ -31,8 +33,8 @@ Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> e
            type_exprs cenv Gamma Sigma es efs' ts -> 
            type_expr cenv Gamma Sigma (App e es rt) (ef ++ efs ++ efs') rt
 | ty_ref : forall cenv Gamma Sigma e ef h bt a, 
-           type_expr cenv Gamma Sigma e ef (Vtype bt) ->
-           type_expr cenv Gamma Sigma (Prim Ref (e::nil) (Ptrtype (Reftype h (Bprim bt) a))) (ef ++ (Alloc h :: nil)) (Ptrtype (Reftype h (Bprim bt) a)) 
+           type_expr cenv Gamma Sigma e ef (construct_type_btype bt) ->
+           type_expr cenv Gamma Sigma (Prim Ref (e::nil) (Ptrtype (Reftype h bt a))) (ef ++ (Alloc h :: nil)) (Ptrtype (Reftype h bt a)) 
 | ty_deref : forall cenv Gamma Sigma e ef pt h, (* inner expression should be unrestricted as it will be used later *)
              type_expr cenv Gamma Sigma e ef (Ptrtype pt) -> 
              is_option_ptr_type pt = false ->
@@ -228,6 +230,7 @@ Proof.
 move=> cenv Gamma Sigma ef t v. move eq : (Val v t)=> v' ht.
 elim: ht eq=> //=.
 + move=> cenv' Gamma' Sigma' [] h1; subst. by apply ty_valu.
++ move=> cenv' Gamma' Sigma' b [] h1; subst. by apply ty_valb.
 + move=> cenv' Gamma' Sigma' i sz s a [] h1; subst. by apply ty_vali.
 + move=> cenv' Gamma' Sigma' i s a [] h1; subst. by apply ty_vall.
 move=> cenv' Gamma' Sigma' l ofs h bt a hs [] h1; subst. by apply ty_valloc. 
@@ -248,6 +251,7 @@ t = Vtype Tbool /\ t' = Vtype Tbool.
 Proof.
 move=> cenv Gamma Sigma ef b t t'. 
 move eq : (Val (Vbool b) t)=> v ht. elim: ht eq=>//=.
+by move=> cenv' Gamma' Sigma' b' [] h1 h2; subst.
 Qed.
 
 Lemma type_infer_int: forall cenv Gamma Sigma i ef t t', 
@@ -284,7 +288,7 @@ Qed.
 
 Lemma type_infer_var : forall cenv Gamma Sigma x t ef t',
 type_expr cenv Gamma Sigma (Var x t) ef t' ->
-t = t' /\ PTree.get x (extend_context Gamma x t) = Some t.
+t = t' /\ PTree.get x Gamma = Some t.
 Proof.
 move=> cenv Gamma Sigma x t ef t'. 
 move eq: (Var x t)=> v ht. elim: ht eq=> //=.
@@ -335,7 +339,7 @@ Qed.
 
 Lemma type_infer_ref: forall cenv Gamma Sigma e ef t t',
 type_expr cenv Gamma Sigma (Prim Ref [:: e] t) ef t' ->
-(exists h bt a, t = Ptrtype (Reftype h (Bprim bt) a) /\ t' = Ptrtype (Reftype h (Bprim bt) a)).
+(exists h bt a, t = Ptrtype (Reftype h bt a) /\ t' = Ptrtype (Reftype h bt a)).
 Proof.
 move=> cenv Gamma Sigma e ef t t'.
 move eq: (Prim Ref [:: e] t)=> rv ht.
@@ -755,6 +759,7 @@ Proof.
 move=> cenv Gamma Sigma v t ef t'. move eq: (Val v t)=> rv ht. 
 elim: ht eq=> //=.  
 + by move=> cenv' Gamma' Sigma' [] h; subst.
++ by move=> cenv' Gamma' Sigma' b [] h h'; subst.
 + by move=> cenv' Gamma' Sigma' i sz s a [] h h'; subst.
 + by move=> cenv' Gamma' Sigma' i s a [] h h'; subst.
 by move=> cenv' Gamma' Sigma' l ofs h t'' a hs [] h1 h2; subst.
@@ -849,6 +854,12 @@ typeof_expr e = t.
 Proof.
 by move=> cenv Gamma Sigma e ef t ht; elim: ht=> //=.
 Qed.
+
+Lemma type_rel_typeof_val : forall cenv Gamma Sigma v ef t t',
+type_expr cenv Gamma Sigma (Val v t) ef t' ->
+typeof_value v t.
+Proof.
+Admitted.
 
 Lemma eq_type_rel : forall v t t',
 eq_type t t' ->

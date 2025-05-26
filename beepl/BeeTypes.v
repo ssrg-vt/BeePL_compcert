@@ -77,6 +77,13 @@ match pt with
 | Aptype t z a => Atype t z a
 end.
 
+Fixpoint construct_type_btype (bt : basic_type) : type :=
+match bt with 
+| Bprim pt => Vtype pt
+| Bstruct sid a => Stype sid a 
+| Barray pt n a => Atype (Vtype pt) n a 
+end.
+
 Inductive wtype : Type :=
 | Twbool : wtype
 | Twint : wtype
@@ -727,6 +734,22 @@ Definition access_mode_type (t : type) : mode :=
   | Ftype _ _ _ => By_reference
   | Bytes => By_reference
   end.
+
+
+(** The chunk that is appropriate to store and reload a value of
+  the given type, without losing information. *)
+
+Definition chunk_of_ptype (ty: primitive_type) :=
+match ty with
+| Tbool => BMint8signed
+| Tint I8 Signed _ => BMint8signed
+| Tint I8 Unsigned _ => BMint8unsigned
+| Tint I16 Signed _ => BMint16signed
+| Tint I16 Unsigned _ => BMint16unsigned
+| Tint I32 _ _ => BMint32
+| Tint IBool _ _ => BMbool
+| Tlong _ _ => BMint64
+end.
 
 Section Eq_basic_types.
 

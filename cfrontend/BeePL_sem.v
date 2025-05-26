@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx FunInd.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Linking.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Linking Ctypes Smallstep.
-Require Import Globalenvs Cop Csyntax Csem BeeTypes BeePL_aux BeePL_mem BeePL Csyntaxdefs.
+Require Import Globalenvs Cop Csyntax Csem BeeTypes BeePL_aux BeePL_mem BeePL Csyntaxdefs Memory.
 Require Import Initializersproof Cstrategy BeePL_auxlemmas Coqlib Errors SimplExpr Events BeePL_values.
 
 From mathcomp Require Import all_ssreflect. 
@@ -168,14 +168,11 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                typeof_value rv (get_rt_fundef (Internal fd)) ->
                t = (get_rt_fundef (Internal fd)) ->
                bsem_expr p vm1 m1 (App e es t) m6 vm5 rv
-| bsem_ref : forall p vm m e vm' m' vm'' m'' v fid l ofs ct h a t vars,
+| bsem_ref : forall bge p vm m e vm' m' ml vm'' m'' v l h a t,
              bsem_expr p vm m e m' vm' v ->
-             transBeePL_type (Vtype t) = ct ->
-             extract_variables_globdefs (unzip2 p.(prog_defs)) = vars ->
-             create_fresh_ident (unzip1 (extract_variables_globdefs (unzip2 p.(prog_defs)))) = fid ->
-             bind_variables ge vm' m' ((fid, Vtype t) :: nil) (v :: nil) m'' ->
-             vm!fid = Some (l, Ptrtype (Reftype h (Bprim t) a)) -> 
-             bsem_expr p vm m (Prim Ref [:: e] (Ptrtype (Reftype h (Bprim t) a))) m'' vm'' (Vloc l ofs)
+             Mem.alloc m 0 (sizeof_type p.(prog_comp_env) (Vtype t)) = ml ->
+             assign_addr bge (Vtype t) ml.1 ml.2 Ptrofs.zero Full v m'' v -> 
+             bsem_expr p vm m (Prim Ref [:: e] (Ptrtype (Reftype h (Bprim t) a))) m'' vm'' (Vloc l Ptrofs.zero)
 | bsem_deref : forall p vm m e m' vm' l ofs bf v,
                bsem_expr p vm m e m' vm' (Vloc l ofs) ->
                deref_addr ge (typeof_expr e) m l ofs bf v ->
@@ -357,17 +354,15 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                                                                      (get_effect_fundef (Internal fd)) 
                                                                      (get_rt_fundef (Internal fd)))) es t) m2 vm2
                                fd.(BeePL.fn_body)
-| ssem_ref1 : forall p vm m e m' vm' e' h t a,
+| ssem_ref1 : forall p vm m e m' vm' e' h bt a,
               ssem_expr p vm m e m' vm' e' ->
-              ssem_expr p vm m (Prim Ref [:: e] (Ptrtype (Reftype h (Bprim t) a))) m' vm' 
-                             (Prim Ref [:: e'] (Ptrtype (Reftype h (Bprim t) a)))
-| ssem_ref2 : forall p vm m vm' m' vm'' m'' v fid l ofs t ct h a,
-              transBeePL_type (Vtype t) = ct ->
-              create_fresh_ident (unzip1 (extract_variables_globdefs (unzip2 p.(prog_defs)))) = fid ->
-              bind_variables ge vm m ((fid, Vtype t) :: nil) (v :: nil) m' ->
-              ssem_expr p vm' m' (Var fid (Vtype t)) m'' vm'' (Val (Vloc l ofs) (Ptrtype (Reftype h (Bprim t) a))) -> 
-              ssem_expr p vm m (Prim Ref [:: (Val v (Vtype t))] (Ptrtype (Reftype h (Bprim t) a))) m'' vm'' 
-                             (Val (Vloc l ofs) (Ptrtype (Reftype h (Bprim t) a)))
+              ssem_expr p vm m (Prim Ref [:: e] (Ptrtype (Reftype h bt a))) m' vm' 
+                             (Prim Ref [:: e'] (Ptrtype (Reftype h bt a)))
+| ssem_ref2 : forall bge p vm m vm' ml m'' v l bt h a,
+              Mem.alloc m 0 (sizeof_type p.(prog_comp_env) (construct_type_btype bt)) = ml ->
+              assign_addr bge (construct_type_btype bt) ml.1 ml.2 Ptrofs.zero Full v m'' v -> 
+              ssem_expr p vm m (Prim Ref [:: (Val v (construct_type_btype bt))] (Ptrtype (Reftype h bt a))) m'' vm' 
+                             (Val (Vloc l Ptrofs.zero) (Ptrtype (Reftype h bt a)))
 | ssem_deref1 : forall p vm m e t m' vm' e',
                 ssem_expr p vm m e m' vm' e' ->
                 ssem_expr p vm m (Prim Deref (e :: nil) (Vtype t)) m' vm' 

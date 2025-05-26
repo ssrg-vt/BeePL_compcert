@@ -33,6 +33,11 @@ trans_bvalue_cvalue v = v'.
 Proof.
 Admitted.
 
+Lemma bc_cv_comp : forall v,
+trans_cvalue_bvalue (trans_bvalue_cvalue v) = OK v.
+Proof.
+Admitted.
+
 (* Since translation of types does not depend on the generator, it 
    should produce the same result irrespective of them *)
 (* Coqlib.v has lot of lemmas related to Ple *)
