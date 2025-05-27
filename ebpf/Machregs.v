@@ -26,7 +26,7 @@ Require Size.
   RTL pseudo-registers ([Rxx]).
 
   The type [mreg] does not include reserved machine registers such as
-  the the stack pointer (R10) and the global pointer.
+  the stack pointer (R10) and the global pointer.
 *)
 
 Inductive mreg: Type :=
