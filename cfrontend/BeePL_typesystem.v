@@ -199,11 +199,10 @@ Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> e
               is_option_type te \/ is_bytes te ->
               all_eq_types ts ->
               type_expr cenv Gamma Sigma (Match e ps es (hd tunit ts)) (ef ++ efs) (hd tunit ts)
-(* add rule for match on bytes *)
-| ty_subt : forall cenv Gamma Sigma e ef t ef', 
+(*| ty_subt : forall cenv Gamma Sigma e ef t ef', 
             type_expr cenv Gamma Sigma e ef t ->
             sub_effect ef ef' ->
-            type_expr cenv Gamma Sigma e ef' t
+            type_expr cenv Gamma Sigma e ef' t*)
 (* fix me : Run *)
 (* fix me : Hexpr *)
 (*| ty_hexpr : forall Gamma Sigma m e h ef t a, 
@@ -245,8 +244,36 @@ Inductive type_fundef : ef_env -> bcomposite_env -> ty_context -> store_context 
                t = (fst (snd efs)) ->
                (get_ef_eapp ef) = (snd (snd efs)) ->
                type_fundef efenv cenv Gamma Sigma fd.
-               
-            
+
+Inductive type_globalvar : ef_env -> bcomposite_env -> ty_context -> store_context -> BeePL.globvar type -> effect -> type -> Prop :=
+| ty_globvar : forall efenv cenv Gamma Sigma ef gv, 
+               construct_ef_gvars gv.(gvar_init) = OK ef ->
+               type_globalvar efenv cenv Gamma Sigma gv ef gv.(gvar_info).
+
+Inductive type_globdef : ef_env -> bcomposite_env -> ty_context -> store_context ->  BeePL.globdef BeePL.fundef BeeTypes.type -> Prop :=
+| ty_fundef : forall efenv cenv Gamma Sigma gfd fd,
+              gfd = AST.Gfun fd ->
+              type_fundef efenv cenv Gamma Sigma fd ->
+              type_globdef efenv cenv Gamma Sigma gfd
+| ty_globdef : forall efenv cenv Gamma Sigma gfd g ef t,
+              gfd = Gvar g ->
+              type_globalvar efenv cenv Gamma Sigma g ef t ->
+              type_globdef efenv cenv Gamma Sigma gfd.
+
+Inductive type_globdefs :  ef_env -> bcomposite_env -> ty_context -> store_context -> list (BeePL.globdef BeePL.fundef BeeTypes.type) -> Prop :=
+| ty_gnil : forall efenv cenv Gamma Sigma,
+            type_globdefs efenv cenv Gamma Sigma nil
+| ty_gcons : forall efenv cenv Gamma Sigma g gs,
+             type_globdef efenv cenv Gamma Sigma g ->
+             type_globdefs efenv cenv Gamma Sigma gs ->
+             type_globdefs efenv cenv Gamma Sigma (g :: gs).
+
+Inductive type_program : BeePL.program -> Prop :=
+| ty_prog : forall p cenv Gamma,
+            Gamma = bind_globdef (PTree.empty _) p.(prog_defs) ->
+            cenv = p.(prog_comp_env) ->
+            type_globdefs beepl_ef_env cenv Gamma empty_context (unzip2 (p.(prog_defs))) ->
+            type_program p.          
 
 (* Value typing *)
 (* A value does not produce any effect *)
@@ -962,5 +989,12 @@ Lemma well_typed_success:
                             exists ct, transBeePL_type t = ct).
 Proof.
 apply type_exprs_type_expr_ind_mut=> //=.
+Admitted.
+
+(* Compelete Me: Easy *)
+Lemma typed_well_formed_value : forall cenv Gamma Sigma v t ef, 
+type_expr cenv Gamma Sigma (Val v t) ef t ->
+well_formed_value v t.
+Proof.
 Admitted.
 

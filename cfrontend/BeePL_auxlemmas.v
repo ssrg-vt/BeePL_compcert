@@ -82,32 +82,21 @@ sub_effect ef2 (ef1 ++ ef2)%list = true.
 Proof. 
 Admitted.
 
-(* Lemma transBeePL_expr_expr_type_equiv : forall e ce g g' i,
-transBeePL_expr_expr e g = Res ce g' i ->
-transBeePL_type (typeof_expr e) = (Csyntax.typeof ce).
+(* Complete Me: Easy *)
+Lemma sub_effect_concat : forall ef1 ef2 ef1' ef2',
+sub_effect ef1 ef1' ->
+sub_effect ef2 ef2' ->
+sub_effect (ef1 ++ ef2) (ef1' ++ ef2').
 Proof.
-Admitted.  *)
+Admitted.
 
-(*
-Lemma val_cannot_be_reduced : forall bge benv e m e' m',
-is_val e -> 
-~ (rreduction bge benv e m e' m') /\
-~ (lreduction bge benv e m e' m').
+(* Complete Me: Easy *)
+Lemma no_divergence_concat : forall ef ef',
+no_divergence ef ->
+no_divergence ef' ->
+no_divergence (ef ++ ef').
 Proof.
-move=> bge benv e. elim: e=> //= v t m e' m' _ /=. split=> //=.
-+ move=> h. by inversion h.
-move=> h. by inversion h.
-Qed.
-
-Lemma addr_cannot_be_reduced : forall bge benv e m e' m',
-is_addr e -> 
-~ (rreduction bge benv e m e' m') /\
-~ (lreduction bge benv e m e' m').
-Proof.
-move=> beg benv e. elim: e=> //= v t m e' m' _ /=. split=> //=.
-+ move=> h. by inversion h.
-move=> h. by inversion h.
-Qed.*)
+Admitted. 
 
 
 

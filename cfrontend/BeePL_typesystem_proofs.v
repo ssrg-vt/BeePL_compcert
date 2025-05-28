@@ -743,6 +743,92 @@ move=> t' a ht. have [h [] bt [] a' hpt]:= transBeePL_type_ref brt t' a gs g' gi
 move=> hext hm [] h1 h2; subst. apply ty_valloc.*)
 Admitted.
 
+(* we need extra assertion that value cannot be a pointer because 
+   in C, they allow it and we use deref_addr from CompCert *)
+Lemma well_typed_val_expr : forall cenv bge Gamma Sigma v t ef bf m l ofs,
+deref_addr bge t m l ofs bf v ->
+is_vloc v = false ->
+type_expr cenv Gamma Sigma (Val v t) ef t.
+Proof.
+(*move=> cenv bge Gamma Sigma v t ef bf m l ofs hd hw. 
+case hv: v hd=> [ | b | i | i64 | l' ofs'| o] //=; subst.
+(* unit *)
++ move=> hd. case: t hd=> //=.
+  + move=> p. case: p=> //=.
+    + move=> hd. have hn : type_expr cenv Gamma Sigma (Val Vunit tunit) [::] tunit.
+      + by apply ty_valu.
+      have hs := sub_effect_nil ef. 
+      by have := ty_sub cenv Gamma Sigma (Val Vunit tunit) nil tunit ef hn hs.
+    + move=> sz s a hd _.
+      have := wderef_addr_val_ty bge (Ptype (Tint sz s a)) m l ofs bf Vunit hd hw erefl.
+      rewrite /wtype_of_type /=.  admit. (* weird coq behavior *)
+    move=> s a hd _.
+    have := wderef_addr_val_ty bge (Ptype (Tlong s a)) m l ofs bf Vunit hd hw erefl.
+    admit. (* weird coq behavior *)
+  move=> es e t hd _.
+  have /= := wderef_addr_val_ty bge (Ftype es e t) m l ofs bf Vunit hd erefl erefl.
+  admit. (* weird coq behavior *)
+(* int *)
++ move=> hd. inversion hd; subst.
+  (* not volatile *)
+  + case: t hd H H0 hw'=> //=.
+    + move=> p. case: p=> //=.
+      (* Tint: good case *)
+      + move=> sz s a hd hm hv _. 
+        have hn : type_expr Gamma Sigma (Val (Vint i) (Ptype (Tint sz s a))) [::] 
+                  (Ptype (Tint sz s a)).
+        + by apply ty_vali. have hs := sub_effect_nil ef. 
+        by have := ty_sub Gamma Sigma (Val (Vint i) (Ptype (Tint sz s a))) nil (Ptype (Tint sz s a))
+                ef hn hs.
+      (* Tlong : bad case *)
+      move=> s a hd [] hc hv _. 
+      by have := wderef_addr_val_ty bge (Ptype (Tlong s a)) m l ofs Full (Vint i) hd hw erefl.
+  (* volatile *)
+  case: t hd H H0 hw'=> //=.
+  + move=> p. case: p=> //=.
+    (* Tint: good case *)
+    + move=> sz s a hd hm hv _. 
+      have hn : type_expr Gamma Sigma (Val (Vint i) (Ptype (Tint sz s a))) [::] 
+                  (Ptype (Tint sz s a)).
+      + by apply ty_vali. have hs := sub_effect_nil ef. 
+      by have := ty_sub Gamma Sigma (Val (Vint i) (Ptype (Tint sz s a))) nil (Ptype (Tint sz s a))
+                ef hn hs.
+    (* Tlong : bad case *)
+    move=> s a hd [] hc hv _. 
+    by have /= := wderef_addr_val_ty bge (Ptype (Tlong s a)) m l ofs Full (Vint i) hd hw erefl.
+(* long *)
+move=> hd. inversion hd; subst.
+(* not volatile *)
++ case: t hd H H0 hw'=> //=.
+  + move=> p. case: p=> //=.
+    (* Tint: not good case *)
+    + move=> sz s a hd hm hv _. 
+      by have /= := wderef_addr_val_ty bge (Ptype (Tint sz s a)) m l ofs Full 
+                    (Vint64 i64) hd erefl erefl. 
+    (* Tlong : good case *)
+    move=> s a hd [] hc hv _. 
+    have hn : type_expr Gamma Sigma (Val (Vint64 i64) (Ptype (Tlong s a))) [::] 
+                  (Ptype (Tlong s a)).
+    + by apply ty_vall. have hs := sub_effect_nil ef. 
+    by have := ty_sub Gamma Sigma (Val (Vint64 i64) (Ptype (Tlong s a))) nil (Ptype (Tlong s a))
+                ef hn hs.
+(* volatile *)
+case: t hd H H0 hw'=> //=.
++ move=> p. case: p=> //=.
+  (* Tint: not good case *)
+  + move=> sz s a hd hm hv _. 
+  by have /= := wderef_addr_val_ty bge (Ptype (Tint sz s a)) m l ofs Full (Vint64 i64) hd erefl erefl. 
+  (* Tlong : good case *)
+  move=> s a hd [] hc hv _. 
+  have hn : type_expr Gamma Sigma (Val (Vint64 i64) (Ptype (Tlong s a))) [::] 
+                  (Ptype (Tlong s a)).
+  + by apply ty_vall. have hs := sub_effect_nil ef. 
+  by have := ty_sub Gamma Sigma (Val (Vint64 i64) (Ptype (Tlong s a))) nil (Ptype (Tlong s a))
+                ef hn hs.
+(* Tref : not good case *)
+move=> hd.
+by have /= := wderef_addr_val_ty bge t m l ofs bf (Vloc l' ofs') hd.*)
+Admitted.
 
 (*** Preservation for small-step semantics ***)
 (* If a program starts well-typed, it remains well-typed throughout execution,
@@ -752,86 +838,87 @@ Lemma preservation_ssem_expr_exprs:
     type_exprs cenv Gamma Sigma es efs ts ->
     store_well_typed Gamma Sigma bge vm m ->
     ssem_exprs bge p vm m es m' vm' es' ->
-    type_exprs cenv Gamma Sigma es' efs ts /\
-    store_well_typed Gamma Sigma bge vm' m') /\
+    exists efs', type_exprs cenv Gamma Sigma es' efs' ts /\ 
+                 sub_effect efs' efs /\
+                 store_well_typed Gamma Sigma bge vm' m') /\
 (forall cenv Gamma Sigma e ef t bge p vm m vm' m' e', 
     type_expr cenv Gamma Sigma e ef t ->
     store_well_typed Gamma Sigma bge vm m ->
     ssem_expr bge p vm m e m' vm' e' ->
-    type_expr cenv Gamma Sigma e' ef t /\
-    store_well_typed Gamma Sigma bge vm' m').
+    exists ef', type_expr cenv Gamma Sigma e' ef' t /\ sub_effect ef' ef /\
+               store_well_typed Gamma Sigma bge vm' m').
 Proof.
 suff : (forall cenv Gamma Sigma es efs ts, type_exprs cenv Gamma Sigma es efs ts ->
                                       forall bge p vm m vm' m' es', 
                                       store_well_typed Gamma Sigma bge vm m ->
                                       ssem_exprs bge p vm m es m' vm' es' ->
-                                      type_exprs cenv Gamma Sigma es' efs ts /\
+                                      exists efs', type_exprs cenv Gamma Sigma es' efs' ts /\ 
+                                      sub_effect efs' efs /\
                                       store_well_typed Gamma Sigma bge vm' m') /\
        (forall cenv Gamma Sigma e ef t, type_expr cenv Gamma Sigma e ef t ->
                                    forall bge p vm m vm' m' e', 
                                    store_well_typed Gamma Sigma bge vm m ->
                                    ssem_expr bge p vm m e m' vm' e' ->
-                                   type_expr cenv Gamma Sigma e' ef t /\
+                                   exists ef', type_expr cenv Gamma Sigma e' ef' t /\
+                                   sub_effect ef' ef /\
                                    store_well_typed Gamma Sigma bge vm' m').
-(*+ move=> [] ih ih'. split=> //=.
-  + move=> Gamma Sigma es efs ts bge vm m vm' m' es' hts hes.
-    by move: (ih Gamma Sigma es efs ts hts bge vm m vm' m' es' hes).
-  move=> Gamma Sigma e ef t bge vm m vm' m' e' ht he.
-  by move: (ih' Gamma Sigma e ef t ht bge vm m vm' m' e' he).
++ move=> [] ih ih'. split=> //=.
+  + admit.
+  admit.
 apply type_exprs_type_expr_ind_mut=> //=.
 (* val unit *)
-+ move=> Gamma Sigma t vm m vm' m' e' hw he. 
-  inversion he; subst; split=> //=. by apply ty_valu.
++ move=> cenv Gamma Sigma bge p vm m vm' m' e' hw he.  exists nil.
+  by inversion he; subst; split=> //=. 
+(* val bool *)
++ move=> cenv Gamma Sigma b bge p vm m vm' m' e' hw he. exists nil.
+  by inversion he; subst; split=> //=. 
 (* val int *)
-+ move=> Gamma Sigma i sz s a bge vm m vm' m' e' hw he.
-  inversion he; subst; split=> //=. by apply ty_vali.
++ move=> cenv Gamma Sigma i sz s a bge p vm m vm' m' e' hw he. exists nil.
+  by inversion he; subst; split=> //=.
 (* val long *)
-+ move=> Gamma Sigma i s a bge vm m vm' m' e' hw he.
-  inversion he; subst; split=> //=. by apply ty_vall.
++ move=> cenv Gamma Sigma i s a bge p vm m vm' m' e' hw he. exists nil.
+  by inversion he; subst; split=> //=.
 (* val loc *)
-+ move=> Gamma Sigma l ofs h t a hs bge vm m vm' m' e' hw he.
-  inversion he; subst; split=> //=. by apply ty_valloc.
++ move=> cenv Gamma Sigma l ofs h t a hs bge p vm m vm' m' e' hw he. exists nil.
+  by inversion he; subst; split=> //=.
 (* var *)
-+ move=> Gamma Sigma x t ht bge vm m vm' m' e' hw he. 
-  inversion he; subst.
-  + rewrite /store_well_typed in hw. move: (hw  (extend_context Gamma x t) x).
-    rewrite ht /= H1 /=. move=> [] h1 [] h2 [] v'' [] ofs'' [] hd'' [] hv'' ht''.
-    have h := well_typed_val_expr bge Gamma Sigma v t empty_effect Full m' l ofs H4 H8.
-    by move: (h ht'').
-  rewrite /store_well_typed in hw. move: (hw  (extend_context Gamma x t) x).
-  rewrite ht /= H1 /=. move=> [] h1 [] h2 [] v'' [] ofs'' [] hd'' [] hv'' [] ht' ht''.
-  have h := well_typed_val_expr bge Gamma Sigma v t empty_effect Full m' l ofs H5 H9.
-  by move: (h ht'').
++ admit.
 (* const int *)
-+ move=> Gamma Sigma t sz s a i bge vm m vm' m' e' he; subst.
-  inversion he; subst; split=> //=. by apply ty_vali.
++ (*move=> Gamma Sigma t sz s a i bge vm m vm' m' e' he; subst.
+  inversion he; subst; split=> //=. by apply ty_vali.*) admit.
 (* const long *)
-+ move=> Gamma Sigma t s a i bge vm m vm' m' e' he; subst.
-  inversion he; subst; split=> //=. by apply ty_vall.
++ (*move=> Gamma Sigma t s a i bge vm m vm' m' e' he; subst.
+  inversion he; subst; split=> //=. by apply ty_vall.*) admit.
 (* const unit *)
-+ move=> Gamma Sigma t bge vm m vm' m' e' he; subst.
-  inversion he; subst; split=> //=. by apply ty_valu.
++ (* move=> Gamma Sigma t bge vm m vm' m' e' he; subst.
+  inversion he; subst; split=> //=. by apply ty_valu.*) admit.
 (* app *)
-+ move=> Gamma Sigma e es rt efs ts ef efs' hte hin htes hin' bge vm m vm' m' e' hw he. 
++ (*move=> Gamma Sigma e es rt efs ts ef efs' hte hin htes hin' bge vm m vm' m' e' hw he. 
   inversion he; subst; split=> //=. apply ty_app with ts.
   (* step case *) 
   + by move: (hin bge vm m vm' m' e'0 hw H7)=> [] h1 h2.
   + by apply htes.
   + by move: (hin bge vm m vm' m' e'0 hw H7)=> [] h1 h2.
-  admit. (* hard case *) admit.
+  admit. (* hard case *) admit.*) admit.
 (* ref *)
 + admit.
 (* deref *)
-+ move=> Gamma Sigma e ef h bt a hte hin bge vm m vm' m' e' hw he.
++ move=> cenv Gamma Sigma e ef pt h hte hin ho bge p vm m vm' m' e' hw he.
   inversion he; subst.
   (* step *)
-  + move: (hin bge vm m vm' m' e'0 hw H6)=> [] h1 h2; split=> //=. 
-    apply ty_deref with a. by apply h1.
+  + move: (hin bge p vm m vm' m' e'0 hw H7)=> [] ef' [] h1 [] h2 h3; subst. 
+    exists (ef' ++ (Read h :: nil)); split=> //=. 
+    + rewrite H4. apply ty_deref. by apply h1.
+    + by apply ho.
+    split=> //=. apply sub_effect_concat.
+    + by apply h2.
+    by apply sub_effect_refl.
   (* val *)
-  split=> //=.
-  by have htv := well_typed_val_expr bge Gamma Sigma v (Ptype bt) (ef ++ [:: Read h]) 
-              bf m' l ofs H3 H7 erefl. 
-(* massgn *)
+  exists nil. split=> //=. 
+  + by have := well_typed_val_expr cenv bge Gamma Sigma v  (get_data_type t) nil 
+              bf m' l ofs H4 H8.
+  split=> //=. by apply sub_effect_nil.
+(*(* massgn *)
 + move=> Gamma Sigma e e' h t ef a ef' hte hin hte' hin' bge vm m vm' m' e'' hw he.
   inversion he; subst.
   (* step *)

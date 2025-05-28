@@ -533,6 +533,7 @@ Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
 
 Inductive well_formed_value : value -> type -> Prop :=
 | wf_vunit : well_formed_value Vunit (Utype)
+| wf_vbool : forall b, well_formed_value (Vbool b) (Vtype Tbool)
 | wf_vint : forall sz s a i, 
             well_formed_value (Vint i) (Vtype (Tint sz s a))
 | wf_vlong : forall s a i,

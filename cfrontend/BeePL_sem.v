@@ -317,9 +317,9 @@ Section Small_Step_Semantics.
 Variable (ge : genv).
 
 Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> BeePL.expr -> Prop :=
-| ssem_value : forall p vm m v t,
+(*| ssem_value : forall p vm m v t,
                well_formed_value v t ->
-               ssem_expr p vm m (Val v t) m vm (Val v t)
+               ssem_expr p vm m (Val v t) m vm (Val v t)*)
 | ssem_lvar : forall p vm m x t l ofs v,
               vm!x = Some (l, t) -> 
               deref_addr ge t m l ofs Full v ->
@@ -531,7 +531,7 @@ Fixpoint is_values (es : list BeePL.expr) : bool :=
 match es with 
 | nil => true
 | e :: es => is_value e && is_values es
-end.
+end. 
 
 (** An expr is safe if it cannot get stuck by doing any transition - 
     Either it reaches a value or it takes step **)
@@ -544,6 +544,8 @@ is_value e \/ exists m' vm' e', ssem_expr bge p vm m e m' vm' e'.
 
 Inductive ssem_closure : genv -> program -> vmap -> Memory.mem -> BeePL.expr -> nat -> 
                          Memory.mem -> vmap -> BeePL.expr -> Prop :=
+| ssem_val : forall bge p vm m v t,
+             ssem_closure bge p vm m (Val v t) 0%nat m vm (Val v t)
 | ssem_one : forall bge p vm m e m' vm' e',
              ssem_expr bge p vm m e m' vm' e' ->
              ssem_closure bge p vm m e 1%nat m' vm' e'
