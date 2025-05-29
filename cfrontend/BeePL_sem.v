@@ -340,17 +340,21 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
 | ssem_app1 : forall p vm1 m1 e es t e' m2 vm2,
               ssem_expr p vm1 m1 e m2 vm2 e' ->
               ssem_expr p vm1 m1 (App e es t) m2 vm2 (App e' es t)
-| ssem_app2 : forall p vm1 vm2 m1 es t l fd m2 m3 m4 vs vm3,
-              Genv.find_funct ge (trans_bvalue_cvalue (Vloc l Ptrofs.zero)) = Some (Internal fd) ->
+| ssem_app2 : forall p vm1 m1 l o es vt t es' m2 vm2,
+              ssem_exprs p vm1 m1 es m2 vm2 es' ->
+              ssem_expr p vm1 m1 (App (Val (Vloc l o) vt) es t) m2 vm2 
+                (App (Val (Vloc l o) vt) es' t)
+| ssem_app3 : forall p vm1 vm2 m1 es t l o fd m2 m3 m4 vs vm3,
+              Genv.find_funct ge (trans_bvalue_cvalue (Vloc l o)) = Some (Internal fd) ->
               BeePL.type_of_fundef (Internal fd) = 
-              Ftype (typeof_exprs es) (get_effect_fundef (Internal fd)) (get_rt_fundef (Internal fd)) ->
+              Ftype (unzip2 fd.(fn_args)) (get_effect_fundef (Internal fd)) (get_rt_fundef (Internal fd)) ->
               t = get_rt_fundef (Internal fd) ->
               list_norepet (fd.(fn_args) ++ fd.(BeePL.fn_vars)) ->
               alloc_variables ge vm1 m1 (fd.(fn_args) ++ fd.(BeePL.fn_vars)) vm2 m2 -> 
               ssem_exprs p vm2 m2 es m3 vm3 vs ->
               typeof_exprs vs = (unzip2 fd.(fn_args)) ->
               bind_variables ge vm3 m3 fd.(fn_args) (extract_values_exprs vs) m4  ->
-              ssem_expr p vm1 m1 (App (Val (Vloc l Ptrofs.zero) (Ftype (typeof_exprs es) 
+              ssem_expr p vm1 m1 (App (Val (Vloc l o) (Ftype (typeof_exprs es) 
                                                                      (get_effect_fundef (Internal fd)) 
                                                                      (get_rt_fundef (Internal fd)))) es t) m2 vm2
                                fd.(BeePL.fn_body)
@@ -358,11 +362,13 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
               ssem_expr p vm m e m' vm' e' ->
               ssem_expr p vm m (Prim Ref [:: e] (Ptrtype (Reftype h bt a))) m' vm' 
                              (Prim Ref [:: e'] (Ptrtype (Reftype h bt a)))
-| ssem_ref2 : forall bge p vm m vm' ml m'' v l bt h a Sigma Sigma',
+| ssem_ref2 : forall p vm m vm' ml m' chunk v l bt h a Sigma Sigma',
               Mem.alloc m 0 (sizeof_type p.(prog_comp_env) (construct_type_btype bt)) = ml ->
-              assign_addr bge (construct_type_btype bt) ml.1 ml.2 Ptrofs.zero Full v m'' v -> 
+              chunk_of_type (construct_type_btype bt) = Some chunk ->
+              Mem.storev (transl_bchunk_cchunk chunk) ml.1 (trans_bvalue_cvalue (Vloc ml.2 Ptrofs.zero)) (trans_bvalue_cvalue v) = Some m' ->
+              (*assign_addr bge (construct_type_btype bt) ml.1 ml.2 Ptrofs.zero Full v m'' v -> *)
               PTree.set l (Ptrtype (Reftype h bt a)) Sigma = Sigma' ->
-              ssem_expr p vm m (Prim Ref [:: (Val v (construct_type_btype bt))] (Ptrtype (Reftype h bt a))) m'' vm' 
+              ssem_expr p vm m (Prim Ref [:: (Val v (construct_type_btype bt))] (Ptrtype (Reftype h bt a))) m' vm' 
                              (Val (Vloc l Ptrofs.zero) (Ptrtype (Reftype h bt a)))
 | ssem_deref1 : forall p vm m e t m' vm' e',
                 ssem_expr p vm m e m' vm' e' ->

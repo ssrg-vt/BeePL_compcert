@@ -6,6 +6,9 @@ Require Import BeePL_aux BeePL_mem BeeTypes BeePL BeePL_auxlemmas Errors BeePL_v
 Require Import BeePL_helper_functions.
 From mathcomp Require Import all_ssreflect. 
 
+Local Open Scope error_monad_scope.
+Local Open Scope csyntax_scope.
+
 Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> effect -> type -> Prop :=
 (*For all value expression, we can assume any effect type, including the empty effect *)
 | ty_valu : forall cenv Gamma Sigma,
@@ -273,7 +276,36 @@ Inductive type_program : BeePL.program -> Prop :=
             Gamma = bind_globdef (PTree.empty _) p.(prog_defs) ->
             cenv = p.(prog_comp_env) ->
             type_globdefs beepl_ef_env cenv Gamma empty_context (unzip2 (p.(prog_defs))) ->
-            type_program p.          
+            type_program p.  
+
+Definition accumulate_effect_function (fn : BeePL.function) : effect := fn.(fn_effect).
+
+Definition accumulate_effect_fundef (fd : BeePL.fundef) : effect := 
+match fd with 
+| Internal fn => fn.(fn_effect)
+| External fn ts t cc => get_ef_eapp fn
+end.
+
+Definition accumulate_effect_globalvar (gv : BeePL.globvar type) : res effect := 
+do ef <- construct_ef_gvars gv.(gvar_init);
+OK ef.
+
+Definition accumulate_effect_gd (gd : BeePL.globdef BeePL.fundef BeeTypes.type) : res effect :=
+match gd with 
+| AST.Gfun fd => OK (accumulate_effect_fundef fd)
+| AST.Gvar g => accumulate_effect_globalvar g
+end.
+
+Fixpoint accumulate_effect_gds (gds : list (BeePL.globdef BeePL.fundef BeeTypes.type)) : res effect :=
+match gds with 
+| nil => OK nil
+| gd :: gds => do ef <- accumulate_effect_gd gd;
+               do efs <- accumulate_effect_gds gds;
+               OK (ef ++ efs)
+end.
+
+Definition accumulate_effect_progs (p : BeePL.program) : res effect :=
+accumulate_effect_gds (unzip2 (p.(prog_defs))).
 
 (* Value typing *)
 (* A value does not produce any effect *)
@@ -909,6 +941,7 @@ Proof.
 by move=> cenv Gamma Sigma e ef t ht; elim: ht=> //=.
 Qed.
 
+(* Complete me : easy *)
 Lemma type_rel_typeof_val : forall cenv Gamma Sigma v ef t t',
 type_expr cenv Gamma Sigma (Val v t) ef t' ->
 typeof_value v t.

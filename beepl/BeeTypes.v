@@ -751,6 +751,18 @@ match ty with
 | Tlong _ _ => BMint64
 end.
 
+Definition chunk_of_type (ty : type) : option bmemory_chunk :=
+match ty with
+| Vtype pt => Some (chunk_of_ptype pt)
+| Ptrtype _ => Some BMint64  (* Assuming 64-bit architecture *)
+| Bytes => None  (* 16 bytes cannot be assigned i*)
+(* Not directly mappable to a single chunk *)
+| Stype _ _ => None
+| Atype _ _ _ => None
+| Ftype _ _ _ => None
+| Utype => None
+end.
+
 Section Eq_basic_types.
 
 Variable eq_basic_type : basic_type -> basic_type -> bool.
@@ -845,7 +857,7 @@ match t with
 | Tint I16 _ _ => 2
 | Tint I32 _ _ => 4
 | Tint IBool _ _ => 1
-| Tlong _ _ => 4
+| Tlong _ _ => 8
 end.
 
 Definition sizeof_btype (env : bcomposite_env) (t : basic_type) : Z :=
@@ -869,11 +881,11 @@ Fixpoint sizeof_type (env : bcomposite_env) (t : type) : Z :=
   match t with
   | Utype => 0
   | Vtype pt => sizeof_ptype pt
-  | Ptrtype pt => sizeof_ptr_type env pt
+  | Ptrtype pt => 8
   | Stype x _ => match env!x with Some co => co_sizeof co | None => 0 end
   | Atype t' z a => sizeof_type env t' * Z.max 0 z
   | Ftype _ _ _ => 1
-  | Bytes => match env!bytes_t with Some co => co_sizeof co | None => 0 end
+  | Bytes => 16
   end.
 
 Fixpoint sizeof_types (env : bcomposite_env) (ts : list type) : Z :=

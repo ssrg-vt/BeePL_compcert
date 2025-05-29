@@ -7,6 +7,26 @@ Require Import BeePL_sem BeePL_typesystem BeePL_safety BeePL_typesystem_proofs.
 
 From mathcomp Require Import all_ssreflect.
 
+(*Lemma no_divergence_fnbody : forall p efs,
+type_program p ->
+accumulate_effect_progs p = OK efs ->
+no_divergence efs.
+Proof.
+move=> p efs htp. inversion htp; subst.
+inversion H1; subst.
++ rewrite -H5 /= in H1. inversion H1; subst.
+  rewrite /accumulate_effect_progs /= -H5 /=. by move=> [] <-.
+rewrite /accumulate_effect_progs /= -H /=. 
+case hgef : (accumulate_effect_gd g) => [efg | ] //=.
+case hgefs : (accumulate_effect_gds)=> [efgs | ] //=.  move=> [] heq; subst.
+rewrite -H /= in H1 H0 H6. inversion H1; subst.
+inversion H9; subst.
++ inversion H3; subst.
+  (* internal *)
+  + inversion H4; subst. rewrite /accumulate_effect_gd /accumulate_effect_fundef in hgef. 
+    case: hgef=> [] h; subst. elim: (BeePL.fn_body fn) H5=> //=.
+    + move=> v t hte. inversion  *)
+
 (****** No divergence effect ********)
 Lemma no_divergence_type_system :
 (forall cenv Gamma Sigma es efs ts, 
@@ -62,112 +82,42 @@ apply type_exprs_type_expr_ind_mut=> //=.
 move=> cenv Gamma Sigma e es ef efs t ts hte hd htes hds. by apply no_divergence_concat.
 Admitted.
 
- 
-(*Lemma no_divergence_sem :
-(forall cenv Gamma Sigma es efs ts bge p vm m m' vm' es', 
- type_exprs cenv Gamma Sigma es efs ts ->
- ssem_exprs bge p vm m es m' vm' es' ->
- no_divergence efs) /\
-(forall cenv Gamma Sigma e ef t bge p vm m m' vm' e', 
- type_expr cenv Gamma Sigma e ef t ->
- ssem_expr bge p vm m e m' vm' e' ->
- no_divergence ef).
+Lemma lift_ref_closure : forall bge p vm m v t e h bt a m' vm' n,
+(n > 0)%N ->
+ssem_closure bge p vm m e n m' vm' (Val v t) ->
+ssem_closure bge p vm m (Prim Ref [:: e] (Ptrtype (Reftype h bt a))) n m' vm' 
+  (Prim Ref [:: Val v t] (Ptrtype (Reftype h bt a))).
 Proof.
-suff : (forall cenv Gamma Sigma es efs ts, type_exprs cenv Gamma Sigma es efs ts ->
-           forall  bge p vm m m' vm' es', ssem_exprs bge p vm m es m' vm' es' ->
-                                          no_divergence efs) /\
-       (forall cenv Gamma Sigma e ef t, type_expr cenv Gamma Sigma e ef t ->
-           forall bge p vm m m' vm' e', ssem_expr bge p vm m e m' vm' e' ->
-                                        no_divergence ef).
-+ admit.
-apply type_exprs_type_expr_ind_mut=> //=.
-(* app *)
-+ admit.
-(* ref *)
-+ move=> cenv Gamma Sigma e ef h bt a hte hin bge p vm m m' vm' e' he.
-  inversion he; subst.
-  + move: (hin bge p vm m m' vm' e'0 H9)=> hd. by apply no_divergence_concat.
-  have hv : ssem_expr bge p vm m (Val v (construct_type_btype bt)) m vm (Val v (construct_type_btype bt)).
-  + apply ssem_value. 
-    by have := typed_well_formed_value cenv Gamma Sigma v (construct_type_btype bt) ef hte.
-    move: (hin bge p vm m m vm  (Val v (construct_type_btype bt)) hv)=> hd.
-  by apply no_divergence_concat.
-(* deref *)
-+ admit.
-(* massgn *)
-+ admit.
-(* onotbool *)
-+ admit.
-(* onotint *)
-+ admit.
-(* oneg *)
-+ admit.
-(* oadd *)
-+ admit.
-(* osub *)
-+ admit.
-(* omul *)
-+ admit.
-(* odiv *)
-+ admit.
-(* omod *)
-+ admit.
-(* oand *)
-+ admit.
-(* oor *)
-+ admit.
-(* oxor *)
-+ admit.
-(* oshl *)
-+ admit.
-(* oshr *)
-+ admit.
-(* oeq *)
-+ admit.
-(* one *)
-+ admit.
-(* olt *)
-+ admit.
-(* ogt *)
-+ admit.
-(* ole *)
-+ admit.
-(* oge *)
-+ admit.
-(* bind *)
-+ move=> cenv Gamma Sigma x t e e' t' ef ef' hte hin hte' hin' bge p vm m m' vm' e'' he.
-  inversion he; subst.
-  (* step *)
-  + move: (hin bge p vm m m' vm' e1' H10)=> hd1. 
-    have [h1 h2] := no_divergence_type_system.
-    move: (h2 cenv (extend_context Gamma x t) Sigma e' ef' (typeof_expr e') hte')=> hd2.
-    by apply no_divergence_concat.
-  (* value *)
-   have [h1 h2] := no_divergence_type_system.
-   move: (h2 cenv (extend_context Gamma x t) Sigma e' ef' (typeof_expr e') hte')=> hd2.
-    
-Admitted. *) 
+move=> bge p vm m v t e h bt a m' vm' n hn H. 
+induction H as [| bge p vm m e m1 vm1 e1 Hstep
+                   | bge p vm m e m1 vm1 e1 n' m2 vm2 e2 Hstep Hcl' IH].
++ by inversion hn.
++ apply ssem_one. by apply ssem_ref1. 
+apply ssem_multi with m1 vm1 (Prim Ref [:: e1] (Ptrtype (Reftype h bt a))).
++ by apply ssem_ref1.
+apply IH. admit.
+Admitted.
 
 (***** Termination *****)
 (* A well typed program where the effects contain no divergence effect is always terminating *)
 Lemma guaranteed_termination : 
 (forall cenv Gamma Sigma es efs ts bge p vm m, 
  type_exprs cenv Gamma Sigma es efs ts ->
- store_well_typed Gamma Sigma bge vm m ->
+ store_well_typed cenv Gamma Sigma bge vm m ->
  exists n m' vm' vs, ssem_closures bge p vm m es n m' vm' vs /\ is_values vs /\ no_divergence efs) /\
 (forall cenv Gamma Sigma e ef t bge p vm m, 
  type_expr cenv Gamma Sigma e ef t ->
- store_well_typed Gamma Sigma bge vm m ->
+ store_well_typed cenv Gamma Sigma bge vm m ->
  exists n m' vm' v, ssem_closure bge p vm m e n m' vm' v /\ is_value v /\ no_divergence ef).
 Proof.
 suff : (forall cenv Gamma Sigma es efs ts, 
            type_exprs cenv Gamma Sigma es efs ts ->
-           forall bge p vm m, store_well_typed Gamma Sigma bge vm m -> exists n m' vm' vs, 
+           forall bge p vm m, store_well_typed cenv Gamma Sigma bge vm m -> exists n m' vm' vs, 
                                                   ssem_closures bge p vm m es n m' vm' vs /\
                                                   is_values vs /\ no_divergence efs) /\
        (forall cenv Gamma Sigma e ef t, 
            type_expr cenv Gamma Sigma e ef t ->
-           forall bge p vm m, store_well_typed Gamma Sigma bge vm m -> exists n m' vm' v, 
+           forall bge p vm m, store_well_typed cenv Gamma Sigma bge vm m -> exists n m' vm' v, 
                                                  ssem_closure bge p vm m e n m' vm' v /\
                                                   is_value v /\ no_divergence ef).
 + admit.
@@ -187,8 +137,82 @@ apply type_exprs_type_expr_ind_mut=> //=.
 (* Val loc *)
 + admit. (* easy *)
 (* Var *)
-+ move=> cenv Gamma Sigma x t hx bge p vm m hw. inversion hw.
++ move=> cenv Gamma Sigma x t hx bge p vm m hw. case: hw => [] hw1 [] hw2 hw3. inversion hw1.
   + move: (H x t hx)=> [] l' [] t' [] v [] ofs [] h1 [] h2 [] h3 [] hd [] hf h; subst.
     exists 1%N. exists m. exists vm. exists (Val v t'); split=> //=. apply ssem_one.
-    by apply ssem_lvar with l' ofs. 
+    by apply ssem_lvar with l' ofs.
+  admit. (* provable *)
+(* const *)
++ admit. (* provable *)
++ admit. (* provable *)
++ admit. (* provable *)
+(* app *)
++ move=> cenv Gamma Sigma e te es rt efs ts ef efs' hte hin hteq htes hin' bge p vm m hw.
+  move: (hin bge p vm m hw)=> [] n [] m' [] vm' [] v [] hsf [] hv hd. inversion hsf; subst.
+  + admit.
+  + admit.
+  admit.
+(* ref *)
++ move=> cenv Gamma Sigma e ef h bt a hte hin bge p vm m hw. 
+  move: (hin bge p vm m hw)=> [] n1 [] m' [] vm' [] v [] hes [] hvs hd.
+  inversion hes; subst.
+  + have [hp1 hp2] := progress_ssem_expr_exprs.
+    have hrt : type_expr cenv Gamma Sigma (Prim Ref [:: Val v0 t] (Ptrtype (Reftype h bt a)))
+     (ef ++ [:: Alloc h]) (Ptrtype (Reftype h bt a)).
+    + by apply ty_ref.
+    have hvt := type_rel_typeof_val cenv Gamma Sigma v0 ef t (construct_type_btype bt) hte.
+    have [m'' [b] ha] := mem_alloc_total m' 0 (sizeof_type (prog_comp_env p) t).
+    have hw'' := store_well_typed_mem_alloc cenv Gamma Sigma bge vm' m' 0 (sizeof_type (prog_comp_env p) t) 
+                   m'' b hw ha. 
+    have [m''' [] chunk [] v' [] htv [] hc [] hs hws] := ref_allocation_succeeds cenv Gamma Sigma p 
+                                                          bge vm' m' v0 t (m'', b) hw hvt ha. 
+    exists 1%N. exists m'''. exists vm'. exists (Val (BeePL_values.Vloc b Ptrofs.zero) (Ptrtype (Reftype h bt a))).
+    split=> //=.
+    + apply ssem_one. apply type_val_reflx in hte; subst.
+      apply ssem_ref2 with (Mem.alloc m' 0 (sizeof_type (prog_comp_env p) (construct_type_btype bt))) chunk Sigma
+             (extend_context Sigma (Mem.alloc m' 0 (sizeof_type (prog_comp_env p) (construct_type_btype bt))).2 
+             (Ptrtype (Reftype h bt a))); auto.
+      + rewrite ha /=. by apply hs.
+      rewrite ha /=. by rewrite /extend_context.
+    split=> //=. by apply no_divergence_concat.
+  + case: v hes hvs H=> //= v t hes hvs H. 
+    have hr := ssem_ref1 bge p vm m e m' vm' (Val v t) h bt a H. 
+    have [hp1 hp2] := preservation_ssem_expr_exprs.
+    move: (hp2 cenv Gamma Sigma e ef (construct_type_btype bt) bge p vm m vm' m' (Val v t) hte hw H)=> 
+        [] ef' [] hvt [] hsub hw1.
+    have hvt' := type_rel_typeof_val cenv Gamma Sigma v ef' t (construct_type_btype bt) hvt.
+    have [m'' [b] ha] := mem_alloc_total m' 0 (sizeof_type (prog_comp_env p) t).
+    have hw'' := store_well_typed_mem_alloc cenv Gamma Sigma bge vm' m' 0 (sizeof_type (prog_comp_env p) t) 
+                   m'' b hw1 ha.
+    have [m''' [] chunk [] v' [] htv [] hc [] hs hws] := ref_allocation_succeeds cenv Gamma Sigma p 
+                                                          bge vm' m' v t (m'', b) hw1 hvt' ha.
+    have hteq := type_val_reflx cenv Gamma Sigma v t ef' (construct_type_btype bt) hvt; subst. 
+    eexists. exists m'''. exists vm'. exists (Val (BeePL_values.Vloc b Ptrofs.zero) (Ptrtype (Reftype h bt a))).
+    split=> //=.
+    + apply ssem_multi with m' vm' (Prim Ref [:: Val v (construct_type_btype bt)] (Ptrtype (Reftype h bt a))). 
+      + by apply hr.
+      have hr' : ssem_expr bge p vm' m' (Prim Ref [:: (Val v (construct_type_btype bt))] 
+                  (Ptrtype (Reftype h bt a))) m''' vm' 
+                 (Val (BeePL_values.Vloc b Ptrofs.zero) (Ptrtype (Reftype h bt a))).
+  
+      + by apply ssem_ref2 with (m'', b) chunk Sigma (PTree.set b (Ptrtype (Reftype h bt a)) Sigma).
+    by apply ssem_one. split=> //=. by apply no_divergence_concat.
+  exists (n + 1)%N. exists m'. exists vm'. exists v. split=> //=.
+  + have hr := ssem_ref1 bge p vm m e m'0 vm'0 e' h bt a H.
+    case: v hes hvs H H0=> //= v t hes hvs H H0. 
+    have [hp1 hp2] := multi_preservation_ssem_expr_exprs.
+    move: (hp2 cenv Gamma Sigma e ef (construct_type_btype bt) bge p vm m vm' m' (Val v t) 
+           (n+1)%N hte hw hes)=> [] ef' [] hvt [] hsub hw'.
+    have hvt' := type_rel_typeof_val cenv Gamma Sigma v ef' t (construct_type_btype bt) hvt.
+    have [m'' [b] ha] := mem_alloc_total m' 0 (sizeof_type (prog_comp_env p) t).
+    have hw'' := store_well_typed_mem_alloc cenv Gamma Sigma bge vm' m' 0 (sizeof_type (prog_comp_env p) t) 
+                   m'' b hw' ha.
+    have [m''' [] chunk [] v' [] htv [] hc [] hs hws] := ref_allocation_succeeds cenv Gamma Sigma p 
+                                                          bge vm' m' v t (m'', b) hw' hvt' ha.
+    have : ssem_closure bge p vm'0 m'0 (Prim Ref [:: e'] (Ptrtype (Reftype h bt a))) n m' vm'
+             (Prim Ref [ :: (Val v t)] (Ptrtype (Reftype h bt a))).
+    + 
+    have : ssem_closure bge p vm'0 m'0 (Prim Ref [:: e'] (Ptrtype (Reftype h bt a))) n m' vm'
+             (Val (BeePL_values.Vloc b Ptrofs.zero) (Ptrtype (Reftype h bt a))).
+    admit.
 Admitted.
