@@ -707,13 +707,13 @@ type must be accessed:
 *)
 Definition access_mode_prim (t : primitive_type) : mode :=
 match t with 
-| Tbool => By_value Mint8signed
+| Tbool => By_value Mbool
 | Tint I8 Signed _ => By_value Mint8signed
 | Tint I8 Unsigned _ => By_value Mint8unsigned
 | Tint I16 Signed _ => By_value Mint16signed
 | Tint I16 Unsigned _ => By_value Mint16unsigned
 | Tint I32 _ _ => By_value Mint32
-| Tint IBool _ _ => By_value Mbool
+| Tint IBool _ _ => By_value Mint32
 | Tlong _ _ => By_value Mint64
 end.
 

@@ -15,27 +15,21 @@ Inductive well_formed_var (Gamma : ty_context) (Sigma : store_context) (bge : Be
                            Gamma ! x = Some t ->
                            (exists l' t' v ofs, vm ! x = Some (l', t') /\
                            t = t' /\ PTree.get l' Sigma = Some t /\ 
-                                                  deref_addr bge t m l' ofs Full v /\ 
-                                                                 is_vloc v = false /\
-                                                                 is_ptrtype t = false)) ->
+                                                  deref_addr t m l' ofs Full v)) ->
                           well_formed_var Gamma Sigma bge vm m
 | store_well_typed_gvar : (forall x t,
                           Gamma ! x = Some t ->
                           (exists l' ofs v, vm ! x = None /\ Genv.find_symbol bge x = Some l' /\ 
                                             PTree.get l' Sigma = Some t /\ 
-                                            deref_addr bge t m l' ofs Full v /\ 
-                                            is_vloc v = false /\
-                                            is_ptrtype t = false)) ->
+                                            deref_addr t m l' ofs Full v)) ->
                          well_formed_var Gamma Sigma bge vm m.
 
 (*** Well formed loc (coming from ref, not variables) ***)
 Inductive well_formed_loc (Sigma : store_context) (bge : BeePL.genv) (vm : vmap) (m : Memory.mem) : Prop :=
-| store_well_typed_loc : (forall x ofs h bt a, PTree.get x Sigma = Some (Ptrtype (Reftype h bt a)) /\
-                          Mem.valid_pointer m x (Ptrofs.unsigned ofs) /\
-                          ((exists v, deref_addr bge (construct_type_btype bt) m x ofs Full v /\ 
-                                                          is_vloc v = false) /\
-                          (forall v, (exists bf m', assign_addr bge (construct_type_btype bt) m x ofs bf v m' v /\
-                                                                         is_vloc v = false)))) ->
+| store_well_typed_loc : (forall x ofs t, PTree.get x Sigma = Some (Ptrtype t) /\ 
+                                               type_is_volatile (transBeePL_type (get_data_type t)) = false ->
+                          (exists chunk, Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable /\
+                                         chunk_of_type (get_data_type t) = Some chunk)) ->
                           well_formed_loc Sigma bge vm m.
 
 (*** Well formed function ***)
@@ -62,7 +56,6 @@ Definition store_well_typed (cenv : bcomposite_env) (Gamma : ty_context) (Sigma 
                             (bge : BeePL.genv) (vm : vmap) (m : Memory.mem) : Prop :=
 well_formed_var Gamma Sigma bge vm m /\ well_formed_loc Sigma bge vm m /\ well_formed_function cenv Gamma Sigma bge vm m.
 
-
 (* Complete me: Easy *)
 Definition store_well_typed_ext : forall cenv Gamma Sigma bge vm m x l t,
 store_well_typed cenv Gamma Sigma bge vm m ->
@@ -71,7 +64,7 @@ Proof.
 move=> cenv Gamma Sigma bge vm m x l t hw. case: hw=> [] h1 [] h2 h3.
 constructor.
 + constructor. inversion h1.
-  + move=> x' t' hxt. move: (H x' t' hxt)=> [] l' [] t'' [] v [] o [] hvm [] hteq [] hs [] hd [] hv hptr.
+  + move=> x' t' hxt. move: (H x' t' hxt)=> [] l' [] t'' [] v [] o [] hvm [] hteq [] hs [] hd.
 Admitted.   
 
 (* Complete me : Easy *)
@@ -114,6 +107,32 @@ chunk_of_type t = Some chunk ->
 Mem.storev (transl_bchunk_cchunk chunk) m (Values.Vptr b Ptrofs.zero) (trans_bvalue_cvalue v) = Some m' ->
 store_well_typed cenv Gamma Sigma bge vm m'.
 Proof.
+Admitted.
+
+(* I think we can prove this and make the well formedness definition simpler *)
+Lemma safe_deref_valid_pointers : forall Sigma m x ofs pt chunk, 
+PTree.get x Sigma = Some (Ptrtype pt) ->
+type_is_volatile (transBeePL_type (get_data_type pt)) = false ->
+chunk_of_type (get_data_type pt) = Some chunk ->
+Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
+exists v, deref_addr (get_data_type pt) m x ofs Full v. 
+Proof.
+move=> Sigma m x ofs pt chunk hs htv hc hl. 
+(*Mem.valid_access_freeable_any*)
+(*have [v hload] := Mem.valid_access_load m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) hl. 
+eexists. apply deref_addr_value with chunk v.*)
+Admitted.
+
+
+(* I think we can prove this and make the well formedness definition simpler *)
+Lemma safe_assgn_valid_pointers : forall Sigma bge m x ofs pt v chunk, 
+PTree.get x Sigma = Some (Ptrtype pt) ->
+type_is_volatile (transBeePL_type (get_data_type pt)) = false ->
+chunk_of_type (get_data_type pt) = Some chunk ->
+Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
+exists bf m', assign_addr bge (get_data_type pt) m x ofs bf v m' v.
+Proof.
+move=> Sigma bge m x ofs h bt a hs hv. 
 Admitted.
 
 (* Allocation through ref should be successful in getting space in memory and storing value v to it *)
@@ -216,20 +235,22 @@ apply type_exprs_type_expr_ind_mut=> //=.
 + move=> cenv Gamma Sigma i s a bge vm m hw. by left.
 (* val loc *)
 + move=> cenv Gamma Sigma l ofs h t a bge vm m hw. by left.
+(* val option *)
++ move=> cenv Gamma Sigma o pt bge p vm m hw. by left.
 (* var *)
 + move=> cenv Gamma Sigma v t hteq bge p vm m hw; subst. right. 
   rewrite /store_well_typed in hw. case: hw=> [] hw1 [] hw2 hw3.
   inversion hw1.
   + move: (H v t hteq)=> [] l' [] t' [] v' [] ofs.
-    move=> [] hvm [] hteq' [] hs [] hd [] hc1 hc2; subst.
+    move=> [] hvm [] hteq' [] hs hd; subst.
     exists m. exists vm. exists (Val v' t'). split=> //=.
-    eapply ssem_lvar. + by apply hvm. + by apply hd. by apply hc1.
+    eapply ssem_lvar. + by apply hvm. + by apply hd.
   (* gvar *)
   move: (H v t hteq).
-  move=> [] l' [] ofs [] v' [] hs [] hg [] hs' [] hd [] hv hv'. 
+  move=> [] l' [] ofs [] v' [] hs [] hg [] hs' hd. 
   exists m. exists vm. exists (Val v' t). split=> //=. 
   apply ssem_gbvar with l' ofs. + by apply hs. + by apply hg.
-  + by apply hd. by apply hv.
+  by apply hd.
 (* const int *)
 + move=> cenv Gamma Sigma t sz a i bge p vm m hw. right.
   exists m. exists vm. exists (Val (Vint i) (Vtype (Tint t sz a))). 
@@ -273,7 +294,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
   (* e is not a value *)
   admit. (* provable *)
 (* ref *)
-+ move=> cenv Gamma Sigma e ef h bt a hte hin bge p vm m hw. 
++ move=> cenv Gamma Sigma e ef h bt a hte hin hvo bge p vm m hw.
   move: (hin bge p vm m hw)=> [] he.
   (* is value *)
   + right. case: e hte hin he=> //= v t hte hin _.
@@ -294,43 +315,42 @@ apply type_exprs_type_expr_ind_mut=> //=.
   right. move: he. move=> [] m' [] vm' [] e' [] he hv. exists m'.
   exists vm'. exists (Prim Ref [:: e'] (Ptrtype (Reftype h bt a))). 
   split=> //=. by apply ssem_ref1.
-(*
 (* deref *)
-+ move=> cenv Gamma Sigma e ef pt h hte hin ho bge p vm m hw.
++ move=> cenv Gamma Sigma e ef pt h hte hin ho hvo bge p vm m hw.
   move: (hin bge p vm m hw)=> [].
   (* is value *)
   + move=> hv. right. rewrite /is_value in hv. case: e hv hte hin=> v t //= _. case: v=> //=.
     (* unit *)
-    + move=> hte hin. 
-      have := type_infer_vunit Gamma Sigma ef t (Ptrtype (Reftype h (Bprim bt) a)) hte; subst.
+    + move=> hte hin.
+      have := type_infer_vunit cenv Gamma Sigma ef t (Ptrtype pt) hte; subst. by move=> [] h1 h2 //=.
     (* bool *)
     + move=> b hte hin.
-      by have [h1 h2] := type_infer_vbool Gamma Sigma ef b t (Reftype h (Bprim bt) a) hte; subst.
+      have := type_infer_vbool cenv Gamma Sigma ef b t (Ptrtype pt) hte; subst. by move=> [] h1 h2 //=.
     (* int *)
     + move=> i hte hin. 
-      by have [h1 [sz] [s] [] h2 h3] := type_infer_int Gamma Sigma i ef t (Reftype h (Bprim bt) a) hte; subst.
+      by have [h1 [sz] [s] [] h2 h3] := type_infer_int cenv Gamma Sigma i ef t (Ptrtype pt) hte; subst.
     (* long *)
     + move=> l hte hin. 
-      by have [s [] a' [] h1 h2] := type_infer_long Gamma Sigma l ef t (Reftype h (Bprim bt) a) hte.
+      by have [s [] a' [] h1 h2] := type_infer_long cenv Gamma Sigma l ef t (Ptrtype pt) hte.
     (* loc *)
-    move=> l ofs hte hin. rewrite /store_well_typed in hw. 
-    have [h' [] bt' [] a' [] h1 [] [] h11 h12 h13 hs] := type_infer_loc Gamma Sigma l ofs 
-                                                ef t (Reftype h (Bprim bt) a) hte; subst.
-    move: (hw Gamma l). case hg: Gamma ! l=> [ t'| ] //=.
-    + case hvm : vm ! l => [[ l1 t1] | ] //=.
-      + move=> [] h1 [] h2 [] v [] ofs' [] hd [] hv hp; subst.
-        rewrite h2 in hs. case: hs=> hs; subst.
-        by inversion hp.
-      move=> [] l' [] ofs' [] v [] hg' [] hs' [] hd [] hv hp. 
-      rewrite hg' in hs. case: hs=> hs; subst.
-      by inversion hp.
-   move=> hwd. move: (hwd ofs h' bt a' hs)=> [] hvp [].
-   move=> [] v [] hd hv ha. exists m. exists vm. exists (Val v (Ptype bt)). split=> //=.
-   by apply ssem_deref2 with Full.
+    + move=> l ofs hte hin. pose proof hw as hsw. case: hw=> [] hw1 [] hw2 hw3.
+      have [h' [bt [a [m' [hpt hl ]]]]] := type_infer_loc cenv Gamma Sigma l ofs 
+                                                ef t (Ptrtype pt) hte; subst.
+      inversion hw2. case: hpt=> [] hpteq; subst.
+      have hand : Sigma ! l = Some (Ptrtype (Reftype h' bt a)) /\ type_is_volatile (transBeePL_type (get_data_type ((Reftype h' bt a)))) = false.
+      + by split=> //=.  move: (H l ofs (Reftype h' bt a) hand)=> [] chunk [] hvl hc.
+      have [v hd]:= safe_deref_valid_pointers Sigma m l ofs (Reftype h' bt a) chunk hl hvo hc hvl.
+      exists m. exists vm. exists (Val v (get_data_type (Reftype h' bt a))). split.
+      by apply ssem_deref2 with Full. by apply hsw.
+    (* option *) (* deref does not allow pointer coming from option type until it is gone through match *)
+    + move=> o hte hin.
+      have [pt' [h1 h2]] := type_infer_option cenv Gamma Sigma ef o t (Ptrtype pt) hte.
+      case: h2=> h2'. by rewrite h2' in ho.
   (* step *)
-  move: (hin bge vm m hw)=> hin'. move=> [] m' [] vm' [] e' [] he hs. right.
-  exists m'. exists vm'. exists (Prim Deref [:: e'] (Ptype bt)). split=> //=. 
+  move: (hin bge p vm m hw)=> hin'. move=> [] m' [] vm' [] e' [] he hs. right.
+  exists m'. exists vm'. exists (Prim Deref [:: e'] (get_data_type pt)). split=> //=. 
   apply ssem_deref1. by apply he.
+(*
 (* massgn *)
 + move=> Gamma Sigma e e' h bt ef a ef' hte hin hte' hin' bge vm m hw. 
   right. move: (hin bge vm m hw)=> [].
@@ -689,8 +709,8 @@ Admitted.
 
 (* we need extra assertion that value cannot be a pointer because 
    in C, they allow it and we use deref_addr from CompCert *)
-Lemma well_typed_val_expr : forall cenv bge Gamma Sigma v t ef bf m l ofs,
-deref_addr bge t m l ofs bf v ->
+Lemma well_typed_val_expr : forall cenv Gamma Sigma v t ef bf m l ofs,
+deref_addr t m l ofs bf v ->
 is_vloc v = false ->
 type_expr cenv Gamma Sigma (Val v t) ef t.
 Proof.
@@ -847,21 +867,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
 (* ref *)
 + admit.
 (* deref *)
-+ move=> cenv Gamma Sigma e ef pt h hte hin ho bge p vm m vm' m' e' hw he.
-  inversion he; subst.
-  (* step *)
-  + move: (hin bge p vm m vm' m' e'0 hw H7)=> [] ef' [] h1 [] h2 h3; subst. 
-    exists (ef' ++ (Read h :: nil)); split=> //=. 
-    + rewrite H4. apply ty_deref. by apply h1.
-    + by apply ho.
-    split=> //=. apply sub_effect_concat.
-    + by apply h2.
-    by apply sub_effect_refl.
-  (* val *)
-  exists nil. split=> //=. 
-  + by have := well_typed_val_expr cenv bge Gamma Sigma v  (get_data_type t) nil 
-              bf m' l ofs H4 H8.
-  split=> //=. by apply sub_effect_nil.
++ admit.
 (*(* massgn *)
 + move=> Gamma Sigma e e' h t ef a ef' hte hin hte' hin' bge vm m vm' m' e'' hw he.
   inversion he; subst.
@@ -1095,5 +1101,6 @@ Qed. *)
 (**** Runtime rejection : add exit ****)
 
  
+
 
 

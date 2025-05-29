@@ -22,6 +22,8 @@ Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> e
 | ty_valloc : forall cenv Gamma Sigma l ofs h t a,
               PTree.get l Sigma = Some (Ptrtype (Reftype h t a)) ->
               type_expr cenv Gamma Sigma (Val (Vloc l ofs) (Ptrtype (Reftype h t a))) nil (Ptrtype (Reftype h t a))
+| ty_valo : forall cenv Gamma Sigma o t,
+            type_expr cenv Gamma Sigma (Val (Voption o) (Ptrtype (Otype t))) nil (Ptrtype (Otype t))
 | ty_var : forall cenv Gamma Sigma x t, 
            PTree.get x Gamma = Some t ->
            type_expr cenv Gamma Sigma (Var x t) nil t
@@ -38,10 +40,12 @@ Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> e
            type_expr cenv Gamma Sigma (App e es rt) (ef ++ efs ++ efs') rt
 | ty_ref : forall cenv Gamma Sigma e ef h bt a, 
            type_expr cenv Gamma Sigma e ef (construct_type_btype bt) ->
+           type_is_volatile (transBeePL_type (construct_type_btype bt)) = false ->
            type_expr cenv Gamma Sigma (Prim Ref (e::nil) (Ptrtype (Reftype h bt a))) (ef ++ (Alloc h :: nil)) (Ptrtype (Reftype h bt a)) 
 | ty_deref : forall cenv Gamma Sigma e ef pt h, (* inner expression should be unrestricted as it will be used later *)
              type_expr cenv Gamma Sigma e ef (Ptrtype pt) -> 
              is_option_ptr_type pt = false ->
+             type_is_volatile (transBeePL_type (get_data_type pt)) = false ->
              type_expr cenv Gamma Sigma (Prim Deref (e::nil) (get_data_type pt)) (ef ++ (Read h :: nil)) (get_data_type pt)
 | ty_massgn : forall cenv Gamma Sigma e e' h pt ef ef', 
               type_expr cenv Gamma Sigma e ef (Ptrtype pt) ->
@@ -319,7 +323,8 @@ elim: ht eq=> //=.
 + move=> cenv' Gamma' Sigma' b [] h1; subst. by apply ty_valb.
 + move=> cenv' Gamma' Sigma' i sz s a [] h1; subst. by apply ty_vali.
 + move=> cenv' Gamma' Sigma' i s a [] h1; subst. by apply ty_vall.
-move=> cenv' Gamma' Sigma' l ofs h bt a hs [] h1; subst. by apply ty_valloc. 
++ move=> cenv' Gamma' Sigma' l ofs h bt a hs [] h1; subst. by apply ty_valloc. 
+move=> cenv' Gamma' Sigma' o t' [] h1; subst. by apply ty_valo.
 Qed.
 
 Lemma type_infer_vunit: forall cenv Gamma Sigma ef t t', 
@@ -329,6 +334,15 @@ Proof.
 move=> cenv Gamma Sigma ef t t'. unfold tunit.
 move eq : (Val Vunit t)=> v ht. elim: ht eq=>//=.
 by move=> cenv' Gamma' Sigma' [] h; subst.
+Qed.
+
+Lemma type_infer_option: forall cenv Gamma Sigma ef o t t',
+type_expr cenv Gamma Sigma (Val (Voption o) t) ef t' ->
+exists pt, t = (Ptrtype (Otype pt)) /\ t' = (Ptrtype (Otype pt)).
+Proof.
+move=> cenv Gamma Sigma ef o t t'.
+move eq: (Val (Voption o) t)=> v ht. elim: ht eq=> //=.
+move=> cenv' Gamma' Sigma' o' pt' [] h1 h2; subst. by exists pt'.
 Qed.
 
 Lemma type_infer_vbool: forall cenv Gamma Sigma ef b t t', 
@@ -425,25 +439,26 @@ Qed.
 
 Lemma type_infer_ref: forall cenv Gamma Sigma e ef t t',
 type_expr cenv Gamma Sigma (Prim Ref [:: e] t) ef t' ->
-(exists h bt a, t = Ptrtype (Reftype h bt a) /\ t' = Ptrtype (Reftype h bt a)).
+(exists h bt a, t = Ptrtype (Reftype h bt a) /\ t' = Ptrtype (Reftype h bt a) /\ type_is_volatile (transBeePL_type (construct_type_btype bt)) = false).
 Proof.
 move=> cenv Gamma Sigma e ef t t'.
 move eq: (Prim Ref [:: e] t)=> rv ht.
 elim: ht eq=> //=.
-move=> cenv' Gamma' Sigma' e' ef' h' bt' a' ht hin [] h1 h2; subst.
-by exists h', bt', a'.
+move=> cenv' Gamma' Sigma' e' ef' h' bt' a' ht hin h1 [] h2; subst.
+by exists h', bt', a'; split=> //=.
 Qed.
 
 Lemma type_infer_deref: forall cenv Gamma Sigma e ef t t',
 type_expr cenv Gamma Sigma (Prim Deref [:: e] t) ef t' ->
 (exists pt ef', t = (get_data_type pt) /\ 
                 t' = (get_data_type pt) /\
-                type_expr cenv Gamma Sigma e ef' (Ptrtype pt)).
+                type_expr cenv Gamma Sigma e ef' (Ptrtype pt) /\
+                type_is_volatile (transBeePL_type (get_data_type pt)) = false).
 Proof.
 move=> cenv Gamma Sigma e ef t t'.
 move eq: (Prim Deref [:: e] t)=> rv ht.
 elim: ht eq=> //=.
-move=> cenv' Gamma' Sigma' e' ef' pt h ht1 hin1 h1 [] h2 h3; subst.
+move=> cenv' Gamma' Sigma' e' ef' pt h ht1 hin1 h1 h2 [] h3; subst.
 by exists pt, ef'; split=>//=. 
 Qed.
 
@@ -848,7 +863,8 @@ elim: ht eq=> //=.
 + by move=> cenv' Gamma' Sigma' b [] h h'; subst.
 + by move=> cenv' Gamma' Sigma' i sz s a [] h h'; subst.
 + by move=> cenv' Gamma' Sigma' i s a [] h h'; subst.
-by move=> cenv' Gamma' Sigma' l ofs h t'' a hs [] h1 h2; subst.
++ by move=> cenv' Gamma' Sigma' l ofs h t'' a hs [] h1 h2; subst.
+by move=> cenv' Gamma' Sigma' o pt [] h1 h2.
 Qed.
 
 Lemma type_expr_exprs_deterministic: 
