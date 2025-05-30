@@ -2,7 +2,7 @@ Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Globalenvs Coqlib Memory. 
 Require Import Csyntax Csem SimplExpr Ctypes Memtype.
-Require Import BeePL_aux BeePL_mem BeeTypes BeePL BeePL_auxlemmas Errors BeePL_values BeePL_notations.
+Require Import BeePL_aux BeePL_mem BeeTypes BeePL BeePL_auxlemmas Errors BeePL_values BeePL_notations BeePL_sem.
 Require Import BeePL_helper_functions.
 From mathcomp Require Import all_ssreflect. 
 
@@ -49,6 +49,8 @@ Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> e
              type_expr cenv Gamma Sigma (Prim Deref (e::nil) (get_data_type pt)) (ef ++ (Read h :: nil)) (get_data_type pt)
 | ty_massgn : forall cenv Gamma Sigma e e' h pt ef ef', 
               type_expr cenv Gamma Sigma e ef (Ptrtype pt) ->
+              is_option_ptr_type pt = false ->
+              type_is_volatile (transBeePL_type (get_data_type pt)) = false ->
               type_expr cenv Gamma Sigma e' ef' (get_data_type pt) ->
               type_expr cenv Gamma Sigma (Prim Massgn (e::e'::nil) tunit) (ef ++ ef' ++ (Write h :: nil)) tunit
 | ty_notbool : forall cenv Gamma Sigma e ef,
@@ -280,7 +282,58 @@ Inductive type_program : BeePL.program -> Prop :=
             Gamma = bind_globdef (PTree.empty _) p.(prog_defs) ->
             cenv = p.(prog_comp_env) ->
             type_globdefs beepl_ef_env cenv Gamma empty_context (unzip2 (p.(prog_defs))) ->
-            type_program p.  
+            type_program p.
+
+
+(**** Well formedness ****)
+
+(*** Well formed var ***)
+Inductive well_formed_var (Gamma : ty_context) (Sigma : store_context) (bge : BeePL.genv) (vm : vmap) (m : Memory.mem) : Prop :=
+| store_well_typed_lvar : (forall x t,
+                           Gamma ! x = Some t ->
+                           (exists l' t' v ofs, vm ! x = Some (l', t') /\
+                           t = t' /\ PTree.get l' Sigma = Some t /\ 
+                                                  deref_addr t m l' ofs Full v)) ->
+                          well_formed_var Gamma Sigma bge vm m
+| store_well_typed_gvar : (forall x t,
+                          Gamma ! x = Some t ->
+                          (exists l' ofs v, vm ! x = None /\ Genv.find_symbol bge x = Some l' /\ 
+                                            PTree.get l' Sigma = Some t /\ 
+                                            deref_addr t m l' ofs Full v)) ->
+                         well_formed_var Gamma Sigma bge vm m.
+
+(*** Well formed loc (coming from ref, not variables) ***)
+Inductive well_formed_loc (Sigma : store_context) (bge : BeePL.genv) (vm : vmap) (m : Memory.mem) : Prop :=
+| store_well_typed_loc : (forall x ofs t, PTree.get x Sigma = Some (Ptrtype t) /\ 
+                                               type_is_volatile (transBeePL_type (get_data_type t)) = false ->
+                          (exists chunk, Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable /\
+                                         chunk_of_type (get_data_type t) = Some chunk)) ->
+                          well_formed_loc Sigma bge vm m.
+
+(*** Well formed function ***)
+Inductive well_formed_function (cenv : bcomposite_env) (Gamma : ty_context) (Sigma : store_context) (bge : BeePL.genv) (vm : vmap) (m : Memory.mem) : Prop :=
+| store_well_typed_fn : (forall l o ef te ts efs rt vs efs', 
+                         type_expr cenv Gamma Sigma (Val (Vloc l o) te) ef te -> 
+                         eq_type te (Ptrtype (Fptype ts efs rt)) || eq_type te (Ftype ts efs rt) ->
+                         type_exprs cenv Gamma Sigma vs efs' ts ->
+                         exists fd, Genv.find_funct bge (trans_bvalue_cvalue (Vloc l o)) = Some (Internal fd) /\
+                                    list_norepet (fd.(fn_args) ++ fd.(BeePL.fn_vars)) /\ 
+                                    length fd.(fn_args) = length (extract_values_exprs vs) /\
+                                    ts = (unzip2 fd.(fn_args)) /\ rt = get_rt_fundef (Internal fd)) ->
+                        well_formed_function cenv Gamma Sigma bge vm m.
+
+(** Well-Typed Store **)
+(* A store st is well-typed with respect to a store typing context Sigma if the
+   term at each location l in vm has the type at location l in store typing context
+   and there exists a value in the memory at that location. *)
+(* It is more evolved due to two maps used in CompCert for retrieving data from the memory *)
+(* Since we only allow pointers through references, it is safe to say that if there exists a 
+   location in memory then it is also safe to deref that location *)
+(* Mem.valid_pointer ensures that the location l with ofset ofs is nonempty in memory m *)
+Definition store_well_typed (cenv : bcomposite_env) (Gamma : ty_context) (Sigma : store_context) 
+                            (bge : BeePL.genv) (vm : vmap) (m : Memory.mem) : Prop :=
+well_formed_var Gamma Sigma bge vm m /\ well_formed_loc Sigma bge vm m /\ well_formed_function cenv Gamma Sigma bge vm m.
+  
 
 Definition accumulate_effect_function (fn : BeePL.function) : effect := fn.(fn_effect).
 
@@ -465,13 +518,14 @@ Qed.
 Lemma type_infer_massgn: forall cenv Gamma Sigma e e' ef t t',
 type_expr cenv Gamma Sigma (Prim Massgn [:: e; e'] t) ef t' ->
 (t = tunit /\ t' = tunit /\
- (exists pt ef1 ef2, type_expr cenv Gamma Sigma e ef1 (Ptrtype pt) /\
+ (exists pt ef1 ef2, type_expr cenv Gamma Sigma e ef1 (Ptrtype pt) /\ 
+                     is_option_ptr_type pt = false /\ 
                      type_expr cenv Gamma Sigma e' ef2 (get_data_type pt))). 
 Proof.
 move=> cenv Gamma Sigma e e' ef t t'.
 move eq: (Prim Massgn [:: e; e'] t)=> rv ht.
 elim: ht eq=> //=.
-move=> cenv' Gamma' Sigma' e1 e2 h pt ef1 ef2 ht hin ht' h' [] h1 h2 h3; subst; split=> //=.
+move=> cenv' Gamma' Sigma' e1 e2 h pt ef1 ef2 ht hin ho hvo ht' hin' [] h1 h2 h3; subst; split=> //=.
 split=> //=. by exists pt, ef1, ef2.
 Qed.
 
@@ -979,55 +1033,6 @@ Proof.
 by case: t'=> //=.
 Qed.*) Admitted.
 
-Lemma cty_chunk_rel : forall (ty: Ctypes.type) chunk v,
-Ctypes.access_mode ty = By_value chunk ->
-Values.Val.has_type v (type_of_chunk chunk) ->
-Values.Val.has_type v (typ_of_type ty).
-Proof.
-move=> ty chunk v ha hv. case: chunk ha hv=> //=.
-(* Mbool *)
-+ case: ty=> //= f a. by case: f=> //=.
-(* Mint8signed *)
-+ case: ty=> //= f a. by case: f=> //=.
-(* Mint8unsigned *)
-+ case: ty=> //= f a. by case: f=> //=.
-(* Mint16signed *)
-+ case: ty=> //= f a. by case: f=> //=.
-(* Mint16unsigned *)
-+ case: ty=> //= f a. by case: f=> //=.
-(* Mint32 *)
-+ case: ty=> //= f a. by case: f=> //=.
-(* Mint64 *)
-+ case: ty=> //= i s a. 
-  + case: i=> //=.
-    + by case: s=> //=.
-    by case: s=> //=.
-  by case: i a=> //=.
-(* Mfloat32 *)
-+ case: ty=> //= f s a. 
-  + case: f=> //=.
-    + by case: s=> //=.
-    by case: s=> //=.
-  by case: f a=> //=.
-(* Mfloat64 *)
-+ case: ty=> //= f s a. 
-  + case: f=> //=.
-    + by case: s=> //=.
-    by case: s=> //=.
-  by case: f a=> //=.
-(* Many32 *)
-+ case: ty=> //=.
-  + move=> i s a. case: i=> //=.
-    + by case: s=> //=.
-    by case: s=> //=.
-  move=> f a. by case: f=> //=.
-case: ty=> //=. 
-+ move=> i s a. case: i=> //=.
-  + by case: s=> //=.
-  by case: s=> //=.
-move=> f. by case: f=> //=.
-Qed.
-
 (* Complete Me: Easy *)
 (* There always exists a C type for BeePL type which is 
    inferred from the typing rules. *)
@@ -1046,4 +1051,13 @@ type_expr cenv Gamma Sigma (Val v t) ef t ->
 well_formed_value v t.
 Proof.
 Admitted.
+
+Lemma get_type_fundef : forall cenv Gamma Sigma (bge: BeePL.genv) fd l o ef te ts efs rt,
+type_expr cenv Gamma Sigma (Val (Vloc l o) te) ef te -> 
+eq_type te (Ptrtype (Fptype ts efs rt)) || eq_type te (Ftype ts efs rt) ->
+Genv.find_funct bge (trans_bvalue_cvalue (Vloc l o)) = Some (Internal fd) ->
+BeePL.type_of_fundef (Internal fd) = Ftype (unzip2 fd.(fn_args)) (get_effect_fundef (Internal fd)) (get_rt_fundef (Internal fd)).
+Proof.
+move=> cenv Gamma Sigma bge fd l o ef te ts efs rt hte hteq hg. by case:fd hg=> //=.
+Qed.
 
