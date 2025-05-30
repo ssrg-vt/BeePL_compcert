@@ -46,3 +46,116 @@ case: v hte=> //=.
 (* o : bad case *)
 move=> o hte. by inversion hte.
 Qed.
+
+(* notint are well-formed *) 
+Lemma well_formed_notint : forall cenv Gamma Sigma bge vm m v t ef,
+store_well_typed cenv Gamma Sigma bge vm m ->
+type_expr cenv Gamma Sigma (Val v t) ef t ->
+is_primint t || is_primlong t ->
+exists v' v'',
+Cop.sem_unary_operation (Cop.Onotint) (trans_bvalue_cvalue v) (transBeePL_type t) m = Some v' /\
+v' <> Values.Vundef /\
+trans_cvalue_bvalue v' = OK v''.
+Proof.
+move=> cenv Gamma Sigma bge vm m v t ef hw hte heq. 
+case: t hte heq=> //= p; case: p=> //=.
+(* int *)
++ move=> sz s a hte _. rewrite /Cop.sem_notint /= /option_map /=.
+  case: sz hte=> //=.
+  (* I8 *)
+  + case: v=> //=.
+    + move=> hte. by inversion hte.
+    + move=> b hte. by inversion hte.
+    + move=> i hte. exists (Values.Vint (Int.not i)). 
+      rewrite /trans_cvalue_bvalue /=. by exists (Vint (Int.not i)).
+    + move=> i hte. by inversion hte.
+    + move=> p i hte. by inversion hte.
+    move=> o hte. by inversion hte.
+  (* I16 *)
+  + case: v=> //=.
+    + move=> hte. by inversion hte.
+    + move=> b hte. by inversion hte.
+    + move=> i hte. exists (Values.Vint (Int.not i)). 
+      rewrite /trans_cvalue_bvalue /=. by exists (Vint (Int.not i)).
+    + move=> i hte. by inversion hte.
+    + move=> p i hte. by inversion hte.
+    move=> o hte. by inversion hte.
+  (* I32 *)
+  + case: v=> //=.
+    + move=> hte. by inversion hte.
+    + move=> b hte. by inversion hte.
+    + move=> i hte. case: s hte=> //=. 
+      + exists (Values.Vint (Int.not i)). 
+        rewrite /trans_cvalue_bvalue /=. by exists (Vint (Int.not i)).
+      exists (Values.Vint (Int.not i)). 
+      rewrite /trans_cvalue_bvalue /=. by exists (Vint (Int.not i)).
+    + move=> i hte. by inversion hte.
+    + move=> p i hte. by inversion hte.
+    move=> o hte. by inversion hte.
+  (* IBool *) 
+  case: v=> //=.
+  + move=> hte. by inversion hte.
+  + move=> b hte. by inversion hte.
+  + move=> i hte. case: s hte=> //=. 
+    + exists (Values.Vint (Int.not i)). 
+      rewrite /trans_cvalue_bvalue /=. by exists (Vint (Int.not i)).
+      exists (Values.Vint (Int.not i)). 
+      rewrite /trans_cvalue_bvalue /=. by exists (Vint (Int.not i)).
+    + move=> i hte. by inversion hte.
+    + move=> p i hte. by inversion hte.
+  move=> o hte. by inversion hte.
+(* long *)
+move=> s a. case: v=> //=.
++ move=> hte. by inversion hte.
++ move=> b hte. by inversion hte.
++ move=> i hte _. by inversion hte.
++ move=> i hte. rewrite /Cop.sem_notint /=. 
+  exists (Values.Vlong (Int64.not i)). rewrite /trans_cvalue_bvalue /=.
+  by exists (Vint64 (Int64.not i)).
++ move=> p i hte. by inversion hte.
+move=> o hte. by inversion hte.
+Qed.
+  
+(* neg are well-formed *) 
+Lemma well_formed_neg : forall cenv Gamma Sigma bge vm m v t ef,
+store_well_typed cenv Gamma Sigma bge vm m ->
+type_expr cenv Gamma Sigma (Val v t) ef t ->
+is_primint t || is_primlong t ->
+exists v' v'',
+Cop.sem_unary_operation (Cop.Oneg) (trans_bvalue_cvalue v) (transBeePL_type t) m = Some v' /\
+v' <> Values.Vundef /\
+trans_cvalue_bvalue v' = OK v''.
+Proof.
+move=> cenv Gamma Sigma bge vm m v t ef hw hte heq.
+case: t hte heq=> //= p; case: p=> //=.
+(* int *)
++ move=> sz s a hte _. case: v hte=> //=.
+  + move=> hte. by inversion hte.
+  + move=> b hte. by inversion hte.
+  + move=> i hte. rewrite /Cop.sem_neg /=.
+    case: sz hte=> //=.
+    (* I8 *)
+    + exists (Values.Vint (Int.neg i)). rewrite /trans_cvalue_bvalue.
+      by exists (Vint (Int.neg i)).
+    (* I16 *)
+    + exists (Values.Vint (Int.neg i)). rewrite /trans_cvalue_bvalue.
+      by exists (Vint (Int.neg i)).
+   (* I32 *)
+    + exists (Values.Vint (Int.neg i)). rewrite /trans_cvalue_bvalue.
+      case: s hte=> //=;by exists (Vint (Int.neg i)).
+    move=> hte. exists (Values.Vint (Int.neg i)).
+    rewrite /trans_cvalue_bvalue. by exists (Vint (Int.neg i)).
+  (* I64 *)
+  + move=> i hte. by inversion hte.
+  + move=> l o hte. by inversion hte.
+  + move=> o hte. by inversion hte.
+move=> s a. rewrite /Cop.sem_neg /=.
+case: v=> //=.
++ move=> hte. by inversion hte.
++ move=> b hte. by inversion hte.
++ move=> i hte. by inversion hte.
++ move=> i hte _. exists (Values.Vlong (Int64.neg i)).
+  rewrite /trans_cvalue_bvalue. by exists (Vint64 (Int64.neg i)).
++ move=> p i hte. by inversion hte.
+move=> o hte. by inversion hte.
+Qed.    

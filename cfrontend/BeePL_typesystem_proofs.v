@@ -229,33 +229,35 @@ admit.
   exists m'. exists vm'. exists (Prim (Uop Cop.Onotbool) [:: e'] (typeof_expr e)). split=> //=.
   have h := type_rel_typeof cenv Gamma Sigma e ef (Vtype Tbool) hte. rewrite -h.
   by apply ssem_uop1. 
-(* notint *)
-(*+ move=> cenv Gamma Sigma e ef t hteq hte hin bge p vm m hw. 
+(* notint *) (* complete *)
++ move=> cenv Gamma Sigma e ef t hteq hte hin bge p vm m hw. 
   move: (hin bge p vm m hw)=> [].
   (* value *)
   + move=> hv. right. case: e hte hin hv=> //= v t' hte hin _.
-    case: t hteq hte=> //= pt. case: pt=> //=.
-    (* int *)
-    
-    
-    
-(* uop *)
-+ move=> Gamma Sigma op e ef t hf hf' hte hin bge vm m hw. right.
-  move: (hin bge vm m hw)=> [] hv.
-  (* value e *)
-  + case: e hte hin hv=> //= v t' hte hin _. exists m. exists vm.
-    have [hwts hwt] := well_typed_success. 
-    have hteq := type_val_reflx Gamma Sigma v t' ef t hte; subst.
-    have htuop := type_uop_inject Gamma Sigma (Val v t) t ef op hf hf' hte.
-    move: (hwt Gamma Sigma (Val v t) ef t hte)=> [] ct [] g [] i hct.
-    have [v' hsop] := well_formed_uop Gamma Sigma bge vm v ef t op m ct g i htuop hct hw.
-    have [v'' hbv] := trans_value_uop_success Gamma Sigma ef t op v ct g g i m v' hte hct hsop. 
-    exists (Val v'' t). split=> //=. apply ssem_uop2 with v' ct g g i. + by apply hct.
-    + by apply hsop. by apply hbv.
+    have hte' := type_val_reflx cenv Gamma Sigma v t' ef t hte; subst.
+    have [v' [v'' [ho [hd hv]]]] :=  well_formed_notint cenv Gamma Sigma bge vm m v t ef hw hte hteq.
+    exists m. exists vm. exists (Val v'' t). split=> //=.
+    apply ssem_uop2 with v' (transBeePL_type t); auto.
   (* step *)
-  move: hv. move=> [] m' [] vm' [] e' [] he' hs'. exists m'. exists vm'.
-  exists (Prim (Uop op) [:: e'] t). 
-  have hteq := type_rel_typeof Gamma Sigma e ef t hte; subst. split=> //=. by apply ssem_uop1.
+  move=> [] m' [] vm' [] e' [] he' hw'. right.
+  exists m'. exists vm'. exists (Prim (Uop Cop.Onotint) [:: e'] (typeof_expr e)). split=> //=.
+  have h := type_rel_typeof cenv Gamma Sigma e ef t hte. rewrite -h.
+  by apply ssem_uop1.
+(* neg *) (* complete *)
++ move=> cenv Gamma Sigma e ef t hteq hte hin bge p vm m hw. 
+  move: (hin bge p vm m hw)=> [].
+  (* value *)
+  + move=> hv. right. case: e hte hin hv=> //= v t' hte hin _.
+    have hte' := type_val_reflx cenv Gamma Sigma v t' ef t hte; subst.
+    have [v' [v'' [ho [hd hv]]]] :=  well_formed_neg cenv Gamma Sigma bge vm m v t ef hw hte hteq.
+    exists m. exists vm. exists (Val v'' t). split=> //=.
+    apply ssem_uop2 with v' (transBeePL_type t); auto.
+  (* step *)
+  move=> [] m' [] vm' [] e' [] he' hw'. right.
+  exists m'. exists vm'. exists (Prim (Uop Cop.Oneg) [:: e'] (typeof_expr e)). split=> //=.
+  have h := type_rel_typeof cenv Gamma Sigma e ef t hte. rewrite -h.
+  by apply ssem_uop1. 
+(*
 (* bop *)
 + move=> Gamma Sigma op e ef t e' hf hf' hte hin hte' hin' bge vm m hw. right.
   move: (hin bge vm m hw)=> [] hv.
