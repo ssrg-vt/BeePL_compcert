@@ -7,7 +7,7 @@ Require Import BeePL_sem BeePL_typesystem BeePL_compiler_proofs BeePL_values Bee
 
 From mathcomp Require Import all_ssreflect.
 
-(* notbool are well-formed *) 
+(* notbool is well-formed *) 
 Lemma well_formed_notbool : forall cenv Gamma Sigma bge vm m v ef,
 store_well_typed cenv Gamma Sigma bge vm m ->
 type_expr cenv Gamma Sigma (Val v (Vtype Tbool)) ef (Vtype Tbool) ->
@@ -47,7 +47,7 @@ case: v hte=> //=.
 move=> o hte. by inversion hte.
 Qed.
 
-(* notint are well-formed *) 
+(* notint is well-formed *) 
 Lemma well_formed_notint : forall cenv Gamma Sigma bge vm m v t ef,
 store_well_typed cenv Gamma Sigma bge vm m ->
 type_expr cenv Gamma Sigma (Val v t) ef t ->
@@ -116,7 +116,7 @@ move=> s a. case: v=> //=.
 move=> o hte. by inversion hte.
 Qed.
   
-(* neg are well-formed *) 
+(* neg is well-formed *) 
 Lemma well_formed_neg : forall cenv Gamma Sigma bge vm m v t ef,
 store_well_typed cenv Gamma Sigma bge vm m ->
 type_expr cenv Gamma Sigma (Val v t) ef t ->
@@ -158,4 +158,105 @@ case: v=> //=.
   rewrite /trans_cvalue_bvalue. by exists (Vint64 (Int64.neg i)).
 + move=> p i hte. by inversion hte.
 move=> o hte. by inversion hte.
-Qed.    
+Qed.   
+
+(* add is well-formed *) 
+Lemma well_formed_add : forall cenv benv Gamma Sigma bge vm m v1 t ef1 v2 ef2,
+store_well_typed benv Gamma Sigma bge vm m ->
+type_expr benv Gamma Sigma (Val v1 t) ef1 t ->
+type_expr benv Gamma Sigma (Val v2 t) ef2 t ->
+is_primint t || is_primlong t ->
+exists v' v'',
+Cop.sem_binary_operation cenv Cop.Oadd (trans_bvalue_cvalue v1) (transBeePL_type t) 
+      (trans_bvalue_cvalue v2) (transBeePL_type t) m = Some v' /\
+v' <> Values.Vundef /\
+trans_cvalue_bvalue v' = OK v''.
+Proof.
+move=> cnev benv Gamma Sigma bge vm m v1 t ef1 v2 ef2 hw ht1 ht2 hteq.
+case: t ht1 ht2 hteq=> //= p; case: p=> //= sz s a.
+(* int *)
++ move=> ht1 ht2 _. case: v1 ht1=> //=.
+  + move=> ht1. by inversion ht1.
+  + move=> b ht1. by inversion ht1.
+  + move=> i ht1. case: v2 ht2=> //=.
+    + move=> ht2. by inversion ht2.
+    + move=> b ht2. by inversion ht2.
+    + move=> i' ht3. rewrite /Cop.sem_add /Cop.classify_add /=.
+      case: sz ht1 ht3=>//=.
+      + rewrite /Cop.sem_binarith /= /Cop.sem_cast /=. case: Archi.ptr64=> //= hp.
+        + exists (Values.Vint (Int.add i i')). rewrite /trans_cvalue_bvalue /=.
+          by exists (Vint (Int.add i i')).
+        case: (intsize_eq I32 I32)=> //= _. exists (Values.Vint (Int.add i i')). 
+        rewrite /trans_cvalue_bvalue /=. by exists (Vint (Int.add i i')).
+      + rewrite /Cop.sem_binarith /= /Cop.sem_cast /=. case: Archi.ptr64=> //= hp.
+        + exists (Values.Vint (Int.add i i')). rewrite /trans_cvalue_bvalue /=.
+          by exists (Vint (Int.add i i')).
+        case: (intsize_eq I32 I32)=> //= _. exists (Values.Vint (Int.add i i')). 
+        rewrite /trans_cvalue_bvalue /=. by exists (Vint (Int.add i i')).
+      + rewrite /Cop.sem_binarith /= /Cop.sem_cast /= /Cop.classify_cast /=. 
+        case: s=> //=.
+        + case: Archi.ptr64=> //= hp.
+          + exists (Values.Vint (Int.add i i')). rewrite /trans_cvalue_bvalue /=.
+            by exists (Vint (Int.add i i')).
+          case: (intsize_eq I32 I32)=> //= _. exists (Values.Vint (Int.add i i')). 
+          rewrite /trans_cvalue_bvalue /=. by exists (Vint (Int.add i i')).
+        case: Archi.ptr64=> //= hp.
+        + exists (Values.Vint (Int.add i i')). rewrite /trans_cvalue_bvalue /=.
+          by exists (Vint (Int.add i i')).
+        case: (intsize_eq I32 I32)=> //= _. exists (Values.Vint (Int.add i i')). 
+        rewrite /trans_cvalue_bvalue /=. by exists (Vint (Int.add i i')).
+      rewrite /Cop.sem_binarith /= /Cop.sem_cast /=. case: Archi.ptr64=> //= hp.
+      + exists (Values.Vint (Int.add i i')). rewrite /trans_cvalue_bvalue /=.
+        by exists (Vint (Int.add i i')).
+      case: (intsize_eq I32 I32)=> //= _. exists (Values.Vint (Int.add i i')). 
+      rewrite /trans_cvalue_bvalue /=. by exists (Vint (Int.add i i')).
+   + move=> i' ht3. by inversion ht3. 
+   + move=> p ofs ht3. by inversion ht3.
+   + move=> o ht3. by inversion ht3.
+   + move=> l ht3. by inversion ht3.
+   + move=> l o ht3. by inversion ht3.
+(* long *)
+(*+ move=> ht1 ht2 _. case: v1 ht1=> //=.
+  + move=> ht1. by inversion ht1.
+  + move=> b ht1. by inversion ht1.
+  + move=> i ht1. case: v2 ht2=> //=.
+    + move=> ht2. by inversion ht2.
+    + move=> b ht2. by inversion ht2.
+    + move=> i' ht3. rewrite /Cop.sem_add /Cop.classify_add /=.
+      case: sz ht1 ht3=>//=.
+      + rewrite /Cop.sem_binarith /= /Cop.sem_cast /=. case: Archi.ptr64=> //= hp.
+        + exists (Values.Vint (Int.add i i')). rewrite /trans_cvalue_bvalue /=.
+          by exists (Vint (Int.add i i')).
+        case: (intsize_eq I32 I32)=> //= _. exists (Values.Vint (Int.add i i')). 
+        rewrite /trans_cvalue_bvalue /=. by exists (Vint (Int.add i i')).
+      + rewrite /Cop.sem_binarith /= /Cop.sem_cast /=. case: Archi.ptr64=> //= hp.
+        + exists (Values.Vint (Int.add i i')). rewrite /trans_cvalue_bvalue /=.
+          by exists (Vint (Int.add i i')).
+        case: (intsize_eq I32 I32)=> //= _. exists (Values.Vint (Int.add i i')). 
+        rewrite /trans_cvalue_bvalue /=. by exists (Vint (Int.add i i')).
+      + rewrite /Cop.sem_binarith /= /Cop.sem_cast /= /Cop.classify_cast /=. 
+        case: s=> //=.
+        + case: Archi.ptr64=> //= hp.
+          + exists (Values.Vint (Int.add i i')). rewrite /trans_cvalue_bvalue /=.
+            by exists (Vint (Int.add i i')).
+          case: (intsize_eq I32 I32)=> //= _. exists (Values.Vint (Int.add i i')). 
+          rewrite /trans_cvalue_bvalue /=. by exists (Vint (Int.add i i')).
+        case: Archi.ptr64=> //= hp.
+        + exists (Values.Vint (Int.add i i')). rewrite /trans_cvalue_bvalue /=.
+          by exists (Vint (Int.add i i')).
+        case: (intsize_eq I32 I32)=> //= _. exists (Values.Vint (Int.add i i')). 
+        rewrite /trans_cvalue_bvalue /=. by exists (Vint (Int.add i i')).
+      rewrite /Cop.sem_binarith /= /Cop.sem_cast /=. case: Archi.ptr64=> //= hp.
+      + exists (Values.Vint (Int.add i i')). rewrite /trans_cvalue_bvalue /=.
+        by exists (Vint (Int.add i i')).
+      case: (intsize_eq I32 I32)=> //= _. exists (Values.Vint (Int.add i i')). 
+      rewrite /trans_cvalue_bvalue /=. by exists (Vint (Int.add i i')).
+   + move=> i' ht3. by inversion ht3. 
+   + move=> p ofs ht3. by inversion ht3.
+   + move=> o ht3. by inversion ht3.
+   + move=> l ht3. by inversion ht3.
+   move=> l o ht3. by inversion ht3.*)
+Admitted.
+
+
+ 

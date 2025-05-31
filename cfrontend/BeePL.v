@@ -20,6 +20,7 @@ Inductive builtin : Type :=
                                                assigns the evaluation of e to the reference cell l *)
 | Uop : Cop.unary_operation -> builtin      (* unary operator *) (* rvalue *)
 | Bop : Cop.binary_operation -> builtin     (* binary operator *) (* rvalue *)
+| Cast : type -> builtin                            (* casting operator *)
 | Run : Memory.mem -> builtin               (* eliminate heap effect : [r1-> v1, ..., ern->vn] e 
                                                reduces to e captures the essence of state isolation 
                                                and reduces to a value discarding the heap *).

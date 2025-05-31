@@ -256,7 +256,16 @@ admit.
   move=> [] m' [] vm' [] e' [] he' hw'. right.
   exists m'. exists vm'. exists (Prim (Uop Cop.Oneg) [:: e'] (typeof_expr e)). split=> //=.
   have h := type_rel_typeof cenv Gamma Sigma e ef t hte. rewrite -h.
-  by apply ssem_uop1. 
+  by apply ssem_uop1.
+(* Oadd *)
++ move=> cenv Gamma Sigma e ef1 ef2 t e'' ht hte hin hte'' hin' bge p vm m hw.
+  move: (hin bge p vm m hw)=> [].
+  (* e is a value *)
+  + move=> hv. case: e hte hin hv=> //= v1 t1 hte hin _.
+    move: (hin' bge p vm m hw)=> [].
+    (* e' is a value *)
+    + move=> hv'. case: e'' hte'' hin' hv'=> //= v2 t2 hte'' hin' hv'. right.
+      
 (*
 (* bop *)
 + move=> Gamma Sigma op e ef t e' hf hf' hte hin hte' hin' bge vm m hw. right.

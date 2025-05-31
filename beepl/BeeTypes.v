@@ -63,6 +63,16 @@ with type : Type :=
 | Bytes : type                                            (* bytes type of size n *).
 
 
+Definition allowed_cast (t1 t2 : primitive_type) : res primitive_type :=
+match t1, t2 with 
+| Tbool, _ => OK t2
+| Tint sz s a, _ => OK t2
+| Tlong s a, Tint sz s' a' => OK t2
+| Tlong s a, Tlong s' a' => OK t2
+| _, _ => Error (msg "Casting not allowed")
+end.
+
+
 Fixpoint get_data_type (pt : ptr_type) : type :=
 match pt with 
 | Reftype h bt a => match bt with 

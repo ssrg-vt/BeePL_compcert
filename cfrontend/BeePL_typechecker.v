@@ -256,6 +256,18 @@ match e with
                                           | _ =>  Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
                                           end
                             end
+                 | Cast t => match t with 
+                             | Vtype vt => match es with 
+                                           | e1 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
+                                                          match te1 with 
+                                                          | Vtype vt1 => do rt <- allowed_cast vt1 vt;
+                                                                         OK(Vtype rt, ef1)
+                                                          | _ => Error (msg "TYPE ERROR: Wrong argument type to casting operator, it expects bool, int, or long")
+                                                          end
+                                           | _ => Error (msg "TYPE ERROR: Wrong number of arguments to Casting Operator")
+                                           end 
+                             | _ => Error (msg "TYPE ERROR: Casting is only allowed from one value type to another")
+                             end
                  | Run h => Error (msg "TYPE ERROR: Run is not yet supported")
                  end
 | Bind x t e1 e2 t' => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;

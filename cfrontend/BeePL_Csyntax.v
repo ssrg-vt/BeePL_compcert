@@ -133,12 +133,12 @@ match t with
                                                       (Ebinop Cop.Oand (Ebinop Cop.Oeq (hd default_expr (exprlist_list_expr ces))
                                                                                         (Eval (Values.Vint (Int.repr Int.min_signed)) t) t)
                                                                        (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
-                                                                                        (Eval (Values.Vint Int.mone) t) t) t) t)
+                                                                                        (Eval (Values.Vint Int.mone) t) t) t) tint)
                                      (Eval v t)
                                      (Ebinop (Cop.Odiv) (hd default_expr (exprlist_list_expr ces)) 
                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
 | Ctypes.Tint I32 Unsigned _ => ret (Econdition (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
-                                                                     (Eval (Values.Vint Int.zero) t) t)
+                                                                     (Eval (Values.Vint Int.zero) t) tint)
                                             (Eval v t)
                                             (Ebinop (Cop.Odiv) (hd default_expr (exprlist_list_expr ces)) 
                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
@@ -147,12 +147,12 @@ match t with
                                                       (Ebinop Cop.Oand (Ebinop Cop.Oeq (hd default_expr (exprlist_list_expr ces))
                                                                                         (Eval (Values.Vlong (Int64.repr Int64.min_signed)) t) t)
                                                                        (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
-                                                                                        (Eval (Values.Vlong Int64.mone) t) t) t) t)
+                                                                                        (Eval (Values.Vlong Int64.mone) t) t) t) tint)
                                      (Eval v t)
                                      (Ebinop (Cop.Odiv) (hd default_expr (exprlist_list_expr ces)) 
                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
 | Ctypes.Tlong Unsigned _ => ret (Econdition (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
-                                                                     (Eval (Values.Vlong Int64.zero) t) t)
+                                                                     (Eval (Values.Vlong Int64.zero) t) tint)
                                             (Eval v t)
                                             (Ebinop (Cop.Odiv) (hd default_expr (exprlist_list_expr ces)) 
                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
@@ -162,7 +162,7 @@ end.
 Definition check_mod (ces : exprlist) (v : Values.val) (t : Ctypes.type) : mon Csyntax.expr :=
 match t with 
 | Ctypes.Tint I32 Signed _ => ret (Econdition (Ebinop Cop.Oor (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
-                                                                     (Eval (Values.Vint Int.zero) t) t)
+                                                                     (Eval (Values.Vint Int.zero) t) tint)
                                                       (Ebinop Cop.Oand (Ebinop Cop.Oeq (hd default_expr (exprlist_list_expr ces))
                                                                                         (Eval (Values.Vint (Int.repr Int.min_signed)) t) t)
                                                                        (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
@@ -171,12 +171,12 @@ match t with
                                      (Ebinop (Cop.Omod) (hd default_expr (exprlist_list_expr ces)) 
                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
 | Ctypes.Tint I32 Unsigned _ => ret (Econdition (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
-                                                                     (Eval (Values.Vint Int.zero) t) t)
+                                                                     (Eval (Values.Vint Int.zero) t) tint)
                                             (Eval v t)
                                             (Ebinop (Cop.Omod) (hd default_expr (exprlist_list_expr ces)) 
                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
 | Ctypes.Tlong Signed _ => ret (Econdition (Ebinop Cop.Oor (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
-                                                                     (Eval (Values.Vlong Int64.zero) t) t)
+                                                                     (Eval (Values.Vlong Int64.zero) t) tint)
                                                       (Ebinop Cop.Oand (Ebinop Cop.Oeq (hd default_expr (exprlist_list_expr ces))
                                                                                         (Eval (Values.Vlong (Int64.repr Int64.min_signed)) t) t)
                                                                        (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
@@ -185,7 +185,7 @@ match t with
                                      (Ebinop (Cop.Omod) (hd default_expr (exprlist_list_expr ces)) 
                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
 | Ctypes.Tlong Unsigned _ => ret (Econdition (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
-                                                                     (Eval (Values.Vlong Int64.zero) t) t)
+                                                                     (Eval (Values.Vlong Int64.zero) t) tint)
                                             (Eval v t)
                                             (Ebinop (Cop.Omod) (hd default_expr (exprlist_list_expr ces)) 
                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
@@ -195,30 +195,30 @@ end.
 Definition check_shl (ces : exprlist) (v : Values.val) (t : Ctypes.type) : mon Csyntax.expr :=
 match t with 
 | Ctypes.Tint _ s _ => ret (Econdition (Ebinop Cop.Olt (hd default_expr (tl (exprlist_list_expr ces)))
-                                                               (Eval (Values.Vint Int.iwordsize) t) t)
-                                                      (Eval v t) 
+                                                               (Eval (Values.Vint Int.iwordsize) t) tint)
                                                       (Ebinop (Cop.Oshl) (hd default_expr (exprlist_list_expr ces)) 
-                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t)
+                                                      (Eval v t) t)
 | Ctypes.Tlong _ _ => ret (Econdition (Ebinop Cop.Olt (hd default_expr (tl (exprlist_list_expr ces)))
                                                                (Eval (Values.Vlong Int64.iwordsize) t) t)
-                                                      (Eval v t) 
                                                       (Ebinop (Cop.Oshl) (hd default_expr (exprlist_list_expr ces)) 
-                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) 
+                                                      (Eval v t) t)
 | _ => error (msg "COMPILER ERROR: The type of argument of shl should be int or long")
 end.
 
 Definition check_shr (ces : exprlist) (v : Values.val) (t : Ctypes.type) : mon Csyntax.expr :=
 match t with 
 | Ctypes.Tint _ s _ => ret (Econdition (Ebinop Cop.Olt (hd default_expr (tl (exprlist_list_expr ces)))
-                                                               (Eval (Values.Vint Int.iwordsize) t) t)
-                                                      (Eval v t) 
+                                                               (Eval (Values.Vint Int.iwordsize) t) tint)
                                                       (Ebinop (Cop.Oshr) (hd default_expr (exprlist_list_expr ces)) 
-                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) 
+                                                      (Eval v t) t)
 | Ctypes.Tlong _ _ => ret (Econdition (Ebinop Cop.Olt (hd default_expr (tl (exprlist_list_expr ces)))
-                                                               (Eval (Values.Vlong Int64.iwordsize) t) t)
-                                                      (Eval v t) 
+                                                               (Eval (Values.Vlong Int64.iwordsize) t) tint)
                                                       (Ebinop (Cop.Oshr) (hd default_expr (exprlist_list_expr ces)) 
-                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) 
+                                                      (Eval v t) t)
 | _ => error (msg "COMPILER ERROR: The type of argument of shr should be int or long")
 end.
 
@@ -318,6 +318,9 @@ match e with
                                         (transBeePL_type t), snd ces, bctx')
 
                            end
+               | Cast t => do (ces, bctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx bctx);
+                            let ct := (transBeePL_type t) in
+                            ret (Ecast (hd default_expr (exprlist_list_expr (fst ces))) ct, snd ces, bctx')
 end
 | Bind x t e e' t' => let ct := (transBeePL_type t) in
                       do (ce, bctx') <- (transBeePL_expr_expr e fn_ctx bctx);
@@ -540,7 +543,10 @@ match e with
                                         (transBeePL_type t))), snd ces, fn_ctx')
 
                            end
-                 end 
+                 | Cast t => do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx bctx);
+                            ret (Sreturn (Some (Ecast (hd default_expr (exprlist_list_expr (fst ces))) (transBeePL_type t))),
+                                snd ces, fn_ctx')
+                 end  
 | Bind x t e e' t' => let ct := (transBeePL_type t) in
                       do (ce', ctx') <- (transBeePL_expr_st cenv e' ctx bctx);
                       match e with 
