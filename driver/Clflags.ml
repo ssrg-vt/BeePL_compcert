@@ -12,6 +12,7 @@
 
 (* Command-line flags *)
 
+let option_typecheck = ref false
 let prepro_options = ref ([]: string list)
 let linker_options = ref ([]: string list)
 let assembler_options = ref ([]: string list)

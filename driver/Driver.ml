@@ -161,6 +161,17 @@ let compile_b_file sourcename ofile =
   set_dest PrintMach.destination option_dmach ".mach";
   set_dest AsmToJSON.destination option_sdump !sdump_suffix;
 
+  (* Typecheck BeePL program *)
+  if !option_typecheck then
+  begin
+  let typecheck_result = BeePL_typechecker.type_check_program BeePL_progs.example1 in
+  match typecheck_result with
+  | Errors.OK _ -> ()
+  | Errors.Error msg -> 
+        let loc = file_loc sourcename in
+        fatal_error loc "error during BeePL_typechecker.type_check_program: %a" print_error msg
+  end;
+
   (* Parse BeePL AST *)
   let beepl = Compiler.transf_beepl_program_csyntax BeePL_progs.example1 in
   let (csyntax, ident_to_string, section_info) =
@@ -442,6 +453,7 @@ let cmdline_actions =
     @ DebugInit.debugging_actions @
 (* Code generation options -- more below *)
  [
+  Exact "-typecheck", Set option_typecheck;
   Exact "-O0", Unit (unset_all optimization_options);
   Exact "-O", Unit (set_all optimization_options);
   _Regexp "-O[123]$", Unit (set_all optimization_options);
