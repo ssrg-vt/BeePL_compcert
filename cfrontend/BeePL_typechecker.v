@@ -81,9 +81,11 @@ match e with
                  | Deref => match es with 
                             | e :: nil => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                                           match te with 
-                                          | Ptrtype pt => if eq_type t (get_data_type pt) && (is_option_ptr_type pt == false) 
-                                                          then OK (get_data_type pt, (ef ++ (Read mem_ident :: nil)))
-                                                          else Error (msg "Dereftype does not match the inferred type")
+                                          | Ptrtype pt => if eq_type t (get_data_type pt) 
+                                                          then if (is_option_ptr_type pt == false) 
+                                                               then OK (get_data_type pt, (ef ++ (Read mem_ident :: nil)))
+                                                               else Error (msg "Deref is not allowed on option type")
+                                                          else Error (msg "Deref type does not match the inferred type")
                                           | _ => Error (msg "TYPE ERROR: Argument of dereferencing should be a ref type")
                                           end
                           |  _ => Error (msg "TYPE ERROR: Wrong number of arguments to Deref")
@@ -94,10 +96,12 @@ match e with
                                                   | Ptrtype pt => do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                                                                   let bt := get_data_type pt in
                                                                   match te2 with 
-                                                                  | bt => if eq_type t Utype && (is_option_ptr_type pt == false) 
-                                                                                then OK (Utype, ef1 ++ ef2 ++ (Write mem_ident :: nil))
-                                                                                else Error (msg "Massgntype does not match the inferred type")
-                                                                                      end 
+                                                                  | bt => if eq_type t Utype
+                                                                          then if (is_option_ptr_type pt == false) 
+                                                                               then OK (Utype, ef1 ++ ef2 ++ (Write mem_ident :: nil))
+                                                                               else Error (msg "Massgntype not allowed on option type")
+                                                                          else Error (msg "Massgn type does not match the inferred type")
+                                                                  end 
                                                  | _ => Error (msg "TYPE ERROR: First argument of Massgn should be a reftype")
                                                  end
                             | _ => Error (msg "TYPE ERROR: Wrong number of arguments to Massgn")

@@ -72,7 +72,6 @@ match t1, t2 with
 | _, _ => Error (msg "Casting not allowed")
 end.
 
-
 Fixpoint get_data_type (pt : ptr_type) : type :=
 match pt with 
 | Reftype h bt a => match bt with 
@@ -238,9 +237,9 @@ with transBeePL_ptr_type (pt : ptr_type) : Ctypes.type :=
                            end
       end
   | Vptype pt => match pt with 
-                 | Tbool => tptr tvoid (*Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr*)
-                 | (Tint sz s a') => tptr tvoid (*Ctypes.Tpointer (Ctypes.Tint sz s a') a'*)
-                 | (Tlong s a') => tptr tvoid (*Ctypes.Tpointer (Ctypes.Tlong s a') a'*)
+                 | Tbool => Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr
+                 | (Tint sz s a') => Ctypes.Tpointer (Ctypes.Tint sz s a') a'
+                 | (Tlong s a') => Ctypes.Tpointer (Ctypes.Tlong s a') a' (*tptr tvoid*)
                  end
   | Otype t => (transBeePL_ptr_type t)
   | Fptype ts ef t =>
