@@ -858,10 +858,10 @@ Record csyntax_atom_info : Type := {
   a_loc : string (*filename*) * int; (*line number*)
 }.
 
-Fixpoint get_section_info (glob_defs : list (ident * AST.globdef BeePL.fundef type)) : list (ident * csyntax_atom_info) :=
+Fixpoint get_section_info (glob_defs : list (ident * AST.globdef BeePL.fundef type * option string)) : list (ident * csyntax_atom_info) :=
   match glob_defs with
   | nil => nil
-  | (id, AST.Gfun (Internal f)) :: rest =>
+  | (id, AST.Gfun (Internal f), _) :: rest =>
       let tail := get_section_info rest in
       match fn_sec f with
       | Some s =>
@@ -893,13 +893,14 @@ Fixpoint get_section_info (glob_defs : list (ident * AST.globdef BeePL.fundef ty
 Definition BeePL_compcert (p : BeePL.program) : res (Csyntax.program * list (ident * string) * list (ident * csyntax_atom_info)) :=
   (* Extract section information from BeePL.program *)  
   let section_info := get_section_info (prog_defs p) in
-  
-  let bctx := {| arg_ctx := get_args_ebpf_gbdefs (unzip2 p.(prog_defs)); benv := p.(prog_comp_env) |} in 
+  let defs := map (fun '(id, gd, _) => (id, gd)) p.(prog_defs) in
+
+  let bctx := {| arg_ctx := get_args_ebpf_gbdefs (unzip2 defs); benv := p.(prog_comp_env) |} in 
   do cp <- check_struct_from_program p;
-  do (pds, is') <- transBeePL_globdefs_globdefs (prog_comp_env(p)) (unzip2 (p.(prog_defs))) (p.(prog_ident_to_string)) bctx;
-  let ncs := get_bcs_from_globdefs (unzip2 (p.(prog_defs))) in (* adds bytes_t in composite *)
+  do (pds, is') <- transBeePL_globdefs_globdefs (prog_comp_env(p)) (unzip2 (defs)) (p.(prog_ident_to_string)) bctx;
+  let ncs := get_bcs_from_globdefs (unzip2 (defs)) in (* adds bytes_t in composite *)
   let cs := (map bcomposite_ccomposite_definition p.(prog_types)) in 
   let mcs := (ncs ++ snd pds ++ wrapper_beepl_struct_ebpf_struct cs)%list in
-  do cprog <- make_program mcs (zip (unzip1 p.(prog_defs)) (fst (fst pds))) (prog_public p) (prog_main p);
+  do cprog <- make_program mcs (zip (unzip1 defs) (fst (fst pds))) (prog_public p) (prog_main p);
   OK (cprog, snd (fst pds), section_info).
 

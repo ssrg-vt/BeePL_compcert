@@ -61,5 +61,5 @@ match gd with
 end.
 
 Definition check_struct_from_program (p : BeePL.program) : res BeePL.program :=
-let fv := unzip2 p.(prog_defs) in 
-do rs <- check_struct_from_globdefs fv;OK p.
+  let defs := map (fun '(_, gd, _) => gd) p.(prog_defs) in
+  do rs <- check_struct_from_globdefs defs; OK p.
