@@ -36,7 +36,6 @@ Definition ident_to_string : list (ident * string) := ((_t, "t") ::
                                                        (_main, "main") :: nil).
 
 Definition f_null_ptr : BeePL.function := {| 
-                                   fn_sec := None;
                                    fn_return := tint32s;
                                    fn_effect := Read mem_ident :: nil;
                                    fn_callconv := cc_default;
@@ -62,7 +61,6 @@ Definition f_null_ptr : BeePL.function := {|
 *)
 
 Definition f_ptr_add : BeePL.function := {| 
-                                   fn_sec := None;
                                    fn_return := tint32s;
                                    fn_effect := Read mem_ident :: nil;
                                    fn_callconv := cc_default;
@@ -89,7 +87,6 @@ Definition f_ptr_add : BeePL.function := {|
 *)
 
 Definition f_ptr_assgn : BeePL.function := {| 
-                                   fn_sec := None;
                                    fn_return := tint32s;
                                    fn_effect := Read mem_ident :: Write mem_ident :: Read mem_ident :: nil;
                                    fn_callconv := cc_default;
@@ -109,10 +106,10 @@ Definition f_ptr_assgn : BeePL.function := {|
                                   is_ebpf := false|}.
 
 
-Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
-   := (_null_ptr, AST.Gfun(BeePL.Internal (f_null_ptr))) :: 
-      (_ptr_add, AST.Gfun(BeePL.Internal (f_ptr_add))) :: 
-      (_main, AST.Gfun(BeePL.Internal (f_ptr_assgn))) :: nil.
+Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
+   := (_null_ptr, AST.Gfun(BeePL.Internal (f_null_ptr)), None) :: 
+      (_ptr_add, AST.Gfun(BeePL.Internal (f_ptr_add)), None) :: 
+      (_main, AST.Gfun(BeePL.Internal (f_ptr_assgn)), None) :: nil.
 
 Definition public_idents : list ident := (_main :: nil).
 

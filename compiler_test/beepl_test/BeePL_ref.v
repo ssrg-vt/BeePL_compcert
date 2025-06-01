@@ -25,7 +25,6 @@ Definition ident_to_string : list (ident * string) := ((_x, "x") ::
                                                        (_main, "main") :: nil).
 
 Definition f_ref : BeePL.function := {| 
-                                   fn_sec := None;
                                    fn_return := (Ptype (BeeTypes.Tint I32 Signed dattr));
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
@@ -38,7 +37,6 @@ Definition f_ref : BeePL.function := {|
 
 (* Swarn said this should be rejected by the typechecker *)
 Definition f_ref2 : BeePL.function := {| 
-                                   fn_sec := None;
                                    fn_return := (Ptype (BeeTypes.Tint I32 Signed dattr));
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
@@ -58,7 +56,7 @@ Definition f_ref2 : BeePL.function := {|
                                                       (Ptype (BeeTypes.Tint I32 Unsigned dattr))))
                                                 (Ptype (BeeTypes.Tint I32 Unsigned dattr)) |}.
 
-Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
-   := (_main, AST.Gfun(BeePL.Internal (f_ref))) :: nil.
+Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
+   := (_main, AST.Gfun(BeePL.Internal (f_ref)), None) :: nil.
 
 Definition public_idents : list ident := (_main :: nil).*)

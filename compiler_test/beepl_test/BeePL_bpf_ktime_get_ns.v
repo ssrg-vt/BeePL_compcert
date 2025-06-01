@@ -73,10 +73,10 @@ Definition f_bpf_prog : BeePL.function := {|
 
 Definition bcomposites : list bcomposite_definition := bcomposites_pt_regs.
 
-Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
+Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
    := (_bpf_ktime_get_ns, AST.Gfun(BeePL.External (bpf_external_function)
-                                     nil tlongu (cc_default))) :: 
-      (_bpf_prog, AST.Gfun(BeePL.Internal (f_bpf_prog))) :: nil.
+                                     nil tlongu (cc_default)), None) :: 
+      (_bpf_prog, AST.Gfun(BeePL.Internal (f_bpf_prog)), None) :: nil.
 
 Definition public_idents : list ident := (_bpf_prog :: nil).
 

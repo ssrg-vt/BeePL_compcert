@@ -23,7 +23,6 @@ Definition ident_to_string : list (ident * string) := ((_r, "r") ::
                                                        (_main, "main") :: nil).
 
 Definition f_rshift : BeePL.function := {| 
-                                   fn_sec := None;
                                    fn_return := tlongu;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
@@ -41,8 +40,8 @@ Definition f_rshift : BeePL.function := {|
                                   is_ebpf := false |}.
 
 
-Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
-   := (_main, AST.Gfun(BeePL.Internal (f_rshift))) :: nil.
+Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
+   := (_main, AST.Gfun(BeePL.Internal (f_rshift)), None) :: nil.
 
 Definition public_idents : list ident := (_main :: nil).
 

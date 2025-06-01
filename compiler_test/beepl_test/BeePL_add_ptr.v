@@ -39,7 +39,6 @@ Definition  ident_to_string : list (ident * string) := ((_a, "a") ::
 
 
 Definition f_add : BeePL.function := {| 
-                                   fn_sec := None;
                                    fn_return := tint32s;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
@@ -55,7 +54,6 @@ Definition f_add : BeePL.function := {|
                                    is_ebpf := false |}.
 
 Definition f_main : BeePL.function := {| 
-                                   fn_sec := None;
                                    fn_return := tint32s;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
@@ -76,9 +74,9 @@ Definition f_main : BeePL.function := {|
                                                          (Var _r tint32s) tint32s) tint32s) tint32s;
                                   is_ebpf := false |}.
 
-Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
-   := (_add, AST.Gfun(BeePL.Internal (f_add))) ::
-      (_main, AST.Gfun(BeePL.Internal (f_main))) :: nil.
+Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
+   := (_add, AST.Gfun(BeePL.Internal (f_add)), None) ::
+      (_main, AST.Gfun(BeePL.Internal (f_main)), None) :: nil.
 
 Definition public_idents : list ident := (_main :: _add :: nil).
 

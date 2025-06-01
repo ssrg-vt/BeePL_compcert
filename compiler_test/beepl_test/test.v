@@ -27,7 +27,7 @@ Definition f_main : function := {| fn_return := (Ptype (Tint I32 Unsigned dattr)
 
 Definition composites : list composite_definition := nil.
 
-Definition global_definitions : list (ident * globdef fundef type) := (main, Gfun(Internal f_main)) :: nil.
+Definition global_definitions : list (ident * globdef fundef type * option string) := (main, Gfun(Internal f_main)) :: nil.
 
 Definition public_idents : list ident := (main :: nil).
 

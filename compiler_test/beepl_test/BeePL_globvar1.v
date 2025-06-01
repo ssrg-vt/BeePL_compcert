@@ -38,8 +38,7 @@ Definition v_x := {|
   gvar_volatile := false
 |}.
 
-Definition f_main := {|   fn_sec := None;
-                          fn_return := tint32s;
+Definition f_main := {|   fn_return := tint32s;
                           fn_effect := Read mem_ident :: Write mem_ident :: Read mem_ident :: nil;
                           fn_callconv := cc_default;
                           fn_args := nil;
@@ -59,8 +58,8 @@ Definition f_main := {|   fn_sec := None;
 Definition bcomposites : list bcomposite_definition :=
 nil.
 
-Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
-   := ((_x, Gvar v_x) :: (_val, Gvar v_val) :: (_main, AST.Gfun(BeePL.Internal (f_main))) :: nil).
+Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
+   := ((_x, Gvar v_x, None) :: (_val, Gvar v_val, None) :: (_main, AST.Gfun(BeePL.Internal (f_main)), None) :: nil).
 
 Definition public_idents : list ident := (_main :: _x :: _val :: nil).
 

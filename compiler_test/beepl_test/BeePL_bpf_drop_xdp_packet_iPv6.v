@@ -47,7 +47,6 @@ Definition ident_to_string : list (ident * string) := ident_to_string_xdp_md ++ 
                                                        (_xdp_drop_prog, "xdp_drop_prog") :: nil).
 
 Definition f_xdp_drop_prog : BeePL.function := {| 
-                                   fn_sec := None;
                                    fn_return := tint32s;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
@@ -71,9 +70,9 @@ Definition f_xdp_drop_prog : BeePL.function := {|
 
 Definition bcomposites : list bcomposite_definition := bcomposites_xdp_md_bee ++ bcomposites_ethhdr.
 
-Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
-   := (htons, AST.Gfun(BeePL.External (htons_ef) (tint16u :: nil) tint16u cc_default)) ::
-      (_xdp_drop_prog, AST.Gfun(BeePL.Internal (f_xdp_drop_prog))) :: nil.
+Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
+   := (htons, AST.Gfun(BeePL.External (htons_ef) (tint16u :: nil) tint16u cc_default), None) ::
+      (_xdp_drop_prog, AST.Gfun(BeePL.Internal (f_xdp_drop_prog)), None) :: nil.
 
 Definition public_idents : list ident := (_xdp_drop_prog :: nil).
 

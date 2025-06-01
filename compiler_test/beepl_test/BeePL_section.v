@@ -26,7 +26,7 @@ Definition ident_to_string : list (ident * string) := ((_x, "x") ::
                                                       (_val, "val") ::
                                                       (_main, "main") :: nil).
 
-Definition v_val := {|
+Definition v_val : AST.globvar type := {|
   gvar_info := tint32u;
   gvar_init := (Init_int32 (Int.repr 0) :: nil);
   gvar_readonly := false;
@@ -34,7 +34,6 @@ Definition v_val := {|
 |}.
 
 Definition f_add : BeePL.function := {| 
-                                   fn_sec := Some "xdp";
                                    fn_return := (tint32s);
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
@@ -65,7 +64,7 @@ Definition f_add : BeePL.function := {|
 
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
-   := (_val, Gvar v_val, None) :: (_main, AST.Gfun(BeePL.Internal (f_add)), None) :: nil.
+   := (_val, Gvar v_val, None) :: (_main, AST.Gfun(BeePL.Internal (f_add)), Some "xdp") :: nil.
 
 Definition public_idents : list ident := (_main :: nil).
 

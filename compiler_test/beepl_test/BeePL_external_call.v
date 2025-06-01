@@ -42,7 +42,6 @@ Definition test : BeePL.expr := (App (Var _add (tfun (tint32s :: trint32s :: nil
                                            (Var _b tint32s :: nil) trint32s :: nil) tint32s).
 
 Definition f_external_call : BeePL.function := {| 
-                                   fn_sec := None;
                                    fn_return := tint32s;
                                    fn_effect := (Alloc mem_ident :: nil);
                                    fn_callconv := cc_default;
@@ -76,10 +75,10 @@ Definition add_external_function : BeePL.external_function
          bsig_cc := cc_default
       |}.
 
-Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
+Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
    := (_add, AST.Gfun(BeePL.External (add_external_function) (tint32s :: trint32s :: nil) tint32s 
-                                     (cc_default))) :: 
-      (_main, AST.Gfun(BeePL.Internal (f_external_call))):: nil.
+                                     (cc_default)), None) :: 
+      (_main, AST.Gfun(BeePL.Internal (f_external_call)), None):: nil.
 
 Definition public_idents : list ident := (_main :: _add :: nil).
 

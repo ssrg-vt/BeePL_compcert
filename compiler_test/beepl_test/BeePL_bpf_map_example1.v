@@ -81,7 +81,6 @@ Definition v_counter_table := {|
 Definition bcomposites : list bcomposite_definition := bcomposites_pt_regs ++ bcomposites_bpf_map_type_hash.
 
 Definition f_hash_map_example : BeePL.function := {| 
-  fn_sec := None;
   fn_return := tint32s;
   fn_effect := Alloc mem_ident :: Alloc mem_ident :: Io :: Write mem_ident :: Read mem_ident :: Io :: 
                Read mem_ident :: Write mem_ident :: Read mem_ident :: Write mem_ident :: Write mem_ident :: Io :: nil;
@@ -126,18 +125,18 @@ Definition f_hash_map_example : BeePL.function := {|
   is_ebpf := true |}.
 
 
-Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
-   := (_counter_table, Gvar v_counter_table) :: (_val, Gvar v_val) :: 
+Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
+   := (_counter_table, Gvar v_counter_table, None) :: (_val, Gvar v_val, None) :: 
       (bpf_get_current_uid_gid, AST.Gfun(BeePL.External (bpf_get_current_uid_gid_ef)
                                      nil tlongu
-                                     (cc_default))) ::
+                                     (cc_default)), None) ::
       (bpf_map_lookup_elem, AST.Gfun(BeePL.External (bpf_map_lookup_elem_ef)
                                      (tostruct _bpf_map_type_hash noattr :: tolongu :: nil) tolongu
-                                     (cc_default))) ::
+                                     (cc_default)), None) ::
       (bpf_map_update_elem, AST.Gfun(BeePL.External (bpf_map_update_elem_ef)
                                      (tostruct _bpf_map_type_hash noattr :: tolongu :: tolongu :: tlongu :: nil) tlongu
-                                     (cc_default))) ::
-      (_hash_map_example, AST.Gfun(BeePL.Internal (f_hash_map_example))) :: nil.
+                                     (cc_default)), None) ::
+      (_hash_map_example, AST.Gfun(BeePL.Internal (f_hash_map_example)), None) :: nil.
 
 Definition public_idents : list ident := (_hash_map_example :: nil).
 
