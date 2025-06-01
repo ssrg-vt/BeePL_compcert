@@ -858,12 +858,12 @@ Record csyntax_atom_info : Type := {
   a_loc : string (*filename*) * int; (*line number*)
 }.
 
-Fixpoint get_section_info (glob_defs : list (ident * AST.globdef BeePL.fundef type * option string)) : list (ident * csyntax_atom_info) :=
+Fixpoint get_section_info (glob_defs : list (ident * AST.globdef BeePL.fundef type * option string)) (env : bcomposite_env) : list (ident * csyntax_atom_info) :=
   match glob_defs with
   | nil => nil
-  | (id, AST.Gfun (Internal f), _) :: rest =>
-      let tail := get_section_info rest in
-      match fn_sec f with
+  | (id, AST.Gfun _, sec) :: rest =>
+      let tail := get_section_info rest env in
+      match sec with
       | Some s =>
         (* User defined functions should be immutable and executable. In testing
            we found that CompCert adds Section_literal(0) and Section_jumptable 
@@ -873,6 +873,7 @@ Fixpoint get_section_info (glob_defs : list (ident * AST.globdef BeePL.fundef ty
                             Section_jumptable :: nil in
         let info := {|
           a_storage := Storage_default;
+          (* CompCert does not specify a_size and a_alignment for functions *)
           a_size := None;
           a_alignment := None;
           a_section := section_list;
@@ -885,14 +886,34 @@ Fixpoint get_section_info (glob_defs : list (ident * AST.globdef BeePL.fundef ty
         (id, info) :: tail
       | None => tail
       end
-  | _ :: rest =>
-      get_section_info rest
+  | (id, AST.Gvar gv, sec) :: rest =>
+      let gvar_t : BeeTypes.type := gvar_info gv in
+      let tail := get_section_info rest env in
+      match sec with
+      | Some s =>
+        (* User defined global variables should be writable and not executable *)
+        let section_list := Section_user s true (*writable*) false (*executable*) :: nil in
+        let info := {|
+          a_storage := Storage_default;
+          (* TODO: global variables do need to specify a_size and a_alignment. How does CompCert do it? *)
+          a_size := Some (Int64.repr (BeeTypes.sizeof_type env gvar_t)); (* refers to size of global variable - not section name *)
+          a_alignment := Some (Int.repr (BeeTypes.alignof_type env gvar_t));
+          a_section := section_list;
+          a_access := Access_default;
+          a_inline := No_specifier;
+          (* Currently location information is not stored in BeePL.program. When
+             we implment a parser we can decise if we should do that*)
+          a_loc := ("", (Int.repr 0))
+        |} in
+        (id, info) :: tail
+      | None => tail
+      end
   end.
 
 (* Missing list of public functions *) 
 Definition BeePL_compcert (p : BeePL.program) : res (Csyntax.program * list (ident * string) * list (ident * csyntax_atom_info)) :=
   (* Extract section information from BeePL.program *)  
-  let section_info := get_section_info (prog_defs p) in
+  let section_info := get_section_info (prog_defs p) (prog_comp_env p) in
   let defs := map (fun '(id, gd, _) => (id, gd)) p.(prog_defs) in
 
   let bctx := {| arg_ctx := get_args_ebpf_gbdefs (unzip2 defs); benv := p.(prog_comp_env) |} in 

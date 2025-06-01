@@ -2,13 +2,11 @@ Require Import AST Maps Ctypes.
 Require Import BeePL BeeTypes Errors BeePL_typechecker Csyntaxdefs. 
 From Coq Require Import String.
 
-Require Import BeePL_section.
-
-(* BeePL_add BeePL_add_ptr BeePL_div_zero1 BeePL_div_zero BeePL_add_ex1
+Require Import BeePL_add BeePL_add_ptr BeePL_div_zero1 BeePL_div_zero BeePL_add_ex1
 BeePL_cond BeePL_app BeePL_funptr_ex1 BeePL_bpf_get_prandom BeePL_for_ex1 BeePL_for_ex2
 BeePL_external_call BeePL_match_fail_ex1 BeePL_null_ptr BeePL_bitstring1 BeePL_globvar1
 BeePL_bpf_xdp_packet_count BeePL_bpf_xdp_packet_count1 BeePL_bpf_map_example1 BeePL_bpf_drop_xdp_packet_iPv6
-BeePL_bpf BeePL_bpf_handle_tp BeePL_add_ref BeePL_section.  *)
+BeePL_bpf BeePL_bpf_handle_tp BeePL_add_ref BeePL_section. 
 
 (* In this file you will see two definitions. One for example1 and the other for
    example1_atom_of_string. Those two definitions are extracted to OCaml by 

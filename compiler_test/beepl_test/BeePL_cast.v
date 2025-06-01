@@ -30,7 +30,6 @@ Definition ident_to_string : list (ident * string) := ((_x, "x") ::
                                                       (_main, "main") :: nil).
 
 Definition f_trun_div : BeePL.function := {| 
-                                   fn_sec := None;
                                    fn_return := tint32u;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
@@ -58,8 +57,8 @@ Definition f_trun_div : BeePL.function := {|
                                   is_ebpf := false |}.
 
 
-Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
-   := (_main, AST.Gfun(BeePL.Internal (f_trun_div))) :: nil.
+Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
+   := (_main, AST.Gfun(BeePL.Internal (f_trun_div)), None) :: nil.
 
 Definition public_idents : list ident := (_main :: nil).
 

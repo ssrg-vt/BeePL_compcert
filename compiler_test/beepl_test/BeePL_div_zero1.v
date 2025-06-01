@@ -25,7 +25,6 @@ Definition ident_to_string : list (ident * string) := ((_x, "x") ::
                                                       (_main, "main") :: nil).
 
 Definition f_div_zero : BeePL.function := {| 
-                                   fn_sec := None;
                                    fn_return := tint32u;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
@@ -50,8 +49,8 @@ Definition f_div_zero : BeePL.function := {|
                                   is_ebpf := false |}.
 
 
-Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
-   := (_main, AST.Gfun(BeePL.Internal (f_div_zero))) :: nil.
+Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
+   := (_main, AST.Gfun(BeePL.Internal (f_div_zero)), None) :: nil.
 
 Definition public_idents : list ident := (_main :: nil).
 

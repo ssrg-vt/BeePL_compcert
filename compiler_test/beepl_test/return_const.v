@@ -32,8 +32,7 @@ End Info.
 Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
 Definition _main : ident := $"main".
 
-Definition f_main : function := {| fn_sec := None;
-                                   fn_return := (Ptype (BeeTypes.Tlong Unsigned dattr));
+Definition f_main : function := {| fn_return := (Ptype (BeeTypes.Tlong Unsigned dattr));
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
                                    fn_args := nil;
@@ -42,7 +41,7 @@ Definition f_main : function := {| fn_sec := None;
 
 Definition composites : list composite_definition := nil.
 
-Definition global_definitions : list (ident * globdef BeePL.fundef type) := (_main, Gfun(BeePL.Internal f_main)) :: nil.
+Definition global_definitions : list (ident * globdef BeePL.fundef type * option string) := (_main, Gfun(BeePL.Internal f_main), None) :: nil.
 
 Definition public_idents : list ident := (_main :: nil).
 

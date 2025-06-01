@@ -196,8 +196,7 @@ match e with
 end.
 
 
-Record function : Type := mkfunction { fn_sec: option string;
-                                       fn_return: type;
+Record function : Type := mkfunction { fn_return: type;
                                        fn_effect: effect;
                                        fn_callconv: calling_convention;
                                        fn_args: list (ident * type);
@@ -252,7 +251,7 @@ match gd with
 | Gvar v => false
 end.
 
-Record program  : Type := mkprogam { prog_defs : list (ident * globdef fundef type * option string);
+Record program  : Type := mkprogam { prog_defs : list (ident * AST.globdef BeePL.fundef type * option string);
                                      prog_public : list ident;
                                      prog_main : ident;
                                      prog_types : list bcomposite_definition;

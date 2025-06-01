@@ -104,13 +104,13 @@ VLIB=Axioms.v Coqlib.v Intv.v Maps.v Heaps.v Lattice.v Ordered.v \
 # compiled with the rest of CompCert
 
 BEEPL_TESTS=\
-    BeePL_progs.v BeePL_section.v 
-# BeePL_progs.v BeePL_add.v BeePL_add_ptr.v BeePL_div_zero1.v BeePL_div_zero.v \
-# BeePL_add_ex1.v BeePL_cond.v BeePL_app.v BeePL_funptr_ex1.v BeePL_bpf_get_prandom.v \
-# BeePL_for_ex1.v BeePL_for_ex2.v BeePL_match_fail_ex1.v BeePL_external_call.v BeePL_null_ptr.v \
-# BeePL_bitstring1.v BeePL_globvar1.v BeePL_bpf_xdp_packet_count.v BeePL_bpf_xdp_packet_count1.v \
-# BeePL_bpf_map_example1.v BeePL_bpf_drop_xdp_packet_iPv6.v BeePL_bpf_handle_tp.v BeePL_add_ref.v \
-# BeePL_cast.v BeePL_cast1.v BeePL_shift.v 
+    BeePL_progs.v \
+    BeePL_progs.v BeePL_add.v BeePL_add_ptr.v BeePL_div_zero1.v BeePL_div_zero.v \
+    BeePL_add_ex1.v BeePL_cond.v BeePL_app.v BeePL_funptr_ex1.v BeePL_bpf_get_prandom.v \
+    BeePL_for_ex1.v BeePL_for_ex2.v BeePL_match_fail_ex1.v BeePL_external_call.v BeePL_null_ptr.v \
+    BeePL_bitstring1.v BeePL_globvar1.v BeePL_bpf_xdp_packet_count.v BeePL_bpf_xdp_packet_count1.v \
+    BeePL_bpf_map_example1.v BeePL_bpf_drop_xdp_packet_iPv6.v BeePL_bpf_handle_tp.v BeePL_add_ref.v \
+    BeePL_cast.v BeePL_cast1.v BeePL_shift.v BeePL_section.v 
 
 # Parts common to BeePL
 

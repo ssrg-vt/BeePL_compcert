@@ -24,8 +24,8 @@ Definition f_bytes : BeePL.function := {| fn_return := tint32s;
                                                        |}.
                                                       
 
-Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
-   := (_main, AST.Gfun(BeePL.Internal (f_bytes))) :: nil.
+Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
+   := (_main, AST.Gfun(BeePL.Internal (f_bytes)), None) :: nil.
 
 Definition public_idents : list ident := (_main :: nil).
 

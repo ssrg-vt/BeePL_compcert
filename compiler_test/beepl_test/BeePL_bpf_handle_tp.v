@@ -56,7 +56,6 @@ Definition v_pid_filter := {|
 |}.
 
 Definition f_handle_tp : BeePL.function := {| 
-                                   fn_sec := None;
                                    fn_return := tint32s;
                                    fn_effect := nil;
                                    fn_callconv := cc_default;
@@ -83,15 +82,15 @@ Definition f_handle_tp : BeePL.function := {|
 
 Definition bcomposites : list bcomposite_definition := bcomposites_trace_entry ++ bcomposites_trace_event_raw_sys_enter.
 
-Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
-   :=  (_pid_filter, Gvar v_pid_filter) :: (___stringlit_1, Gvar v___stringlit_1) ::
+Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
+   :=  (_pid_filter, Gvar v_pid_filter, None) :: (___stringlit_1, Gvar v___stringlit_1, None) ::
        (bpf_get_current_pid_tgid, AST.Gfun(BeePL.External bpf_get_current_pid_tgid_ef
                                      nil tlongu
-                                     (cc_default))) :: 
+                                     (cc_default)), None) :: 
        (bpf_printk, AST.Gfun(BeePL.External bpf_printk_ef
                                      (trint8s :: nil) tint32s
-                                     {|cc_vararg:=(Some (Z.of_nat 1)); cc_unproto:=false; cc_structret:=false|})) ::
-       (_handle_tp, AST.Gfun(BeePL.Internal (f_handle_tp))) :: nil.
+                                     {|cc_vararg:=(Some (Z.of_nat 1)); cc_unproto:=false; cc_structret:=false|}), None) ::
+       (_handle_tp, AST.Gfun(BeePL.Internal (f_handle_tp)), None) :: nil.
 
 
 Definition public_idents : list ident := (_handle_tp :: nil).
