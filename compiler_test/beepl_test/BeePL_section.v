@@ -64,7 +64,7 @@ Definition f_add : BeePL.function := {|
 
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
-   := (_val, Gvar v_val, None) :: (_main, AST.Gfun(BeePL.Internal (f_add)), Some "xdp") :: nil.
+   := (_val, Gvar v_val, Some "license") :: (_main, AST.Gfun(BeePL.Internal (f_add)), Some "xdp") :: nil.
 
 Definition public_idents : list ident := (_main :: nil).
 
