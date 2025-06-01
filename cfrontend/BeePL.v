@@ -196,8 +196,7 @@ match e with
 end.
 
 
-Record function : Type := mkfunction { (*fn_sec: option string; XDP ==> SEC("xdp") *)
-                                       fn_return: type;
+Record function : Type := mkfunction { fn_return: type;
                                        fn_effect: effect;
                                        fn_callconv: calling_convention;
                                        fn_args: list (ident * type);
@@ -252,7 +251,7 @@ match gd with
 | Gvar v => false
 end.
 
-Record program  : Type := mkprogam { prog_defs : list (ident * globdef fundef type);
+Record program  : Type := mkprogam { prog_defs : list (ident * AST.globdef BeePL.fundef type * option string);
                                      prog_public : list ident;
                                      prog_main : ident;
                                      prog_types : list bcomposite_definition;
@@ -261,7 +260,7 @@ Record program  : Type := mkprogam { prog_defs : list (ident * globdef fundef ty
                                      prog_ident_to_string : list (ident * string)}.
 
 Program Definition make_bprogram (types : list bcomposite_definition)
-                                 (defs : list (ident * globdef fundef type))
+                                 (defs : list (ident * globdef fundef type * option string))
                                  (public : list ident)
                                  (main : ident)
                                  (ident_to_string :  list (ident * string)) : res program :=
@@ -278,7 +277,7 @@ Program Definition make_bprogram (types : list bcomposite_definition)
   end.
 
 Definition mkbprogram (types: list bcomposite_definition)
-                      (defs: list (ident * globdef fundef type))
+                      (defs: list (ident * globdef fundef type * option string))
                       (public: list ident)
                       (main: ident)
                       (WF: wf_bcomposites types) 
@@ -308,7 +307,7 @@ match gd with
 end.
 
 Definition get_args (p : program) : list (ident * type) :=
-match unzip2 p.(prog_defs) with 
+match map (fun '(x, y, z) => y) p.(prog_defs) with
 | nil => nil
 | gd :: gds => get_args_ebpf_gbdef gd ++ get_args_ebpf_gbdefs gds
 end.
@@ -322,7 +321,7 @@ Record genv := { genv_genv :> Genv.t fundef type; genv_cenv :> bcomposite_env }.
 
 Definition trans_program_astprog (p : program) : AST.program fundef type :=
 @mkprogram fundef type
-   p.(prog_defs)
+   (map (fun '(id, gd, _) => (id, gd)) p.(prog_defs))
    p.(prog_public)
    p.(prog_main).
 

@@ -86,7 +86,7 @@ match pt with
 | Aptype t z a => Atype t z a
 end.
 
-Fixpoint construct_type_btype (bt : basic_type) : type :=
+Definition construct_type_btype (bt : basic_type) : type :=
 match bt with 
 | Bprim pt => Vtype pt
 | Bstruct sid a => Stype sid a 
@@ -857,8 +857,6 @@ Definition eq_wtype (w1 w2 : wtype) : bool :=
   | _, _ => false
   end.
 
- 
-
 Definition sizeof_ptype (t : primitive_type) : Z :=
 match t with 
 | Tbool => 1
@@ -869,28 +867,11 @@ match t with
 | Tlong _ _ => 8
 end.
 
-Definition sizeof_btype (env : bcomposite_env) (t : basic_type) : Z :=
-match t with 
-| Bprim t => sizeof_ptype t 
-| Bstruct x a => match env!x with Some co => co_sizeof co | None => 0 end
-| Barray pt n a => sizeof_ptype pt * Z.max 0 n
-end. 
-
-Fixpoint sizeof_ptr_type (env : bcomposite_env) (pt : ptr_type) : Z :=
-  match pt with
-  | Reftype h t  _ => sizeof_btype env t
-  | Vptype t => sizeof_ptype t
-  | Otype t => sizeof_ptr_type env t
-  | Fptype _ _ _ => 1
-  | Sptype x a => 1
-  | Aptype t z a => 1
-  end.
-
-Fixpoint sizeof_type (env : bcomposite_env) (t : type) : Z :=
+Fixpoint sizeof_type (env : bcomposite_env) (t : BeeTypes.type) : Z :=
   match t with
   | Utype => 0
   | Vtype pt => sizeof_ptype pt
-  | Ptrtype pt => 8
+  | Ptrtype pt => if Archi.ptr64 then 8 else 4
   | Stype x _ => match env!x with Some co => co_sizeof co | None => 0 end
   | Atype t' z a => sizeof_type env t' * Z.max 0 z
   | Ftype _ _ _ => 1
@@ -902,6 +883,28 @@ match ts with
 | nil => 0
 | t :: ts => sizeof_type env t + sizeof_types env ts
 end.
+
+Definition alignof_ptype (t : primitive_type) : Z :=
+match t with 
+| Tbool => 1
+| Tint I8 _ _ => 1
+| Tint I16 _ _ => 2
+| Tint I32 _ _ => 4
+| Tint IBool _ _ => 1
+| Tlong _ _ => Archi.align_int64
+end.
+
+Fixpoint alignof_type (env : bcomposite_env) (t : BeeTypes.type) : Z :=
+  match t with
+  | Utype => 0
+  | Vtype pt => alignof_ptype pt
+  | Ptrtype pt => if Archi.ptr64 then 8 else 4
+  | Stype x _ => match env!x with Some co => co_alignof co | None => 1 end
+  | Atype t' z a => alignof_type env t'
+  | Ftype _ _ _ => 1
+  (* Bytes get translated to a struct in C with two fields of char* *)
+  | Bytes => if Archi.ptr64 then 8 else 4
+  end.
 
 (* Used for extracting the correct type for a Ref's fresh variable *)
 Definition ref_to_prim (ty : type) : mon type :=
@@ -976,7 +979,7 @@ match xs with
                   OK (t :: ts)
 end.
 
-Fixpoint all_eq_types (ts : list type) : bool :=
+Definition all_eq_types (ts : list type) : bool :=
 match ts with
 | nil => true
 | t1 :: ts' => forallb (fun t => eq_type t1 t) ts'

@@ -106,10 +106,10 @@ Definition f_ptr_assgn : BeePL.function := {|
                                   is_ebpf := false|}.
 
 
-Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
-   := (_null_ptr, AST.Gfun(BeePL.Internal (f_null_ptr))) :: 
-      (_ptr_add, AST.Gfun(BeePL.Internal (f_ptr_add))) :: 
-      (_main, AST.Gfun(BeePL.Internal (f_ptr_assgn))) :: nil.
+Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
+   := (_null_ptr, AST.Gfun(BeePL.Internal (f_null_ptr)), None) :: 
+      (_ptr_add, AST.Gfun(BeePL.Internal (f_ptr_add)), None) :: 
+      (_main, AST.Gfun(BeePL.Internal (f_ptr_assgn)), None) :: nil.
 
 Definition public_idents : list ident := (_main :: nil).
 

@@ -44,8 +44,8 @@ Definition f_option1 : BeePL.function := {|
                                                      (Var _y tint32s) tint32s) tint32s |}.
 
 
-Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
-   := (_main, AST.Gfun(BeePL.Internal (f_option1))) :: nil.
+Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
+   := (_main, AST.Gfun(BeePL.Internal (f_option1)), None) :: nil.
 
 Definition public_idents : list ident := (_main :: nil).
 

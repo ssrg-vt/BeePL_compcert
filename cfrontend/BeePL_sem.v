@@ -245,7 +245,7 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
               bsem_expr p vm m (BeePL.Eapp ef ts es ty) m'' vm' bv
 | bsem_screate : forall p x ids t vm1 m1 es vm2 m2 vm3 m3 m4 vs fid loc ofs st sa,
                  bsem_exprs p vm1 m1 es m2 vm2 vs ->
-                 create_fresh_ident (unzip1 (extract_variables_globdefs (unzip2 p.(prog_defs)))) = fid ->
+                 create_fresh_ident (unzip1 (extract_variables_globdefs (map (fun '(_, gd, _) => gd) p.(prog_defs)))) = fid ->
                  alloc_variables ge vm2 m2 ((fid, t) :: nil) vm3 m3 ->
                  vm3!fid = Some (loc, t) ->
                  t = Stype st sa ->
@@ -469,7 +469,7 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                   ssem_exprs p vm1 m1 es m2 vm2 es' ->
                   ssem_expr p vm1 m1 (Sinit x ids es t) m2 vm2 (Sinit x ids es' t)
 | ssem_sinit2 : forall p x ids t vm1 m1 vm2 m2 m3 vs fid loc ofs ts h a st sa,
-                  create_fresh_ident (unzip1 (extract_variables_globdefs (unzip2 p.(prog_defs)))) = fid ->
+                  create_fresh_ident (unzip1 (extract_variables_globdefs (map (fun '(_, gd, _) => gd) p.(prog_defs)))) = fid ->
                   alloc_variables ge vm1 m1 ((fid, t) :: nil) vm2 m2 ->
                   vm2!fid = Some (loc, t) ->
                   t = Stype st sa ->

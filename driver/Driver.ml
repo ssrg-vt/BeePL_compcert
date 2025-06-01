@@ -73,6 +73,77 @@ let compile_c_file sourcename ifile ofile =
   PrintAsm.print_program oc asm;
   close_out oc
 
+(* The BeePL compiler returns information on which identifiers should be placed
+   in specific sections of the binary ELF file. CompCert requires that information
+   be placed in decl_atom *)
+let populate_decl_atom (section_info : (AST.ident * BeePL_Csyntax.csyntax_atom_info) list) =
+    List.iter (fun (id, info) ->
+
+    let storage : C.storage = 
+      match info.BeePL_Csyntax.a_storage with
+      | BeePL_Csyntax.Storage_default -> C.Storage_default
+      | BeePL_Csyntax.Storage_extern -> C.Storage_extern
+      | BeePL_Csyntax.Storage_static -> C.Storage_static
+      | BeePL_Csyntax.Storage_auto -> C.Storage_auto
+      | BeePL_Csyntax.Storage_register -> C.Storage_register
+    in
+
+    let size : int64 option =
+      match info.BeePL_Csyntax.a_size with
+      | Some i -> Some (Camlcoq.camlint64_of_coqint i)
+      | None -> None
+    in
+
+    let alignment : int option =
+      match info.BeePL_Csyntax.a_alignment with
+      | Some i -> Some (Camlcoq.Z.to_int i)
+      | None -> None
+    in
+
+    let sec_list : Sections.section_name list =
+      List.map
+        (fun (sec : BeePL_Csyntax.section_name) ->
+           match sec with
+           | BeePL_Csyntax.Section_literal i ->
+               Sections.Section_literal (Camlcoq.Z.to_int i)
+           | BeePL_Csyntax.Section_user (name, writable, executable) ->
+               Sections.Section_user
+                 (Camlcoq.camlstring_of_coqstring name, writable, executable)
+           | BeePL_Csyntax.Section_jumptable ->
+               Sections.Section_jumptable)
+        info.BeePL_Csyntax.a_section
+    in
+
+    let access : Sections.access_mode =
+      match info.BeePL_Csyntax.a_access with
+      | BeePL_Csyntax.Access_default -> Sections.Access_default
+      | BeePL_Csyntax.Access_near -> Sections.Access_near
+      | BeePL_Csyntax.Access_far -> Sections.Access_far
+    in
+
+    let inline : C2C.inline_status =
+      match info.BeePL_Csyntax.a_inline with
+      | BeePL_Csyntax.No_specifier -> C2C.No_specifier
+      | BeePL_Csyntax.Noinline -> C2C.Noinline
+      | BeePL_Csyntax.Inline -> C2C.Inline
+    in
+
+    let loc : C.location =
+      let (filename, line_number) = info.BeePL_Csyntax.a_loc in
+      (Camlcoq.camlstring_of_coqstring filename, Camlcoq.Z.to_int line_number)
+    in
+
+    Hashtbl.add C2C.decl_atom id { 
+      C2C.a_storage = storage;
+      C2C.a_size = size;
+      C2C.a_alignment = alignment;
+      C2C.a_sections = sec_list;
+      C2C.a_access = access;
+      C2C.a_inline = inline;
+      C2C.a_loc = loc 
+    }
+  ) section_info
+
 (* TODO: remove duplicate code from compile_c_file and compile_b_file *)
 let compile_b_file sourcename ofile =
   (* Prepare to dump Clight, RTL, etc, if requested *)
@@ -90,32 +161,45 @@ let compile_b_file sourcename ofile =
   set_dest PrintMach.destination option_dmach ".mach";
   set_dest AsmToJSON.destination option_sdump !sdump_suffix;
 
-  (* All references to variable and function names in CSyntax are a numeric 
-   * identifier (refered to as atom). CompCert looks up names in string_of_atom 
-   * whenever it needs to. This will look different once the lexer and parser is 
-   * implemented but for now define the mapping manually *)
+  (* Typecheck BeePL program *)
+  if !option_typecheck then
+  begin
+  let typecheck_result = BeePL_typechecker.type_check_program BeePL_progs.example1 in
+  match typecheck_result with
+  | Errors.OK _ -> ()
+  | Errors.Error msg -> 
+        let loc = file_loc sourcename in
+        fatal_error loc "error during BeePL_typechecker.type_check_program: %a" print_error msg
+  end;
 
   (* Parse BeePL AST *)
-  let beepl_csyntax = Compiler.transf_beepl_program_csyntax BeePL_progs.example1 in
-  let (csyntax, prog_ident_to_string) =
-    match beepl_csyntax with
-    | Errors.OK (program, ident_to_string) -> (program, ident_to_string)
+  let beepl = Compiler.transf_beepl_program_csyntax BeePL_progs.example1 in
+  let (csyntax, ident_to_string, section_info) =
+    match beepl with
+    | Errors.OK ((csyntax, ident_to_string), section_info) -> (csyntax, ident_to_string, section_info)
     | Errors.Error msg ->
         let loc = file_loc sourcename in
         fatal_error loc "error during transf_beepl_program_csyntax: %a" print_error msg
   in
+  
+  (* All references to variable and function names in Csyntax are a numeric 
+   * identifier. CompCert looks up names in string_of_atom whenever it needs to.
+   * This is important for linking. For example, the compiler needs to know 
+   * which function is "main" *)
   List.iter (fun (id, charlist) ->
     let s : string = String.concat "" (List.map (String.make 1) charlist) in
     Hashtbl.add Camlcoq.string_of_atom id s;
     Hashtbl.add Camlcoq.atom_of_string s id;
-  ) prog_ident_to_string;
+  ) ident_to_string;
+
+  (* Give CompCert information on which identifiers should be placed in special ELF sections *)
+  populate_decl_atom section_info;
   
-  (* The BeePL compiler does not add the helper functions so that must be done here *)
+  (* The BeePL compiler does not add CompCert's helper functions so that must be done here *)
   let gl = C2C.add_helper_functions csyntax.Ctypes.prog_defs in 
   let updated_csyntax = {csyntax with 
     Ctypes.prog_defs = gl; 
     Ctypes.prog_public = C2C.public_globals gl} in
-  (* print_program_defs updated_csyntax; *)
   PrintCsyntax.print_if updated_csyntax;
   
   (* C2C.print_atom_info (); *)
@@ -369,6 +453,7 @@ let cmdline_actions =
     @ DebugInit.debugging_actions @
 (* Code generation options -- more below *)
  [
+  Exact "-typecheck", Set option_typecheck;
   Exact "-O0", Unit (unset_all optimization_options);
   Exact "-O", Unit (set_all optimization_options);
   _Regexp "-O[123]$", Unit (set_all optimization_options);

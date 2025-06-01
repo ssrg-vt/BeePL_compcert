@@ -41,7 +41,7 @@ Definition f_main : function := {| fn_return := (Ptype (BeeTypes.Tlong Unsigned 
 
 Definition composites : list composite_definition := nil.
 
-Definition global_definitions : list (ident * globdef BeePL.fundef type) := (_main, Gfun(BeePL.Internal f_main)) :: nil.
+Definition global_definitions : list (ident * globdef BeePL.fundef type * option string) := (_main, Gfun(BeePL.Internal f_main), None) :: nil.
 
 Definition public_idents : list ident := (_main :: nil).
 

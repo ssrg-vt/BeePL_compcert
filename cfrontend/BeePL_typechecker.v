@@ -431,9 +431,7 @@ end.
 
 (* Store context: Not needed in the executable type checker because location is never used by programmer, it only comes as intermediate results in semantics *) 
 Definition type_check_program (p : BeePL.program) : res string :=
-let Gamma := bind_globdef (PTree.empty _) p.(prog_defs) in
+let defs := map (fun '(id, gd, _) => (id, gd)) p.(prog_defs) in
+let Gamma := bind_globdef (PTree.empty _) defs in
 let cenv := p.(prog_comp_env) in 
-type_check_globdefs type_check_globdef beepl_ef_env cenv Gamma empty_context (unzip2 (p.(prog_defs))).
-
-
-
+type_check_globdefs type_check_globdef beepl_ef_env cenv Gamma empty_context (unzip2 defs).

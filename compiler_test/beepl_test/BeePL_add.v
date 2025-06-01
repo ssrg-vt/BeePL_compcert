@@ -54,8 +54,8 @@ Definition f_add : BeePL.function := {|
                                     is_ebpf := false|}.
 
 
-Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
-   := (_main, AST.Gfun(BeePL.Internal (f_add))) :: nil.
+Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
+   := (_main, AST.Gfun(BeePL.Internal (f_add)), None) :: nil.
 
 Definition public_idents : list ident := (_main :: nil).
 

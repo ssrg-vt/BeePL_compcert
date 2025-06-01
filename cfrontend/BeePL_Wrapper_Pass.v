@@ -27,7 +27,7 @@ match ms with
               else m :: transform_bytes_data_data_end ms1
 end.
 
-Fixpoint transform_struct_bee_decl_ebpf_decl (c : composite_definition) : list composite_definition :=
+Definition transform_struct_bee_decl_ebpf_decl (c : composite_definition) : list composite_definition :=
 match c with 
 | Composite s su m a => if ident_eq s _xdp_md_bee (* add more if cases when we deal with other structs like sk_buff *)
                         then Composite (ident_of_string "xdp_md") Struct (transform_bytes_data_data_end m) a :: c :: nil
@@ -41,7 +41,7 @@ match cs with
 end.
 
 
-Fixpoint transform_ctx_ebpf_ctx (args : list (ident * type)) : res (list (ident * Ctypes.type)) :=
+Definition transform_ctx_ebpf_ctx (args : list (ident * type)) : res (list (ident * Ctypes.type)) :=
 let i := (ident_of_string "ctx") in
 match args with 
 | nil => OK nil
