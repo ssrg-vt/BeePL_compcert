@@ -25,9 +25,9 @@ BeePL_bpf BeePL_bpf_handle_tp BeePL_add_ref BeePL_section BeePL_cast BeePL_cast1
 
 (* Construct the BeePL.program *)
 
-Definition example1 : BeePL.program := @mkbprogram BeePL_section.bcomposites 
-                                                   BeePL_section.global_definitions 
-                                                   BeePL_section.public_idents 
-                                                   BeePL_section._main 
-                                                   BeePL_section.bcomposite_correct
-                                                   BeePL_section.ident_to_string.
+Definition example1 : BeePL.program := @mkbprogram BeePL_add.bcomposites 
+                                                   BeePL_add.global_definitions 
+                                                   BeePL_add.public_idents 
+                                                   BeePL_add._main 
+                                                   BeePL_add.bcomposite_correct
+                                                   BeePL_add.ident_to_string.

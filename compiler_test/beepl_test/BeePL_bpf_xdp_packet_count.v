@@ -72,7 +72,7 @@ Definition bcomposites : list bcomposite_definition := bcomposites_xdp_md.
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
    := (_val, Gvar v_val, None) :: 
       (_counter, Gvar v_counter, None) :: 
-      (_xdp_packet_count, AST.Gfun(BeePL.Internal (f_xdp_packet_count)), None) :: nil.
+      (_xdp_packet_count, AST.Gfun(BeePL.Internal (f_xdp_packet_count)), Some "xdp") :: nil.
 
 Definition public_idents : list ident := (_xdp_packet_count :: _counter :: _val :: nil).
 

@@ -166,7 +166,8 @@ let compile_b_file sourcename ofile =
   begin
   let typecheck_result = BeePL_typechecker.type_check_program BeePL_progs.example1 in
   match typecheck_result with
-  | Errors.OK _ -> ()
+  | Errors.OK s -> let str = Camlcoq.camlstring_of_coqstring s in
+                   Printf.printf "Typecheck result: %s\n" str
   | Errors.Error msg -> 
         let loc = file_loc sourcename in
         fatal_error loc "error during BeePL_typechecker.type_check_program: %a" print_error msg
