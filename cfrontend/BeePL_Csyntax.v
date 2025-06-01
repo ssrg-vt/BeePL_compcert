@@ -370,17 +370,18 @@ end
                                   do (ce1, bctx1) <- transBeePL_expr_expr e1 fn_ctx bctx';
                                   do (ce2, bctx2) <- transBeePL_expr_expr e2 (snd ce1) bctx1;
                                   ret ((Econdition (Ebinop Cop.Oeq (fst ce) 
-                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (transBeePL_type te))
                                                        (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
                                           (fst ce1)
-                                          (fst ce2) (transBeePL_type t)), snd (ce2), bctx2)
+                                          (Ecomma (Eassign (Evar x (transBeePL_type te)) (fst ce) (transBeePL_type te)) (fst ce2) (transBeePL_type t)) (transBeePL_type t)), 
+                                           snd (ce2), bctx2)
                               | (Psome x :: Pnone :: nil), (e1 :: e2 :: nil) => 
                                   do (ce1, bctx1) <- transBeePL_expr_expr e1 fn_ctx bctx';
                                   do (ce2, bctx2) <- transBeePL_expr_expr e2 (snd ce1) bctx1;
                                   ret ((Econdition (Ebinop Cop.Oeq (fst ce) 
-                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (transBeePL_type te))
                                                        (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
-                                          (fst ce2)
+                                          (Ecomma (Eassign (Evar x (transBeePL_type te)) (fst ce) (transBeePL_type te)) (fst ce2) (transBeePL_type t))
                                           (fst ce1) (transBeePL_type t)), snd (ce2), bctx2)
                               | _, _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
                               end
@@ -642,17 +643,18 @@ match e with
                                   do (ce1, bctx1) <- transBeePL_expr_st cenv e1 ctx bctx';
                                   do (ce2, bctx2) <- transBeePL_expr_st cenv e2 (snd ce1) bctx1;
                                   ret ((Sifthenelse (Ebinop Cop.Oeq (fst ce) 
-                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (transBeePL_type te))
                                                        (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
                                           (fst ce1)
-                                          (fst ce2)), snd (ce2), bctx2)
+                                          (Ssequence (Sdo (Eassign (Evar x (transBeePL_type te)) (fst ce) (transBeePL_type te))) (fst ce2))), 
+                                           snd (ce2), bctx2)
                               | (Psome x :: Pnone :: nil), (e1 :: e2 :: nil) => 
                                   do (ce1, bctx1) <- transBeePL_expr_st cenv e1 ctx bctx';
                                   do (ce2, bctx2) <- transBeePL_expr_st cenv e2 (snd ce1) bctx1;
                                   ret ((Sifthenelse (Ebinop Cop.Oeq (fst ce) 
-                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (transBeePL_type te))
                                                        (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
-                                          (fst ce2)
+                                          (Ssequence (Sdo (Eassign (Evar x (transBeePL_type te)) (fst ce) (transBeePL_type te))) (fst ce2))
                                           (fst ce1)), snd (ce1), bctx2)
                               | _, _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
                               end
