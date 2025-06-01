@@ -876,7 +876,7 @@ Fixpoint sizeof_type (env : bcomposite_env) (t : BeeTypes.type) : Z :=
   | Stype x _ => match env!x with Some co => co_sizeof co | None => 0 end
   | Atype t' z a => sizeof_type env t' * Z.max 0 z
   | Ftype _ _ _ => 1
-  | Bytes => 16 (* Why is this 16 and not 8? *)
+  | Bytes => 16
   end.
 
 Fixpoint sizeof_types (env : bcomposite_env) (ts : list type) : Z :=
@@ -903,7 +903,8 @@ Fixpoint alignof_type (env : bcomposite_env) (t : BeeTypes.type) : Z :=
   | Stype x _ => match env!x with Some co => co_alignof co | None => 1 end
   | Atype t' z a => alignof_type env t'
   | Ftype _ _ _ => 1
-  | Bytes => 16
+  (* Bytes get translated to a struct in C with two fields of char* *)
+  | Bytes => if Archi.ptr64 then 8 else 4
   end.
 
 (* Used for extracting the correct type for a Ref's fresh variable *)

@@ -59,3 +59,9 @@ To pretty print csyntax: `./ccomp ~/test.b -dc`
 3) In `BeePL_progs.v` `Require Import` the file
 4) Define the BeePL AST in the newly created Coq file
 5) Modify the required lines in `BeePL_progs.v` so the correct program gets extracted
+
+#### Running the typechecker
+
+Add `-typecheck` to your command line to run the typechecker.
+
+Full example: `./ccomp ../test.b -o test -typecheck`
