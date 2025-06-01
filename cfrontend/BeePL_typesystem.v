@@ -279,9 +279,9 @@ Inductive type_globdefs :  ef_env -> bcomposite_env -> ty_context -> store_conte
 
 Inductive type_program : BeePL.program -> Prop :=
 | ty_prog : forall p cenv Gamma,
-            Gamma = bind_globdef (PTree.empty _) p.(prog_defs) ->
+            Gamma = bind_globdef (PTree.empty _) (map (fun '(id, gd, _) => (id, gd)) p.(prog_defs)) ->
             cenv = p.(prog_comp_env) ->
-            type_globdefs beepl_ef_env cenv Gamma empty_context (unzip2 (p.(prog_defs))) ->
+            type_globdefs beepl_ef_env cenv Gamma empty_context (map (fun '(_, gd, _) => gd) p.(prog_defs)) ->
             type_program p.
 
 
@@ -362,7 +362,7 @@ match gds with
 end.
 
 Definition accumulate_effect_progs (p : BeePL.program) : res effect :=
-accumulate_effect_gds (unzip2 (p.(prog_defs))).
+accumulate_effect_gds (map (fun '(_, gd, _) => gd) p.(prog_defs)).
 
 (* Value typing *)
 (* A value does not produce any effect *)

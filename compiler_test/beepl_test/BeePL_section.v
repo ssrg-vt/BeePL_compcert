@@ -17,12 +17,21 @@ Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
 Definition _x : ident := $"x".
 Definition _y : ident := $"y".
 Definition _r : ident := $"r".
+Definition _val : ident := $"val".
 Definition _main : ident := $"main".
 
 Definition ident_to_string : list (ident * string) := ((_x, "x") :: 
                                                       (_y, "y") :: 
                                                       (_r, "r") :: 
+                                                      (_val, "val") ::
                                                       (_main, "main") :: nil).
+
+Definition v_val := {|
+  gvar_info := tint32u;
+  gvar_init := (Init_int32 (Int.repr 0) :: nil);
+  gvar_readonly := false;
+  gvar_volatile := false
+|}.
 
 Definition f_add : BeePL.function := {| 
                                    fn_sec := Some "xdp";
@@ -55,7 +64,16 @@ Definition f_add : BeePL.function := {|
                                    is_ebpf := false|}.
 
 
-Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
-   := (_main, AST.Gfun(BeePL.Internal (f_add))) :: nil.
+Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
+   := (_val, Gvar v_val, None) :: (_main, AST.Gfun(BeePL.Internal (f_add)), None) :: nil.
 
 Definition public_idents : list ident := (_main :: nil).
+
+Definition bcomposites : list bcomposite_definition := nil.
+
+Lemma bcomposite_correct :
+  wf_bcomposites bcomposites.
+Proof.
+  unfold wf_bcomposites.
+  unfold build_bcomposite_env; simpl; reflexivity.
+Qed.
