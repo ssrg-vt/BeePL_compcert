@@ -360,9 +360,13 @@ match e with
                      do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                      do (tes, efs) <- type_check_exprs type_check_expr cenv (extends_context Gamma fvs (construct_list_type t (length fvs))) Sigma es;
                      match te with 
-                     | Ptrtype t' => if is_option_ptr_type t' && all_eq_types tes && eq_type t (hd tunit tes) 
-                                     then OK(t, ef ++ efs)
-                                     else Error (msg "TYPE ERROR: Type of Match expr should be an option to ref type and all its elements should be of same type")
+                     | Ptrtype t' => if is_option_ptr_type t'
+                                     then if all_eq_types tes 
+                                          then if eq_type t (hd tunit tes) 
+                                               then OK(t, ef ++ efs)
+                                               else Error (msg "TYPE ERROR: Inferref type of match does not match with expected type")
+                                          else Error (msg "TYPE ERROR: All branches of match should be of same type")
+                                     else Error (msg "TYPE ERROR: Type of Match expr should be an option type")
                      | Bytes => if all_eq_types tes && eq_type t (hd tunit tes) 
                                 then OK(t, ef ++ efs)
                                 else Error (msg "TYPE ERROR: Type of Match expr should be an option to ref type and all its elements should be of same type")
