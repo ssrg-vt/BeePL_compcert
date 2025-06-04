@@ -364,6 +364,35 @@ admit.
   exists m'. exists vm'. exists (Prim (Bop Cop.Odiv) [:: e'; e''] (typeof_expr e)). 
   split=> //=. have h := type_rel_typeof cenv Gamma Sigma e ef1 t hte. 
   rewrite -h. by apply ssem_bop1.
+(* Omod *)
++ move=> cenv Gamma Sigma e ef1 ef2 t e'' ht hte hin hte'' hin' bge p vm m hw.
+  move: (hin bge p vm m hw)=> []. have [zv hr] := construct_zero t ht.
+  (* e is a value *)
+  + move=> hv. case: e hte hin hv=> //= v1 t1 hte hin _.
+    move: (hin' bge p vm m hw)=> [].
+    (* e' is a value *)
+    + move=> hv'. case: e'' hte'' hin' hv'=> //= v2 t2 hte'' hin' hv'. right.
+      have hte' := type_val_reflx cenv Gamma Sigma v1 t1 ef1 t hte; subst.
+      have hte' := type_val_reflx cenv Gamma Sigma v2 t2 ef2 t hte''; subst.
+      have [s hs] := signedness_exists t ht.
+      case hc: (check_unsafe_op Cop.Omod s v1 v2)=> [| ]//=.
+      + exists m. exists vm. exists (Val zv t). split=> //=.
+        by apply ssem_bop3_unsafe with (transBeePL_type t) s; auto.
+      have [v' [v'' [ho [hu h]]]]:= well_formed_mod (bcomposite_composite_env cenv) cenv Gamma Sigma bge vm m v1 t ef1
+              v2 ef2 s hw hte hte'' ht hs hc.
+     exists m. exists vm. exists (Val v'' t). split=> //=.
+     by apply ssem_bop3_safe with (bcomposite_composite_env cenv) v'
+        (transBeePL_type t) s; auto. 
+    (* step *)
+    move=> [] m' [] vm' [] e' [] he' hw'. right.
+    exists m'. exists vm'. exists (Prim (Bop Cop.Omod) [:: Val v1 t1; e'] t1). 
+    split=> //=. have h := type_rel_typeof cenv Gamma Sigma (Val v1 t1) ef1 t hte. 
+    rewrite -h. by apply ssem_bop2.
+  (* step *)
+  move=> [] m' [] vm' [] e' [] he' hw'. right.
+  exists m'. exists vm'. exists (Prim (Bop Cop.Omod) [:: e'; e''] (typeof_expr e)). 
+  split=> //=. have h := type_rel_typeof cenv Gamma Sigma e ef1 t hte. 
+  rewrite -h. by apply ssem_bop1.
 
 (*
 (* bop *)
