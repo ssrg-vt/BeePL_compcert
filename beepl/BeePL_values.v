@@ -116,7 +116,7 @@ end.
 Definition is_zero_val (v : value) : bool :=
 match v with 
 | Vunit => false
-| Vbool b => false
+| Vbool b => if b == false then true else false
 | Vint i => if Int.eq i Int.zero then true else false
 | Vint64 i => if Int64.eq i Int64.zero then true else false
 | Vloc p ofs => false
@@ -142,7 +142,7 @@ Definition is_overflow_vals (v1 v2 : value) : bool :=
 match v1, v2 with 
 | Vint i1, Vint i2 => if Int.eq i1 (Int.repr Int.min_signed) 
                          && Int.eq i2 Int.mone then true else false
-| Vint64 i1, Vint64 i2 => if Int64.eq i1 (Int64.repr Int.min_signed) 
+| Vint64 i1, Vint64 i2 => if Int64.eq i1 (Int64.repr Int64.min_signed) 
                              && Int64.eq i2 Int64.mone then true else false 
 | _, _ => false
 end.

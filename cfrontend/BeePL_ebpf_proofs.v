@@ -51,11 +51,11 @@ apply type_exprs_type_expr_ind_mut=> //=.
   (* here function signature has the effect of the body also, how to ensure that there is no divergence in the effect of body *)
   by apply hds.
 (* ref *)
-+ move=> cenv Gamma Sigma e ef h bt a he hd. by apply no_divergence_concat.
++ move=> cenv Gamma Sigma e ef h bt a he hd hv. by apply no_divergence_concat.
 (* deref *)
-+ move=> cenv Gamma Sigma e ef h bt a he hd. by apply no_divergence_concat.
++ move=> cenv Gamma Sigma e ef h bt a he hd hv. by apply no_divergence_concat.
 (* massgn *)
-+ move=> cenv Gamma Sigma e e' h pt ef ef' hte hd1 hte' hd2. apply no_divergence_concat.
++ move=> cenv Gamma Sigma e e' h pt ef ef' hte hd1 hte' hvo hd2. apply no_divergence_concat.
   + by apply hd1.
   by apply no_divergence_concat.
 + move=> cenv Gamma Sigma e ef1 ef2 t e' hteq hte1 hd1 hte2 hd2. by apply no_divergence_concat.

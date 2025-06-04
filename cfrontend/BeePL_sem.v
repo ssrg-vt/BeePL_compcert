@@ -413,11 +413,11 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
               ssem_expr p vm m (Prim (Bop bop) (Val v1 t1 :: e2 :: nil) t1) m' vm' 
                              (Prim (Bop bop) (Val v1 t1 :: e2' :: nil) t1)
 | ssem_bop3_unsafe  : forall p vm m v1 v2 bop t ct s zv,
-                      transBeePL_type t = ct ->
-                      signedness_of_type t = Some s ->
-                      check_unsafe_op bop s v1 v2 = true ->
-                      return_bzero t = ret zv ->
-                      ssem_expr p vm m (Prim (Bop bop) (Val v1 t :: Val v2 t :: nil) t) m vm (Val zv t)
+               transBeePL_type t = ct ->
+               signedness_of_type t = Some s ->
+               check_unsafe_op bop s v1 v2 = true ->
+               return_bzero t = ret zv ->
+               ssem_expr p vm m (Prim (Bop bop) (Val v1 t :: Val v2 t :: nil) t) m vm (Val zv t) 
 | ssem_bop3_safe  : forall p cenv vm m v1 v2 bop t v ct v' s,
                     transBeePL_type t = ct ->
                     signedness_of_type t = Some s ->
