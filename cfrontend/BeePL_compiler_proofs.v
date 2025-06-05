@@ -128,6 +128,17 @@ Inductive sim_bexpr_cexpr : vmap -> BeePL.expr -> function_ctx -> Csyntax.expr -
                sim_bexpr_cexpr le (BeePL.Sfield e x t) ctx (Csyntax.Efield (Evalof ce (transBeePL_type (typeof_expr e))) x ct) ctx'
 (*| sim_for : forall le x e1 e2 d e t,
             sim_bexpr_cexpr le (BeePL.For x e1 e2 d e t) ... *)
+| sim_enone : forall le ctx t t' ct,
+              transBeePL_type t = ct ->
+              t = Ptrtype t' ->
+              is_option_ptr_type t' ->
+              sim_bexpr_cexpr le (BeePL.Enone t) ctx (Csyntax.Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr ct)) ctx
+| sim_esome : forall le ctx ctx' t t' ct e ce,
+              transBeePL_type t = ct ->
+              t = Ptrtype t' ->
+              is_option_ptr_type t' ->
+              sim_bexpr_cexpr le e ctx ce ctx' ->
+              sim_bexpr_cexpr le (BeePL.Esome e t) ctx ce ctx'
 with sim_bexprs_cexprs : vmap -> list BeePL.expr -> function_ctx -> Csyntax.exprlist -> function_ctx -> Prop :=
 | sim_nil : forall le ctx,
             sim_bexprs_cexprs le [::] ctx Enil ctx
@@ -698,43 +709,75 @@ Proof.
     inv H3.
     econstructor; eauto.
   (* Cond *)
-  - unfold SimplExpr.bind in H2.
-    destruct (transBeePL_expr_expr e1 g) as [| ce1 g1 i1] eqn:Hexpr1; try discriminate.
-    destruct (transBeePL_expr_expr e2 g1) as [| ce2 g2 i2] eqn:Hexpr2; try discriminate.
-    destruct (transBeePL_expr_expr e3 g2) as [| ce3 g3 i3] eqn:Hexpr3; try discriminate.
-    destruct (transBeePL_type t g3) as [| ct g4 i4] eqn:Htype; try discriminate.
-    inv H2.
+  - inv H2.
+    repeat unfold SimplExpr.bind2 in H4.
+    repeat unfold SimplExpr.bind in H4.
+    destruct (transBeePL_expr_expr e1 ctx bctx g) as [|((cexpr1, ctx1), bctx1) g1 i1] eqn:Hexpr1; try discriminate.
+    simpl in H4.
+    destruct (transBeePL_expr_expr e2 ctx1 bctx1 g1) as [|((cexpr2, ctx2), bctx2) g2 i2] eqn:Hexpr2; try discriminate.
+    simpl in H4.
+    destruct (transBeePL_expr_expr e3 ctx2 bctx2 g2) as [|((cexpr3, ctx3), bctx3) g3 i3] eqn:Hexpr3; try discriminate.
+    inv H4.
     econstructor; eauto.
   (* Unit *)
-  - unfold SimplExpr.bind in H.
-    destruct (transBeePL_type t g) as [| ct g1 i1] eqn:Htype; try discriminate.
-    inv H.
+  - inv H.
     econstructor; eauto.
   (* Addr *)
-  - unfold SimplExpr.bind in H.
-    destruct (transBeePL_type t g) as [| ct g1 i1] eqn:Htype; try discriminate.
-    inv H.
+  - inv H.
     econstructor; eauto.
   (* Hexpr: Fix me*)
   - inv H0.
     econstructor.
   (* Eapp *)
-  - unfold SimplExpr.bind in H0.
-    destruct (befunction_to_cefunction ef g) as [| ce' g1 i1] eqn:Hfun; try discriminate.
-    destruct (transBeePL_types transBeePL_type ts g1) as [| cts g2 i2] eqn:Htypes; try discriminate.
-    destruct (transBeePL_type t g2) as [| ct g3 i3] eqn:Htype; try discriminate.
-    destruct (transBeePL_expr_exprs transBeePL_expr_expr es g3) as [| ces g4 i4] eqn:Hexprs; try discriminate.
-    inv H0.
+  - inv H0.
+    repeat unfold SimplExpr.bind2 in H2.
+    repeat unfold SimplExpr.bind in H2.
+    destruct (transBeePL_expr_exprs transBeePL_expr_expr es ctx bctx g) as [|((ces, ctx1), bctx1) g1 i1] eqn:Hexprs; try discriminate.
+    inv H2.
     econstructor; eauto.
+  (* Sinit *)
+  - inv H0.
+  (* Sfield *)
+  - inv H0.
+    repeat unfold SimplExpr.bind2 in H2.
+    repeat unfold SimplExpr.bind in H2.
+    destruct (transBeePL_expr_expr e ctx bctx g) as [|((cexpr, ctx1), bctx1) g1 i1] eqn:Hexpr; try discriminate.
+    inv H2.
+    econstructor; eauto.
+  (* For *)
+  - inv H2.
+  (* Enone *)
+  - inv H.
+    destruct t eqn:Htype; try discriminate.
+    destruct p eqn:Hptr; try discriminate.
+    inv H1.
+    econstructor; eauto.
+  (* Esome *)
+  - inv H0.
+    destruct t eqn:Htype; try discriminate.
+    destruct p eqn:Hptr; try discriminate.
+    inv H2.
+    econstructor; eauto.
+  (* Match TODO *)
+  - admit.
+  (* Ebytes *)
+  - inv H0.
+    repeat unfold SimplExpr.bind2 in H2.
+    repeat unfold SimplExpr.bind in H2.
+    destruct (transBeePL_expr_exprs transBeePL_expr_expr es ctx bctx g) as [|((ces, ctx1), bctx1) g1 i1] eqn:Hexprs; try discriminate.
   (* Nil *)
   - inv H.
     apply sim_nil.
-  - unfold SimplExpr.bind in H1.
-    destruct (transBeePL_expr_expr e g) as [| ce g1 i1] eqn:Hexpr; try discriminate.
-    destruct (transBeePL_expr_exprs transBeePL_expr_expr es g1) as [| ces' g2 i2] eqn:Hexprs; try discriminate.
-    inv H1.
+  (* Cons *)
+  - inv H1.
+    repeat unfold SimplExpr.bind2 in H3.
+    repeat unfold SimplExpr.bind in H3.
+    destruct (transBeePL_expr_expr e ctx bctx g) as [|((ce, ctx1), bctx1) g1 i1] eqn:Hexpr; try discriminate.
+    simpl in H3.
+    destruct (transBeePL_expr_exprs transBeePL_expr_expr es ctx1 bctx1 g1) as [|((cexprs, ctx2), bctx2) g2 i2] eqn:Hexprs; try discriminate.
+    inv H3.
     econstructor; eauto.
-Qed.
+Admitted.
 
 Lemma transBeePL_expr_stmt_spec: forall vm e ce g g' i,
 transBeePL_expr_st e g = Res ce g' i ->
