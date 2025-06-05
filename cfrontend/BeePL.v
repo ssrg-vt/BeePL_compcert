@@ -20,6 +20,7 @@ Inductive builtin : Type :=
                                                assigns the evaluation of e to the reference cell l *)
 | Uop : Cop.unary_operation -> builtin      (* unary operator *) (* rvalue *)
 | Bop : Cop.binary_operation -> builtin     (* binary operator *) (* rvalue *)
+| Cast : type -> builtin                            (* casting operator *)
 | Run : Memory.mem -> builtin               (* eliminate heap effect : [r1-> v1, ..., ern->vn] e 
                                                reduces to e captures the essence of state isolation 
                                                and reduces to a value discarding the heap *).
@@ -296,8 +297,7 @@ match e with
 end.
 
 
-Record function : Type := mkfunction { (*fn_sec: option string; XDP ==> SEC("xdp") *)
-                                       fn_return: type;
+Record function : Type := mkfunction { fn_return: type;
                                        fn_effect: effect;
                                        fn_callconv: calling_convention;
                                        fn_args: list (ident * type);
@@ -352,7 +352,7 @@ match gd with
 | Gvar v => false
 end.
 
-Record program  : Type := mkprogam { prog_defs : list (ident * globdef fundef type);
+Record program  : Type := mkprogam { prog_defs : list (ident * AST.globdef BeePL.fundef type * option string);
                                      prog_public : list ident;
                                      prog_main : ident;
                                      prog_types : list bcomposite_definition;
@@ -361,7 +361,7 @@ Record program  : Type := mkprogam { prog_defs : list (ident * globdef fundef ty
                                      prog_ident_to_string : list (ident * string)}.
 
 Program Definition make_bprogram (types : list bcomposite_definition)
-                                 (defs : list (ident * globdef fundef type))
+                                 (defs : list (ident * globdef fundef type * option string))
                                  (public : list ident)
                                  (main : ident)
                                  (ident_to_string :  list (ident * string)) : res program :=
@@ -378,7 +378,7 @@ Program Definition make_bprogram (types : list bcomposite_definition)
   end.
 
 Definition mkbprogram (types: list bcomposite_definition)
-                      (defs: list (ident * globdef fundef type))
+                      (defs: list (ident * globdef fundef type * option string))
                       (public: list ident)
                       (main: ident)
                       (WF: wf_bcomposites types) 
@@ -408,7 +408,7 @@ match gd with
 end.
 
 Definition get_args (p : program) : list (ident * type) :=
-match unzip2 p.(prog_defs) with 
+match map (fun '(x, y, z) => y) p.(prog_defs) with
 | nil => nil
 | gd :: gds => get_args_ebpf_gbdef gd ++ get_args_ebpf_gbdefs gds
 end.
@@ -422,7 +422,7 @@ Record genv := { genv_genv :> Genv.t fundef type; genv_cenv :> bcomposite_env }.
 
 Definition trans_program_astprog (p : program) : AST.program fundef type :=
 @mkprogram fundef type
-   p.(prog_defs)
+   (map (fun '(id, gd, _) => (id, gd)) p.(prog_defs))
    p.(prog_public)
    p.(prog_main).
 
@@ -521,23 +521,23 @@ Inductive deref_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : p
   Mem.loadv (transl_bchunk_cchunk chunk) m (trans_bvalue_cvalue (Vloc addr ofs)) = Some v ->
   trans_cvalue_bvalue v = OK v' ->
   deref_addr ty m addr ofs Full v'
-| deref_loc_volatile: forall chunk tr v v',
+(*| deref_loc_volatile: forall chunk tr v v',
   access_mode_type ty = By_value (transl_bchunk_cchunk chunk) -> 
   type_is_volatile (transBeePL_type ty) = true ->
   volatile_load ge (transl_bchunk_cchunk chunk) m addr ofs tr v ->
   trans_cvalue_bvalue v = OK v' ->
-  deref_addr ty m addr ofs Full v'
+  deref_addr ty m addr ofs Full v'*)
 | deref_addr_reference:
   access_mode_type ty = By_reference ->
   deref_addr ty m addr ofs Full (Vloc addr ofs) 
 | deref_addr_copy:
   access_mode_type ty = By_copy ->
-  deref_addr ty m addr ofs Full (Vloc addr ofs)
-| deref_addr_bitfield: forall sz sg pos width v v' cty,
+  deref_addr ty m addr ofs Full (Vloc addr ofs).
+(*| deref_addr_bitfield: forall sz sg pos width v v' cty,
   transBeePL_type ty = cty ->
   load_bitfield cty sz sg pos width m (Values.Vptr addr ofs) v ->
   trans_cvalue_bvalue v = OK v' ->
-  deref_addr ty m addr ofs (Bits sz sg pos width) v'.
+  deref_addr ty m addr ofs (Bits sz sg pos width) v'.*)
 
 
 (* [assign_addr ty m addr ofs v] returns the updated memory after storing the value v at address [addr] and offset 
@@ -549,12 +549,12 @@ Inductive assign_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : 
   Mem.storev (transl_bchunk_cchunk chunk) m (trans_bvalue_cvalue (Vloc addr ofs)) v = Some m' ->
   trans_cvalue_bvalue v = OK v' ->
   assign_addr ty m addr ofs Full v' m' v'
-| assign_loc_volatile: forall v chunk tr m' v',
+(*| assign_loc_volatile: forall v chunk tr m' v',
   access_mode_type ty = By_value (transl_bchunk_cchunk chunk) -> 
   type_is_volatile (transBeePL_type ty) = true ->
   volatile_store ge (transl_bchunk_cchunk chunk) m addr ofs v tr m' ->
   trans_cvalue_bvalue v = OK v' ->
-  assign_addr ty m addr ofs Full v' m' v'
+  assign_addr ty m addr ofs Full v' m' v'*)
 | assign_addr_copy: forall b' ofs' bytes m',
   access_mode_type ty = By_copy ->
   (alignof_blockcopy (bcomposite_composite_env (genv_cenv ge)) (transBeePL_type ty) | Ptrofs.unsigned ofs') ->
@@ -564,12 +564,12 @@ Inductive assign_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : 
               \/ Ptrofs.unsigned ofs + sizeof (bcomposite_composite_env (genv_cenv ge)) (transBeePL_type ty) <= Ptrofs.unsigned ofs' ->
    Mem.loadbytes m b' (Ptrofs.unsigned ofs') (sizeof (bcomposite_composite_env (genv_cenv ge)) (transBeePL_type ty)) = Some bytes ->
    Mem.storebytes m addr (Ptrofs.unsigned ofs) bytes = Some m' ->
-   assign_addr ty m addr ofs Full (Vloc b' ofs') m' (Vloc b' ofs')
-| assign_addr_bitfield: forall sz sg pos width v m' v' bv bv',
+   assign_addr ty m addr ofs Full (Vloc b' ofs') m' (Vloc b' ofs').
+(*| assign_addr_bitfield: forall sz sg pos width v m' v' bv bv',
   store_bitfield (transBeePL_type ty) sz sg pos width m (Values.Vptr addr ofs) v m' v' ->
   trans_cvalue_bvalue v = OK bv ->
   trans_cvalue_bvalue v' = OK bv' -> 
-  assign_addr ty m addr ofs (Bits sz sg pos width) bv m' bv'. 
+  assign_addr ty m addr ofs (Bits sz sg pos width) bv m' bv'.*) 
 
 (* Allocation of function local variables *)
 (* [alloc_variables vm1 m1 vars vm2 m2] allocates one memory block for each variable
@@ -634,6 +634,7 @@ Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
 
 Inductive well_formed_value : value -> type -> Prop :=
 | wf_vunit : well_formed_value Vunit (Utype)
+| wf_vbool : forall b, well_formed_value (Vbool b) (Vtype Tbool)
 | wf_vint : forall sz s a i, 
             well_formed_value (Vint i) (Vtype (Tint sz s a))
 | wf_vlong : forall s a i,
@@ -642,6 +643,19 @@ Inductive well_formed_value : value -> type -> Prop :=
             well_formed_value (Vloc l ofs) (Ptrtype (Reftype h t a)).
 
 End Memory_semantics.
+
+Fixpoint bind_vars (Gamma : ty_context) (l: list (ident * type)) : ty_context :=
+match l with
+| nil => Gamma
+| (id, ty) :: l => bind_vars (PTree.set id ty Gamma) l
+end.
+
+Fixpoint bind_globdef (Gamma: ty_context) (l: list (ident * globdef fundef type)) : ty_context :=
+match l with
+| nil => Gamma
+| (id, Gfun fd) :: l => bind_globdef (PTree.set id (type_of_fundef fd) Gamma) l
+| (id, Gvar v) :: l => bind_globdef (PTree.set id v.(gvar_info) Gamma) l
+end.
 
 (*Section Simpl_big_step_semantics.
 

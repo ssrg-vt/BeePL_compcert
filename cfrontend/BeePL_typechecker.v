@@ -2,38 +2,12 @@ Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx Coq.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Coq.Lists.List.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes Ctyping.
 Require Import BeePL_aux BeePL BeePL_values BeeTypes BeePL_mem Errors Csyntaxdefs BeePL_notations.
+Require Import BeePL_helper_functions.
 From mathcomp Require Import all_ssreflect. 
 
 Local Open Scope error_monad_scope.
 
 (***** Type checker for BeePL *****)
-
-(***** Map containing information about external calls *****)
-Definition ef_info : Type := list type * (type * effect).
-
-Definition ef_empty_map := PTree.empty ef_info.
-
-Definition ef_env : Type := PTree.t ef_info.
-
-Notation "m [ a <- b ]" := (PTree.set (ident_of_string a) b m) (at level 10, left associativity).
-Notation "m [ a ]" := (PTree.get (ident_of_string a) m) (at level 10, left associativity).
-
-(* Add all external functions needed for BeePL *)
-Definition  beepl_ef_env : ef_env :=
-ef_empty_map ["bpf_get_prandom_u32" <- (nil, (tint32u, (Io :: nil)))]
-             ["bpf_ktime_get_ns" <- (nil, (tlongu, (Io :: nil)))]
-             ["add" <- ((tint32s :: trint32s :: nil), (tint32s, nil))]
-             ["bpf_get_current_uid_gid" <- (nil, (tlongu, (Io :: nil)))]
-             ["bpf_map_lookup_elem" <- ((tostruct (ident_of_string "bpf_map_type_hash") noattr :: tolongu :: nil), 
-                                            (tolongu, (Read mem_ident :: Io :: nil)))]
-             ["bpf_map_update_elem" <- ((tostruct (ident_of_string "bpf_map_type_hash") noattr :: tolongu :: tolongu :: tlongu :: nil), 
-                                           (tlongu, (Write mem_ident :: Io :: nil)))].
-
-Definition get_ef_type (efenv : ef_env) (s : string) : res ef_info :=
-match efenv[s] with 
-| Some t => OK t
-| None => Error (msg "TYPE ERROR: The type signature of external function is not present in ef_env")
-end.
 
 (* Type-checking of constants *)
 (* We type check it with weak type: wtype because it is 
@@ -107,9 +81,11 @@ match e with
                  | Deref => match es with 
                             | e :: nil => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                                           match te with 
-                                          | Ptrtype pt => if eq_type t (get_data_type pt) && (is_option_ptr_type pt == false) 
-                                                          then OK (get_data_type pt, (ef ++ (Read mem_ident :: nil)))
-                                                          else Error (msg "Dereftype does not match the inferred type")
+                                          | Ptrtype pt => if eq_type t (get_data_type pt) 
+                                                          then if (is_option_ptr_type pt == false) 
+                                                               then OK (get_data_type pt, (ef ++ (Read mem_ident :: nil)))
+                                                               else Error (msg "Deref is not allowed on option type")
+                                                          else Error (msg "Deref type does not match the inferred type")
                                           | _ => Error (msg "TYPE ERROR: Argument of dereferencing should be a ref type")
                                           end
                           |  _ => Error (msg "TYPE ERROR: Wrong number of arguments to Deref")
@@ -121,9 +97,11 @@ match e with
                                                                   let bt := get_data_type pt in
                                                                   match te2 with 
                                                                   | bt => if eq_type t Utype
-                                                                                then OK (Utype, ef1 ++ ef2 ++ (Write mem_ident :: nil))
-                                                                                else Error (msg "Massgntype does not match the inferred type")
-                                                                                      end 
+                                                                          then if (is_option_ptr_type pt == false) 
+                                                                               then OK (Utype, ef1 ++ ef2 ++ (Write mem_ident :: nil))
+                                                                               else Error (msg "Massgntype not allowed on option type")
+                                                                          else Error (msg "Massgn type does not match the inferred type")
+                                                                  end 
                                                  | _ => Error (msg "TYPE ERROR: First argument of Massgn should be a reftype")
                                                  end
                             | _ => Error (msg "TYPE ERROR: Wrong number of arguments to Massgn")
@@ -282,6 +260,18 @@ match e with
                                           | _ =>  Error (msg "TYPE ERROR: Wrong number of arguments to Binary operators") 
                                           end
                             end
+                 | Cast t => match t with 
+                             | Vtype vt => match es with 
+                                           | e1 :: nil => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
+                                                          match te1 with 
+                                                          | Vtype vt1 => do rt <- allowed_cast vt1 vt;
+                                                                         OK(Vtype rt, ef1)
+                                                          | _ => Error (msg "TYPE ERROR: Wrong argument type to casting operator, it expects bool, int, or long")
+                                                          end
+                                           | _ => Error (msg "TYPE ERROR: Wrong number of arguments to Casting Operator")
+                                           end 
+                             | _ => Error (msg "TYPE ERROR: Casting is only allowed from one value type to another")
+                             end
                  | Run h => Error (msg "TYPE ERROR: Run is not yet supported")
                  end
 | Bind x t e1 e2 t' => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
@@ -370,9 +360,16 @@ match e with
                      do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                      do (tes, efs) <- type_check_exprs type_check_expr cenv (extends_context Gamma fvs (construct_list_type t (length fvs))) Sigma es;
                      match te with 
-                     | Ptrtype t' => if is_option_ptr_type t' && all_eq_types tes && eq_type t (hd tunit tes) 
-                                     then OK(t, ef ++ efs)
-                                     else Error (msg "TYPE ERROR: Type of Match expr should be an option to ref type and all its elements should be of same type")
+                     | Ptrtype t' => if is_option_ptr_type t'
+                                     then if all_eq_types tes 
+                                          then if eq_type t (hd tunit tes) 
+                                               then OK(t, ef ++ efs)
+                                               else Error (msg "TYPE ERROR: Inferref type of match does not match with expected type")
+                                          else Error (msg "TYPE ERROR: All branches of match should be of same type")
+                                     else Error (msg "TYPE ERROR: Type of Match expr should be an option type")
+                     | Bytes => if all_eq_types tes && eq_type t (hd tunit tes) 
+                                then OK(t, ef ++ efs)
+                                else Error (msg "TYPE ERROR: Type of Match expr should be an option to ref type and all its elements should be of same type")
                      | _ => Error (msg "TYPE ERROR: Type of Match expr should be an option or bytes type")
                      end
 | Ebytes es t => Error (msg "TYPE ERROR: Type of Bitstrings are not supported yet")
@@ -380,19 +377,6 @@ match e with
 end.
 
 Open Scope string_scope.
-
-Fixpoint bind_vars (Gamma : ty_context) (l: list (ident * type)) : ty_context :=
-match l with
-| nil => Gamma
-| (id, ty) :: l => bind_vars (PTree.set id ty Gamma) l
-end.
-
-Fixpoint bind_globdef (Gamma: ty_context) (l: list (ident * globdef fundef type)) : ty_context :=
-match l with
-| nil => Gamma
-| (id, Gfun fd) :: l => bind_globdef (PTree.set id (type_of_fundef fd) Gamma) l
-| (id, Gvar v) :: l => bind_globdef (PTree.set id v.(gvar_info) Gamma) l
-end.
 
 Definition type_check_function (cenv : bcomposite_env) (Gamma : ty_context) (Sigma : store_context) (fn : function) : res string :=
 let Gamma' := bind_vars (bind_vars Gamma fn.(fn_args)) fn.(fn_vars) in
@@ -424,9 +408,10 @@ match fn with
 end.
 
 
-(* Fix me *)
-Definition type_check_globvar (efenv : ef_env) (Gamma : ty_context) (Sigma : store_context) (gv : BeePL.globvar type) : res type :=
-OK (gv.(gvar_info)).
+Definition type_check_globvar (efenv : ef_env) (Gamma : ty_context) (Sigma : store_context) (gv : BeePL.globvar type) : res (type * effect) :=
+do ef <- construct_ef_gvars gv.(gvar_init);
+OK (gv.(gvar_info), ef).
+
 
 Section Type_check_globdefs.
 
@@ -450,9 +435,7 @@ end.
 
 (* Store context: Not needed in the executable type checker because location is never used by programmer, it only comes as intermediate results in semantics *) 
 Definition type_check_program (p : BeePL.program) : res string :=
-let Gamma := bind_globdef (PTree.empty _) p.(prog_defs) in
+let defs := map (fun '(id, gd, _) => (id, gd)) p.(prog_defs) in
+let Gamma := bind_globdef (PTree.empty _) defs in
 let cenv := p.(prog_comp_env) in 
-type_check_globdefs type_check_globdef beepl_ef_env cenv Gamma empty_context (unzip2 (p.(prog_defs))).
-
-
-
+type_check_globdefs type_check_globdef beepl_ef_env cenv Gamma empty_context (unzip2 defs).

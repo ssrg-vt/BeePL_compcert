@@ -104,11 +104,13 @@ VLIB=Axioms.v Coqlib.v Intv.v Maps.v Heaps.v Lattice.v Ordered.v \
 # compiled with the rest of CompCert
 
 BEEPL_TESTS=\
-    BeePL_bpf.v BeePL_progs.v BeePL_add.v BeePL_add_ptr.v BeePL_div_zero1.v BeePL_div_zero.v \
+    BeePL_progs.v \
+    BeePL_progs.v BeePL_add.v BeePL_add_ptr.v BeePL_div_zero1.v BeePL_div_zero.v \
     BeePL_add_ex1.v BeePL_cond.v BeePL_app.v BeePL_funptr_ex1.v BeePL_bpf_get_prandom.v \
     BeePL_for_ex1.v BeePL_for_ex2.v BeePL_match_fail_ex1.v BeePL_external_call.v BeePL_null_ptr.v \
     BeePL_bitstring1.v BeePL_globvar1.v BeePL_bpf_xdp_packet_count.v BeePL_bpf_xdp_packet_count1.v \
-    BeePL_bpf_map_example1.v BeePL_bpf_drop_xdp_packet_iPv6.v BeePL_bpf_handle_tp.v BeePL_add_ref.v
+    BeePL_bpf_map_example1.v BeePL_bpf_drop_xdp_packet_iPv6.v BeePL_bpf_handle_tp.v BeePL_add_ref.v \
+    BeePL_cast.v BeePL_cast1.v BeePL_shift.v BeePL_bpf_map_null_check.v BeePL_section.v BeePL_bpf_safe_null_check.v
 
 #  BeePL_div_zero.v BeePL_div_zero1.v BeePL_external_call.v BeePL_ref.v \
 #  BeePL_struct_ex2.v BeePL_for_ex1.v BeePL_for_ex2.v BeePL_globvar1.v \
@@ -117,7 +119,7 @@ BEEPL_TESTS=\
 # Parts common to BeePL
 
 BEEPL=\
-      $(BEEPL_TESTS) BeeTypes.v BeePL_values.v
+      $(BEEPL_TESTS) BeeTypes.v BeePL_values.v BeePL_bpf.v
 
 # Parts common to the front-ends and the back-end (in common/)
 
@@ -166,8 +168,8 @@ EBPF=Archi.v Asm.v Asmgen.v Asmgenproof.v Asmgenproof1.v Builtins1.v \
 
 # C front-end modules (in cfrontend/)
 
-CFRONTEND=BeePL_mem.v BeePL_aux.v BeePL.v BeePL_notations.v BeePL_auxlemmas.v BeePL_sem.v BeePL_typechecker.v BeePL_typesystem.v \
-  BeePL_safety.v BeePL_typesystem_proofs.v BeePL_Check_Reserved_Struct.v BeePL_Bytes_Struct.v BeePL_Wrapper_Pass.v BeePL_Csyntax.v \
+CFRONTEND=BeePL_mem.v BeePL_aux.v BeePL.v BeePL_notations.v BeePL_auxlemmas.v BeePL_helper_functions.v BeePL_sem.v BeePL_typechecker.v BeePL_typesystem.v \
+  BeePL_safety.v BeePL_memory_proofs.v BeePL_operators_proofs.v BeePL_typesystem_proofs.v BeePL_Check_Reserved_Struct.v BeePL_Bytes_Struct.v BeePL_Wrapper_Pass.v BeePL_Csyntax.v \
   BeePL_compiler_proofs.v Ctypes.v Cop.v Csyntax.v Csem.v Ctyping.v Cstrategy.v Cexec.v \
   Initializers.v Initializersproof.v \
   SimplExpr.v SimplExprspec.v SimplExprproof.v \

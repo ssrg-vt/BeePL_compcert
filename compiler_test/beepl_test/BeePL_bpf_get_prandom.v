@@ -55,11 +55,11 @@ Definition f_xdp_prog : BeePL.function := {|
 Definition bcomposites : list bcomposite_definition := bcomposites_xdp_md.
 
 
-Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
+Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
    := (bpf_get_prandom_u32, AST.Gfun(BeePL.External bpf_get_prandom_u32_ef
                                      nil tint32u
-                                     (cc_default))) :: 
-      (_xdp_prog, AST.Gfun(BeePL.Internal (f_xdp_prog))) :: nil.
+                                     (cc_default)), None) :: 
+      (_xdp_prog, AST.Gfun(BeePL.Internal (f_xdp_prog)), None) :: nil.
 
 Definition public_idents : list ident := (_xdp_prog :: nil).
 

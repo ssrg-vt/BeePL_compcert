@@ -77,8 +77,8 @@ Definition f_conditional_2 : BeePL.function := {|
                                   is_ebpf := false |}.
 
 
-Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
-   := (_main, AST.Gfun(BeePL.Internal (f_conditional_1))) :: nil.
+Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
+   := (_main, AST.Gfun(BeePL.Internal (f_conditional_1)), None) :: nil.
 
 Definition public_idents : list ident := (_main :: nil).
 

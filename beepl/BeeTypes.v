@@ -140,6 +140,15 @@ Qed.
 
 End beepl_type_ind.
 
+Definition allowed_cast (t1 t2 : primitive_type) : res primitive_type :=
+match t1, t2 with 
+| Tbool, _ => OK t2
+| Tint sz s a, _ => OK t2
+| Tlong s a, Tint sz s' a' => OK t2
+| Tlong s a, Tlong s' a' => OK t2
+| _, _ => Error (msg "Casting not allowed")
+end.
+
 Fixpoint get_data_type (pt : ptr_type) : type :=
 match pt with 
 | Reftype h bt a => match bt with 
@@ -152,6 +161,13 @@ match pt with
 | Fptype ts ef t => Ftype ts ef t
 | Sptype s a => Stype s a
 | Aptype t z a => Atype t z a
+end.
+
+Definition construct_type_btype (bt : basic_type) : type :=
+match bt with 
+| Bprim pt => Vtype pt
+| Bstruct sid a => Stype sid a 
+| Barray pt n a => Atype (Vtype pt) n a 
 end.
 
 Inductive wtype : Type :=
@@ -298,9 +314,9 @@ with transBeePL_ptr_type (pt : ptr_type) : Ctypes.type :=
                            end
       end
   | Vptype pt => match pt with 
-                 | Tbool => tptr tvoid (*Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr*)
-                 | (Tint sz s a') => tptr tvoid (*Ctypes.Tpointer (Ctypes.Tint sz s a') a'*)
-                 | (Tlong s a') => tptr tvoid (*Ctypes.Tpointer (Ctypes.Tlong s a') a'*)
+                 | Tbool => Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr
+                 | (Tint sz s a') => Ctypes.Tpointer (Ctypes.Tint sz s a') a'
+                 | (Tlong s a') => Ctypes.Tpointer (Ctypes.Tlong s a') a' (*tptr tvoid*)
                  end
   | Otype t => (transBeePL_ptr_type t)
   | Fptype ts ef t =>
@@ -792,13 +808,13 @@ type must be accessed:
 *)
 Definition access_mode_prim (t : primitive_type) : mode :=
 match t with 
-| Tbool => By_value Mint8unsigned
+| Tbool => By_value Mbool
 | Tint I8 Signed _ => By_value Mint8signed
 | Tint I8 Unsigned _ => By_value Mint8unsigned
 | Tint I16 Signed _ => By_value Mint16signed
 | Tint I16 Unsigned _ => By_value Mint16unsigned
 | Tint I32 _ _ => By_value Mint32
-| Tint IBool _ _ => By_value Mbool
+| Tint IBool _ _ => By_value Mint32
 | Tlong _ _ => By_value Mint64
 end.
 
@@ -819,6 +835,34 @@ Definition access_mode_type (t : type) : mode :=
   | Ftype _ _ _ => By_reference
   | Bytes => By_reference
   end.
+
+
+(** The chunk that is appropriate to store and reload a value of
+  the given type, without losing information. *)
+
+Definition chunk_of_ptype (ty: primitive_type) :=
+match ty with
+| Tbool => BMint8signed
+| Tint I8 Signed _ => BMint8signed
+| Tint I8 Unsigned _ => BMint8unsigned
+| Tint I16 Signed _ => BMint16signed
+| Tint I16 Unsigned _ => BMint16unsigned
+| Tint I32 _ _ => BMint32
+| Tint IBool _ _ => BMbool
+| Tlong _ _ => BMint64
+end.
+
+Definition chunk_of_type (ty : type) : option bmemory_chunk :=
+match ty with
+| Vtype pt => Some (chunk_of_ptype pt)
+| Ptrtype _ => Some BMint64  (* Assuming 64-bit architecture *)
+| Bytes => None  (* 16 bytes cannot be assigned i*)
+(* Not directly mappable to a single chunk *)
+| Stype _ _ => None
+| Atype _ _ _ => None
+| Ftype _ _ _ => None
+| Utype => None
+end.
 
 Section Eq_basic_types.
 
@@ -905,8 +949,6 @@ Definition eq_wtype (w1 w2 : wtype) : bool :=
   | _, _ => false
   end.
 
- 
-
 Definition sizeof_ptype (t : primitive_type) : Z :=
 match t with 
 | Tbool => 1
@@ -914,35 +956,18 @@ match t with
 | Tint I16 _ _ => 2
 | Tint I32 _ _ => 4
 | Tint IBool _ _ => 1
-| Tlong _ _ => 4
+| Tlong _ _ => 8
 end.
 
-Definition sizeof_btype (env : bcomposite_env) (t : basic_type) : Z :=
-match t with 
-| Bprim t => sizeof_ptype t 
-| Bstruct x a => match env!x with Some co => co_sizeof co | None => 0 end
-| Barray pt n a => sizeof_ptype pt * Z.max 0 n
-end. 
-
-Fixpoint sizeof_ptr_type (env : bcomposite_env) (pt : ptr_type) : Z :=
-  match pt with
-  | Reftype h t  _ => sizeof_btype env t
-  | Vptype t => sizeof_ptype t
-  | Otype t => sizeof_ptr_type env t
-  | Fptype _ _ _ => 1
-  | Sptype x a => 1
-  | Aptype t z a => 1
-  end.
-
-Fixpoint sizeof_type (env : bcomposite_env) (t : type) : Z :=
+Fixpoint sizeof_type (env : bcomposite_env) (t : BeeTypes.type) : Z :=
   match t with
   | Utype => 0
   | Vtype pt => sizeof_ptype pt
-  | Ptrtype pt => sizeof_ptr_type env pt
+  | Ptrtype pt => if Archi.ptr64 then 8 else 4
   | Stype x _ => match env!x with Some co => co_sizeof co | None => 0 end
   | Atype t' z a => sizeof_type env t' * Z.max 0 z
   | Ftype _ _ _ => 1
-  | Bytes => match env!bytes_t with Some co => co_sizeof co | None => 0 end
+  | Bytes => 16
   end.
 
 Fixpoint sizeof_types (env : bcomposite_env) (ts : list type) : Z :=
@@ -950,6 +975,28 @@ match ts with
 | nil => 0
 | t :: ts => sizeof_type env t + sizeof_types env ts
 end.
+
+Definition alignof_ptype (t : primitive_type) : Z :=
+match t with 
+| Tbool => 1
+| Tint I8 _ _ => 1
+| Tint I16 _ _ => 2
+| Tint I32 _ _ => 4
+| Tint IBool _ _ => 1
+| Tlong _ _ => Archi.align_int64
+end.
+
+Fixpoint alignof_type (env : bcomposite_env) (t : BeeTypes.type) : Z :=
+  match t with
+  | Utype => 0
+  | Vtype pt => alignof_ptype pt
+  | Ptrtype pt => if Archi.ptr64 then 8 else 4
+  | Stype x _ => match env!x with Some co => co_alignof co | None => 1 end
+  | Atype t' z a => alignof_type env t'
+  | Ftype _ _ _ => 1
+  (* Bytes get translated to a struct in C with two fields of char* *)
+  | Bytes => if Archi.ptr64 then 8 else 4
+  end.
 
 (* Used for extracting the correct type for a Ref's fresh variable *)
 Definition ref_to_prim (ty : type) : mon type :=
@@ -1024,7 +1071,7 @@ match xs with
                   OK (t :: ts)
 end.
 
-Fixpoint all_eq_types (ts : list type) : bool :=
+Definition all_eq_types (ts : list type) : bool :=
 match ts with
 | nil => true
 | t1 :: ts' => forallb (fun t => eq_type t1 t) ts'
@@ -1059,53 +1106,24 @@ match ks, ts with
 | _, _ => Gamma
 end.
 
-(*** Auxillary lemmas related to types and effects ***)
-(* Complete Me: Easy *)
-Lemma sub_effect_refl : forall ef, 
-sub_effect ef ef = true.
-Proof.
-  induction ef.
-  - reflexivity.
-  - unfold sub_effect.
-    destruct (eq_effect_label a a).
-    + apply IHef.
-    + destruct a.
-Admitted.
-  
+Definition construct_ef_gvar (gi : init_data) : res effect := 
+match gi with  
+| Init_int8 _ => OK (Alloc mem_ident :: Write mem_ident :: nil)
+| Init_int16 _ => OK (Alloc mem_ident :: Write mem_ident :: nil)
+| Init_int32 _ => OK (Alloc mem_ident :: Write mem_ident :: nil)
+| Init_int64 _ => OK (Alloc mem_ident :: Write mem_ident :: nil)
+| Init_float32 _ => Error (msg "TYPE ERROR: Float global variable not supported in BeePL")
+| Init_float64 _ => Error (msg "TYPE ERROR: Float global variable not supported in BeePL")
+| Init_space _ => OK (Alloc mem_ident :: nil)
+| Init_addrof _ _ => OK (Alloc mem_ident :: Write mem_ident :: Read mem_ident :: nil)
+end.
 
-(* Complete Me: Easy *)
-Lemma sub_effect_nil : forall ef, 
-sub_effect nil ef = true.
-Proof. induction ef; auto. Qed.
+Fixpoint construct_ef_gvars (gis : list init_data) : res effect :=
+match gis with 
+| nil => OK nil
+| gi :: gis => do ge <- construct_ef_gvar gi;
+               do ges <- construct_ef_gvars gis;
+               OK (ge ++ ges)%list
+end.
 
-(* Complete Me: Easy *)
-Lemma sub_effect_trans : forall ef1 ef2 ef3, 
-sub_effect ef1 ef2 = true ->
-sub_effect ef2 ef3 = true ->
-sub_effect ef1 ef3 = true.
-Proof.
-  intros ef1 ef2 ef3 H1.
-  generalize dependent ef3.
-  induction ef3; intros H2.
-  - induction ef2; auto.
-  - admit.
-Admitted.
 
-(* Complete Me: Easy *)
-Lemma prefix_sub_effect : forall (ef1 ef2 : effect), 
-sub_effect ef1 (ef1 ++ ef2)%list = true.
-Proof. 
-  induction ef1; intros.
-  - simpl. apply sub_effect_nil.
-  - destruct a; simpl.
-    + apply IHef1.
-    + apply IHef1.
-    + destruct ((i =? i)%positive).
-      * apply IHef1.
-Admitted.
-
-(* Complete Me: Easy *)
-Lemma suffix_sub_effect : forall (ef1 ef2 : effect), 
-sub_effect ef2 (ef1 ++ ef2)%list = true.
-Proof. 
-Admitted.

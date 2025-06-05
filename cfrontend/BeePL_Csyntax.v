@@ -134,12 +134,12 @@ match t with
                                                       (Ebinop Cop.Oand (Ebinop Cop.Oeq (hd default_expr (exprlist_list_expr ces))
                                                                                         (Eval (Values.Vint (Int.repr Int.min_signed)) t) t)
                                                                        (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
-                                                                                        (Eval (Values.Vint Int.mone) t) t) t) t)
+                                                                                        (Eval (Values.Vint Int.mone) t) t) t) tint)
                                      (Eval v t)
                                      (Ebinop (Cop.Odiv) (hd default_expr (exprlist_list_expr ces)) 
                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
 | Ctypes.Tint I32 Unsigned _ => ret (Econdition (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
-                                                                     (Eval (Values.Vint Int.zero) t) t)
+                                                                     (Eval (Values.Vint Int.zero) t) tint)
                                             (Eval v t)
                                             (Ebinop (Cop.Odiv) (hd default_expr (exprlist_list_expr ces)) 
                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
@@ -148,12 +148,12 @@ match t with
                                                       (Ebinop Cop.Oand (Ebinop Cop.Oeq (hd default_expr (exprlist_list_expr ces))
                                                                                         (Eval (Values.Vlong (Int64.repr Int64.min_signed)) t) t)
                                                                        (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
-                                                                                        (Eval (Values.Vlong Int64.mone) t) t) t) t)
+                                                                                        (Eval (Values.Vlong Int64.mone) t) t) t) tint)
                                      (Eval v t)
                                      (Ebinop (Cop.Odiv) (hd default_expr (exprlist_list_expr ces)) 
                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
 | Ctypes.Tlong Unsigned _ => ret (Econdition (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
-                                                                     (Eval (Values.Vlong Int64.zero) t) t)
+                                                                     (Eval (Values.Vlong Int64.zero) t) tint)
                                             (Eval v t)
                                             (Ebinop (Cop.Odiv) (hd default_expr (exprlist_list_expr ces)) 
                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
@@ -163,7 +163,7 @@ end.
 Definition check_mod (ces : exprlist) (v : Values.val) (t : Ctypes.type) : mon Csyntax.expr :=
 match t with 
 | Ctypes.Tint I32 Signed _ => ret (Econdition (Ebinop Cop.Oor (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
-                                                                     (Eval (Values.Vint Int.zero) t) t)
+                                                                     (Eval (Values.Vint Int.zero) t) tint)
                                                       (Ebinop Cop.Oand (Ebinop Cop.Oeq (hd default_expr (exprlist_list_expr ces))
                                                                                         (Eval (Values.Vint (Int.repr Int.min_signed)) t) t)
                                                                        (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
@@ -172,12 +172,12 @@ match t with
                                      (Ebinop (Cop.Omod) (hd default_expr (exprlist_list_expr ces)) 
                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
 | Ctypes.Tint I32 Unsigned _ => ret (Econdition (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
-                                                                     (Eval (Values.Vint Int.zero) t) t)
+                                                                     (Eval (Values.Vint Int.zero) t) tint)
                                             (Eval v t)
                                             (Ebinop (Cop.Omod) (hd default_expr (exprlist_list_expr ces)) 
                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
 | Ctypes.Tlong Signed _ => ret (Econdition (Ebinop Cop.Oor (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
-                                                                     (Eval (Values.Vlong Int64.zero) t) t)
+                                                                     (Eval (Values.Vlong Int64.zero) t) tint)
                                                       (Ebinop Cop.Oand (Ebinop Cop.Oeq (hd default_expr (exprlist_list_expr ces))
                                                                                         (Eval (Values.Vlong (Int64.repr Int64.min_signed)) t) t)
                                                                        (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
@@ -186,7 +186,7 @@ match t with
                                      (Ebinop (Cop.Omod) (hd default_expr (exprlist_list_expr ces)) 
                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
 | Ctypes.Tlong Unsigned _ => ret (Econdition (Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
-                                                                     (Eval (Values.Vlong Int64.zero) t) t)
+                                                                     (Eval (Values.Vlong Int64.zero) t) tint)
                                             (Eval v t)
                                             (Ebinop (Cop.Omod) (hd default_expr (exprlist_list_expr ces)) 
                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
@@ -196,30 +196,30 @@ end.
 Definition check_shl (ces : exprlist) (v : Values.val) (t : Ctypes.type) : mon Csyntax.expr :=
 match t with 
 | Ctypes.Tint _ s _ => ret (Econdition (Ebinop Cop.Olt (hd default_expr (tl (exprlist_list_expr ces)))
-                                                               (Eval (Values.Vint Int.iwordsize) t) t)
-                                                      (Eval v t) 
+                                                               (Eval (Values.Vint Int.iwordsize) t) tint)
                                                       (Ebinop (Cop.Oshl) (hd default_expr (exprlist_list_expr ces)) 
-                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t)
+                                                      (Eval v t) t)
 | Ctypes.Tlong _ _ => ret (Econdition (Ebinop Cop.Olt (hd default_expr (tl (exprlist_list_expr ces)))
                                                                (Eval (Values.Vlong Int64.iwordsize) t) t)
-                                                      (Eval v t) 
                                                       (Ebinop (Cop.Oshl) (hd default_expr (exprlist_list_expr ces)) 
-                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) 
+                                                      (Eval v t) t)
 | _ => error (msg "COMPILER ERROR: The type of argument of shl should be int or long")
 end.
 
 Definition check_shr (ces : exprlist) (v : Values.val) (t : Ctypes.type) : mon Csyntax.expr :=
 match t with 
 | Ctypes.Tint _ s _ => ret (Econdition (Ebinop Cop.Olt (hd default_expr (tl (exprlist_list_expr ces)))
-                                                               (Eval (Values.Vint Int.iwordsize) t) t)
-                                                      (Eval v t) 
+                                                               (Eval (Values.Vint Int.iwordsize) t) tint)
                                                       (Ebinop (Cop.Oshr) (hd default_expr (exprlist_list_expr ces)) 
-                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) 
+                                                      (Eval v t) t)
 | Ctypes.Tlong _ _ => ret (Econdition (Ebinop Cop.Olt (hd default_expr (tl (exprlist_list_expr ces)))
-                                                               (Eval (Values.Vlong Int64.iwordsize) t) t)
-                                                      (Eval v t) 
+                                                               (Eval (Values.Vlong Int64.iwordsize) t) tint)
                                                       (Ebinop (Cop.Oshr) (hd default_expr (exprlist_list_expr ces)) 
-                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+                                                                         (hd default_expr (tl (exprlist_list_expr ces))) t) 
+                                                      (Eval v t) t)
 | _ => error (msg "COMPILER ERROR: The type of argument of shr should be int or long")
 end.
 
@@ -319,6 +319,9 @@ match e with
                                         (transBeePL_type t), snd ces, bctx')
 
                            end
+               | Cast t => do (ces, bctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx bctx);
+                            let ct := (transBeePL_type t) in
+                            ret (Ecast (hd default_expr (exprlist_list_expr (fst ces))) ct, snd ces, bctx')
 end
 | Bind x t e e' t' => let ct := (transBeePL_type t) in
                       do (ce, bctx') <- (transBeePL_expr_expr e fn_ctx bctx);
@@ -368,17 +371,18 @@ end
                                   do (ce1, bctx1) <- transBeePL_expr_expr e1 fn_ctx bctx';
                                   do (ce2, bctx2) <- transBeePL_expr_expr e2 (snd ce1) bctx1;
                                   ret ((Econdition (Ebinop Cop.Oeq (fst ce) 
-                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (transBeePL_type te))
                                                        (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
                                           (fst ce1)
-                                          (fst ce2) (transBeePL_type t)), snd (ce2), bctx2)
+                                          (Ecomma (Eassign (Evar x (transBeePL_type te)) (fst ce) (transBeePL_type te)) (fst ce2) (transBeePL_type t)) (transBeePL_type t)), 
+                                           snd (ce2), bctx2)
                               | (Psome x :: Pnone :: nil), (e1 :: e2 :: nil) => 
                                   do (ce1, bctx1) <- transBeePL_expr_expr e1 fn_ctx bctx';
                                   do (ce2, bctx2) <- transBeePL_expr_expr e2 (snd ce1) bctx1;
                                   ret ((Econdition (Ebinop Cop.Oeq (fst ce) 
-                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (transBeePL_type te))
                                                        (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
-                                          (fst ce2)
+                                          (Ecomma (Eassign (Evar x (transBeePL_type te)) (fst ce) (transBeePL_type te)) (fst ce2) (transBeePL_type t))
                                           (fst ce1) (transBeePL_type t)), snd (ce2), bctx2)
                               | _, _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
                               end
@@ -541,7 +545,10 @@ match e with
                                         (transBeePL_type t))), snd ces, fn_ctx')
 
                            end
-                 end 
+                 | Cast t => do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx bctx);
+                            ret (Sreturn (Some (Ecast (hd default_expr (exprlist_list_expr (fst ces))) (transBeePL_type t))),
+                                snd ces, fn_ctx')
+                 end  
 | Bind x t e e' t' => let ct := (transBeePL_type t) in
                       do (ce', ctx') <- (transBeePL_expr_st cenv e' ctx bctx);
                       match e with 
@@ -637,17 +644,18 @@ match e with
                                   do (ce1, bctx1) <- transBeePL_expr_st cenv e1 ctx bctx';
                                   do (ce2, bctx2) <- transBeePL_expr_st cenv e2 (snd ce1) bctx1;
                                   ret ((Sifthenelse (Ebinop Cop.Oeq (fst ce) 
-                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (transBeePL_type te))
                                                        (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
                                           (fst ce1)
-                                          (fst ce2)), snd (ce2), bctx2)
+                                          (Ssequence (Sdo (Eassign (Evar x (transBeePL_type te)) (fst ce) (transBeePL_type te))) (fst ce2))), 
+                                           snd (ce2), bctx2)
                               | (Psome x :: Pnone :: nil), (e1 :: e2 :: nil) => 
                                   do (ce1, bctx1) <- transBeePL_expr_st cenv e1 ctx bctx';
                                   do (ce2, bctx2) <- transBeePL_expr_st cenv e2 (snd ce1) bctx1;
                                   ret ((Sifthenelse (Ebinop Cop.Oeq (fst ce) 
-                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))
+                                                       (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (transBeePL_type te))
                                                        (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
-                                          (fst ce2)
+                                          (Ssequence (Sdo (Eassign (Evar x (transBeePL_type te)) (fst ce) (transBeePL_type te))) (fst ce2))
                                           (fst ce1)), snd (ce1), bctx2)
                               | _, _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
                               end
@@ -814,13 +822,109 @@ match gds with
              OK ((fst (fst gd) :: fst (fst gds)), (snd (fst gds)), (snd gd ++ snd gds)%list, is'')
 end.
 
+(* CompCert stores section information in a global hash table called decl_atom,
+   which is defined in C2C.ml. decl_atom's key is defined in Coq but it's value,
+   a record called atom_info, is defined in OCaml. Until atom_info is moved from
+   OCaml to Coq redefine only what is required for use of sections in eBPF 
+   programs. TODO: move atom_info completely into Coq *)
+Inductive section_name : Type :=
+  | Section_literal : int (* literal size; zero if unknown *) -> section_name
+  | Section_jumptable : section_name
+  | Section_user : string -> bool (*writable*) -> bool (*executable*) -> section_name.
+
+Inductive storage : Type :=
+  | Storage_default (* used for toplevel names without explicit storage *)
+  | Storage_extern
+  | Storage_static
+  | Storage_auto    (* used for block-scoped names without explicit storage *)
+  | Storage_register.
+
+Inductive inline_status : Type :=
+  | No_specifier (* No inline specifier and no noinline attribute *)
+  | Noinline     (* The atom is declared with the noinline attribute *)
+  | Inline.      (* The atom is declared inline *)
+
+(* Had to deviate from name used in atom_info due to conflict with use of 
+   access_mode in BeePL_auxlemmas *)
+Inductive sec_access_mode : Type := 
+  | Access_default
+  | Access_near
+  | Access_far.
+
+Record csyntax_atom_info : Type := {
+  a_storage : storage;
+  a_size : option int64;
+  a_alignment : option int;
+  a_section : list section_name;
+  a_access : sec_access_mode;
+  a_inline : inline_status;
+  a_loc : string (*filename*) * int; (*line number*)
+}.
+
+Fixpoint get_section_info (glob_defs : list (ident * AST.globdef BeePL.fundef type * option string)) (env : bcomposite_env) : list (ident * csyntax_atom_info) :=
+  match glob_defs with
+  | nil => nil
+  | (id, AST.Gfun _, sec) :: rest =>
+      let tail := get_section_info rest env in
+      match sec with
+      | Some s =>
+        (* User defined functions should be immutable and executable. In testing
+           we found that CompCert adds Section_literal(0) and Section_jumptable 
+           when __attribute__(section("section_name") is used so we do too *)
+        let section_list := Section_user s false (*writable*) true (*executable*) :: 
+                            Section_literal (Int.repr 0) :: 
+                            Section_jumptable :: nil in
+        let info := {|
+          a_storage := Storage_default;
+          (* CompCert does not specify a_size and a_alignment for functions *)
+          a_size := None;
+          a_alignment := None;
+          a_section := section_list;
+          a_access := Access_default;
+          a_inline := No_specifier;
+          (* Currently location information is not stored in BeePL.program. When
+             we implment a parser we can decise if we should do that*)
+          a_loc := ("", (Int.repr 0))
+        |} in
+        (id, info) :: tail
+      | None => tail
+      end
+  | (id, AST.Gvar gv, sec) :: rest =>
+      let gvar_t : BeeTypes.type := gvar_info gv in
+      let tail := get_section_info rest env in
+      match sec with
+      | Some s =>
+        (* User defined global variables should be writable and not executable *)
+        let section_list := Section_user s true (*writable*) false (*executable*) :: nil in
+        let info := {|
+          a_storage := Storage_default;
+          (* TODO: global variables do need to specify a_size and a_alignment. How does CompCert do it? *)
+          a_size := Some (Int64.repr (BeeTypes.sizeof_type env gvar_t)); (* refers to size of global variable - not section name *)
+          a_alignment := Some (Int.repr (BeeTypes.alignof_type env gvar_t));
+          a_section := section_list;
+          a_access := Access_default;
+          a_inline := No_specifier;
+          (* Currently location information is not stored in BeePL.program. When
+             we implment a parser we can decise if we should do that*)
+          a_loc := ("", (Int.repr 0))
+        |} in
+        (id, info) :: tail
+      | None => tail
+      end
+  end.
+
 (* Missing list of public functions *) 
-Definition BeePL_compcert (p : BeePL.program) : res (Csyntax.program * list (ident * string)) :=
-  let bctx := {| arg_ctx := get_args_ebpf_gbdefs (unzip2 p.(prog_defs)); benv := p.(prog_comp_env) |} in 
+Definition BeePL_compcert (p : BeePL.program) : res (Csyntax.program * list (ident * string) * list (ident * csyntax_atom_info)) :=
+  (* Extract section information from BeePL.program *)  
+  let section_info := get_section_info (prog_defs p) (prog_comp_env p) in
+  let defs := map (fun '(id, gd, _) => (id, gd)) p.(prog_defs) in
+
+  let bctx := {| arg_ctx := get_args_ebpf_gbdefs (unzip2 defs); benv := p.(prog_comp_env) |} in 
   do cp <- check_struct_from_program p;
-  do (pds, is') <- transBeePL_globdefs_globdefs (prog_comp_env(p)) (unzip2 (p.(prog_defs))) (p.(prog_ident_to_string)) bctx;
-  let ncs := get_bcs_from_globdefs (unzip2 (p.(prog_defs))) in (* adds bytes_t in composite *)
+  do (pds, is') <- transBeePL_globdefs_globdefs (prog_comp_env(p)) (unzip2 (defs)) (p.(prog_ident_to_string)) bctx;
+  let ncs := get_bcs_from_globdefs (unzip2 (defs)) in (* adds bytes_t in composite *)
   let cs := (map bcomposite_ccomposite_definition p.(prog_types)) in 
   let mcs := (ncs ++ snd pds ++ wrapper_beepl_struct_ebpf_struct cs)%list in
-  do cprog <- make_program mcs (zip (unzip1 p.(prog_defs)) (fst (fst pds))) (prog_public p) (prog_main p);
-  OK (cprog, snd (fst pds)).
+  do cprog <- make_program mcs (zip (unzip1 defs) (fst (fst pds))) (prog_public p) (prog_main p);
+  OK (cprog, snd (fst pds), section_info).
+

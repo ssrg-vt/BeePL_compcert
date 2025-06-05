@@ -56,7 +56,7 @@ Definition f_ref2 : BeePL.function := {|
                                                       (Ptype (BeeTypes.Tint I32 Unsigned dattr))))
                                                 (Ptype (BeeTypes.Tint I32 Unsigned dattr)) |}.
 
-Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
-   := (_main, AST.Gfun(BeePL.Internal (f_ref))) :: nil.
+Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
+   := (_main, AST.Gfun(BeePL.Internal (f_ref)), None) :: nil.
 
 Definition public_idents : list ident := (_main :: nil).*)

@@ -69,10 +69,10 @@ Definition f_xdp_packet_count : BeePL.function := {|
 
 Definition bcomposites : list bcomposite_definition := bcomposites_xdp_md.
 
-Definition global_definitions : list (ident * AST.globdef BeePL.fundef type) 
-   := (_val, Gvar v_val) :: 
-      (_counter, Gvar v_counter) :: 
-      (_xdp_packet_count, AST.Gfun(BeePL.Internal (f_xdp_packet_count))) :: nil.
+Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) 
+   := (_val, Gvar v_val, None) :: 
+      (_counter, Gvar v_counter, None) :: 
+      (_xdp_packet_count, AST.Gfun(BeePL.Internal (f_xdp_packet_count)), Some "xdp") :: nil.
 
 Definition public_idents : list ident := (_xdp_packet_count :: _counter :: _val :: nil).
 

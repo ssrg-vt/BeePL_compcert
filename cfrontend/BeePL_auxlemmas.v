@@ -36,6 +36,11 @@ Proof.
   inv H; reflexivity.
 Qed.
 
+Lemma bc_cv_comp : forall v,
+trans_cvalue_bvalue (trans_bvalue_cvalue v) = OK v.
+Proof.
+Admitted.
+
 (* Since translation of types does not depend on the generator, it 
    should produce the same result irrespective of them *)
 (* Coqlib.v has lot of lemmas related to Ple *)
@@ -46,11 +51,13 @@ r = r'.
 Proof. (* use inductive principle proved in BeeTypes.v *)
 Admitted.
 
-(* Lemma transBeePL_expr_expr_type_equiv : forall e ce g g' i,
-transBeePL_expr_expr e g = Res ce g' i ->
-transBeePL_type (typeof_expr e) = (Csyntax.typeof ce).
+
+(*** Auxillary lemmas related to types and effects ***)
+(* Complete Me: Easy *)
+Lemma sub_effect_refl : forall ef, 
+sub_effect ef ef = true.
 Proof.
-Admitted.  *)
+Admitted.
 
 (*
 Lemma value_cannot_be_reduced : forall bge benv e m e' m',
@@ -70,10 +77,50 @@ is_addr e ->
 ~ (rreduction bge benv e m e' m') /\
 ~ (lreduction bge benv e m e' m').
 Proof.
-move=> beg benv e. elim: e=> //= v t m e' m' _ /=. split=> //=.
-+ move=> h. by inversion h.
-move=> h. by inversion h.
-Qed.*)
+Admitted.
+*)
+
+(* Complete Me: Easy *)
+Lemma sub_effect_nil : forall ef, 
+sub_effect nil ef = true.
+Proof.
+Admitted.
+
+(* Complete Me: Easy *)
+Lemma sub_effect_trans : forall ef1 ef2 ef3, 
+sub_effect ef1 ef2 = true ->
+sub_effect ef2 ef3 = true ->
+sub_effect ef1 ef3 = true.
+Proof.
+Admitted.
+
+(* Complete Me: Easy *)
+Lemma prefix_sub_effect : forall (ef1 ef2 : effect), 
+sub_effect ef1 (ef1 ++ ef2)%list = true.
+Proof. 
+Admitted.
+
+(* Complete Me: Easy *)
+Lemma suffix_sub_effect : forall (ef1 ef2 : effect), 
+sub_effect ef2 (ef1 ++ ef2)%list = true.
+Proof. 
+Admitted.
+
+(* Complete Me: Easy *)
+Lemma sub_effect_concat : forall ef1 ef2 ef1' ef2',
+sub_effect ef1 ef1' ->
+sub_effect ef2 ef2' ->
+sub_effect (ef1 ++ ef2) (ef1' ++ ef2').
+Proof.
+Admitted.
+
+(* Complete Me: Easy *)
+Lemma no_divergence_concat : forall ef ef',
+no_divergence ef ->
+no_divergence ef' ->
+no_divergence (ef ++ ef').
+Proof.
+Admitted. 
 
 Lemma unzip1_cancel {A} {B} : forall (l1 : list A) (l2 : list B),
   length l1 = length l2 ->

@@ -24,28 +24,20 @@ struct {
 SEC("ksyscall/execve")
 
 int hello(void *ctx) {
-    uint64_t uid; (* alloc *)
-    uint64_t counter = 0; (* alloc *)
-    uint64_t *p; 
+     uint64_t uid; (* alloc *)
+     uint64_t *p; 
     
 
-    uid = bpf_get_current_uid_gid() & 0xFFFFFFFF;   //returns a 64 bits integer containing the current GID and UID (* io, write *)
+     uid = bpf_get_current_uid_gid() & 0xFFFFFFFF;   //returns a 64 bits integer containing the current GID and UID (* io, write *)
                                                     //gets the user id that is running the process that trigegered this krpobe event. 
                                                     //user-id is held in lowest 32 bits of the 64-bit value that gets returned. (top 32 holds the group id)
-    p = bpf_map_lookup_elem(&counter_table, (&uid)); //returns a pointer to the corresponding value in the hash table (* read; io *)
-    if (p!= 0) {
-        counter = *p; (*write, read *)
-    }
-
-    counter++; (* write; read *)
-    bpf_map_update_elem(&counter_table, &uid, &counter, 0); (* write, io *)
-    return 0;
+     p = bpf_map_lookup_elem(&counter_table, (&uid)); //returns a pointer to the corresponding value in the hash table (* read; io *)
+     return (int)!p
 }*)
 Definition _val : ident := $"val".
 Definition _counter_table : ident := $"counter_table".
 Definition _uid : ident := $"uid".
 Definition _tuid : ident := $"tuid".
-Definition _counter : ident := $"counter".
 Definition _p : ident := $"p".
 Definition _p1 : ident := $"p1".
 Definition _r : ident := $"r".
@@ -57,7 +49,6 @@ Definition ident_to_string : list (ident * string) := ident_to_string_bpf_map_ty
                                                        (_counter_table, "counter_table") ::
                                                        (_uid, "uid") ::
                                                        (_tuid, "tuid") ::
-                                                       (_counter, "counter") ::
                                                        (_p, "p") :: (_p1, "p1") ::
                                                        (_r, "r") ::
                                                        (_ctx, "ctx") ::
@@ -81,16 +72,14 @@ Definition v_counter_table := {|
 Definition bcomposites : list bcomposite_definition := bcomposites_pt_regs ++ bcomposites_bpf_map_type_hash.
 
 Definition f_hash_map_example : BeePL.function := {| 
-  fn_return := tint32s;
-  fn_effect := Alloc mem_ident :: Alloc mem_ident :: Io :: Write mem_ident :: Read mem_ident :: Io :: 
-               Read mem_ident :: Write mem_ident :: Read mem_ident :: Write mem_ident :: Write mem_ident :: Io :: nil;
+  fn_return := tint32u;
+  fn_effect := Alloc mem_ident :: Io :: Write mem_ident :: Read mem_ident :: Io :: 
+               Read mem_ident :: nil;
   fn_callconv := cc_default;
   fn_args := (_ctx, tpstruct _pt_regs) :: nil ;
-  fn_vars := ((_uid, trlongu) :: (_counter, trlongu) :: (_p, tolongu) :: (_p1, trlongu) :: nil); 
+  fn_vars := ((_uid, trlongu) :: (_p, tolongu) :: (_p1, trlongu) :: nil); 
   fn_body := Bind (_uid) trlongu
                (Prim Ref (clong (Int64.repr 0) tlongu :: nil) (trlongu))
-               (Bind (_counter) trlongu
-                  (Prim Ref (clong (Int64.repr 0) tlongu :: nil) (trlongu))
                 (Bind (_r) trlongu
                   (Prim Massgn (Var (_uid) trlongu ::
                                 Prim (Bop Cop.Oand) 
@@ -101,25 +90,10 @@ Definition f_hash_map_example : BeePL.function := {|
                                         (tfun (tostruct _bpf_map_type_hash noattr :: tolongu :: nil) (Read mem_ident :: Io :: nil) tolongu)) 
                                         (Var _counter_table (tostruct _bpf_map_type_hash noattr) ::
                                          Var _uid trlongu :: nil) tolongu)
-                           (Match (Var _p (tolongu)) 
-                                     (Pnone :: Psome _p1 :: nil) 
-                                     (cint (Int.repr (-1)%Z) tint32s ::
-                                       (Bind (_r) trlongu 
-                                        (Prim Massgn (Var _counter trlongu ::
-                                                      Prim (Deref) (Var _p1 (trlongu) :: nil) tlongu :: nil) tunit)
-                                        (Bind _r tint32s 
-                                           (Bind _r trlongu 
-                                                 (Prim Massgn (Var _counter trlongu ::
-                                                               Prim (Bop Cop.Oadd) (Prim Deref (Var _counter trlongu :: nil) tlongu ::
-                                                                                    clong (Int64.repr 1) tlongu :: nil) tlongu :: nil) tunit)
-                                                    (App (Var bpf_map_update_elem 
-                                                         (tfun (tostruct _bpf_map_type_hash noattr :: trlongu :: trlongu :: tlongu :: nil)
-                                                          (Write mem_ident :: Io :: nil) tlongu)) 
-                                                    (Var _counter_table (tostruct _bpf_map_type_hash noattr) ::
-                                                       Var _uid trlongu :: 
-                                                       Var _counter trlongu :: 
-                                                       clong (Int64.repr 0) tlongu :: nil) tlongu) tlongu)
-                                        (cint (Int.repr 0) tint32s) tint32s) tint32s) :: nil) tint32s) tint32s) tint32s) tint32s) tint32s;
+                            (Match (Var _p tolongu)
+                                   (Pnone :: Psome _p1 :: nil)
+                                   (cint (Int.repr (-1)%Z) tint32u ::
+                                    Prim (Cast tint32u) (Prim Deref (Var _p1 trlongu :: nil) tlongu :: nil) tint32u :: nil) tint32u) tint32u) tint32u) tint32u;
                                         
                                                     
   is_ebpf := true |}.
@@ -136,7 +110,7 @@ Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * op
       (bpf_map_update_elem, AST.Gfun(BeePL.External (bpf_map_update_elem_ef)
                                      (tostruct _bpf_map_type_hash noattr :: tolongu :: tolongu :: tlongu :: nil) tlongu
                                      (cc_default)), None) ::
-      (_hash_map_example, AST.Gfun(BeePL.Internal (f_hash_map_example)), None) :: nil.
+      (_hash_map_example, AST.Gfun(BeePL.Internal (f_hash_map_example)), Some "xdp") :: nil.
 
 Definition public_idents : list ident := (_hash_map_example :: nil).
 
@@ -159,4 +133,3 @@ Compute (type_check_expr example1.(prog_comp_env)
                          f_hash_map_example.(fn_vars)) empty_context f_hash_map_example.(fn_body)).
 
 Compute (type_check_program example1). *)  (* Type checks! *) 
-

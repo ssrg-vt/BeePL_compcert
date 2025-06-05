@@ -3,217 +3,10 @@ Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat Pe
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Linking Ctypes Smallstep SimplExpr.
 Require Import compcert.common.Errors Initializersproof Cstrategy BeePL_auxlemmas Coqlib Errors Memory.
 Require Import BeePL_aux BeePL_mem BeeTypes BeePL Csyntax Clight Globalenvs BeePL_Csyntax SimplExpr.
-Require Import BeePL_sem BeePL_typesystem BeePL_compiler_proofs BeePL_values.
+Require Import BeePL_sem BeePL_typesystem BeePL_compiler_proofs BeePL_values BeePL_notations.
+Require Import BeePL_memory_proofs BeePL_operators_proofs.
 
 From mathcomp Require Import all_ssreflect.
-
-
-(**** Well formedness ****)
-(** Well-Typed Store **)
-(* A store st is well-typed with respect to a store typing context Sigma if the
-   term at each location l in vm has the type at location l in store typing context
-   and there exists a value in the memory at that location. *)
-(* It is more evolved due to two maps used in CompCert for retrieving data from the memory *)
-(* Since we only allow pointers through references, it is safe to say that if there exists a 
-   location in memory then it is also safe to deref that location *)
-(* Mem.valid_pointer ensures that the location l with ofset ofs is nonempty in memory m *)
-Definition store_well_typed (Sigma : store_context) 
-                            (bge : BeePL.genv) (vm : vmap) (m : Memory.mem) :=
-(forall Gamma l, match Gamma! l with 
-                 |  Some t =>  match vm! l with 
-                               | Some (l', t') => t = t' /\
-                                                  PTree.get l Sigma = Some t /\ 
-                                                  (exists v ofs, deref_addr bge t m l' ofs Full v /\ 
-                                                                 is_vloc v = false /\
-                                                                 is_ptrtype t = false)
-                               | None => (exists l' ofs v, PTree.get l Sigma = Some t /\ 
-                                                           Genv.find_symbol bge l = Some l' /\ 
-                                                           deref_addr bge t m l' ofs Full v /\ 
-                                                           is_vloc v = false /\
-                                                           is_ptrtype t = false)
-                               end
-                 | None => (forall ofs h t a, PTree.get l Sigma = Some (Ptrtype (Reftype h (Bprim t) a)) ->
-                                              Mem.valid_pointer m l (Ptrofs.unsigned ofs) /\
-                                              ((exists v, deref_addr bge (Vtype t) m l ofs Full v /\ 
-                                                          is_vloc v = false) /\
-                                               (forall v, (exists bf m', assign_addr bge (Vtype t) m l ofs bf v m' v /\
-                                                                         is_vloc v = false))))
-                 end).
-
-(*** Definition memory_well_formedness : forall Sigma l, m, 
-     Sigma ! l = Reftype h bt a -> 
-     deref m bt l = v ->
-     v != loc. ***)
-(*
-(* A well-typed uop always has a semantics that leads to a value. *)
-Lemma well_formed_uop : forall Gamma Sigma bge vm v ef t uop m ct,
-type_expr Gamma Sigma (Prim (Uop uop) ((Val v t) :: nil) t) ef t ->
-transBeePL_type t = ct ->
-store_well_typed Sigma bge vm m ->
-exists v', Cop.sem_unary_operation uop (trans_bvalue_cvalue v) ct m = Some v'.
-Proof.
-Admitted.
-(*move=> Gamma Sigma bge vm v ef t uop m ct g i htv. 
-elim: v htv=> //=. 
-(* unit *)
-+ move=> htv. have [h1 [h2 [h3 [ef' h4]]]] := type_infer_uop Gamma Sigma (Val Vunit t) uop t ef t htv.
-  have [h11 h12] := type_infer_vunit Gamma Sigma ef' t t h4; subst.
-  rewrite /transBeePL_type /=. move=> [] hct hw; subst. by case: uop htv=> //=.
-(* int *)
-+ move=> i' hvt. have [h1 [h2 [h3 [ef' h4]]]] := type_infer_uop Gamma Sigma (Val (Vint i') t) uop t ef t hvt. 
-  have [sz [] s [] a [] h11 h12]:= type_infer_int Gamma Sigma i' ef' t t h4; subst.
-  rewrite /transBeePL_type. move=> [] hct; subst.
-  case: uop hvt=> //=.
-  (* sem_notbool *)
-  + rewrite /Cop.sem_notbool /option_map /=. 
-    case hop: (Cop.bool_val (Values.Vint i') (Ctypes.Tint sz s a) m)=> [ vo | ] //=.
-    by exists (Values.Val.of_bool (~~ vo)).
-  move: hop. rewrite /Cop.bool_val /=. case hc: (Cop.classify_bool (Ctypes.Tint sz s a))=> //=.
-  + rewrite /Cop.classify_bool /= in hc. move: hc. by case: sz h3 h2 h1 h4 h12=> //=.
-  + rewrite /Cop.classify_bool /= in hc. move: hc. by case: sz h3 h2 h1 h4 h12=> //=.
-  + rewrite /Cop.classify_bool /= in hc. move: hc. by case: sz h3 h2 h1 h4 h12=> //=.
-  rewrite /Cop.classify_bool /= in hc. move: hc. by case: sz h3 h2 h1 h4 h12=> //=.
-  (* sem_notint *)
-  + rewrite /Cop.sem_notint /Cop.classify_notint. case: sz h3 h2 h1 h4 h12=> //=.
-    + move=> hvt. by exists (Values.Vint (Int.not i')).
-    + move=> hvt. by exists  (Values.Vint (Int.not i')).
-    + case: s=> //=.
-      + by exists (Values.Vint (Int.not i')).
-      by exists (Values.Vint (Int.not i')).
-    by exists (Values.Vint (Int.not i')).
-  (* sem_neg *)
-  + rewrite /Cop.sem_neg /Cop.classify_neg. case: sz h3 h2 h1 h4 h12=> //=.
-    + by exists (Values.Vint (Int.neg i')).
-    + by exists (Values.Vint (Int.neg i')).
-    + case: s=> //=. + by exists (Values.Vint (Int.neg i')).
-      by exists (Values.Vint (Int.neg i')).
-    by exists (Values.Vint (Int.neg i')).
-  (* sem_absfloat *)
-  + rewrite /Cop.sem_absfloat /Cop.classify_neg /=. case: sz h3 h2 h1 h4 h12=> //=.
-    + by exists (Values.Vfloat (Floats.Float.abs (Floats.Float.of_int i'))).
-    + by exists (Values.Vfloat (Floats.Float.abs (Floats.Float.of_int i'))).
-    + case: s=> //=. + by exists (Values.Vfloat (Floats.Float.abs (Floats.Float.of_int i'))).
-      by exists (Values.Vfloat (Floats.Float.abs (Floats.Float.of_intu i'))).
-    by exists (Values.Vfloat (Floats.Float.abs (Floats.Float.of_int i'))).
-(* long *)
-+ move=> i' hvt. have [h1 [h2 [h3 [ef' h4]]]] := type_infer_uop Gamma Sigma (Val (Vint64 i') t) uop t ef t hvt. 
-  have [s [] a [] h11 h12]:= type_infer_long Gamma Sigma i' ef' t t h4; subst.
-  rewrite /transBeePL_type. move=> [] hct; subst.
-  case: uop hvt=> //=.
-  (* sem_notbool *)
-  + rewrite /Cop.sem_notbool /option_map /=. 
-    by exists (Values.Val.of_bool (~~ ~~ Int64.eq i' Int64.zero)).
-  (* sem_notint *)
-  + rewrite /Cop.sem_notint /Cop.classify_notint. by exists (Values.Vlong (Int64.not i')).
-  (* sem_neg *)
-  + rewrite /Cop.sem_neg /Cop.classify_neg. by exists (Values.Vlong (Int64.neg i')).
-  (* sem_absfloat *)
-  + rewrite /Cop.sem_absfloat /Cop.classify_neg /=. 
-    by exists (Values.Vfloat (Floats.Float.abs (Cop.cast_long_float s i'))).
-(* ptr *)
-move=> p ofs hvt. have [h1 [h2 [h3 [ef' h4]]]] := type_infer_uop Gamma Sigma (Val (Vloc p ofs) t) uop t ef t hvt. 
-by have [h [] bt [] a [] h11 [] h12 hs]:= type_infer_loc Gamma Sigma p ofs ef' t t h4; subst.
-Qed.*)
-
-(* Complete Me : Easy *)
-Lemma trans_value_uop_success : forall Gamma Sigma ef t uop v ct m v', 
-type_expr Gamma Sigma (Val v t) ef t ->
-transBeePL_type t = ct ->
-Cop.sem_unary_operation uop (trans_bvalue_cvalue v) ct m = Some v' ->
-exists v'', trans_cvalue_bvalue v' = OK v''.
-Proof.
-(*move=> Gamma Sigma ef t uop v ct g g' i m v' htv hct hop. case: v htv hop=> //=.
-(* int *)
-+ case: t hct=> //=.
-  + move=> p. case: p=> //=.
-    + move=> [] h1 h2; subst. rewrite /Cop.sem_unary_operation. by case: uop=> //=.
-    + move=> sz s a [] h1 h2; subst. rewrite /Cop.sem_unary_operation. case: uop=> //=.
-      + rewrite /Cop.sem_notbool /= /option_map /=.
-        case hv: ( Cop.bool_val (Values.Vint (Int.repr 0)) (Ctypes.Tint sz s a) m)=> [ va | ] //=.
-        move=> ht [] hv'; subst. rewrite /Cop.bool_val in hv. 
-        case hv' : (Cop.classify_bool (Ctypes.Tint sz s a)) hv=> //=.
-        move=> [] h; subst. rewrite /transC_val_bplvalue /= /Values.Val.of_bool /=.
-        case hc: ((if ~~ ~~ Int.eq (Int.repr 0) Int.zero then Values.Vtrue else Values.Vfalse))=> //=.
-        by eexists.*)
-Admitted.
-
-(* Complete Me : Medium *) (* Hint : Follow similar proof style like well_typed_uop *)
-(* A well-typed bop always has a semantics that leads to a value. *)
-(* ADD safety requirement in the semantics of div/mod/shift so that it never reaches overflow or division by zero *)
-Lemma well_formed_bop : forall Gamma Sigma bge vm bcmp v1 v2 ef t bop m ct,
-type_expr Gamma Sigma (Prim (Bop bop) ((Val v1 t) :: (Val v2 t) :: nil) t) ef t ->
-transBeePL_type t = ct ->
-store_well_typed Sigma bge vm m ->
-exists v', Cop.sem_binary_operation bcmp bop (trans_bvalue_cvalue v1) ct 
-                                             (trans_bvalue_cvalue v2) ct m = Some v'.
-Proof.
-Admitted.
-
-(* Complete Me : Medium *)
-Lemma trans_value_bop_success : forall Gamma Sigma bge bcmp vm bop v1 v2 ef t ct m v', 
-type_expr Gamma Sigma (Prim (Bop bop) (Val v1 t:: Val v2 t :: nil) t) ef t ->
-transBeePL_type t = ct ->
-store_well_typed Sigma bge vm m ->
-Cop.sem_binary_operation bcmp bop (trans_bvalue_cvalue v1) ct 
-                                  (trans_bvalue_cvalue v2) ct m = Some v' ->
-exists v'', trans_cvalue_bvalue v' = OK v''.
-Proof.
-Admitted.
-
-Lemma type_uop_inject : forall Gamma Sigma e t ef op,
-is_reftype t = false ->
-is_unittype t = false ->
-type_expr Gamma Sigma e ef t ->
-type_expr Gamma Sigma (Prim (Uop op) [::e] t) ef t. 
-Proof.
-(*move=> Gamma Sigma e t ef op ef' hrt hut hte hs. apply ty_prim_uop. with ef.
-Qed.*) Admitted.
-
-Lemma type_bop_inject : forall Gamma Sigma e1 e2 t ef op,
-is_reftype t = false ->
-is_unittype t = false ->
-type_expr Gamma Sigma e1 ef t ->
-type_expr Gamma Sigma e2 ef t ->
-type_expr Gamma Sigma (Prim (Bop op) [::e1; e2] t) ef t. 
-Proof.
-(*move=> Gamma Sigma e1 e2 t ef op ef' hrt hut ht1 ht2 hs. by apply ty_bop with ef.
-Qed.*) Admitted.
-
-(* Complete Me : Medium  *)
-Lemma val_uop_type_preserve : forall Gamma Sigma ef t uop v ct m v' v'', 
-type_expr Gamma Sigma (Val v t) ef t ->
-transBeePL_type t = ct ->
-Cop.sem_unary_operation uop (trans_bvalue_cvalue v) ct m = Some v' ->
-trans_cvalue_bvalue v' = OK v'' ->
-type_expr Gamma Sigma (Val v'' t) ef t.
-Proof.
-Admitted.
-
-(* Complete Me : Medium *)
-Lemma val_bop_type_preserve : forall Gamma Sigma bcmp bop v1 v2 ef t ct m v' v'', 
-type_expr Gamma Sigma (Prim (Bop bop) (Val v1 t:: Val v2 t :: nil) t) ef t ->
-transBeePL_type t = ct ->
-Cop.sem_binary_operation bcmp bop (trans_bvalue_cvalue v1) ct 
-                                  (trans_bvalue_cvalue v2) ct m = Some v' ->
-trans_cvalue_bvalue v' = OK v'' ->
-type_expr Gamma Sigma (Val v'' t) ef t .
-Proof.
-Admitted.
-
-Lemma type_bool_val : forall Gamma Sigma v t ef ct m b,
-type_expr Gamma Sigma (Val v t) ef (Ptype Tbool) ->
-Cop.bool_val (trans_bvalue_cvalue v) ct m = Some b.
-Proof.
-move=> Gamma Sigma v t ef ct m b hte.
-Admitted.
-
-Lemma assign_preserves_store_well_typed : forall Sigma bge vm m bt l ofs bf v m',
-store_well_typed Sigma bge vm m ->
-assign_addr bge (Ptype bt) m l ofs bf v m' v ->
-is_vloc v = false ->
-store_well_typed Sigma bge vm m'.
-Proof.
-Admitted.
 
 (*** Proving theorems related to type system for small step semantics of BeePL ***)
 
@@ -224,112 +17,159 @@ Admitted.
 (* A well typed expression is never stuck,
    it either evaluates to a value or can continue executing. *)
 Lemma progress_ssem_expr_exprs:
-(forall Gamma Sigma es efs ts bge p vm m, type_exprs Gamma Sigma es efs ts ->
-                                        store_well_typed Sigma bge vm m ->
-                                        is_values es \/ exists m' vm' es',
-                                                        ssem_exprs bge p vm m es m' vm' es' /\
-                                                        store_well_typed Sigma bge vm' m') /\
-(forall Gamma Sigma e ef t bge p vm m, type_expr Gamma Sigma e ef t ->
-                                       store_well_typed Sigma bge vm m ->
-                                       is_value e \/ exists m' vm' e', 
-                                                   ssem_expr bge p vm m e m' vm' e' /\
-                                                   store_well_typed Sigma bge vm' m').
+(forall cenv Gamma Sigma es efs ts bge p vm m, type_exprs cenv Gamma Sigma es efs ts ->
+                                               store_well_typed cenv Gamma Sigma bge vm m ->
+                                               is_values es \/ exists m' vm' es',
+                                                               ssem_exprs bge p vm m es m' vm' es' /\
+                                                               store_well_typed cenv Gamma Sigma bge vm' m') /\
+(forall cenv Gamma Sigma e ef t bge p vm m, type_expr cenv Gamma Sigma e ef t ->
+                                            store_well_typed cenv Gamma Sigma bge vm m ->
+                                            is_value e \/ exists m' vm' e', 
+                                                          ssem_expr bge p vm m e m' vm' e' /\
+                                                          store_well_typed cenv Gamma Sigma bge vm' m').
 Proof.
-suff : (forall Gamma Sigma es efs ts, type_exprs Gamma Sigma es efs ts ->
-                                      forall bge p vm m, store_well_typed Sigma bge vm m ->
+suff : (forall cenv Gamma Sigma es efs ts, type_exprs cenv Gamma Sigma es efs ts ->
+                                      forall bge p vm m, store_well_typed cenv Gamma Sigma bge vm m ->
                                                        is_values es \/ (exists m' vm' es',
                                                        ssem_exprs bge p vm m es m' vm' es' /\
-                                                       store_well_typed Sigma bge vm' m')) /\
-(forall Gamma Sigma e ef t, type_expr Gamma Sigma e ef t ->
-                            forall bge p vm m, store_well_typed Sigma bge vm m ->
+                                                       store_well_typed cenv Gamma Sigma bge vm' m')) /\
+(forall cenv Gamma Sigma e ef t, type_expr cenv Gamma Sigma e ef t ->
+                            forall bge p vm m, store_well_typed cenv Gamma Sigma bge vm m ->
                                              is_value e \/ (exists m' vm' e', 
                                                            ssem_expr bge p vm m e m' vm' e' /\
-                                                           store_well_typed Sigma bge vm' m')).
+                                                           store_well_typed cenv Gamma Sigma bge vm' m')).
 + move=> [] hwt1 hwt2. split=> //=.
-  + move=> Gamma Sigma es efs ts bge p vm m htes hw.
-    by move: (hwt1 Gamma Sigma es efs ts htes bge p vm m hw).
-  move=> Gamma Sigma e ef t bge p vm m hte hw. 
-  by move: (hwt2 Gamma Sigma e ef t hte bge p vm m hw).
+  + move=> cenv Gamma Sigma es efs ts bge p vm m htes hw.
+    by move: (hwt1 cenv Gamma Sigma es efs ts htes bge p vm m hw).
+  move=> cenv Gamma Sigma e ef t bge p vm m hte hw. 
+  by move: (hwt2 cenv Gamma Sigma e ef t hte bge p vm m hw).
 apply type_exprs_type_expr_ind_mut=> //=.
-(* val unit *)
-+ move=> Gamma Sigma bge vm m hw. by left.
-(* val int *)
-+ move=> Gamma Sigma i sz s a bge vm m hw. by left.
-(* val long *)
-+ move=> Gamma Sigma i s a bge vm m hw. by left.
-(* val loc *)
-+ move=> Gamma Sigma l ofs h t a bge vm m hw. by left.
-(* var *)
-+ move=> Gamma Sigma v t hteq bge p vm m hw; subst. right.
-  rewrite /store_well_typed in hw. move: (hw (extend_context Gamma v t) v).
-  rewrite hteq /=. case hvm: vm ! v=> [[l t'] | ] //=.
-  (* lvar *)
-  + move=> [] ht [] hs [] v' [] ofs [] hd hv; subst.
-    exists m. exists vm. exists (Val v' t'). split=> //=. 
-    eapply ssem_lvar. + by apply hvm. + by apply hd. by apply hv.
+(* val unit *) (* complete *)
++ move=> cenv Gamma Sigma bge vm m hw. by left.
+(* val bool *) (* complete *)
++ move=> cenv Gamma Sigma b bge vm m hw. by left.
+(* val int *) (* complete *)
++ move=> cenv Gamma Sigma i sz s a bge vm m hw. by left.
+(* val long *) (* complete *)
++ move=> cenv Gamma Sigma i s a bge vm m hw. by left.
+(* val loc *) (* complete *)
++ move=> cenv Gamma Sigma l ofs h t a bge vm m hw. by left.
+(* val option *) (* complete *)
++ move=> cenv Gamma Sigma o pt bge p vm m hw. by left.
+(* var *) (* complete *)
++ move=> cenv Gamma Sigma v t hteq bge p vm m hw; subst. right. 
+  rewrite /store_well_typed in hw. case: hw=> [] hw1 [] hw2 hw3.
+  inversion hw1.
+  + move: (H v t hteq)=> [] l' [] t' [] v' [] ofs.
+    move=> [] hvm [] hteq' [] hs hd; subst.
+    exists m. exists vm. exists (Val v' t'). split=> //=.
+    eapply ssem_lvar. + by apply hvm. + by apply hd.
   (* gvar *)
-  move=> [] l' [] ofs [] v' [] hs [] hg [] hd hv. 
+  move: (H v t hteq).
+  move=> [] l' [] ofs [] v' [] hs [] hg [] hs' hd. 
   exists m. exists vm. exists (Val v' t). split=> //=. 
-  apply ssem_gbvar with l' ofs. + by apply hvm. + by apply hg.
-  + by apply hd. by apply hv.
-(* const int *)
-+ move=> Gamma Sigma t sz a i bge p vm m hw. right.
-  exists m. exists vm. exists (Val (Vint i) (Ptype (Tint t sz a))). 
+  apply ssem_gbvar with l' ofs. + by apply hs. + by apply hg.
+  by apply hd.
+(* const int *) (* complete *)
++ move=> cenv Gamma Sigma t sz a i bge p vm m hw. right.
+  exists m. exists vm. exists (Val (Vint i) (Vtype (Tint t sz a))). 
   split=> //=. by apply ssem_consti.
-(* const long *)
-+ move=> Gamma Sigma t s i bge p vm m hw. right.
-  exists m. exists vm. exists (Val (Vint64 i) (Ptype (Tlong t s))). 
+(* const long *) (* complete *)
++ move=> cenv Gamma Sigma t s i bge p vm m hw. right.
+  exists m. exists vm. exists (Val (Vint64 i) (Vtype (Tlong t s))). 
   split=> //=. by apply ssem_constl.
-(* const uint *)
-+ move=> Gamma Sigma bge p vm m. right; subst.
-  exists m. exists vm. exists (Val (Vunit) (Ptype Tunit)). split=> //=. by apply ssem_constu.
+(* const uint *) (* complete *)
++ move=> cenv Gamma Sigma bge p vm m. right; subst.
+  exists m. exists vm. exists (Val (Vunit) tunit). split=> //=. by apply ssem_constu.
 (* app *)
-+ admit.
++ move=> cenv Gamma Sigma e te es rt efs ts ef efs' hte hin hteq htes hin' bge p vm m hw. 
+  move: (hin bge p vm m hw)=> [].
+  (* function location e is a value *)
+  + move=> hve. case: e hte hin hve=> //= v t hte hin hve. case: v hte hin=> //=.
+    (* unit *)
+    + admit. (* provable *)
+    (* bool *)
+    + admit. (* provable *)
+    (* int *)
+    + admit. (* provable *)
+    (* long *)
+    + admit. (* provable *)
+    (* loc : right case *)
+    + move=> l o hte /= hin. move: (hin bge p vm m hw)=> hine.
+      move: (hin' bge p vm m hw)=> [].
+      (* es is val *)   
+      + move=> hvs. pose proof hw as hsw.
+        rewrite /store_well_typed in hw. case: hw=> [] hw1 [] hw2 hw3.
+        inversion hw3. have [h [bt [a [h1 [h2 h3]]]]] := type_infer_loc cenv Gamma Sigma l o ef t te hte; subst.
+        move: (H l o ef (Ptrtype (Reftype h bt a)) ts efs rt es efs' hte hteq htes)=> [] fd [] hg [] hl [] hd [] h1 h2.
+        have [vm' [m' [ha hwa]]] := alloc_variables_wf cenv Gamma Sigma bge vm m (fn_args fd ++ BeePL.fn_vars fd) hsw hl.
+        have [m'' [hb hwb]]:= bind_variables_wf cenv Gamma Sigma bge vm' m' (fn_args fd) (extract_values_exprs es) hwa hd.
+        right. exists m''. exists vm'. exists fd.(BeePL.fn_body). by split=> //=. 
+     (* es not a value *)
+     + move=> [] m' [] vm' [] es' [] hes' hw'. right. exists m'. exists vm'. exists (App (Val (Vloc l o) t) es' rt).
+       split=> //=. have [h [bt [a [h1 [h2 h3]]]]] := type_infer_loc cenv Gamma Sigma l o ef t te hte; subst. by apply ssem_app2.
+   (* otpion *)
+   admit. (* provable *)
+  (* e is not a value *)
+  admit. (* provable *)
 (* ref *)
-+ move=> Gamma Sigma e ef h bt a hte hin bge p vm m hw. 
++ move=> cenv Gamma Sigma e ef h bt a hte hin hvo bge p vm m hw.
   move: (hin bge p vm m hw)=> [] he.
   (* is value *)
-  + admit. (* need to evolve well formedness for store typing more *)
+  + right. case: e hte hin he=> //= v t hte hin _.
+    have hvt := type_rel_typeof_val cenv Gamma Sigma v ef t (construct_type_btype bt) hte.
+    have [m' [b] ha] := mem_alloc_total m 0 (sizeof_type (prog_comp_env p) t).
+    have hw'' := store_well_typed_mem_alloc cenv Gamma Sigma bge vm m 0 (sizeof_type (prog_comp_env p) t) m' b hw ha. 
+    have [m'' [] chunk [] v' [] htv [] hc [] hs hws] := ref_allocation_succeeds cenv Gamma Sigma p bge vm m v t (m', b) hw hvt ha. 
+    exists m''. exists vm. 
+    exists (Val (Vloc b Ptrofs.zero) (Ptrtype (Reftype h bt a))). split=> //=.
+    apply type_val_reflx in hte; subst.
+    apply ssem_ref2 with (Mem.alloc m 0 (sizeof_type (prog_comp_env p) (construct_type_btype bt))) chunk Sigma
+    (extend_context Sigma (Mem.alloc m 0 (sizeof_type (prog_comp_env p) (construct_type_btype bt))).2 (Ptrtype (Reftype h bt a))).
+    + by auto.
+    + by apply hc.
+    + rewrite ha /=. by apply hs.
+    rewrite ha /=. by rewrite /extend_context.
   (* step *)
   right. move: he. move=> [] m' [] vm' [] e' [] he hv. exists m'.
-  exists vm'. exists (Prim Ref [:: e'] (Reftype h (Bprim bt) a)). 
+  exists vm'. exists (Prim Ref [:: e'] (Ptrtype (Reftype h bt a))). 
   split=> //=. by apply ssem_ref1.
 (* deref *)
-+ (*move=> Gamma Sigma e ef h bt a hte hin bge vm m hw.
-  move: (hin bge vm m hw)=> [].
++ move=> cenv Gamma Sigma e ef pt h hte hin ho hvo bge p vm m hw.
+  move: (hin bge p vm m hw)=> [].
   (* is value *)
   + move=> hv. right. rewrite /is_value in hv. case: e hv hte hin=> v t //= _. case: v=> //=.
     (* unit *)
-    + move=> hte hin. 
-      by have [h1 h2] := type_infer_vunit Gamma Sigma ef t (Reftype h (Bprim bt) a) hte; subst.
+    + move=> hte hin.
+      have := type_infer_vunit cenv Gamma Sigma ef t (Ptrtype pt) hte; subst. by move=> [] h1 h2 //=.
     (* bool *)
     + move=> b hte hin.
-      by have [h1 h2] := type_infer_vbool Gamma Sigma ef b t (Reftype h (Bprim bt) a) hte; subst.
+      have := type_infer_vbool cenv Gamma Sigma ef b t (Ptrtype pt) hte; subst. by move=> [] h1 h2 //=.
     (* int *)
     + move=> i hte hin. 
-      by have [h1 [sz] [s] [] h2 h3] := type_infer_int Gamma Sigma i ef t (Reftype h (Bprim bt) a) hte; subst.
+      by have [h1 [sz] [s] [] h2 h3] := type_infer_int cenv Gamma Sigma i ef t (Ptrtype pt) hte; subst.
     (* long *)
     + move=> l hte hin. 
-      by have [s [] a' [] h1 h2] := type_infer_long Gamma Sigma l ef t (Reftype h (Bprim bt) a) hte.
+      by have [s [] a' [] h1 h2] := type_infer_long cenv Gamma Sigma l ef t (Ptrtype pt) hte.
     (* loc *)
-    move=> l ofs hte hin. rewrite /store_well_typed in hw. 
-    have [h' [] bt' [] a' [] h1 [] [] h11 h12 h13 hs] := type_infer_loc Gamma Sigma l ofs 
-                                                ef t (Reftype h (Bprim bt) a) hte; subst.
-    move: (hw Gamma l). case hg: Gamma ! l=> [ t'| ] //=.
-    + case hvm : vm ! l => [[ l1 t1] | ] //=.
-      + move=> [] h1 [] h2 [] v [] ofs' [] hd [] hv hp; subst.
-        rewrite h2 in hs. case: hs=> hs; subst.
-        by inversion hp.
-      move=> [] l' [] ofs' [] v [] hg' [] hs' [] hd [] hv hp. 
-      rewrite hg' in hs. case: hs=> hs; subst.
-      by inversion hp.
-   move=> hwd. move: (hwd ofs h' bt a' hs)=> [] hvp [].
-   move=> [] v [] hd hv ha. exists m. exists vm. exists (Val v (Ptype bt)). split=> //=.
-   by apply ssem_deref2 with Full.
+    + move=> l ofs hte hin. pose proof hw as hsw. case: hw=> [] hw1 [] hw2 hw3.
+      have [h' [bt [a [m' [hpt hl ]]]]] := type_infer_loc cenv Gamma Sigma l ofs 
+                                                ef t (Ptrtype pt) hte; subst.
+      inversion hw2. case: hpt=> [] hpteq; subst.
+      have hand : Sigma ! l = Some (Ptrtype (Reftype h' bt a)) /\ type_is_volatile (transBeePL_type (get_data_type ((Reftype h' bt a)))) = false.
+      + by split=> //=.  move: (H l ofs (Reftype h' bt a) hand)=> [] chunk [] hvl hc.
+      have [v hd]:= safe_deref_valid_pointers Sigma m l ofs (Reftype h' bt a) chunk hl hvo hc hvl.
+      exists m. exists vm. exists (Val v (get_data_type (Reftype h' bt a))). split.
+      by apply ssem_deref2 with Full. by apply hsw.
+    (* option *) (* deref does not allow pointer coming from option type until it is gone through match *)
+    + move=> o hte hin.
+      have [pt' [h1 h2]] := type_infer_option cenv Gamma Sigma ef o t (Ptrtype pt) hte.
+      case: h2=> h2'. by rewrite h2' in ho.
   (* step *)
-  move: (hin bge vm m hw)=> hin'. move=> [] m' [] vm' [] e' [] he hs. right.
-  exists m'. exists vm'. exists (Prim Deref [:: e'] (Ptype bt)). split=> //=. 
+  move: (hin bge p vm m hw)=> hin'. move=> [] m' [] vm' [] e' [] he hs. right.
+  exists m'. exists vm'. exists (Prim Deref [:: e'] (get_data_type pt)). split=> //=. 
   apply ssem_deref1. by apply he.
+(*
 (* massgn *)
 + move=> Gamma Sigma e e' h bt ef a ef' hte hin hte' hin' bge vm m hw. 
   right. move: (hin bge vm m hw)=> [].
@@ -373,24 +213,188 @@ apply type_exprs_type_expr_ind_mut=> //=.
                  (Reftype h (Bprim bt) a) hte; subst. split=> //=. by apply ssem_massgn2. 
   (* e steps *)
   move=> [] m' [] vm' [] e'' [] he'' hs. exists m'. exists vm'.
-  exists (Prim Massgn [:: e''; e'] (Ptype Tunit)). split=> //=. by apply ssem_massgn1. 
-(* uop *)
-+ move=> Gamma Sigma op e ef t hf hf' hte hin bge vm m hw. right.
-  move: (hin bge vm m hw)=> [] hv.
-  (* value e *)
-  + case: e hte hin hv=> //= v t' hte hin _. exists m. exists vm.
-    have [hwts hwt] := well_typed_success. 
-    have hteq := type_val_reflx Gamma Sigma v t' ef t hte; subst.
-    have htuop := type_uop_inject Gamma Sigma (Val v t) t ef op hf hf' hte.
-    move: (hwt Gamma Sigma (Val v t) ef t hte)=> [] ct [] g [] i hct.
-    have [v' hsop] := well_formed_uop Gamma Sigma bge vm v ef t op m ct g i htuop hct hw.
-    have [v'' hbv] := trans_value_uop_success Gamma Sigma ef t op v ct g g i m v' hte hct hsop. 
-    exists (Val v'' t). split=> //=. apply ssem_uop2 with v' ct g g i. + by apply hct.
-    + by apply hsop. by apply hbv.
+  exists (Prim Massgn [:: e''; e'] (Ptype Tunit)). split=> //=. by apply ssem_massgn1. *)
+admit.
+(* notbool *) (* complete *)
++ move=> cenv Gamma Sigma e ef hte hin bge p vm m hw. 
+  move: (hin bge p vm m hw)=> [].
+  (* value *)
+  + move=> hv. right. case: e hte hin hv=> //= v t hte hin _.
+    have hteq := type_val_reflx cenv Gamma Sigma v t ef (Vtype Tbool) hte; subst.
+    have [v' [v'' [hs [hd hv]]]] := well_formed_notbool cenv Gamma Sigma bge vm m v ef hw hte.
+    exists m. exists vm. exists (Val v'' (Vtype Tbool)). split=> //=.
+    apply ssem_uop2 with v' (transBeePL_type (Vtype Tbool)); auto.
   (* step *)
-  move: hv. move=> [] m' [] vm' [] e' [] he' hs'. exists m'. exists vm'.
-  exists (Prim (Uop op) [:: e'] t). 
-  have hteq := type_rel_typeof Gamma Sigma e ef t hte; subst. split=> //=. by apply ssem_uop1.
+  move=> [] m' [] vm' [] e' [] he' hw'. right.
+  exists m'. exists vm'. exists (Prim (Uop Cop.Onotbool) [:: e'] (typeof_expr e)). split=> //=.
+  have h := type_rel_typeof cenv Gamma Sigma e ef (Vtype Tbool) hte. rewrite -h.
+  by apply ssem_uop1. 
+(* notint *) (* complete *)
++ move=> cenv Gamma Sigma e ef t hteq hte hin bge p vm m hw. 
+  move: (hin bge p vm m hw)=> [].
+  (* value *)
+  + move=> hv. right. case: e hte hin hv=> //= v t' hte hin _.
+    have hte' := type_val_reflx cenv Gamma Sigma v t' ef t hte; subst.
+    have [v' [v'' [ho [hd hv]]]] :=  well_formed_notint cenv Gamma Sigma bge vm m v t ef hw hte hteq.
+    exists m. exists vm. exists (Val v'' t). split=> //=.
+    apply ssem_uop2 with v' (transBeePL_type t); auto.
+  (* step *)
+  move=> [] m' [] vm' [] e' [] he' hw'. right.
+  exists m'. exists vm'. exists (Prim (Uop Cop.Onotint) [:: e'] (typeof_expr e)). split=> //=.
+  have h := type_rel_typeof cenv Gamma Sigma e ef t hte. rewrite -h.
+  by apply ssem_uop1.
+(* neg *) (* complete *)
++ move=> cenv Gamma Sigma e ef t hteq hte hin bge p vm m hw. 
+  move: (hin bge p vm m hw)=> [].
+  (* value *)
+  + move=> hv. right. case: e hte hin hv=> //= v t' hte hin _.
+    have hte' := type_val_reflx cenv Gamma Sigma v t' ef t hte; subst.
+    have [v' [v'' [ho [hd hv]]]] :=  well_formed_neg cenv Gamma Sigma bge vm m v t ef hw hte hteq.
+    exists m. exists vm. exists (Val v'' t). split=> //=.
+    apply ssem_uop2 with v' (transBeePL_type t); auto.
+  (* step *)
+  move=> [] m' [] vm' [] e' [] he' hw'. right.
+  exists m'. exists vm'. exists (Prim (Uop Cop.Oneg) [:: e'] (typeof_expr e)). split=> //=.
+  have h := type_rel_typeof cenv Gamma Sigma e ef t hte. rewrite -h.
+  by apply ssem_uop1.
+(* Oadd *)
++ move=> cenv Gamma Sigma e ef1 ef2 t e'' ht hte hin hte'' hin' bge p vm m hw.
+  move: (hin bge p vm m hw)=> []. have [zv hr] := construct_zero t ht.
+  (* e is a value *)
+  + move=> hv. case: e hte hin hv=> //= v1 t1 hte hin _.
+    move: (hin' bge p vm m hw)=> [].
+    (* e' is a value *)
+    + move=> hv'. case: e'' hte'' hin' hv'=> //= v2 t2 hte'' hin' hv'. right.
+      have hte' := type_val_reflx cenv Gamma Sigma v1 t1 ef1 t hte; subst.
+      have hte' := type_val_reflx cenv Gamma Sigma v2 t2 ef2 t hte''; subst.
+      have [v' [v'' [ho [] hun htv ]]] := well_formed_add (bcomposite_composite_env cenv) cenv Gamma 
+                       Sigma bge vm m v1 t ef1 v2 ef2 hw hte hte'' ht.
+      have [s hs] := signedness_exists t ht.
+      exists m. exists vm. exists (Val v'' t). split=> //=. 
+      + by apply ssem_bop3_safe with (bcomposite_composite_env cenv) v'
+        (transBeePL_type t) s; auto. 
+    (* step *)
+    move=> [] m' [] vm' [] e' [] he' hw'. right.
+    exists m'. exists vm'. exists (Prim (Bop Cop.Oadd) [:: Val v1 t1; e'] t1). 
+    split=> //=. have h := type_rel_typeof cenv Gamma Sigma (Val v1 t1) ef1 t hte. 
+    rewrite -h. by apply ssem_bop2.
+  (* step *)
+  move=> [] m' [] vm' [] e' [] he' hw'. right.
+  exists m'. exists vm'. exists (Prim (Bop Cop.Oadd) [:: e'; e''] (typeof_expr e)). 
+  split=> //=. have h := type_rel_typeof cenv Gamma Sigma e ef1 t hte. 
+  rewrite -h. by apply ssem_bop1.
+(* Osub *)
++ move=> cenv Gamma Sigma e ef1 ef2 t e'' ht hte hin hte'' hin' bge p vm m hw.
+  move: (hin bge p vm m hw)=> []. have [zv hr] := construct_zero t ht.
+  (* e is a value *)
+  + move=> hv. case: e hte hin hv=> //= v1 t1 hte hin _.
+    move: (hin' bge p vm m hw)=> [].
+    (* e' is a value *)
+    + move=> hv'. case: e'' hte'' hin' hv'=> //= v2 t2 hte'' hin' hv'. right.
+      have hte' := type_val_reflx cenv Gamma Sigma v1 t1 ef1 t hte; subst.
+      have hte' := type_val_reflx cenv Gamma Sigma v2 t2 ef2 t hte''; subst.
+      have [v' [v'' [ho [] hun htv ]]] := well_formed_sub (bcomposite_composite_env cenv) cenv Gamma 
+                       Sigma bge vm m v1 t ef1 v2 ef2 hw hte hte'' ht.
+      have [s hs] := signedness_exists t ht.
+      exists m. exists vm. exists (Val v'' t). split=> //=. 
+      + by apply ssem_bop3_safe with (bcomposite_composite_env cenv) v'
+        (transBeePL_type t) s; auto. 
+    (* step *)
+    move=> [] m' [] vm' [] e' [] he' hw'. right.
+    exists m'. exists vm'. exists (Prim (Bop Cop.Osub) [:: Val v1 t1; e'] t1). 
+    split=> //=. have h := type_rel_typeof cenv Gamma Sigma (Val v1 t1) ef1 t hte. 
+    rewrite -h. by apply ssem_bop2.
+  (* step *)
+  move=> [] m' [] vm' [] e' [] he' hw'. right.
+  exists m'. exists vm'. exists (Prim (Bop Cop.Osub) [:: e'; e''] (typeof_expr e)). 
+  split=> //=. have h := type_rel_typeof cenv Gamma Sigma e ef1 t hte. 
+  rewrite -h. by apply ssem_bop1.
+(* Omul *)
++ move=> cenv Gamma Sigma e ef1 ef2 t e'' ht hte hin hte'' hin' bge p vm m hw.
+  move: (hin bge p vm m hw)=> []. have [zv hr] := construct_zero t ht.
+  (* e is a value *)
+  + move=> hv. case: e hte hin hv=> //= v1 t1 hte hin _.
+    move: (hin' bge p vm m hw)=> [].
+    (* e' is a value *)
+    + move=> hv'. case: e'' hte'' hin' hv'=> //= v2 t2 hte'' hin' hv'. right.
+      have hte' := type_val_reflx cenv Gamma Sigma v1 t1 ef1 t hte; subst.
+      have hte' := type_val_reflx cenv Gamma Sigma v2 t2 ef2 t hte''; subst.
+      have [v' [v'' [ho [] hun htv ]]] := well_formed_mul (bcomposite_composite_env cenv) cenv Gamma 
+                       Sigma bge vm m v1 t ef1 v2 ef2 hw hte hte'' ht.
+      have [s hs] := signedness_exists t ht.
+      exists m. exists vm. exists (Val v'' t). split=> //=. 
+      + by apply ssem_bop3_safe with (bcomposite_composite_env cenv) v'
+        (transBeePL_type t) s; auto. 
+    (* step *)
+    move=> [] m' [] vm' [] e' [] he' hw'. right.
+    exists m'. exists vm'. exists (Prim (Bop Cop.Omul) [:: Val v1 t1; e'] t1). 
+    split=> //=. have h := type_rel_typeof cenv Gamma Sigma (Val v1 t1) ef1 t hte. 
+    rewrite -h. by apply ssem_bop2.
+  (* step *)
+  move=> [] m' [] vm' [] e' [] he' hw'. right.
+  exists m'. exists vm'. exists (Prim (Bop Cop.Omul) [:: e'; e''] (typeof_expr e)). 
+  split=> //=. have h := type_rel_typeof cenv Gamma Sigma e ef1 t hte. 
+  rewrite -h. by apply ssem_bop1.
+(* Odiv *)
++ move=> cenv Gamma Sigma e ef1 ef2 t e'' ht hte hin hte'' hin' bge p vm m hw.
+  move: (hin bge p vm m hw)=> []. have [zv hr] := construct_zero t ht.
+  (* e is a value *)
+  + move=> hv. case: e hte hin hv=> //= v1 t1 hte hin _.
+    move: (hin' bge p vm m hw)=> [].
+    (* e' is a value *)
+    + move=> hv'. case: e'' hte'' hin' hv'=> //= v2 t2 hte'' hin' hv'. right.
+      have hte' := type_val_reflx cenv Gamma Sigma v1 t1 ef1 t hte; subst.
+      have hte' := type_val_reflx cenv Gamma Sigma v2 t2 ef2 t hte''; subst.
+      have [s hs] := signedness_exists t ht.
+      case hc: (check_unsafe_op Cop.Odiv s v1 v2)=> [| ]//=.
+      + exists m. exists vm. exists (Val zv t). split=> //=.
+        by apply ssem_bop3_unsafe with (transBeePL_type t) s; auto.
+      have [v' [v'' [ho [hu h]]]]:= well_formed_div (bcomposite_composite_env cenv) cenv Gamma Sigma bge vm m v1 t ef1
+              v2 ef2 s hw hte hte'' ht hs hc.
+     exists m. exists vm. exists (Val v'' t). split=> //=.
+     by apply ssem_bop3_safe with (bcomposite_composite_env cenv) v'
+        (transBeePL_type t) s; auto. 
+    (* step *)
+    move=> [] m' [] vm' [] e' [] he' hw'. right.
+    exists m'. exists vm'. exists (Prim (Bop Cop.Odiv) [:: Val v1 t1; e'] t1). 
+    split=> //=. have h := type_rel_typeof cenv Gamma Sigma (Val v1 t1) ef1 t hte. 
+    rewrite -h. by apply ssem_bop2.
+  (* step *)
+  move=> [] m' [] vm' [] e' [] he' hw'. right.
+  exists m'. exists vm'. exists (Prim (Bop Cop.Odiv) [:: e'; e''] (typeof_expr e)). 
+  split=> //=. have h := type_rel_typeof cenv Gamma Sigma e ef1 t hte. 
+  rewrite -h. by apply ssem_bop1.
+(* Omod *)
++ move=> cenv Gamma Sigma e ef1 ef2 t e'' ht hte hin hte'' hin' bge p vm m hw.
+  move: (hin bge p vm m hw)=> []. have [zv hr] := construct_zero t ht.
+  (* e is a value *)
+  + move=> hv. case: e hte hin hv=> //= v1 t1 hte hin _.
+    move: (hin' bge p vm m hw)=> [].
+    (* e' is a value *)
+    + move=> hv'. case: e'' hte'' hin' hv'=> //= v2 t2 hte'' hin' hv'. right.
+      have hte' := type_val_reflx cenv Gamma Sigma v1 t1 ef1 t hte; subst.
+      have hte' := type_val_reflx cenv Gamma Sigma v2 t2 ef2 t hte''; subst.
+      have [s hs] := signedness_exists t ht.
+      case hc: (check_unsafe_op Cop.Omod s v1 v2)=> [| ]//=.
+      + exists m. exists vm. exists (Val zv t). split=> //=.
+        by apply ssem_bop3_unsafe with (transBeePL_type t) s; auto.
+      have [v' [v'' [ho [hu h]]]]:= well_formed_mod (bcomposite_composite_env cenv) cenv Gamma Sigma bge vm m v1 t ef1
+              v2 ef2 s hw hte hte'' ht hs hc.
+     exists m. exists vm. exists (Val v'' t). split=> //=.
+     by apply ssem_bop3_safe with (bcomposite_composite_env cenv) v'
+        (transBeePL_type t) s; auto. 
+    (* step *)
+    move=> [] m' [] vm' [] e' [] he' hw'. right.
+    exists m'. exists vm'. exists (Prim (Bop Cop.Omod) [:: Val v1 t1; e'] t1). 
+    split=> //=. have h := type_rel_typeof cenv Gamma Sigma (Val v1 t1) ef1 t hte. 
+    rewrite -h. by apply ssem_bop2.
+  (* step *)
+  move=> [] m' [] vm' [] e' [] he' hw'. right.
+  exists m'. exists vm'. exists (Prim (Bop Cop.Omod) [:: e'; e''] (typeof_expr e)). 
+  split=> //=. have h := type_rel_typeof cenv Gamma Sigma e ef1 t hte. 
+  rewrite -h. by apply ssem_bop1.
+
+(*
 (* bop *)
 + move=> Gamma Sigma op e ef t e' hf hf' hte hin hte' hin' bge vm m hw. right.
   move: (hin bge vm m hw)=> [] hv.
@@ -482,47 +486,30 @@ case: cv=> //=.
 by move=> b p [] h; subst.
 Qed.
 
-Lemma wderef_addr_val_ty : forall bge ty m l ofs bf v,
-deref_addr bge ty m l ofs bf v ->
-is_vloc v = false ->
-is_reftype ty = false ->
-wtypeof_value v (wtype_of_type ty).
+(**** Substitution preserves typing ****)
+Lemma subst_preservation : forall cenv Gamma Sigma x t se e ef' ef t', 
+type_expr cenv (extend_context Gamma x t) Sigma e ef' t' ->
+type_expr cenv Gamma Sigma se ef t ->
+type_expr cenv Gamma Sigma (subst x se e) (ef ++ ef') t'.
 Proof.
-(*move=> bge ty m l ofs bf v hd hv. inversion hd; subst.
-+ rewrite /Mem.loadv /= in H2.
-  have hvt := Mem.load_type m (transl_bchunk_cchunk chunk) l 
-              (Ptrofs.unsigned ofs) v0 H1.
-  have hct := not_ptr_cval v0 v H2 hv.
-  case: v0 H1 H2 hvt hct=> //=.
-  (* int *)
-  + move=> i hl [] hveq /=. 
-    case: chunk H hl=> //=; subst; case: ty hd H0=> //= p; by case: p=> //=.
-  (* long *)
-  + move=> i hl [] hveq /=.
-    case: chunk H hl=> //=; subst; case: ty hd H0=> //= p. 
-    by case: p=> //= sz s a; case: sz=> //=; case: s=> //=.
-+ admit. (* complete me for the case of volatile load *)
-by case: ty hd H=> //= p. *)
 Admitted.
-
 
 (* we need extra assertion that value cannot be a pointer because 
    in C, they allow it and we use deref_addr from CompCert *)
-Lemma well_typed_val_expr : forall bge Gamma Sigma v t ef bf m l ofs,
-deref_addr bge t m l ofs bf v ->
+Lemma well_typed_val_expr : forall cenv Gamma Sigma v t ef bf m l ofs,
+deref_addr t m l ofs bf v ->
 is_vloc v = false ->
-is_reftype t = false ->
-type_expr Gamma Sigma (Val v t) ef t.
+type_expr cenv Gamma Sigma (Val v t) ef t.
 Proof.
-(*move=> bge Gamma Sigma v t ef bf m l ofs hd hw hw'. 
-case hv: v hd=> [ | i | i64 | l' ofs'] //=; subst.
+(*move=> cenv bge Gamma Sigma v t ef bf m l ofs hd hw. 
+case hv: v hd=> [ | b | i | i64 | l' ofs'| o] //=; subst.
 (* unit *)
-+ move=> hd. case: t hd hw'=> //=.
++ move=> hd. case: t hd=> //=.
   + move=> p. case: p=> //=.
-    + move=> hd. have hn : type_expr Gamma Sigma (Val Vunit (Ptype Tunit)) [::] (Ptype Tunit).
+    + move=> hd. have hn : type_expr cenv Gamma Sigma (Val Vunit tunit) [::] tunit.
       + by apply ty_valu.
       have hs := sub_effect_nil ef. 
-      by have := ty_sub Gamma Sigma (Val Vunit (Ptype Tunit)) nil (Ptype Tunit) ef hn hs.
+      by have := ty_sub cenv Gamma Sigma (Val Vunit tunit) nil tunit ef hn hs.
     + move=> sz s a hd _.
       have := wderef_addr_val_ty bge (Ptype (Tint sz s a)) m l ofs bf Vunit hd hw erefl.
       rewrite /wtype_of_type /=.  admit. (* weird coq behavior *)
@@ -594,299 +581,81 @@ move=> hd.
 by have /= := wderef_addr_val_ty bge t m l ofs bf (Vloc l' ofs') hd.*)
 Admitted.
 
-(**** Substitution preserves typing ****)
-Lemma subst_preservation : forall Gamma Sigma x t se e ef' ef t', 
-type_expr (extend_context Gamma x t) Sigma e ef' t' ->
-type_expr Gamma Sigma se ef t ->
-type_expr Gamma Sigma (subst x se e) (ef ++ ef') t'.
-Proof.
-Admitted.
-
-(* Generalize it to take into account all cases in one lemma *)
-Lemma exf_ret_extract_int : forall bt ct,
-bt <> Ptype Tunit ->
-is_funtype bt = false -> 
-transBeePL_type bt = ct ->
-rettype_of_type ct = AST.Tint ->
-exists sz s a, bt = Ptype (Tint sz s a).
-Proof.
-(*move=> sg bt ct g' i htu htf ht hp. case: bt htu htf ht=> //=.
-(* prim *)
-+ move=> p. case: p=> //=.
-  (* int *)
-  + move=> sz s a hut _ [] h1 h2; subst. exists sz. exists s. by exists a.
-  move=> s a hut _ [] h1 h2; subst. by rewrite /proj_rettype /= in hp.
-(* ref *)
-move=> h b a hut. case: b hut=> //= p hut.
-case: p hut =>//=.  + move=> hut _ [] h1 h2; subst. by rewrite /proj_rettype /= in hp.
-+ move=> sz s a' hut _ [] h1 h2; subst. by rewrite  /proj_rettype /= in hp.
-move=> s a' hut _ [] h1 h2; subst. by rewrite /proj_rettype /= in hp.
-Qed.*) Admitted.
-
-Lemma exf_ret_extract_long_ref : forall bt ct,
-bt <> Ptype Tunit ->
-is_funtype bt = false -> 
-transBeePL_type bt = ct ->
-rettype_of_type ct = AST.Tlong ->
-if Ctypes.is_pointer ct
-then (exists h t a, bt = Reftype h t a)
-else (exists s a, bt = Ptype (Tlong s a)).
-Proof.
-(*move=> g bt ct g' i htu htf ht hp. case: bt htu htf ht=> //=.
-(* prim *)
-+ move=> p. case: p=> //=.
-  (* int *)
-  + move=> sz s a hut _ [] h1 h2; subst. 
-    rewrite /rettype_of_type /= in hp. case: sz hp hut=> //=.
-    + by case: s=> //=.
-    by case: s=> //=.
-  move=> s a hut _ [] h1 h2; subst. rewrite /=. exists s. by exists a.
-(* ref *)
-move=> h b a hut _. case: b hut=> //= p hut.
-case: p hut =>//=.  
-+ move=> hut [] h1 h2; subst. rewrite /rettype_of_type /= in hp.
-  rewrite /Tptr in hp. move: hp. case: Archi.ptr64=> //=. rewrite /=.
-  exists h. exists (Bprim Tunit). by exists a.
-+ move=> sz s a' hut [] h1 h2; subst. rewrite /rettype_of_type /= in hp.
-  rewrite /Tptr in hp. move: hp. case: Archi.ptr64=> //=. rewrite /=.
-  exists h. exists  (Bprim (Tint sz s a')). by exists a.
-move=> s a' hut [] h1 h2; subst. rewrite /rettype_of_type /= in hp.
-rewrite /Tptr in hp. move: hp. case: Archi.ptr64=> //=. rewrite /=.
-exists h. exists (Bprim (Tlong s a')). by exists a.
-Qed.*) Admitted.
-
-(**** External call result has the same type as present in the signature *)
-Lemma well_typed_res_ext : forall Gamma Sigma bge bge' exf cef vm m m' vs vres bv ef t,
-(get_rt_eapp exf) <> Ptype Tunit ->
-is_funtype (get_rt_eapp exf) = false ->
-befunction_to_cefunction exf = cef ->
-Events.external_call cef bge vs m t vres m' ->
-trans_cvalue_bvalue vres = OK bv ->
-type_expr Gamma Sigma (Val bv (get_rt_eapp exf)) (get_ef_eapp exf ++ ef) (get_rt_eapp exf) /\
-store_well_typed Sigma bge' vm m'.
-Proof. 
-(*move=> Gamma Sigma bge bge' exf g cef g' i' vm m m' vs vres bv ef t hut hft hcf hext hv.
-have hcvs := Events.external_call_well_typed cef bge vs m t vres m' hext.
-rewrite /befunction_to_cefunction in hcf. case hexf: exf hcf=> [exn sig ] //=.
-rewrite /bind /=. case hsig: (bsig_to_csig sig g) hut hft=> [ | cexf cs ca] /= hut /= hft //=.
-move=> [] h1 h2; subst. 
-case: bv hv=> //=.
-(* unit 4 *)
-+ by case: vres hext hcvs=> //=.
-(* int 3 *)
-+ move=> i. case: vres hext hcvs=> //= i1 hext hcvs [] hieq; subst. 
-  case: sig hsig hft hut=> //= bts bef brt bcc /=. 
-  case: cexf hext hcvs=> //= cts cef crt ccc /=. rewrite /proj_sig_res /=.
-  case: cef ccc=> //=.
-  (* typ 9 *)
-  + move=> t' hext. case: t' hext=> //=.
-    (* int 10 *)
-    + move=> hext _. rewrite /bsig_to_csig /bind /=.
-      case hts : (transBeePL_types transBeePL_type bts g)=> [err | cts' gs gis] //=.
-      case ht: (transBeePL_type brt gs)=> [err1 | ct1 gs1 gis1] //=. 
-      move=> [] h1 h2 h3 h4 hft hut; subst. 
-      have [sz [] s [] a hbrt] := exf_ret_extract_int gs brt ct1 g' gis1 hut hft ht h2.
-      rewrite hbrt. split=> //=. 
-      + have hn : type_expr Gamma Sigma (Val (Vint i) (Ptype (Tint sz s a))) [::] 
-                  (Ptype (Tint sz s a)).
-        + by apply ty_vali. 
-      have hs := sub_effect_nil (bef ++ ef). 
-      by have := ty_sub Gamma Sigma (Val (Vint i) (Ptype (Tint sz s a))) nil (Ptype (Tint sz s a))
-                 (bef ++ ef) hn hs.
-    (* 11 *)
-    + move=> hext _. rewrite /bsig_to_csig /bind /=.
-      case hts : (transBeePL_types transBeePL_type bts g)=> [err | cts' gs gis] //=.
-      case ht: (transBeePL_type brt gs)=> [err1 | ct1 gs1 gis1] //=. 
-      move=> [] h1 h2 h3 h4 hft hut; subst. case: ct1 ht h2=> //=.
-      + move=> sz s a ht. have hbrt:= transBeePL_type_int brt gs g' gis1 sz s a ht.
-        rewrite hbrt. move=> h. by apply ty_vali.
-      move=> f a hbrt. by have hf := no_btype_to_float brt gs f a g' gis1.
-     move=> hext _. rewrite /bsig_to_csig /bind /=.
-     case hts : (transBeePL_types transBeePL_type bts g)=> [err | cts' gs gis] //=.
-     case ht: (transBeePL_type brt gs)=> [err1 | ct1 gs1 gis1] //=. 
-     move=> [] h1 h2 h3 h4 hft hut; subst. case: ct1 ht h2=> //=.
-     + move=> sz s a ht. have hbrt:= transBeePL_type_int brt gs g' gis1 sz s a ht.
-       rewrite hbrt. move=> h. by apply ty_vali.
-     move=> f a hbrt. by have hf := no_btype_to_float brt gs f a g' gis1.
-  (* 8 *)
-  + move=> hext _. rewrite /bsig_to_csig /= /bind /=.
-    case hts : (transBeePL_types transBeePL_type bts g)=> [err | cts' gs gis] //=.
-    case ht: (transBeePL_type brt gs)=> [err1 | ct1 gs1 gis1] //=. 
-    move=> [] h1 h2 h3 h4 hft hut; subst. case: ct1 ht h2=> //=.
-    + move=> sz s a ht. have hbrt:= transBeePL_type_int brt gs g' gis1 sz s a ht.
-      rewrite hbrt. move=> h. by apply ty_vali.
-    move=> f a ht. by have hf := no_btype_to_float brt gs f a g' gis1.
-  (* 7 *)
-  + move=> hext _. rewrite /bsig_to_csig /= /bind /=.
-    case hts : (transBeePL_types transBeePL_type bts g)=> [err | cts' gs gis] //=.
-    case ht: (transBeePL_type brt gs)=> [err1 | ct1 gs1 gis1] //=. 
-    move=> [] h1 h2 h3 h4 hft hut; subst. case: ct1 ht h2=> //=.
-    + move=> sz s a ht. have hbrt:= transBeePL_type_int brt gs g' gis1 sz s a ht.
-      rewrite hbrt. move=> h. by apply ty_vali.
-    move=> f a ht. by have hf := no_btype_to_float brt gs f a g' gis1.
-  (* 6 *)
-  + move=> hext _. rewrite /bsig_to_csig /= /bind /=.
-    case hts : (transBeePL_types transBeePL_type bts g)=> [err | cts' gs gis] //=.
-    case ht: (transBeePL_type brt gs)=> [err1 | ct1 gs1 gis1] //=. 
-    move=> [] h1 h2 h3 h4 hft hut; subst. case: ct1 ht h2=> //=.
-    + move=> sz s a ht. have hbrt:= transBeePL_type_int brt gs g' gis1 sz s a ht.
-      rewrite hbrt. move=> h. by apply ty_vali.
-    move=> f a ht. by have hf := no_btype_to_float brt gs f a g' gis1.
-  (* 5 *)
-  + move=> hext _. rewrite /bsig_to_csig /= /bind /=.
-    case hts : (transBeePL_types transBeePL_type bts g)=> [err | cts' gs gis] //=.
-    case ht: (transBeePL_type brt gs)=> [err1 | ct1 gs1 gis1] //=. 
-    move=> [] h1 h2 h3 h4 hft hut; subst. case: ct1 ht h2=> //=.
-    + move=> sz s a ht. have hbrt:= transBeePL_type_int brt gs g' gis1 sz s a ht.
-      rewrite hbrt. move=> h. by apply ty_vali.
-    move=> f a ht. by have hf := no_btype_to_float brt gs f a g' gis1.
-  + (* 4 *)
-    move=> hext _. rewrite /bsig_to_csig /= /bind /=.
-    case hts : (transBeePL_types transBeePL_type bts g)=> [err | cts' gs gis] //=.
-    case ht: (transBeePL_type brt gs)=> [err1 | ct1 gs1 gis1] //=. 
-    move=> [] h1 h2 h3 h4 hft hut; subst. case: ct1 ht h2=> //=.
-    + move=> sz s a ht. have hbrt:= transBeePL_type_int brt gs g' gis1 sz s a ht.
-      rewrite hbrt. move=> h. by apply ty_vali.
-    move=> f a ht. by have hf := no_btype_to_float brt gs f a g' gis1.
-   move=> hext _. rewrite /bsig_to_csig /= /bind /=.
-   case hts : (transBeePL_types transBeePL_type bts g)=> [err | cts' gs gis] //=.
-   case ht: (transBeePL_type brt gs)=> [err1 | ct1 gs1 gis1] //=. 
-   move=> [] h1 h2 h3 h4 hft hut; subst. case: ct1 ht h2=> //=.
-   + move=> ht _. by have hbrt := transBeePL_type_void brt gs g' gis1 ht.
-   + move=> sz s a ht. have hbrt:= transBeePL_type_int brt gs g' gis1 sz s a ht.
-     rewrite hbrt. move=> h. by apply ty_vali.
-   + move=> f a ht. by have hf := no_btype_to_float brt gs f a g' gis1. 
-   + move=> t' z a ht. by have hf := no_btype_to_array brt t' z a gs g' gis1.
-   + move=> ts t1 ct ht _. 
-     have [bt [] ef' [] rt hbrt] := transBeePL_type_function brt ts t1 ct gs g' gis1 ht.
-     by rewrite hbrt in hft.
-   + move=> h a ht. by have := no_btype_to_struct brt h a gs g' gis1.
-   + move=> h a ht. by have := no_btype_to_union brt h a gs g' gis1.
- (* long *)
- + move=> i. case: vres hext hcvs=> //= i1 hext hcvs [] hieq; subst. 
-   case: sig hsig hft hut=> //= bts bef brt bcc /=. 
-   case: cexf hext hcvs=> //= cts cef crt ccc /=. rewrite /proj_sig_res /=.
-   case: cef ccc=> //=.
-   (* typ 9 *)
-  + move=> t' hext. case: t' hext=> //=.
-    + move=> hext _. rewrite /bsig_to_csig /bind /=.
-      case hts : (transBeePL_types transBeePL_type bts g)=> [err | cts' gs gis] //=.
-      case ht: (transBeePL_type brt gs)=> [err1 | ct1 gs1 gis1] //=.
-      move=> [] h1 h2 h3 h4 hut hft; subst. 
-      have /= htlp := exf_ret_extract_long_ref gs brt ct1 g' gis1 hft hut ht h2.
-      case: ct1 ht h2 htlp=> //=.
-      + move=> sz s a. by case: sz=> //=; case: s=> //=.
-      + move=> s a ht _ [] s' [] a' hbrt. rewrite hbrt. by apply ty_vall.
-      + move=> fsz a ht. by have ht' := no_btype_to_float brt gs fsz a g' gis1.
-      move=> t' a ht heq [] h [] bt [] a' hbrt. admit. (* because in C they treat pointer as long/int *)
-   move=> hext _. rewrite /bsig_to_csig /bind /=.
-   case hts : (transBeePL_types transBeePL_type bts g)=> [err | cts' gs gis] //=.
-   case ht: (transBeePL_type brt gs)=> [err1 | ct1 gs1 gis1] //=.
-   move=> [] h1 h2 h3 h4 hut hft; subst. case: ct1 ht h2=> //=.
-   + move=> sz s a. by case: sz=> //=; case: s=> //=.
-   move=> fsz a ht. by have hf := no_btype_to_float brt gs fsz a g' gis1.
-move=> loc ofs. case: vres hext hcvs=> //= loc' ofs'.  
-case: sig hsig hft hut=> //= bts bef brt bcc /=. rewrite /bsig_to_csig /= /bind /proj_sig_res /=.
-case hts : (transBeePL_types transBeePL_type bts g)=> [err | cts' gs gis] //=.
-case ht: (transBeePL_type brt gs)=> [err1 | ct1 gs1 gis1] //=.
-move=> [] h1 h2 hft hut /=; subst. rewrite /proj_rettype /=.
-case: ct1 ht=> //=.
-+ move=> sz s a. by case: sz=> //=; case: s=> //=.
-+ move=> s a ht hext hp [] h1 h2; subst. admit. (* because in C they treat pointer as long/int *)
-+ move=> fsz a ht. by have ht' := no_btype_to_float brt gs fsz a g' gis1.
-move=> t' a ht. have [h [] bt [] a' hpt]:= transBeePL_type_ref brt t' a gs g' gis1 ht.
-move=> hext hm [] h1 h2; subst. apply ty_valloc.*)
-Admitted.
-
-
 (*** Preservation for small-step semantics ***)
 (* If a program starts well-typed, it remains well-typed throughout execution,
    an evaluation does not produce type errors.*)
 Lemma preservation_ssem_expr_exprs: 
-(forall Gamma Sigma es efs ts bge p vm m vm' m' es', 
-    type_exprs Gamma Sigma es efs ts ->
-    store_well_typed Sigma bge vm m ->
+(forall cenv Gamma Sigma es efs ts bge p vm m vm' m' es', 
+    type_exprs cenv Gamma Sigma es efs ts ->
+    store_well_typed cenv Gamma Sigma bge vm m ->
     ssem_exprs bge p vm m es m' vm' es' ->
-    type_exprs Gamma Sigma es' efs ts /\
-    store_well_typed Sigma bge vm' m') /\
-(forall Gamma Sigma e ef t bge p vm m vm' m' e', 
-    type_expr Gamma Sigma e ef t ->
-    store_well_typed Sigma bge vm m ->
+    exists efs', type_exprs cenv Gamma Sigma es' efs' ts /\ 
+                 sub_effect efs' efs /\
+                 store_well_typed cenv Gamma Sigma bge vm' m') /\
+(forall cenv Gamma Sigma e ef t bge p vm m vm' m' e', 
+    type_expr cenv Gamma Sigma e ef t ->
+    store_well_typed cenv Gamma Sigma bge vm m ->
     ssem_expr bge p vm m e m' vm' e' ->
-    type_expr Gamma Sigma e' ef t /\
-    store_well_typed Sigma bge vm' m').
+    exists ef', type_expr cenv Gamma Sigma e' ef' t /\ sub_effect ef' ef /\
+               store_well_typed cenv Gamma Sigma bge vm' m').
 Proof.
-suff : (forall Gamma Sigma es efs ts, type_exprs Gamma Sigma es efs ts ->
+suff : (forall cenv Gamma Sigma es efs ts, type_exprs cenv Gamma Sigma es efs ts ->
                                       forall bge p vm m vm' m' es', 
-                                      store_well_typed Sigma bge vm m ->
+                                      store_well_typed cenv Gamma Sigma bge vm m ->
                                       ssem_exprs bge p vm m es m' vm' es' ->
-                                      type_exprs Gamma Sigma es' efs ts /\
-                                      store_well_typed Sigma bge vm' m') /\
-       (forall Gamma Sigma e ef t, type_expr Gamma Sigma e ef t ->
+                                      exists efs', type_exprs cenv Gamma Sigma es' efs' ts /\ 
+                                      sub_effect efs' efs /\
+                                      store_well_typed cenv Gamma Sigma bge vm' m') /\
+       (forall cenv Gamma Sigma e ef t, type_expr cenv Gamma Sigma e ef t ->
                                    forall bge p vm m vm' m' e', 
-                                   store_well_typed Sigma bge vm m ->
+                                   store_well_typed cenv Gamma Sigma bge vm m ->
                                    ssem_expr bge p vm m e m' vm' e' ->
-                                   type_expr Gamma Sigma e' ef t /\
-                                   store_well_typed Sigma bge vm' m').
-(*+ move=> [] ih ih'. split=> //=.
-  + move=> Gamma Sigma es efs ts bge vm m vm' m' es' hts hes.
-    by move: (ih Gamma Sigma es efs ts hts bge vm m vm' m' es' hes).
-  move=> Gamma Sigma e ef t bge vm m vm' m' e' ht he.
-  by move: (ih' Gamma Sigma e ef t ht bge vm m vm' m' e' he).
+                                   exists ef', type_expr cenv Gamma Sigma e' ef' t /\
+                                   sub_effect ef' ef /\
+                                   store_well_typed cenv Gamma Sigma bge vm' m').
++ move=> [] ih ih'. split=> //=.
+  + admit.
+  admit.
 apply type_exprs_type_expr_ind_mut=> //=.
 (* val unit *)
-+ move=> Gamma Sigma t vm m vm' m' e' hw he. 
-  inversion he; subst; split=> //=. by apply ty_valu.
++ move=> cenv Gamma Sigma bge p vm m vm' m' e' hw he.  exists nil.
+  by inversion he; subst; split=> //=. 
+(* val bool *)
++ move=> cenv Gamma Sigma b bge p vm m vm' m' e' hw he. exists nil.
+  by inversion he; subst; split=> //=. 
 (* val int *)
-+ move=> Gamma Sigma i sz s a bge vm m vm' m' e' hw he.
-  inversion he; subst; split=> //=. by apply ty_vali.
++ move=> cenv Gamma Sigma i sz s a bge p vm m vm' m' e' hw he. exists nil.
+  by inversion he; subst; split=> //=.
 (* val long *)
-+ move=> Gamma Sigma i s a bge vm m vm' m' e' hw he.
-  inversion he; subst; split=> //=. by apply ty_vall.
++ move=> cenv Gamma Sigma i s a bge p vm m vm' m' e' hw he. exists nil.
+  by inversion he; subst; split=> //=.
 (* val loc *)
-+ move=> Gamma Sigma l ofs h t a hs bge vm m vm' m' e' hw he.
-  inversion he; subst; split=> //=. by apply ty_valloc.
++ move=> cenv Gamma Sigma l ofs h t a hs bge p vm m vm' m' e' hw he. exists nil.
+  by inversion he; subst; split=> //=.
 (* var *)
-+ move=> Gamma Sigma x t ht bge vm m vm' m' e' hw he. 
-  inversion he; subst.
-  + rewrite /store_well_typed in hw. move: (hw  (extend_context Gamma x t) x).
-    rewrite ht /= H1 /=. move=> [] h1 [] h2 [] v'' [] ofs'' [] hd'' [] hv'' ht''.
-    have h := well_typed_val_expr bge Gamma Sigma v t empty_effect Full m' l ofs H4 H8.
-    by move: (h ht'').
-  rewrite /store_well_typed in hw. move: (hw  (extend_context Gamma x t) x).
-  rewrite ht /= H1 /=. move=> [] h1 [] h2 [] v'' [] ofs'' [] hd'' [] hv'' [] ht' ht''.
-  have h := well_typed_val_expr bge Gamma Sigma v t empty_effect Full m' l ofs H5 H9.
-  by move: (h ht'').
++ admit.
 (* const int *)
-+ move=> Gamma Sigma t sz s a i bge vm m vm' m' e' he; subst.
-  inversion he; subst; split=> //=. by apply ty_vali.
++ (*move=> Gamma Sigma t sz s a i bge vm m vm' m' e' he; subst.
+  inversion he; subst; split=> //=. by apply ty_vali.*) admit.
 (* const long *)
-+ move=> Gamma Sigma t s a i bge vm m vm' m' e' he; subst.
-  inversion he; subst; split=> //=. by apply ty_vall.
++ (*move=> Gamma Sigma t s a i bge vm m vm' m' e' he; subst.
+  inversion he; subst; split=> //=. by apply ty_vall.*) admit.
 (* const unit *)
-+ move=> Gamma Sigma t bge vm m vm' m' e' he; subst.
-  inversion he; subst; split=> //=. by apply ty_valu.
++ (* move=> Gamma Sigma t bge vm m vm' m' e' he; subst.
+  inversion he; subst; split=> //=. by apply ty_valu.*) admit.
 (* app *)
-+ move=> Gamma Sigma e es rt efs ts ef efs' hte hin htes hin' bge vm m vm' m' e' hw he. 
++ (*move=> Gamma Sigma e es rt efs ts ef efs' hte hin htes hin' bge vm m vm' m' e' hw he. 
   inversion he; subst; split=> //=. apply ty_app with ts.
   (* step case *) 
   + by move: (hin bge vm m vm' m' e'0 hw H7)=> [] h1 h2.
   + by apply htes.
   + by move: (hin bge vm m vm' m' e'0 hw H7)=> [] h1 h2.
-  admit. (* hard case *) admit.
+  admit. (* hard case *) admit.*) admit.
 (* ref *)
 + admit.
 (* deref *)
-+ move=> Gamma Sigma e ef h bt a hte hin bge vm m vm' m' e' hw he.
-  inversion he; subst.
-  (* step *)
-  + move: (hin bge vm m vm' m' e'0 hw H6)=> [] h1 h2; split=> //=. 
-    apply ty_deref with a. by apply h1.
-  (* val *)
-  split=> //=.
-  by have htv := well_typed_val_expr bge Gamma Sigma v (Ptype bt) (ef ++ [:: Read h]) 
-              bf m' l ofs H3 H7 erefl. 
-(* massgn *)
++ admit.
+(*(* massgn *)
 + move=> Gamma Sigma e e' h t ef a ef' hte hin hte' hin' bge vm m vm' m' e'' hw he.
   inversion he; subst.
   (* step *)
@@ -973,36 +742,54 @@ move: (hins bge vm m vm' m' vs hw H6)=> [] h11 h12. split=> //=. apply ty_cons.
 by apply h11.*)
 Admitted.
 
+(**** Multi step preservation ****)
+Lemma multi_preservation_ssem_expr_exprs: 
+(forall cenv Gamma Sigma es efs ts bge p vm m vm' m' es' n, 
+    type_exprs cenv Gamma Sigma es efs ts ->
+    store_well_typed cenv Gamma Sigma bge vm m ->
+    ssem_closures bge p vm m es n m' vm' es' ->
+    exists efs', type_exprs cenv Gamma Sigma es' efs' ts /\ 
+                 sub_effect efs' efs /\
+                 store_well_typed cenv Gamma Sigma bge vm' m') /\
+(forall cenv Gamma Sigma e ef t bge p vm m vm' m' e' n, 
+    type_expr cenv Gamma Sigma e ef t ->
+    store_well_typed cenv Gamma Sigma bge vm m ->
+    ssem_closure bge p vm m e n m' vm' e' ->
+    exists ef', type_expr cenv Gamma Sigma e' ef' t /\ sub_effect ef' ef /\
+               store_well_typed cenv Gamma Sigma bge vm' m').
+Proof.
+Admitted.
+
 (* Stateful effects cannot be discarded :
    Expressions like ref, deref, massgn cannot discard the stateful effect even in the case 
    where it reduces to value *)
 Lemma stateful_effects_preserved : 
-(forall Gamma Sigma es efs ts bge p vm m vm' m' es' efs' ts', 
-        type_exprs Gamma Sigma es efs ts ->
+(forall cenv Gamma Sigma es efs ts bge p vm m vm' m' es' efs' ts', 
+        type_exprs cenv Gamma Sigma es efs ts ->
         is_stateful_exprs es = true /\ is_stateful_effect efs = true ->
         ssem_exprs bge p vm m es m' vm' es' ->
-        type_exprs Gamma Sigma es' efs' ts' ->
+        type_exprs cenv Gamma Sigma es' efs' ts' ->
         is_stateful_effect efs') /\
-(forall Gamma Sigma e ef t bge p vm m vm' m' e' ef' t', 
-        type_expr Gamma Sigma e ef t ->
+(forall cenv Gamma Sigma e ef t bge p vm m vm' m' e' ef' t', 
+        type_expr cenv Gamma Sigma e ef t ->
         is_stateful_expr e = true /\ is_stateful_effect ef = true ->
         ssem_expr bge p vm m e m' vm' e' ->
-        type_expr Gamma Sigma e' ef' t' ->
+        type_expr cenv Gamma Sigma e' ef' t' ->
         is_stateful_effect ef').
 Proof.
-suff : (forall Gamma Sigma es efs ts, 
-        type_exprs Gamma Sigma es efs ts ->
+suff : (forall cenv Gamma Sigma es efs ts, 
+        type_exprs cenv Gamma Sigma es efs ts ->
         forall bge p vm m vm' m' es' efs' ts', 
         is_stateful_exprs es = true /\ is_stateful_effect efs = true ->
         ssem_exprs bge p vm m es m' vm' es' ->
-        type_exprs Gamma Sigma es' efs' ts' ->
+        type_exprs cenv Gamma Sigma es' efs' ts' ->
         is_stateful_effect efs') /\
-        (forall Gamma Sigma e ef t, 
-        type_expr Gamma Sigma e ef t ->
+        (forall cenv Gamma Sigma e ef t, 
+        type_expr cenv Gamma Sigma e ef t ->
         forall bge p vm m vm' m' e' ef' t', 
         is_stateful_expr e = true /\ is_stateful_effect ef = true ->
         ssem_expr bge p vm m e m' vm' e' ->
-        type_expr Gamma Sigma e' ef' t' ->
+        type_expr cenv Gamma Sigma e' ef' t' ->
         is_stateful_effect ef').
 + move=> [] ih ih'. admit.
 Admitted.
@@ -1011,131 +798,23 @@ Admitted.
 (***** Normalization ******)
 (* A well typed program takes multistep to produce a value *)
 Lemma normalization :
-(forall Gamma Sigma es efs ts bge p vm m n m' vm' es', 
- type_exprs Gamma Sigma es efs ts ->
- store_well_typed Sigma bge vm m ->
- ssem_closures bge p vm m es n m' vm' es' /\ is_values es') /\
-(forall Gamma Sigma e ef t bge p vm m n m' vm' e', 
- type_expr Gamma Sigma e ef t ->
- store_well_typed Sigma bge vm m ->
- ssem_closure bge p vm m e n m' vm' e' /\ is_value e).
+(forall cenv Gamma Sigma es efs ts bge p vm m m' vm' es' n, 
+ type_exprs cenv Gamma Sigma es efs ts ->
+ store_well_typed cenv Gamma Sigma bge vm m ->
+ ssem_closures bge p vm m es n m' vm' es' 
+ /\ is_values es' 
+ /\ store_well_typed cenv Gamma Sigma bge vm' m') /\
+(forall cenv Gamma Sigma e ef t bge p vm m m' vm' e' n, 
+ type_expr cenv Gamma Sigma e ef t ->
+ store_well_typed cenv Gamma Sigma bge vm m ->
+ ssem_closure bge p vm m e n m' vm' e' /\ is_value e /\
+ store_well_typed cenv Gamma Sigma bge vm' m').
 Proof.
 Admitted.
 
-(***** With respect to big step semantics *****)
-
-(*
-(* Complete me *) (* Medium level *)
-Lemma cval_bval_type_eq : forall v ct v' bt g g' i,
-Values.Val.has_type v (typ_of_type ct) ->
-transC_val_bplvalue v = Errors.OK v' ->
-transBeePL_type bt g = SimplExpr.Res ct g' i ->
-wtypeof_value v' (wtype_of_type bt). 
-Proof.
-  intros.
-  unfold transC_val_bplvalue in H0.
-  unfold wtypeof_value.
-  destruct v eqn:Ev; try discriminate;
-  injection H0 as H0;
-  subst v';
-  unfold transBeePL_type in H1;
-  destruct bt eqn:Ebt; try discriminate.
-Admitted.
-
-(* Complete Me *)
-Lemma uop_type_preserve : forall uop v ct m v',
-Cop.sem_unary_operation uop v ct m = Some v' ->
-Values.Val.has_type v' (typ_of_type ct).
-Proof.
-  intros.
-  destruct uop eqn:Euop; simpl in *.
-  (* notbool *)
-  - unfold Cop.sem_notbool in H.
-    unfold Cop.bool_val in H.
-    unfold Cop.classify_bool in H.
-    unfold typeconv in H.
-    unfold remove_attributes in H.
-    unfold change_attributes in H.
-    destruct v eqn:Ev; destruct ct eqn:Ect; simpl in *; try discriminate;
-    try (destruct i; discriminate);
-    try (destruct f; discriminate);
-    try (destruct i0; destruct (Int.eq i Int.zero); simpl in H;
-    injection H as H; subst; simpl in *; auto);
-    try (destruct i0; discriminate).
-    destruct (Int64.eq i Int64.zero); simpl in H;
-    injection H as H; subst; simpl in *; auto.
-    admit. admit.
-    destruct Archi.ptr64; destruct (Int64.eq i Int64.zero);
-    try discriminate;
-    simpl in H;
-    injection H as H. 
-    subst v'.
-    unfold Values.Val.has_type. simpl in *.
-    destruct Tptr; auto.
-  (* notint *)
-  - admit.
-  (* neg *)
-  - admit.
-  (* absfloat *)
-  - admit.
-Admitted.
 
 
-(* Complete Me *)
-Lemma eq_uop_types : forall uop t g g' i v ct m v' v'',
-transBeePL_type t g = SimplExpr.Res ct g' i ->
-Cop.sem_unary_operation uop v ct m = Some v' ->
-Values.Val.has_type v' (typ_of_type ct) ->
-transC_val_bplvalue v' = Errors.OK v'' -> 
-wtypeof_value v'' (wtype_of_type t).
-Proof.
-Admitted.
-
-(* Complete Me *)
-Lemma bop_type_preserve : forall bge bop v1 ct1 v2 ct2 m v,
-Cop.sem_binary_operation bge bop v1 ct1 v2 ct2 m = Some v ->
-Values.Val.has_type v (typ_of_type ct1) /\
-Values.Val.has_type v (typ_of_type ct2).
-Proof.
-Admitted.
-
-Lemma eq_bop_types : forall cenv v1 t1 g g' i v2 t2 g'' i' ct1 ct2 op m v v',
-transBeePL_type t1 g = SimplExpr.Res ct1 g' i ->
-transBeePL_type t2 g' = SimplExpr.Res ct2 g'' i' ->
-Cop.sem_binary_operation cenv op v1 ct1 v2 ct2 m = Some v ->
-transC_val_bplvalue v = Errors.OK v' ->
-Values.Val.has_type v (typ_of_type ct1) ->
-Values.Val.has_type v (typ_of_type ct2) ->
-wtypeof_value v' (wtype_of_type t1) /\ wtypeof_value v' (wtype_of_type t2).
-Proof.
-Admitted.
-
-Lemma type_to_wtype : forall v t,
-typeof_value v t ->
-wtypeof_value v (wtype_of_type t).
-Proof.
-move=> v t. case: t=> //=.
-+ move=> p. case: p=> //=.
-  + move=> i s a. by case: v=> //=.
-  move=> s a. by case: v=> //=.
-+ move=> h b a. by case: v=> //=.
-move=> es e t. by case: v=> //=.
-Qed. *)
-    
-(*** Definition memory_well_formedness : forall Sigma l, m, 
-     Sigma ! l = Reftype h bt a -> 
-     deref m bt l = v ->
-     v != loc. ***)   
-
-(**** Lemma memory_preserve : forall 
-      well_formed Sigma l m ->
-      sem m e m' e' ->
-      well_formed Sigma l m' ****)
-
-(**** Add codnitions in semantics for division in BeePL 
-      https://people.rennes.inria.fr/Frederic.Besson/compcertSFI.pdf *****)
-
-(**** Runtime rejection : add exit ****)
-*)
  
+
+
 
