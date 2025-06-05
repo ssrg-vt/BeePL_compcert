@@ -23,13 +23,16 @@ Require Import AST Machregs Locations.
 - Callee-save registers, whose value is preserved across a function call.
 - Caller-save registers that can be modified during a function call.
 
-  We follow the RISC-V application binary interface (ABI) in our choice
-  of callee- and caller-save registers.
 *)
-
+(** From https://www.kernel.org/doc/html/v5.17/bpf/instruction-set.html
+ - R0: return value from function calls, and exit value for eBPF programs
+ - R1 - R5: arguments for function calls
+ - R6 - R9: callee saved registers that function calls will preserve
+ - R10: read-only frame pointer to access stack
+*)
 Definition is_callee_save (r: mreg) : bool :=
   match r with
-  | I6 | I7 | I8 (*| I9*) => true
+  | I6 | I7 | I8 | I9 => true
   | _ => false
   end.
 
@@ -38,7 +41,7 @@ Definition int_caller_save_regs :=
 
 Definition float_caller_save_regs : list mreg := D0 :: D1 :: nil.
 
-Definition int_callee_save_regs := I6 :: I7 :: I8 (*:: I9*) :: nil.
+Definition int_callee_save_regs := I6 :: I7 :: I8 :: I9 :: nil.
 
 Definition float_callee_save_regs : list mreg := D2 :: nil.
 
@@ -241,7 +244,7 @@ Definition fixed_arguments (s: signature) : Z :=
   when calling a function with signature [s].  *)
 
 Definition loc_arguments (s: signature) : list (rpair loc) :=
-  loc_arguments_rec s.(sig_args) (fixed_arguments s) 0 0 0.
+  loc_arguments_rec (proj_sig_args s) (fixed_arguments s) 0 0 0.
 
 (** Argument locations are either non-temporary registers or [Outgoing]
   stack slots at nonnegative offsets. *)
@@ -355,5 +358,5 @@ Qed.
 
 (** No normalization needed. *)
 
-Definition return_value_needs_normalization (t: rettype) := false.
-Definition parameter_needs_normalization (t: rettype) := false.
+Definition return_value_needs_normalization (t: xtype) := false.
+Definition parameter_needs_normalization (t: xtype) := false.

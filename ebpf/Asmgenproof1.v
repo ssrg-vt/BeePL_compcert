@@ -16,6 +16,10 @@ Require Import Op Locations Mach Conventions.
 Require Import Events Smallstep.
 Require Import Asm Asmgen Mulh Asmgenproof0.
 
+Ltac ssplit :=
+  repeat match goal with
+  | |- ?A /\ ?B => split
+  end.
 
 (** Properties of registers *)
 
@@ -23,12 +27,20 @@ Lemma ireg_of_not_R10:
   forall m r, ireg_of m = OK r -> IR r <> IR R10.
 Proof.
   intros. erewrite <- ireg_of_eq; eauto with asmgen.
+(*  destruct m; simpl; congruence.*)
 Qed.
+
 
 Lemma ireg_of_not_R10':
   forall m r, ireg_of m = OK r -> r <> R10.
 Proof.
   intros. apply ireg_of_not_R10 in H. congruence.
+Qed.
+
+Lemma preg_not_R10:
+  forall m, preg_of m <> R10.
+Proof.
+  destruct m; simpl; congruence.
 Qed.
 
 Lemma get_int_inv : forall n x, get_int n = OK x -> (Int.repr (Int64.signed n)) =  x /\ Int.signed x = Int64.signed n.
@@ -43,7 +55,21 @@ Proof.
   rewrite Int.signed_repr; auto.
 Qed.
 
-Global Hint Resolve ireg_of_not_R10 ireg_of_not_R10': asmgen.
+Lemma ireg_of_not_BP :
+  forall m r, ireg_of m = OK r -> IR r <> IR BP.
+Proof.
+  intros. erewrite <- ireg_of_eq; eauto with asmgen.
+Qed.
+
+Lemma ireg_of_not_BP':
+  forall m r, ireg_of m = OK r -> r <> BP.
+Proof.
+  intros. apply ireg_of_not_BP in H. congruence.
+Qed.
+
+
+Global Hint Resolve ireg_of_not_R10 ireg_of_not_R10' ireg_of_not_BP
+  ireg_of_not_BP' preg_not_R10: asmgen.
 
 (** Useful simplification tactic *)
 
@@ -52,9 +78,29 @@ Ltac get_int_inv :=
   | H : get_int ?N = ?X |- _ => apply get_int_inv in H ; destruct H;subst
   end.
 
+Lemma data_preg_sp_eq : forall r, data_preg_sp r = true <-> (data_preg r = true \/ r = R10).
+Proof.
+  unfold data_preg.
+  unfold data_preg_sp.
+  destruct r; intuition try congruence.
+  destruct i; intuition congruence.
+Qed.
+
+Lemma nextinstr_inv2:
+  forall r rs, data_preg_sp r = true -> (nextinstr rs)#r = rs#r.
+Proof.
+  intros.
+  rewrite data_preg_sp_eq in H. destruct H.
+  apply nextinstr_inv1; auto.
+  apply nextinstr_inv; auto. congruence.
+Qed.
+
+
+
 Ltac Simplif :=
   ((rewrite nextinstr_inv by eauto with asmgen)
-  || (rewrite nextinstr_inv1 by eauto with asmgen)
+   || (rewrite nextinstr_inv1 by eauto with asmgen)
+   || (rewrite nextinstr_inv2 by eauto with asmgen)
   || (rewrite Pregmap.gss)
   || (rewrite nextinstr_pc)
   ||  get_int_inv
@@ -490,20 +536,6 @@ Ltac SimplEval H :=
   | ?a = Some ?b => let A := fresh in assert (A: Val.maketotal a = b) by (rewrite H; reflexivity)
 end.
 
-Ltac TranslOpSimpl :=
-  econstructor; split;
-  [ apply exec_straight_one; [ simpl; eauto; try reflexivity | reflexivity ]
-  | split; [ apply Val.lessdef_same; Simpl; fail | intros; Simpl; fail ] ].
-
-Ltac TranslALUOpSimpl EV :=
-  econstructor; split;
-  [ apply exec_straight_one; [ unfold exec_instr, exec_alu, int64_of_int;simpl; rewrite EV; try reflexivity | reflexivity]
-  | split; [ apply Val.lessdef_same; Simpl; fail | intros; Simpl; fail ] ].
-
-Ltac TranslALU64OpSimpl EV :=
-  econstructor; split;
-  [ apply exec_straight_one; [ unfold exec_instr, exec_alu;simpl; unfold int64_of_int; try rewrite EV ; try reflexivity | reflexivity]
-  | split; [ apply Val.lessdef_same; Simpl | intros; Simpl ] ].
 
 
 
@@ -592,10 +624,11 @@ Lemma ohighlong : forall x rs  m k,
   exists rs' : regset,
     exec_straight ge fn (Palu ARSH W64 x (inr (Int.repr 32)) :: Palu (CONV WOFDW) W64 x (inr Int.zero) :: k) rs m k rs' m /\
     Val.lessdef (Val.hiword (rs x)) (rs' x) /\
-    (forall r : preg, data_preg r = true -> r <> x -> preg_notin r (destroyed_by_op Ohighlong) -> rs' r = rs r).
+      (forall r : preg, data_preg_sp r = true -> r <> x -> preg_notin r (destroyed_by_op Ohighlong) -> rs' r = rs r)
+.
 Proof.
   intros.
-  eexists.  split;[|split].
+  eexists.  ssplit.
   - eapply exec_straight_two; reflexivity.
   - Simpl.
     unfold map_sum_left. unfold eval_val_int.
@@ -609,15 +642,30 @@ Proof.
   - intros. Simpl.
 Qed.
 
+Ltac TranslOpSimpl :=
+  econstructor; split;
+  [ apply exec_straight_one; [ simpl; eauto; try reflexivity | reflexivity ]
+  | split; [ apply Val.lessdef_same; Simpl; fail | intros; Simpl; fail  ]].
+
+Ltac TranslALUOpSimpl EV :=
+  econstructor; split;
+  [ apply exec_straight_one; [ unfold exec_instr, exec_alu, int64_of_int;simpl; rewrite EV; try reflexivity | reflexivity]
+  | split; [ apply Val.lessdef_same; Simpl; fail | intros; Simpl; fail  ]].
+
+Ltac TranslALU64OpSimpl EV :=
+  econstructor; split;
+  [ apply exec_straight_one; [ unfold exec_instr, exec_alu;simpl; unfold int64_of_int; try rewrite EV ; try reflexivity | reflexivity]
+  | split; [ apply Val.lessdef_same; Simpl | intros; Simpl ]].
+
 
 Lemma transl_op_correct:
-  forall op args res k (rs: regset) m v c,
-  transl_op op args res k = OK c ->
-  eval_operation ge (rs#SP) op (map rs (map preg_of args)) m = Some v ->
+  forall sz op args res k (rs: regset) m v c,
+  transl_op sz op args res k = OK c ->
+  eval_operation ge (Val.offset_ptr (rs#R10) (Ptrofs.neg (stack_offset sz))) op (map rs (map preg_of args)) m = Some v ->
   exists rs',
      exec_straight ge fn c rs m k rs' m
-  /\ Val.lessdef v rs'#(preg_of res)
-  /\ forall r, data_preg r = true -> r <> preg_of res -> preg_notin r (destroyed_by_op op) -> rs' r = rs r.
+     /\ Val.lessdef v rs'#(preg_of res)
+     /\ (forall r, data_preg_sp r = true -> r <> preg_of res -> preg_notin r (destroyed_by_op op) -> rs' r = rs r).
 Proof.
   assert (SAME: forall v1 v2, v1 = v2 -> Val.lessdef v2 v1). { intros; subst; auto. }
 Opaque Int.eq.
@@ -626,8 +674,18 @@ Opaque Int.eq.
   - (* addrstack *)
     exploit addptrofs_correct; eauto.
     intros (rs' & A & B & C).
-    exists rs'; split; [ exact A | auto with asmgen ].
-  (* divu, divuimm, modu, moduimm *)
+    exists rs'. split. exact A.
+    split.
+    { rewrite Val.offset_ptr_assoc.
+      rewrite Ptrofs.add_commut.
+      rewrite <- Ptrofs.sub_add_opp.
+      auto with asmgen.
+    }
+    { intros. apply C.
+      intro; subst; discriminate.
+      auto.
+    }
+      (* divu, divuimm, modu, moduimm *)
 - TranslALUOpSimpl EV.
 - TranslALUOpSimpl EV.
 - TranslALUOpSimpl EV.
@@ -645,7 +703,7 @@ Opaque Int.eq.
   + apply exec_straight_one; unfold exec_instr, exec_alu;simpl; unfold int64_of_int.
     rewrite H0. rewrite Int64.repr_signed. rewrite EV. reflexivity.
     Simpl.
-  + split; [ apply Val.lessdef_same; Simpl | intros; Simpl ].
+  + split; [apply Val.lessdef_same; Simpl | intros; Simpl ].
 - TranslALU64OpSimpl EV.
 - clear H.
   get_int_inv.
@@ -662,7 +720,9 @@ Opaque Int.eq.
   rewrite H0. rewrite Int64.repr_signed. reflexivity.
 - (* cond *)
   exploit transl_cond_op_correct; eauto. intros (rs' & A & B & C).
-  exists rs'; split. eexact A. eauto with asmgen.
+  exists rs'; split. eexact A. repeat split; auto with asmgen.
+  intros. apply C. intro. subst ; discriminate.
+  auto.
 - (* sign_ext 8 *)
   exploit sign_ext_8.
   intros (rs' & EXEC & LD & RS).
@@ -746,8 +806,6 @@ Proof.
   Simpl.
   split; intros; Simpl.
 Qed.
-
-
 
 Lemma stack_store_correct:
   forall base ofs ty src k c (rs: regset) m m',
@@ -977,21 +1035,27 @@ Qed.
 
 
 Lemma transl_load_correct:
-  forall chunk addr args dst k c (rs: regset) m a v,
-  transl_load chunk addr args dst k = OK c ->
-  eval_addressing ge rs#SP addr (map rs (map preg_of args)) = Some a ->
+  forall sz chunk addr args dst k c (rs: regset) m a v,
+  transl_load sz chunk addr args dst k = OK c ->
+  eval_addressing ge (Val.offset_ptr rs#R10 (Ptrofs.neg (stack_offset sz))) addr (map rs (map preg_of args)) = Some a ->
   Mem.loadv chunk m a = Some v ->
   exists rs',
      exec_straight ge fn c rs m k rs' m
-  /\ Val.lessdef v (rs'#(preg_of dst))
-  /\ forall r, r <> PC -> r <> preg_of dst -> rs'#r = rs#r.
+     /\ Val.lessdef v (rs'#(preg_of dst))
+     /\ (forall r, r <> PC -> r <> preg_of dst -> rs'#r = rs#r)
+.
 Proof.
   intros until v; intros TR EV LOAD.
   destruct addr, args; simpl in TR; ArgsInv.
   - exploit transl_load_indexed_correct; eauto.
     congruence.
-  - exploit transl_load_indexed_correct; eauto.
-    congruence.
+  -
+    rewrite  Val.offset_ptr_assoc in EV.
+    rewrite Ptrofs.add_commut in EV.
+    rewrite <- Ptrofs.sub_add_opp in EV.
+    exploit transl_load_indexed_correct; eauto.
+    inv EV.
+    apply LOAD.
 Qed.
 
 Lemma transl_store_in_range_correct:
@@ -1094,7 +1158,7 @@ Lemma transl_store_common_correct:
   transl_store_indexed  chunk x0 i x k = OK k' ->
   exists rs',
      exec_straight ge fn k' rs m k rs' m'
-  /\ forall r, data_preg r = true -> rs'#r = rs#r.
+     /\ (forall r, data_preg_sp r = true -> rs'#r = rs#r).
 Proof.
   intros until a. intros EV STORE TR.
   unfold transl_store_indexed in TR.
@@ -1103,26 +1167,32 @@ Proof.
     intros (rs' & EXEC & EQ).
     exists rs'; split;auto.
     intros; apply EQ; auto with asmgen.
+    intro. subst. discriminate.
   - discriminate.
 Qed.
 
 
 Lemma transl_store_correct:
-  forall chunk addr args src k c (rs: regset) m a m',
-  transl_store chunk addr args src k = OK c ->
-  eval_addressing ge rs#SP addr (map rs (map preg_of args)) = Some a ->
+  forall sz chunk addr args src k c (rs: regset) m a m',
+  transl_store sz chunk addr args src k = OK c ->
+  eval_addressing ge (Val.offset_ptr rs#R10 (Ptrofs.neg (stack_offset sz))) addr (map rs (map preg_of args)) = Some a ->
   Mem.storev chunk m a rs#(preg_of src) = Some m' ->
   exists rs',
      exec_straight ge fn c rs m k rs' m'
-  /\   forall r, data_preg r = true -> preg_notin r (destroyed_by_store chunk addr) -> rs'#r = rs#r.
+     /\ (forall r, data_preg_sp r = true -> preg_notin r (destroyed_by_store chunk addr) -> rs'#r = rs#r)
+     /\ rs'#BP = rs#BP.
 Proof.
   intros until m'; intros TR EV STORE.
   destruct addr, args; simpl in TR; ArgsInv.
   - inv EV.
     exploit transl_store_common_correct;eauto.
-    intros (RS' & EXEC & REGS).
-    exists RS';split;auto.
-  -inv EV.
+    intros (RS' & EXEC & REGS ).
+    exists RS';ssplit;auto.
+
+  - rewrite  Val.offset_ptr_assoc in EV.
+    rewrite Ptrofs.add_commut in EV.
+    rewrite <- Ptrofs.sub_add_opp in EV.
+    inv EV.
     exploit transl_store_common_correct;eauto.
     intros (RS' & EXEC & REGS).
     exists RS';split;auto.

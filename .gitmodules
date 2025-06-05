@@ -1,0 +1,3 @@
+[submodule "CompCert-small-tests"]
+	path = CompCert-small-tests
+	url = https://github.com/AbsInt/CompCert-small-tests

@@ -1443,6 +1443,7 @@ Proof.
   eapply match_states_skip; eauto. destruct optid; simpl; auto. apply set_var_lessdef; auto.
 - (* return of an external call turned into a Sbuiltin *)
   right; left; split. simpl; lia. split. auto. eauto using match_states_skip.
+Unshelve. auto. (* weird *)
 Qed.
 
 Lemma sel_initial_states:

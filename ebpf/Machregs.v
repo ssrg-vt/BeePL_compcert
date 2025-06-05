@@ -154,6 +154,13 @@ Definition mregs_for_builtin (ef: external_function): list (option mreg) * list(
   | _ => (nil, nil)
   end.
 
+Lemma destroyed_by_op_nil : forall op, destroyed_by_op op = nil.
+Proof. destruct op; reflexivity. Qed.
+
+Lemma destroyed_by_store_nil : forall k a, destroyed_by_store k a = nil.
+Proof. reflexivity. Qed.
+
+
 Global Opaque
     destroyed_by_op destroyed_by_load destroyed_by_store
     destroyed_by_cond destroyed_by_jumptable destroyed_by_builtin
