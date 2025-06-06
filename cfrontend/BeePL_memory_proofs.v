@@ -12,48 +12,72 @@ Ctypes.access_mode ty = By_value chunk ->
 Values.Val.has_type v (type_of_chunk chunk) ->
 Values.Val.has_type v (typ_of_type ty).
 Proof.
-move=> ty chunk v ha hv. case: chunk ha hv=> //=.
-(* Mbool *)
-+ case: ty=> //= f a. by case: f=> //=.
-(* Mint8signed *)
-+ case: ty=> //= f a. by case: f=> //=.
-(* Mint8unsigned *)
-+ case: ty=> //= f a. by case: f=> //=.
-(* Mint16signed *)
-+ case: ty=> //= f a. by case: f=> //=.
-(* Mint16unsigned *)
-+ case: ty=> //= f a. by case: f=> //=.
-(* Mint32 *)
-+ case: ty=> //= f a. by case: f=> //=.
-(* Mint64 *)
-+ case: ty=> //= i s a. 
-  + case: i=> //=.
-    + by case: s=> //=.
-    by case: s=> //=.
-  by case: i a=> //=.
-(* Mfloat32 *)
-+ case: ty=> //= f s a. 
-  + case: f=> //=.
-    + by case: s=> //=.
-    by case: s=> //=.
-  by case: f a=> //=.
-(* Mfloat64 *)
-+ case: ty=> //= f s a. 
-  + case: f=> //=.
-    + by case: s=> //=.
-    by case: s=> //=.
-  by case: f a=> //=.
-(* Many32 *)
-+ case: ty=> //=.
-  + move=> i s a. case: i=> //=.
-    + by case: s=> //=.
-    by case: s=> //=.
-  move=> f a. by case: f=> //=.
-case: ty=> //=. 
-+ move=> i s a. case: i=> //=.
-  + by case: s=> //=.
-  by case: s=> //=.
-move=> f. by case: f=> //=.
+  intros ty chunk v ha hv.
+  destruct chunk; simpl in *.
+  (* Mbool *)
+  - induction ty; intros; try discriminate; auto.
+    destruct f; discriminate.
+    injection ha as contra.
+    unfold Mptr in contra.
+    destruct Archi.ptr64 eqn:Eptr; discriminate.
+  (* Mint8signed *)
+  - induction ty; intros; try discriminate; auto.
+    destruct f; discriminate.
+    injection ha as contra.
+    unfold Mptr in contra.
+    destruct Archi.ptr64 eqn:Eptr; discriminate.
+  - induction ty; intros; try discriminate; auto.
+    destruct f; discriminate.
+    injection ha as contra.
+    unfold Mptr in contra.
+    destruct Archi.ptr64 eqn:Eptr; discriminate.
+  - induction ty; intros; try discriminate; auto.
+    destruct f; discriminate.
+    injection ha as contra.
+    unfold Mptr in contra.
+    destruct Archi.ptr64 eqn:Eptr; discriminate.
+- induction ty; intros; try discriminate; auto.
+    destruct f; discriminate.
+    injection ha as contra.
+    unfold Mptr in contra.
+    destruct Archi.ptr64 eqn:Eptr; discriminate.
+  - induction ty; intros; try discriminate; auto.
+    destruct f eqn:Ef; try discriminate.
+    injection ha as contra.
+    unfold Mptr in contra.
+    destruct Archi.ptr64 eqn:Eptr; try discriminate.
+    simpl. unfold Tptr. rewrite Eptr. auto.
+  - induction ty; intros; try discriminate; auto.
+    destruct i; destruct s; discriminate.
+    destruct f; discriminate.
+    injection ha as contra.
+    unfold Mptr in contra.
+    destruct Archi.ptr64 eqn:Eptr; try discriminate.
+    simpl. unfold Tptr. rewrite Eptr. auto.
+  - induction ty; intros; try discriminate; auto.
+    destruct i; destruct s; discriminate.
+    destruct f; try discriminate; auto.
+    injection ha as contra.
+    unfold Mptr in contra.
+    destruct Archi.ptr64 eqn:Eptr; discriminate.
+  - induction ty; intros; try discriminate; auto.
+    destruct i; destruct s; discriminate.
+    destruct f; try discriminate; auto.
+    injection ha as contra.
+    unfold Mptr in contra.
+    destruct Archi.ptr64 eqn:Eptr; discriminate.
+  - induction ty; intros; try discriminate; auto.
+    destruct i; destruct s; discriminate.
+    destruct f eqn:Ef; try discriminate.
+    injection ha as contra.
+    unfold Mptr in contra.
+    destruct Archi.ptr64 eqn:Eptr; try discriminate.
+  - induction ty; intros; try discriminate; auto.
+    destruct i; destruct s; discriminate.
+    destruct f eqn:Ef; try discriminate.
+    injection ha as contra.
+    unfold Mptr in contra.
+    destruct Archi.ptr64 eqn:Eptr; try discriminate.
 Qed.
 
 (* Complete me: Easy *)
@@ -61,10 +85,41 @@ Definition store_well_typed_ext : forall cenv Gamma Sigma bge vm m x l t,
 store_well_typed cenv Gamma Sigma bge vm m ->
 store_well_typed cenv Gamma Sigma bge (PTree.set x (l, t) vm) m.
 Proof.
-move=> cenv Gamma Sigma bge vm m x l t hw. case: hw=> [] h1 [] h2 h3.
-constructor.
-+ constructor. inversion h1.
-  + move=> x' t' hxt. move: (H x' t' hxt)=> [] l' [] t'' [] v [] o [] hvm [] hteq [] hs [] hd.
+  intros.
+  destruct H as [Hvar [Hloc Hfunc]].
+  constructor.
+  - constructor. inv Hvar.
+    + intros. specialize (H x0 t0 H0).
+      destruct H as [l'  [t' [v [ofs H]]]].
+      exists l', t', v, ofs.
+      destruct H as [Hvm [h1 [h2 h3]]].
+      split; auto.
+      subst.
+      rewrite PTree.gsspec.
+      destruct (peq x0 x).
+      * admit.
+      * exact Hvm.
+    + intros. specialize (H x0 t0 H0).
+      destruct H as [l'  [ofs [v H]]].
+      exists l', t0, v, ofs.
+      destruct H as [Hvm [h1 [h2 h3]]].
+      split; auto.
+      rewrite PTree.gsspec.
+      destruct (peq x0 x).
+      * admit.
+      * admit.
+  - split.
+    + constructor. inv Hloc.
+      intros. specialize (H x0 ofs t0 H0).
+      destruct H as [chunk [h1 h2]].
+      exists chunk.
+      auto.
+    + constructor. inv Hfunc.
+      intros. specialize (H l0 o ef te ts efs rt vs efs' H0 H1 H2).
+      destruct H as [fd H].
+      exists fd.
+      destruct H as [h1 [h2 [h3 [h4 h5]]]].
+      auto.
 Admitted.   
 
 (* Complete me : Easy *)

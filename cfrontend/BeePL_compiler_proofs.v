@@ -412,9 +412,9 @@ with rel_ptr_type : BeeTypes.ptr_type -> Ctypes.type -> Prop :=
                 rel_btype bt ct ->
 (* if ct is Tbool then a should be noattr, hopefully can discriminaite otherwise need another case *)
                 rel_ptr_type (Reftype i bt a) (Tpointer ct a) 
-| rel_vptype : forall pt ct,
+| rel_vptype : forall pt ct a,
                rel_ptype pt ct ->
-               rel_ptr_type (Vptype pt) (tptr tvoid) (* replace with Tpointer ct once compiler is fixed *)
+               rel_ptr_type (Vptype pt) (Tpointer ct a) 
 | rel_otype : forall ptr cptr,
               rel_ptr_type ptr cptr ->
               rel_ptr_type (Otype ptr) cptr
@@ -464,7 +464,7 @@ Context (Hatype : forall t z a ct, Rt t ct -> Rt (Atype t z a) (Tarray ct z a)).
 Context (Hbytes : Rt Bytes (Tstruct bytes_t noattr)).
 Context (Hreftypebool : forall i a, Rptr (Reftype i (Bprim Tbool) a) (Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr)).
 Context (Hreftype : forall i bt a ct, Rbt bt ct -> Rptr (Reftype i bt a) (Tpointer ct a)).
-Context (Hvptype : forall pt ct, Rpt pt ct -> Rptr (Vptype pt) (tptr tvoid)).
+Context (Hvptype : forall pt ct a, Rpt pt ct -> Rptr (Vptype pt) (Tpointer ct a)).
 Context (Hotype : forall ptr cptr, Rptr ptr cptr -> Rptr (Otype ptr) cptr).
 Context (Hfptype : forall ts cts ef t ct, Rts ts cts -> Rt t ct -> Rptr (Fptype ts ef t) (Tpointer (Tfunction cts ct
                    {| cc_vararg := None; cc_unproto := false; cc_structret := false|}) noattr)).
@@ -514,10 +514,7 @@ Proof.
            rel_types ts cts);
   intros.
   - destruct bt eqn:Ebt; try destruct p eqn:Ep; subst cptr; repeat constructor.
-  - inv H. destruct pt.
-    + apply rel_vptype with (ct := Ctypes.Tint I8 Unsigned noattr). constructor.
-    + apply rel_vptype with (ct := Ctypes.Tint i s a). constructor.
-    + apply rel_vptype with (ct := Ctypes.Tlong s a). constructor.
+  - inv H. destruct pt; repeat constructor.
   - constructor. auto.
   - subst cptr. constructor; auto.
     eapply transBeePL_types_length. eauto.
@@ -779,6 +776,7 @@ Proof.
     econstructor; eauto.
 Admitted.
 
+(*
 Lemma transBeePL_expr_stmt_spec: forall vm e ce g g' i,
 transBeePL_expr_st e g = Res ce g' i ->
 sim_bexpr_cstmt vm e ce.
@@ -972,6 +970,7 @@ Definition match_ident_globdef (igd1 : ident * BeePL.globdef BeePL.fundef type)
   (igd2 : ident *  AST.globdef Csyntax.fundef Ctypes.type) : Prop :=
 fst igd1 = fst igd2 /\ match_globdef (snd igd1) (snd igd2).
 
+(* TODO Fix me
 Definition match_program_gen (p1 : BeePL.program) (p2 : Csyntax.program) : Prop :=
   list_forall2 (match_ident_globdef) p1.(prog_defs) p2.(AST.prog_defs)
   /\ p2.(AST.prog_main) = p1.(prog_main)
@@ -980,6 +979,7 @@ Definition match_program_gen (p1 : BeePL.program) (p2 : Csyntax.program) : Prop 
 Definition match_prog (p1: BeePL.program) (p2: Csyntax.program) :=
     match_program_gen p1 p2
  /\ map bcomposite_ccomposite_definition p1.(prog_types) = Ctypes.prog_types p2. 
+*)
 
 (* Lemma transf_program_match:
 forall p cp, BeePL_compcert p = OK cp -> match_prog p cp.
