@@ -393,7 +393,20 @@ admit.
   exists m'. exists vm'. exists (Prim (Bop Cop.Omod) [:: e'; e''] (typeof_expr e)). 
   split=> //=. have h := type_rel_typeof cenv Gamma Sigma e ef1 t hte. 
   rewrite -h. by apply ssem_bop1.
-
+(* Oand *)
++ admit. (* provable *)
+(* Oor *)
++ admit. (* provable *)
+(* Oxor *)
++ admit. (* provable *)
+(* Oshl *)
++ admit.
+(* Oshr *)
++ admit.
+(* Oeq *)
++ admit. (* provable *)
+(* One *)
++ admit. (* provable *)
 (*
 (* bop *)
 + move=> Gamma Sigma op e ef t e' hf hf' hte hin hte' hin' bge vm m hw. right.

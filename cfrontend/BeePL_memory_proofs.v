@@ -59,13 +59,11 @@ Qed.
 (* Complete me: Easy *)
 Definition store_well_typed_ext : forall cenv Gamma Sigma bge vm m x l t,
 store_well_typed cenv Gamma Sigma bge vm m ->
+(*(Gamma ! x = None \/ (exists t', Gamma ! x = Some t' /\ t' = t)) ->*) (* we would need this *)
 store_well_typed cenv Gamma Sigma bge (PTree.set x (l, t) vm) m.
 Proof.
 move=> cenv Gamma Sigma bge vm m x l t hw. case: hw=> [] h1 [] h2 h3.
-constructor.
-+ constructor. inversion h1.
-  + move=> x' t' hxt. move: (H x' t' hxt)=> [] l' [] t'' [] v [] o [] hvm [] hteq [] hs [] hd.
-Admitted.   
+Admitted.  
 
 (* Complete me : Easy *)
 Definition store_well_typed_mem_alloc : forall cenv Gamma Sigma bge vm m lo hi m' b,
