@@ -489,10 +489,20 @@ move: hv. move=> [] m' [] vm' [] e' [] he' hs. right.
 exists m'. exists vm'. exists (e' :: es). split=> //=. by apply ssem_cons1.*)
 Admitted.
 
+Definition is_vptr (v : Values.val) : bool :=
+match v with 
+| Values.Vundef => false
+| Values.Vint i => false
+| Values.Vlong l => false
+| Values.Vfloat f => false
+| Values.Vsingle f => false
+| Values.Vptr b p => true 
+end.
+
 Lemma not_ptr_cval : forall cv bv, 
 trans_cvalue_bvalue cv = OK bv ->
 is_vloc bv = false -> 
-Values.is_vptr cv = false.
+is_vptr cv = false.
 Proof.
 move=> cv bv. rewrite /trans_cvalue_bvalue /=.
 case: cv=> //=.

@@ -34,7 +34,6 @@ Definition errcode_of_Z (n:Z) : list errcode :=
   | Zneg p => MSG "-" ::POS p :: nil
   end.
 
-
 (** Extracting integer registers. *)
 
 Definition ireg_of (r: mreg) : res ireg :=
@@ -197,10 +196,14 @@ do n' <- get_int n;
   | _, _ => Error (msg "Asmgen.transl_cond_op")
   end.
 
+Definition transl_stack_offset (sz: Z) (ofs:ptrofs) :=
+  Ptrofs.sub ofs (stack_offset sz).
+
+
 (** Translation of the arithmetic operation [r <- op(args)].
   The corresponding instructions are prepended to [k]. *)
 
-Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
+Definition transl_op (sz:Z) (op: operation) (args: list mreg) (res: mreg) (k: code) :=
   match op, args with
   | Omove, a1 :: nil =>
       do r <- ireg_of res;
@@ -216,7 +219,7 @@ Definition transl_op (op: operation) (args: list mreg) (res: mreg) (k: code) :=
         OK ((Pmov r n) :: k)
   | Oaddrstack n, nil =>
       do r <- ireg_of res;
-      addptrofs r SP n k
+      addptrofs r R10 (transl_stack_offset sz n) k
 
   | Oadd, a1 :: a2 :: nil =>
       assertion_str ["Oadd"] (mreg_eq a1 res);
@@ -612,9 +615,7 @@ Definition transl_load_indexed (chunk : memory_chunk) (d:ireg) (a:ireg) (ofs: pt
       OK (Palu MOV warchi d (inl a) :: Palu ADD warchi d (inr (Ptrofs.to_int ofs)) :: c)
     else Error (MSG "Offset ":: errcode_of_Z (Ptrofs.signed ofs) ++ MSG " is not representable"::nil).
 
-
-
-Definition transl_load (chunk: memory_chunk) (addr: addressing)
+Definition transl_load (sz:Z) (chunk: memory_chunk) (addr: addressing)
            (args: list mreg) (dst: mreg) (k: code): res (list instruction) :=
   match addr, args with
   | Aindexed ofs, a1 :: nil =>
@@ -624,9 +625,11 @@ Definition transl_load (chunk: memory_chunk) (addr: addressing)
 
   | Ainstack ofs, nil =>
       do r <- ireg_of dst;
-      transl_load_indexed chunk r SP ofs k
+      transl_load_indexed chunk r R10 (transl_stack_offset sz ofs) k
   | _, _ => Error(msg "Asmgen.transl_load")
   end.
+
+
 
 Definition transl_store_indexed_in_range (chunk : memory_chunk) (d:ireg) (ofs: ptrofs) (a:ireg)  (k:code) : res (list instruction) :=
   match chunk with
@@ -648,7 +651,7 @@ Definition transl_store_indexed (chunk : memory_chunk) (d:ireg) (ofs: ptrofs) (a
   else Error (MSG "Offset " :: errcode_of_Z (Ptrofs.signed ofs) ++ MSG " is not representable"::nil).
 
 
-Definition transl_store (chunk: memory_chunk) (addr: addressing)
+Definition transl_store (sz:Z) (chunk: memory_chunk) (addr: addressing)
            (args: list mreg) (src: mreg) (k: code): res (list instruction) :=
   match addr, args with
   | Aindexed ofs, a1 :: nil =>
@@ -658,7 +661,7 @@ Definition transl_store (chunk: memory_chunk) (addr: addressing)
 
   | Ainstack ofs, nil =>
       do r <- ireg_of src;
-       (transl_store_indexed chunk SP ofs r  k)
+       (transl_store_indexed chunk R10 (transl_stack_offset sz ofs) r  k)
 
   | _, _ => Error(msg "Asmgen.transl_store")
   end.
@@ -680,28 +683,34 @@ Definition name_of_builtin (ef:external_function) : string :=
   | EF_debug _ _ _      => "debug"
   end.
 
+(*Definition loadind_R10  (ofs: ptrofs) (ty: typ) (dst: mreg) (k: code): res (list instruction) :=
+  loadind R10 (Ptrofs.sub ofs frame_max_ofs) ty dst k.
+
+Definition storeind_R10  (ofs: ptrofs) (ty: typ) (src: mreg) (k: code): res (list instruction) :=
+  storeind R10 (Ptrofs.sub ofs frame_max_ofs) ty src k.
+*)
+
 Definition transl_instr (f: Mach.function) (i: Mach.instruction)
                         (ep: bool) (k: code): res (list instruction) :=
   match i with
-  | Mgetstack ofs ty dst => loadind SP ofs ty dst k
+  | Mgetstack ofs ty dst => loadind R10 (transl_stack_offset f.(fn_stacksize) ofs) ty dst k
 
-  | Msetstack src ofs ty => storeind SP ofs ty src k
+  | Msetstack src ofs ty => storeind R10 (transl_stack_offset f.(fn_stacksize) ofs) ty src k
 
-  | Mgetparam ofs ty dst =>
-      do c <- loadind R0 ofs ty dst k;
-      OK (if ep then c
-                else loadind_ptr SP f.(fn_link_ofs) R0 c)
-  | Mop op args res => transl_op op args res k
+  | Mgetparam ofs ty dst => Error (msg "eBPF only support register-based argument passing")
 
-  | Mload chunk addr args dst => transl_load chunk addr args dst k
+  | Mop op args res => transl_op (f.(fn_stacksize)) op args res k
 
-  | Mstore chunk addr args src => transl_store chunk addr args src k
+  | Mload chunk addr args dst => transl_load f.(fn_stacksize) chunk addr args dst k
+
+  | Mstore chunk addr args src => transl_store f.(fn_stacksize) chunk addr args src k
 
   | Mcall sig (inr symb) => OK (Pcall (inr symb) sig :: k)
   | Mcall sig (inl r) => do r1 <- ireg_of r ; OK (Pcall (inl r1) sig :: k)
 
   | Mtailcall sig (inr symb) =>
-      OK (Pfreeframe f.(fn_stacksize) f.(fn_retaddr_ofs) f.(fn_link_ofs) :: Pjmp (inr symb) :: k)
+      Error (msg "Tail calls are (currently) not supported by eBPF: pass -fno-tailcalls")
+               (*OK (Pfreeframe f.(fn_stacksize) f.(fn_retaddr_ofs) f.(fn_link_ofs) :: Pjmp (inr symb) :: k) *)
 
   | Mtailcall sig (inl r) => Error (msg "Indirect (tail) calls are not implemented")
 
@@ -715,7 +724,10 @@ Definition transl_instr (f: Mach.function) (i: Mach.instruction)
 
   | Mjumptable arg tbl => Error (msg "Jump tables are not supported by eBPF: pass -fno-jumptables ")
 
-  | Mreturn => OK (Pfreeframe f.(fn_stacksize) f.(fn_retaddr_ofs) f.(fn_link_ofs) :: Pret :: k)
+  | Mreturn =>
+      if zlt Ptrofs.max_unsigned f.(fn_stacksize) || zlt f.(fn_stacksize) 0
+      then Error (msg "stack frame size exceeded")
+      else OK (Pfreeframe f.(fn_stacksize) f.(fn_retaddr_ofs) f.(fn_link_ofs) :: Pret :: k)
   end.
 
 (** Translation of a code sequence *)
@@ -760,15 +772,17 @@ Definition transl_code' (f: Mach.function) (il: list Mach.instruction) (it1p: bo
   around, leading to incorrect executions. *)
 
 Definition transl_function (f: Mach.function) :=
-  do c <- transl_code' f f.(Mach.fn_code) true;
-  OK (mkfunction f.(Mach.fn_sig)
+  do c <- transl_code' f f.(Mach.fn_code) false;
+  OK (mkfunction f.(Mach.fn_sig) f.(fn_stacksize)
     (Pallocframe f.(fn_stacksize) f.(fn_retaddr_ofs) f.(fn_link_ofs) :: c)).
 
 Definition transf_function (f: Mach.function) : res Asm.function :=
   do tf <- transl_function f;
   if zlt Ptrofs.max_unsigned (list_length_z tf.(fn_code))
   then Error (msg "code size exceeded")
-  else OK tf.
+  else if zlt Ptrofs.max_unsigned (f.(fn_stacksize)) || zlt f.(fn_stacksize) 0
+       then Error (msg "stack frame size exceeded")
+       else OK tf.
 
 Definition transf_fundef (f: Mach.fundef) : res Asm.fundef :=
   transf_partial_fundef transf_function f.

@@ -26,8 +26,7 @@ let emit i = current_code := i :: !current_code
 
 (* Generation of fresh labels *)
 
-let dummy_function = { fn_code = []; fn_sig = signature_main }
-let current_function = ref dummy_function
+let current_function = ref Asm.dummy_function
 let next_label = ref (None: label option)
 
 let new_label () =
@@ -51,7 +50,7 @@ let set_current_function f =
   current_function := f; next_label := None; current_code := []
 
 let get_current_function_args () =
-  (!current_function).fn_sig.sig_args
+  proj_sig_args (!current_function).fn_sig
 
 let is_current_function_variadic () =
   (!current_function).fn_sig.sig_cc.cc_vararg <> None
@@ -96,7 +95,7 @@ let translate_annot sp preg_to_dwarf annot =
   | a::_ -> aux a)
 
 let builtin_nop =
-  let signature ={sig_args = []; sig_res = Tvoid; sig_cc = cc_default} in
+  let signature ={sig_args = []; sig_res = Xvoid; sig_cc = cc_default} in
   let name = coqstring_of_camlstring "__builtin_nop" in
   Pbuiltin(EF_builtin(name,signature),[],BR_none)
 

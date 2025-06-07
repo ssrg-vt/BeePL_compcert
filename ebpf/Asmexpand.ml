@@ -29,28 +29,9 @@ let warchi = if Archi.ptr64 then W64 else W32
 let chunk_of_pointer = if Archi.ptr64 then DBWord else Word
 
 (* Expansion of instructions *)
-let expand_alloc_frame sz ofs_ra ofs_link =
-  let sz = Integers.Int.repr sz in
-  Datatypes.(
-  (* RO := SP *)
-  emit (Palu(MOV,warchi,R0,Coq_inl sp));
-  (* SP := SP - sz *)
-  emit (Palu(SUB,warchi,sp,Coq_inr sz));
-  (* *(SP+ofs_link) := R0 *)
-  emit (Pstore(chunk_of_pointer,sp,Coq_inl R0,ofs_link)))
-  (*  (* *(SP+ofs_ra) := RA *)
-  (* This is assumed to be done by the call instruction *)
-  emit (Pstore(chunk_of_pointer,sp,Coq_inl ra,ofs_ra))) *)
+let expand_alloc_frame sz ofs_ra ofs_link = ()
 
-let expand_free_frame sz ofs_ra ofs_link =
-    let sz = Integers.Int.repr sz in
-  Datatypes.( 
-(*  (* RA := *(SP+ofs_ra) *)
-    emit (Pload(chunk_of_pointer,ra,sp,ofs_ra));
-    (* This is assumed to be done by the return instruction  *)
- *)
-  (* SP := SP + sz *)
-  emit (Palu(ADD,warchi,sp,Coq_inr sz)))
+let expand_free_frame sz ofs_ra ofs_link = ()
 
 
 let expand_instruction instr =
@@ -80,7 +61,9 @@ let expand_instruction instr =
 let int_reg_to_dwarf = function
                | R0  -> 1  | R1  -> 2  | R2  -> 3
    | R3  -> 4  | R4  -> 5  | R5  -> 6  | R6  -> 7
-   | R7  -> 8  | R8  -> 9  | R9  -> 10 | R10 -> 11 (*| RA -> 12*)
+   | R7  -> 8  | R8  -> 9  | R9  -> 10 | R10 -> 11
+   | BP  -> assert false
+
 
 let preg_to_dwarf = function
    | IR r -> int_reg_to_dwarf r

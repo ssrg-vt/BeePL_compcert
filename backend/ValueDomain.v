@@ -10,11 +10,12 @@
 (*                                                                     *)
 (* *********************************************************************)
 
-Require Import FunInd.
-Require Import Zwf Coqlib Maps Zbits Integers Floats Lattice.
+From Coq Require Import FunInd Zwf.
+Require Import Coqlib Maps Zbits Integers Floats Lattice.
 Require Import Compopts AST.
 Require Import Values Memory Globalenvs Builtins Events.
 Require Import Registers RTL.
+Require Conventions1.
 
 (** The abstract domains for value analysis *)
 
@@ -372,33 +373,25 @@ Definition cmp_different_blocks (c: comparison) : abool :=
   match c with
   | Ceq => Maybe false
   | Cne => Maybe true
-  | _   => Bnone
+  | _   => if va_strict tt then Bnone else Btop
   end.
 
 Lemma cmp_different_blocks_none:
   forall c, cmatch None (cmp_different_blocks c).
 Proof.
-  intros; destruct c; constructor.
+  unfold cmp_different_blocks. destruct c, (va_strict tt); constructor.
 Qed.
 
 Lemma cmp_different_blocks_sound:
   forall c, cmatch (Val.cmp_different_blocks c) (cmp_different_blocks c).
 Proof.
-  intros; destruct c; constructor.
+  unfold cmp_different_blocks. destruct c, (va_strict tt); constructor.
 Qed.
 
 Definition pcmp (c: comparison) (p1 p2: aptr) : abool :=
   match p1, p2 with
   | Pbot, _ | _, Pbot => Bnone
-  | Gl id1 ofs1, Gl id2 ofs2 =>
-      if peq id1 id2 then Maybe (Ptrofs.cmpu c ofs1 ofs2)
-      else cmp_different_blocks c
-  | Gl id1 ofs1, Glo id2 =>
-      if peq id1 id2 then Btop else cmp_different_blocks c
-  | Glo id1, Gl id2 ofs2 =>
-      if peq id1 id2 then Btop else cmp_different_blocks c
-  | Glo id1, Glo id2 =>
-      if peq id1 id2 then Btop else cmp_different_blocks c
+  | Gl id1 ofs1, Gl id2 ofs2 => if peq id1 id2 then Maybe (Ptrofs.cmpu c ofs1 ofs2) else Btop
   | Stk ofs1, Stk ofs2 => Maybe (Ptrofs.cmpu c ofs1 ofs2)
   | (Gl _ _ | Glo _ | Glob | Nonstack), (Stk _ | Stack) => cmp_different_blocks c
   | (Stk _ | Stack), (Gl _ _ | Glo _ | Glob | Nonstack) => cmp_different_blocks c
@@ -437,9 +430,6 @@ Proof.
   unfold pcmp; inv H; inv H0; (apply cmatch_top || (apply DIFF; congruence) || idtac).
   - destruct (peq id id0). subst id0. apply SAME. eapply bc_glob; eauto.
     auto with va.
-  - destruct (peq id id0); auto with va.
-  - destruct (peq id id0); auto with va.
-  - destruct (peq id id0); auto with va.
   - apply SAME. eapply bc_stack; eauto.
 Qed.
 
@@ -475,9 +465,6 @@ Proof.
   unfold pcmp; inv H; inv H0; (apply cmatch_top || (apply DIFF; congruence) || idtac).
   - destruct (peq id id0). subst id0. apply SAME. eapply bc_glob; eauto.
     auto with va.
-  - destruct (peq id id0); auto with va.
-  - destruct (peq id id0); auto with va.
-  - destruct (peq id id0); auto with va.
   - apply SAME. eapply bc_stack; eauto.
 Qed.
 
@@ -489,46 +476,12 @@ Proof.
   try (destruct (peq id id0));  try constructor; try (apply cmp_different_blocks_none).
 Qed.
 
-Definition pdisjoint (p1: aptr) (sz1: Z) (p2: aptr) (sz2: Z) : bool :=
-  match p1, p2 with
-  | Pbot, _ => true
-  | _, Pbot => true
-  | Gl id1 ofs1, Gl id2 ofs2 =>
-      if peq id1 id2
-      then zle (Ptrofs.unsigned ofs1 + sz1) (Ptrofs.unsigned ofs2)
-           || zle (Ptrofs.unsigned ofs2 + sz2) (Ptrofs.unsigned ofs1)
-      else true
-  | Gl id1 ofs1, Glo id2 => negb(peq id1 id2)
-  | Glo id1, Gl id2 ofs2 => negb(peq id1 id2)
-  | Glo id1, Glo id2 => negb(peq id1 id2)
-  | Stk ofs1, Stk ofs2 =>
-      zle (Ptrofs.unsigned ofs1 + sz1) (Ptrofs.unsigned ofs2)
-      || zle (Ptrofs.unsigned ofs2 + sz2) (Ptrofs.unsigned ofs1)
-  | (Gl _ _ | Glo _ | Glob | Nonstack), (Stk _ | Stack) => true
-  | (Stk _ | Stack), (Gl _ _ | Glo _ | Glob | Nonstack) => true
-  | _, _ => false
-  end.
-
-Lemma pdisjoint_sound:
-  forall sz1 b1 ofs1 p1 sz2 b2 ofs2 p2,
-  pdisjoint p1 sz1 p2 sz2 = true ->
-  pmatch b1 ofs1 p1 -> pmatch b2 ofs2 p2 ->
-  b1 <> b2 \/ Ptrofs.unsigned ofs1 + sz1 <= Ptrofs.unsigned ofs2 \/ Ptrofs.unsigned ofs2 + sz2 <= Ptrofs.unsigned ofs1.
-Proof.
-  intros. inv H0; inv H1; simpl in H; try discriminate; try (left; congruence).
-- destruct (peq id id0). subst id0. destruct (orb_true_elim _ _ H); InvBooleans; auto.
-  left; congruence.
-- destruct (peq id id0); try discriminate. left; congruence.
-- destruct (peq id id0); try discriminate. left; congruence.
-- destruct (peq id id0); try discriminate. left; congruence.
-- destruct (orb_true_elim _ _ H); InvBooleans; auto.
-Qed.
-
 (** * Abstracting values *)
 
 Inductive aval : Type :=
   | Vbot                     (**r bottom (empty set of values) *)
   | I (n: int)               (**r exactly [Vint n] *)
+  | IU (n: int)              (**r [Vint n] or [Vundef] *)
   | Uns (p: aptr) (n: Z)     (**r a [n]-bit unsigned integer, or [Vundef] *)
   | Sgn (p: aptr) (n: Z)     (**r a [n]-bit signed integer, or [Vundef] *)
   | L (n: int64)             (**r exactly [Vlong n] *)
@@ -560,6 +513,8 @@ Definition is_sgn (n: Z) (i: int) : Prop :=
 
 Inductive vmatch : val -> aval -> Prop :=
   | vmatch_i: forall i, vmatch (Vint i) (I i)
+  | vmatch_iu: forall i, vmatch (Vint i) (IU i)
+  | vmatch_iu_undef: forall i, vmatch Vundef (IU i)
   | vmatch_Uns: forall p i n, 0 <= n -> is_uns n i -> vmatch (Vint i) (Uns p n)
   | vmatch_Uns_undef: forall p n, vmatch Vundef (Uns p n)
   | vmatch_Sgn: forall p i n, 0 < n -> is_sgn n i -> vmatch (Vint i) (Sgn p n)
@@ -604,7 +559,7 @@ Proof.
   intros. apply vmatch_ifptr. intros. subst v. inv H; eapply pmatch_top'; eauto.
 Qed.
 
-(** Some properties about [is_uns] and [is_sgn]. *)
+(** Some properties of [is_uns] and [is_sgn]. *)
 
 Lemma is_uns_mon: forall n1 n2 i, is_uns n1 i -> n1 <= n2 -> is_uns n2 i.
 Proof.
@@ -624,6 +579,17 @@ Qed.
 Definition usize := Int.size.
 
 Definition ssize (i: int) := Int.size (if Int.lt i Int.zero then Int.not i else i) + 1.
+
+Lemma usize_pos: forall n, 0 <= usize n.
+Proof.
+  unfold usize; intros. generalize (Int.size_range n); lia.
+Qed.
+
+Lemma ssize_pos: forall n, 0 < ssize n.
+Proof.
+  unfold ssize; intros.
+  generalize (Int.size_range (if Int.lt n Int.zero then Int.not n else n)); lia.
+Qed.
 
 Lemma is_uns_usize:
   forall i, is_uns (usize i) i.
@@ -708,7 +674,25 @@ Proof.
   apply Int.sign_ext_widen; lia.
 Qed.
 
-Hint Resolve is_uns_mon is_sgn_mon is_uns_sgn is_uns_usize is_sgn_ssize : va.
+Lemma is_uns_wordsize: forall i, is_uns Int.zwordsize i.
+Proof.
+  intros; red; intros. lia.
+Qed.
+
+Lemma is_sgn_wordsize: forall i, is_sgn Int.zwordsize i.
+Proof.
+  intros; red; intros. f_equal. lia.
+Qed.
+
+Hint Resolve is_uns_mon is_sgn_mon is_uns_sgn is_uns_usize is_sgn_ssize
+             is_uns_wordsize is_sgn_wordsize usize_pos ssize_pos : va.
+
+Lemma is_uns_0:
+  forall n, is_uns 0 n -> n = Int.zero.
+Proof.
+  intros. apply Int.same_bits_eq; intros.
+  rewrite Int.bits_zero. apply H; lia.
+Qed.
 
 Lemma is_uns_1:
   forall n, is_uns 1 n -> n = Int.zero \/ n = Int.one.
@@ -716,6 +700,69 @@ Proof.
   intros. destruct (Int.testbit n 0) eqn:B0; [right|left]; apply Int.same_bits_eq; intros.
   rewrite Int.bits_one. destruct (zeq i 0). subst i; auto. apply H; lia.
   rewrite Int.bits_zero. destruct (zeq i 0). subst i; auto. apply H; lia.
+Qed.
+
+Lemma is_uns_range: forall z n,
+  0 <= n -> 0 <= z < two_p n -> is_uns n (Int.repr z).
+Proof.
+  intros; red; intros. rewrite Int.testbit_repr by auto.
+  apply (Zbits_unsigned_range n); auto.
+Qed.
+
+Lemma range_is_uns: forall i n,
+  0 <= n -> is_uns n i -> 0 <= Int.unsigned i < two_p n.
+Proof.
+  intros. destruct (zlt n Int.zwordsize).
+- apply is_uns_zero_ext in H0; auto.
+  rewrite <- H0. rewrite Int.zero_ext_mod by lia.
+  auto using Z_mod_lt, two_p_gt_ZERO.
+- assert (Int.modulus <= two_p n).
+  { rewrite Int.modulus_power. apply two_p_monotone. generalize Int.wordsize_pos; lia. }
+  generalize (Int.unsigned_range i). lia.
+Qed.
+
+Lemma is_sgn_range: forall z n,
+  0 < n -> -(two_p (n - 1)) <= z < two_p (n - 1) -> is_sgn n (Int.repr z).
+Proof.
+  intros; red; intros. rewrite ! Int.testbit_repr by lia.
+  apply (Zbits_signed_range (n - 1)); lia.
+Qed.
+
+Lemma range_is_sgn: forall i n,
+  0 < n -> is_sgn n i -> -(two_p (n - 1)) <= Int.signed i < two_p (n - 1).
+Proof.
+  intros. destruct (zlt n Int.zwordsize).
+- apply is_sgn_sign_ext in H0; auto. rewrite <- H0. apply Int.sign_ext_range; lia.
+- assert (Int.half_modulus <= two_p (n - 1)).
+  { rewrite Int.half_modulus_power. apply two_p_monotone. generalize Int.wordsize_pos; lia. }
+  generalize (Int.signed_range i). unfold Int.min_signed, Int.max_signed. lia.
+Qed.
+
+Definition urange (a: aval) : Z :=
+  match a with
+  | I n | IU n => usize n
+  | Uns p n => n
+  | _ => Int.zwordsize
+  end.
+
+Definition srange (a: aval) : Z :=
+  match a with
+  | I n | IU n => ssize n
+  | Uns p n => n + 1
+  | Sgn p n => n
+  | _ => Int.zwordsize
+  end.
+
+Lemma urange_sound: forall i a,
+  vmatch (Vint i) a -> 0 <= urange a /\ is_uns (urange a) i.
+Proof.
+  intros. pose proof Int.wordsize_pos. inv H; simpl; auto with va.
+Qed.
+
+Lemma srange_sound: forall i a,
+  vmatch (Vint i) a -> 0 < srange a /\ is_sgn (srange a) i.
+Proof.
+  intros. pose proof Int.wordsize_pos. inv H; simpl; eauto with va.
 Qed.
 
 (** Tracking leakage of pointers through arithmetic operations.
@@ -786,7 +833,8 @@ Definition long_provenance (i: int64) : aptr :=
 (** Smart constructors for [Uns] and [Sgn]. *)
 
 Definition uns (p: aptr) (n: Z) : aval :=
-  if zle n 1 then Uns p 1
+  if zle n 0 then IU Int.zero
+  else if zle n 1 then Uns p 1
   else if zle n 7 then Uns p 7
   else if zle n 8 then Uns p 8
   else if zle n 15 then Uns p 15
@@ -802,6 +850,9 @@ Proof.
   intros.
   assert (A: forall n', n' >= 0 -> n' >= n -> is_uns n' i) by (eauto with va).
   unfold uns. repeat destruct zle; auto with va.
+  replace (Z.max 0 n) with 0 in H by lia.
+  apply is_uns_0 in H.
+  subst i; constructor.
 Qed.
 
 Lemma vmatch_uns:
@@ -849,6 +900,13 @@ Proof.
   intros. inv H; auto. right. exploit is_uns_1; eauto. intuition congruence.
 Qed.
 
+Lemma vmatch_Uns_0:
+  forall p v, vmatch v (Uns p 0) -> v = Vundef \/ v = Vint Int.zero.
+Proof.
+  intros. inv H; auto. right. exploit is_uns_0; eauto. intuition congruence.
+Qed.
+
+
 (** Ordering *)
 
 Inductive vge: aval -> aval -> Prop :=
@@ -857,15 +915,20 @@ Inductive vge: aval -> aval -> Prop :=
   | vge_l: forall i, vge (L i) (L i)
   | vge_f: forall f, vge (F f) (F f)
   | vge_s: forall f, vge (FS f) (FS f)
+  | vge_iu: forall i, vge (IU i) (IU i)
+  | vge_iu_i: forall i, vge (IU i) (I i)
   | vge_uns_i: forall p n i, 0 <= n -> is_uns n i -> vge (Uns p n) (I i)
+  | vge_uns_iu: forall p n i, 0 <= n -> is_uns n i -> vge (Uns p n) (IU i)
   | vge_uns_uns: forall p1 n1 p2 n2, n1 >= n2 -> pge p1 p2 -> vge (Uns p1 n1) (Uns p2 n2)
   | vge_sgn_i: forall p n i, 0 < n -> is_sgn n i -> vge (Sgn p n) (I i)
+  | vge_sgn_iu: forall p n i, 0 < n -> is_sgn n i -> vge (Sgn p n) (IU i)
   | vge_sgn_sgn: forall p1 n1 p2 n2, n1 >= n2 -> pge p1 p2 -> vge (Sgn p1 n1) (Sgn p2 n2)
   | vge_sgn_uns: forall p1 n1 p2 n2, n1 > n2 -> pge p1 p2 -> vge (Sgn p1 n1) (Uns p2 n2)
   | vge_num_i: forall p i, vge (Num p) (I i)
   | vge_num_l: forall p i, vge (Num p) (L i)
   | vge_num_f: forall p f, vge (Num p) (F f)
   | vge_num_s: forall p f, vge (Num p) (FS f)
+  | vge_num_iu: forall p i, vge (Num p) (IU i)
   | vge_num_uns: forall p q n, pge p q -> vge (Num p) (Uns q n)
   | vge_num_sgn: forall p q n, pge p q -> vge (Num p) (Sgn q n)
   | vge_num_num: forall p q, pge p q -> vge (Num p) (Num q)
@@ -876,6 +939,7 @@ Inductive vge: aval -> aval -> Prop :=
   | vge_ip_l: forall p i, vge (Ifptr p) (L i)
   | vge_ip_f: forall p f, vge (Ifptr p) (F f)
   | vge_ip_s: forall p f, vge (Ifptr p) (FS f)
+  | vge_ip_iu: forall  p i, vge (Ifptr p) (IU i)
   | vge_ip_uns: forall p q n, pge p q -> vge (Ifptr p) (Uns q n)
   | vge_ip_sgn: forall p q n, pge p q -> vge (Ifptr p) (Sgn q n)
   | vge_ip_num: forall p q, pge p q -> vge (Ifptr p) (Num q).
@@ -906,26 +970,40 @@ Proof.
   induction 1; intros V; inv V; eauto using pmatch_ge with va.
 Qed.
 
+(** A variant of the [uns] smart constructor that does not produce
+    [IU Int.zero], for use in [vlub] below. *)
+
+Definition uns1 (p: aptr) (n: Z) : aval :=
+  if zle n 1 then Uns p 1
+  else if zle n 7 then Uns p 7
+  else if zle n 8 then Uns p 8
+  else if zle n 15 then Uns p 15
+  else if zle n 16 then Uns p 16
+  else Num p.
+
 (** Least upper bound *)
+
+Definition vlub_int (cstr: int -> aval) (i1 i2: int) : aval :=
+  if Int.eq i1 i2 then cstr i1 else
+  if Int.lt i1 Int.zero || Int.lt i2 Int.zero
+  then sgn Pbot (Z.max (ssize i1) (ssize i2))
+  else uns1 Pbot (Z.max (usize i1) (usize i2)).
 
 Definition vlub (v w: aval) : aval :=
   match v, w with
   | Vbot, _ => w
   | _, Vbot => v
-  | I i1, I i2 =>
-      if Int.eq i1 i2 then v else
-      if Int.lt i1 Int.zero || Int.lt i2 Int.zero
-      then sgn Pbot (Z.max (ssize i1) (ssize i2))
-      else uns Pbot (Z.max (usize i1) (usize i2))
-  | I i, Uns p n | Uns p n, I i =>
+  | I i1, I i2 => vlub_int I i1 i2
+  | I i1, IU i2 | IU i1, I i2 | IU i1, IU i2 => vlub_int IU i1 i2
+  | (I i | IU i), Uns p n | Uns p n, (I i | IU i) =>
       if Int.lt i Int.zero
       then sgn p (Z.max (ssize i) (n + 1))
-      else uns p (Z.max (usize i) n)
-  | I i, Sgn p n | Sgn p n, I i =>
+      else uns1 p (Z.max (usize i) n)
+  | (I i | IU i), Sgn p n | Sgn p n, (I i | IU i) =>
       sgn p (Z.max (ssize i) n)
-  | I i, Num p | Num p, I i => Num p
-  | I i, (Ptr p | Ifptr p) | (Ptr p | Ifptr p), I i => Ifptr (plub p (int_provenance i))
-  | I _, (L _ | F _ | FS _) | (L _ | F _ | FS _), I _ => ntop
+  | (I i | IU i), Num p | Num p, (I i | IU i) => Num p
+  | (I i | IU i), (Ptr p | Ifptr p) | (Ptr p | Ifptr p), (I i | IU i) => Ifptr (plub p (int_provenance i))
+  | (I _ | IU _), (L _ | F _ | FS _) | (L _ | F _ | FS _), (I _ | IU _) => ntop
   | Uns p1 n1, Uns p2 n2 => Uns (plub p1 p2) (Z.max n1 n2)
   | Uns p1 n1, Sgn p2 n2 => sgn (plub p1 p2) (Z.max (n1 + 1) n2)
   | Sgn p1 n1, Uns p2 n2 => sgn (plub p1 p2) (Z.max n1 (n2 + 1))
@@ -953,20 +1031,27 @@ Definition vlub (v w: aval) : aval :=
 Lemma vlub_comm:
   forall v w, vlub v w = vlub w v.
 Proof.
+  assert (INT: forall cstr i j, vlub_int cstr i j = vlub_int cstr j i).
+  { intros. unfold vlub_int. rewrite Int.eq_sym, orb_comm.
+    predSpec Int.eq Int.eq_spec j i. congruence.
+    destruct orb; f_equal; apply Z.max_comm. }
   intros. unfold vlub; destruct v; destruct w; auto; f_equal; auto using Z.max_comm, plub_comm.
-- rewrite Int.eq_sym. predSpec Int.eq Int.eq_spec n0 n. congruence.
-  rewrite orb_comm. destruct orb; f_equal; apply Z.max_comm.
 - rewrite Int64.eq_sym. predSpec Int64.eq Int64.eq_spec n0 n; congruence.
 - rewrite dec_eq_sym. destruct (Float.eq_dec f0 f); congruence.
 - rewrite dec_eq_sym. destruct (Float32.eq_dec f0 f); congruence.
 Qed.
 
-Lemma vge_uns_uns': forall p n, vge (uns p n) (Uns p n).
+Lemma vge_uns_uns': forall p n, vge (uns1 p n) (Uns p n).
 Proof.
-  unfold uns; intros. repeat (destruct zle); eauto with va.
+  unfold uns1; intros. repeat (destruct zle); eauto with va.
 Qed.
 
-Lemma vge_uns_i': forall p n i, 0 <= n -> is_uns n i -> vge (uns p n) (I i).
+Lemma vge_uns_i': forall p n i, 0 <= n -> is_uns n i -> vge (uns1 p n) (I i).
+Proof.
+  intros. apply vge_trans with (Uns p n). apply vge_uns_uns'. auto with va.
+Qed.
+
+Lemma vge_uns_iu': forall p n i, 0 <= n -> is_uns n i -> vge (uns1 p n) (IU i).
 Proof.
   intros. apply vge_trans with (Uns p n). apply vge_uns_uns'. auto with va.
 Qed.
@@ -981,30 +1066,39 @@ Proof.
   intros. apply vge_trans with (Sgn p n). apply vge_sgn_sgn'. auto with va.
 Qed.
 
-Hint Resolve vge_uns_uns' vge_uns_i' vge_sgn_sgn' vge_sgn_i' : va.
-
-Lemma usize_pos: forall n, 0 <= usize n.
+Lemma vge_sgn_iu': forall p n i, 0 < n -> is_sgn n i -> vge (sgn p n) (IU i).
 Proof.
-  unfold usize; intros. generalize (Int.size_range n); lia.
+  intros. apply vge_trans with (Sgn p n). apply vge_sgn_sgn'. auto with va.
 Qed.
 
-Lemma ssize_pos: forall n, 0 < ssize n.
-Proof.
-  unfold ssize; intros.
-  generalize (Int.size_range (if Int.lt n Int.zero then Int.not n else n)); lia.
-Qed.
+Hint Resolve vge_uns_uns' vge_uns_i' vge_uns_iu' vge_sgn_sgn' vge_sgn_i' vge_sgn_iu': va.
 
 Lemma vge_lub_l:
   forall x y, vge (vlub x y) x.
 Proof.
+  assert (INT: forall i j, vge (vlub_int I i j) (I i)).
+  { unfold vlub_int; intros. predSpec Int.eq Int.eq_spec i j. auto with va.
+    destruct orb. eauto with va.
+    apply vge_sgn_i'. generalize (ssize_pos i); lia. eauto with va.
+    apply vge_uns_i'. generalize (usize_pos i); lia. eauto with va. }
+  assert (INTU: forall i j, vge (vlub_int IU i j) (IU i)).
+  { unfold vlub_int; intros. predSpec Int.eq Int.eq_spec i j. auto with va.
+    destruct orb.
+    apply vge_sgn_iu'. generalize (ssize_pos i); lia. eauto with va.
+    apply vge_uns_iu'. generalize (usize_pos i); lia. eauto with va. }
   unfold vlub, ntop; destruct x, y; eauto using vge_trans, pge_lub_l with va.
-- predSpec Int.eq Int.eq_spec n n0. auto with va. destruct orb.
-  apply vge_sgn_i'. generalize (ssize_pos n); lia. eauto with va.
-  apply vge_uns_i'. generalize (usize_pos n); lia. eauto with va.
 - destruct (Int.lt n Int.zero).
   apply vge_sgn_i'. generalize (ssize_pos n); lia. eauto with va.
   apply vge_uns_i'. generalize (usize_pos n); lia. eauto with va.
 - apply vge_sgn_i'. generalize (ssize_pos n); lia. eauto with va.
+- destruct (Int.lt n Int.zero).
+  apply vge_sgn_iu'. generalize (ssize_pos n); lia. eauto with va.
+  apply vge_uns_iu'. generalize (usize_pos n); lia. eauto with va.
+- apply vge_sgn_iu'. generalize (ssize_pos n); lia. eauto with va.
+- destruct (Int.lt n0 Int.zero).
+  eapply vge_trans. apply vge_sgn_sgn'.
+  apply vge_trans with (Sgn p (n + 1)); eauto with va.
+  eapply vge_trans. apply vge_uns_uns'. eauto with va.
 - destruct (Int.lt n0 Int.zero).
   eapply vge_trans. apply vge_sgn_sgn'.
   apply vge_trans with (Sgn p (n + 1)); eauto with va.
@@ -1110,15 +1204,17 @@ Definition vincl (v w: aval) : bool :=
   match v, w with
   | Vbot, _ => true
   | I i, I j => Int.eq_dec i j
-  | I i, Uns p n => Int.eq_dec (Int.zero_ext n i) i && zle 0 n
-  | I i, Sgn p n => Int.eq_dec (Int.sign_ext n i) i && zlt 0 n
+  | I i, IU j => Int.eq_dec i j
+  | IU i, IU j => Int.eq_dec i j
+  | (I i | IU i), Uns p n => Int.eq_dec (Int.zero_ext n i) i && zle 0 n
+  | (I i | IU i), Sgn p n => Int.eq_dec (Int.sign_ext n i) i && zlt 0 n
   | Uns p n, Uns q m => zle n m && pincl p q
   | Uns p n, Sgn q m => zlt n m && pincl p q
   | Sgn p n, Sgn q m => zle n m && pincl p q
   | L i, L j => Int64.eq_dec i j
   | F i, F j => Float.eq_dec i j
   | FS i, FS j => Float32.eq_dec i j
-  | (I _ | L _ | F _ | FS _), (Num _ | Ifptr _) => true
+  | (I _ | IU _ | L _ | F _ | FS _), (Num _ | Ifptr _) => true
   | (Uns p _ | Sgn p _ | Num p), Num q => pincl p q
   | Ptr p, Ptr q => pincl p q
   | (Ptr p | Ifptr p | Num p | Uns p _ | Sgn p _), Ifptr q => pincl p q
@@ -1131,6 +1227,8 @@ Proof.
   intros; try discriminate; try InvBooleans; try subst; eauto using pincl_ge with va.
 - constructor; auto. rewrite is_uns_zero_ext; auto.
 - constructor; auto. rewrite is_sgn_sign_ext; auto.
+- constructor; auto. rewrite is_uns_zero_ext; auto.
+- constructor; auto. rewrite is_sgn_sign_ext; auto.
 Qed.
 
 Lemma ge_vincl: forall v w, vge v w -> vincl w v = true.
@@ -1138,8 +1236,8 @@ Proof.
   induction 1; simpl; try (apply andb_true_intro; split); auto using ge_pincl, proj_sumbool_is_true.
   all: try (unfold proj_sumbool; rewrite zle_true by lia; auto).
   all: try (unfold proj_sumbool; rewrite zlt_true by lia; auto).
-- apply is_uns_zero_ext in H0; rewrite H0. auto using proj_sumbool_is_true.
-- apply is_sgn_sign_ext in H0; auto. rewrite H0. auto using proj_sumbool_is_true.
+  1,2: apply is_uns_zero_ext in H0; rewrite H0; auto using proj_sumbool_is_true.
+  1,2: apply is_sgn_sign_ext in H0; auto; rewrite H0; auto using proj_sumbool_is_true.
 Qed.
 
 (** Loading constants *)
@@ -1184,7 +1282,7 @@ Qed.
 (** Generic operations that just do constant propagation. *)
 
 Definition unop_int (sem: int -> int) (x: aval) :=
-  match x with I n => I (sem n) | _ => ntop1 x end.
+  match x with I n => I (sem n) | IU n => IU (sem n) | _ => ntop1 x end.
 
 Lemma unop_int_sound:
   forall sem v x,
@@ -1195,7 +1293,10 @@ Proof.
 Qed.
 
 Definition binop_int (sem: int -> int -> int) (x y: aval) :=
-  match x, y with I n, I m => I (sem n m) | _, _ => ntop2 x y end.
+  match x, y with
+  | I n, I m => I (sem n m)
+  | I n, IU m | IU n, I m | IU n, IU m => IU (sem n m)
+  | _, _ => ntop2 x y end.
 
 Lemma binop_int_sound:
   forall sem v x w y,
@@ -1279,6 +1380,7 @@ Definition shl (v w: aval) :=
       if Int.ltu amount Int.iwordsize then
         match v with
         | I i => I (Int.shl i amount)
+        | IU i => IU (Int.shl i amount)
         | Uns p n => uns p (n + Int.unsigned amount)
         | Sgn p n => sgn p (n + Int.unsigned amount)
         | _ => ntop1 v
@@ -1315,6 +1417,7 @@ Definition shru (v w: aval) :=
       if Int.ltu amount Int.iwordsize then
         match v with
         | I i => I (Int.shru i amount)
+        | IU i => IU (Int.shru i amount)
         | Uns p n => uns p (n - Int.unsigned amount)
         | _ => uns (provenance v) (Int.zwordsize - Int.unsigned amount)
         end
@@ -1353,6 +1456,7 @@ Definition shr (v w: aval) :=
       if Int.ltu amount Int.iwordsize then
         match v with
         | I i => I (Int.shr i amount)
+        | IU i => IU (Int.shr i amount)
         | Uns p n => sgn p (n + 1 - Int.unsigned amount)
         | Sgn p n => sgn p (n - Int.unsigned amount)
         | _ => sgn (provenance v) (Int.zwordsize - Int.unsigned amount)
@@ -1401,8 +1505,9 @@ Qed.
 Definition and (v w: aval) :=
   match v, w with
   | I i1, I i2 => I (Int.and i1 i2)
-  | I i, Uns p n | Uns p n, I i => uns p (Z.min n (usize i))
-  | I i, x | x, I i => uns (provenance x) (usize i)
+  | I i1, IU i2 | IU i1, I i2 | IU i1, IU i2 => IU (Int.and i1 i2)
+  | (I i | IU i), Uns p n | Uns p n, (I i | IU i) => uns p (Z.min n (usize i))
+  | (I i | IU i), x | x, (I i | IU i) => uns (provenance x) (usize i)
   | Uns p1 n1, Uns p2 n2 => uns (plub p1 p2) (Z.min n1 n2)
   | Uns p n, _ => uns (plub p (provenance w)) n
   | _, Uns p n => uns (plub (provenance v) p) n
@@ -1437,7 +1542,8 @@ Qed.
 Definition or (v w: aval) :=
   match v, w with
   | I i1, I i2 => I (Int.or i1 i2)
-  | I i, Uns p n | Uns p n, I i => uns p (Z.max n (usize i))
+  | I i1, IU i2 | IU i1, I i2 | IU i1, IU i2 => IU (Int.or i1 i2)
+  | (I i | IU i), Uns p n | Uns p n, (I i | IU i) => uns p (Z.max n (usize i))
   | Uns p1 n1, Uns p2 n2 => uns (plub p1 p2) (Z.max n1 n2)
   | Sgn p1 n1, Sgn p2 n2 => sgn (plub p1 p2) (Z.max n1 n2)
   | _, _ => ntop2 v w
@@ -1462,7 +1568,8 @@ Qed.
 Definition xor (v w: aval) :=
   match v, w with
   | I i1, I i2 => I (Int.xor i1 i2)
-  | I i, Uns p n | Uns p n, I i => uns p (Z.max n (usize i))
+  | I i1, IU i2 | IU i1, I i2 | IU i1, IU i2 => IU (Int.xor i1 i2)
+  | (I i | IU i), Uns p n | Uns p n, (I i | IU i) => uns p (Z.max n (usize i))
   | Uns p1 n1, Uns p2 n2 => uns (plub p1 p2) (Z.max n1 n2)
   | Sgn p1 n1, Sgn p2 n2 => sgn (plub p1 p2) (Z.max n1 n2)
   | _, _ => ntop2 v w
@@ -1487,6 +1594,7 @@ Qed.
 Definition notint (v: aval) :=
   match v with
   | I i => I (Int.not i)
+  | IU i => IU (Int.not i)
   | Uns p n => sgn p (n + 1)
   | Sgn p n => Sgn p n
   | _ => ntop1 v
@@ -1506,6 +1614,7 @@ Qed.
 Definition rol (x y: aval) :=
   match y, x with
   | I j, I i => I(Int.rol i j)
+  | I j, IU i => IU(Int.rol i j)
   | I j, Uns p n => uns p (n + Int.unsigned j)
   | I j, Sgn p n => if zlt n Int.zwordsize then sgn p (n + Int.unsigned j) else ntop1 x
   | _, _ => ntop1 x
@@ -1536,6 +1645,7 @@ Qed.
 Definition ror (x y: aval) :=
   match y, x with
   | I j, I i => I(Int.ror i j)
+  | I j, IU i => IU(Int.ror i j)
   | _, _ => ntop1 x
   end.
 
@@ -1566,18 +1676,40 @@ Qed.
 
 (** Integer arithmetic operations *)
 
-Definition neg := unop_int Int.neg.
+Definition neg (x: aval) :=
+  match x with
+  | I i => I (Int.neg i)
+  | IU i => IU (Int.neg i)
+  | Sgn p n => sgn p (n + 1)
+  | _ => ntop1 x
+  end.
 
 Lemma neg_sound:
   forall v x, vmatch v x -> vmatch (Val.neg v) (neg x).
-Proof (unop_int_sound Int.neg).
+Proof.
+  destruct 1; simpl; eauto with va.
+  assert (A: Int.neg i = Int.repr (- Int.signed i)).
+  { intros. apply Int.eqm_samerepr. apply eqmod_neg. apply Int.eqm_sym. apply Int.eqm_signed_unsigned. }
+  rewrite A.
+  exploit range_is_sgn; eauto. intros B.
+  apply vmatch_sgn. apply is_sgn_range. lia.
+  assert (two_p (n + 1 - 1) = two_p (n - 1) * 2).
+  { replace (n + 1 - 1) with ((n - 1) + 1) by lia. apply two_p_is_exp; lia. }
+  lia.
+Qed.
 
 Definition add (x y: aval) :=
   match x, y with
   | I i, I j => I (Int.add i j)
-  | Ptr p, I i | I i, Ptr p => Ptr (if Archi.ptr64 then poffset p else padd p (Ptrofs.of_int i))
+  | I i, IU j | IU i, I j | IU i, IU j => IU (Int.add i j)
+  | (I i | IU i), Uns p n | Uns p n, (I i | IU i) => uns p (Z.max n (usize i) + 1)
+  | (I i | IU i), Sgn p n | Sgn p n, (I i | IU i) => sgn p (Z.max n (ssize i) + 1)
+  | Uns p1 n1, Uns p2 n2 => uns (plub p1 p2) (Z.max n1 n2 + 1)
+  | Sgn p1 n1, Sgn p2 n2 => sgn (plub p1 p2) (Z.max n1 n2 + 1)
+  | Uns p1 n1, Sgn p2 n2 | Sgn p2 n2, Uns p1 n1 => sgn (plub p1 p2) (Z.max (n1 + 1) n2 + 1)
+  | Ptr p, (I i | IU i) | (I i | IU i), Ptr p => Ptr (if Archi.ptr64 then poffset p else padd p (Ptrofs.of_int i))
   | Ptr p, _   | _, Ptr p   => Ptr (poffset p)
-  | Ifptr p, I i | I i, Ifptr p => Ifptr (if Archi.ptr64 then poffset p else padd p (Ptrofs.of_int i))
+  | Ifptr p, (I i | IU i) | (I i | IU i), Ifptr p => Ifptr (if Archi.ptr64 then poffset p else padd p (Ptrofs.of_int i))
   | Ifptr p, Ifptr q => Ifptr (plub (poffset p) (poffset q))
   | Ifptr p, _ | _, Ifptr p => Ifptr (poffset p)
   | _, _ => ntop2 x y
@@ -1586,9 +1718,33 @@ Definition add (x y: aval) :=
 Lemma add_sound:
   forall v w x y, vmatch v x -> vmatch w y -> vmatch (Val.add v w) (add x y).
 Proof.
+  assert (UNS: forall n i m j,
+               0 <= n -> 0 <= m -> is_uns n i -> is_uns m j ->
+               is_uns (Z.max n m + 1) (Int.add i j)).
+  { intros. apply range_is_uns in H1; auto. apply range_is_uns in H2; auto.
+    apply is_uns_range. lia.
+    assert (two_p n <= two_p (Z.max n m)) by (apply two_p_monotone; lia).
+    assert (two_p m <= two_p (Z.max n m)) by (apply two_p_monotone; lia).
+    assert (two_p (Z.max n m + 1) = two_p (Z.max n m) * 2) by (apply two_p_is_exp; lia).
+    lia. }
+  assert (SGN: forall n i m j,
+               0 < n -> 0 < m -> is_sgn n i -> is_sgn m j ->
+               is_sgn (Z.max n m + 1) (Int.add i j)).
+  { intros. apply range_is_sgn in H1; auto. apply range_is_sgn in H2; auto.
+    rewrite Int.add_signed. apply is_sgn_range. lia.
+    set (p := Z.max n m - 1).
+    assert (two_p (n-1) <= two_p p) by (apply two_p_monotone; lia).
+    assert (two_p (m-1) <= two_p p) by (apply two_p_monotone; lia).
+    assert (two_p (Z.max n m + 1 - 1) = two_p p * 2).
+    { replace (Z.max n m + 1 - 1) with (p + 1) by lia. apply two_p_is_exp; lia. }
+    lia. }
+  assert (SGN2: forall n i m j,
+               0 < n -> 0 < m -> is_sgn n i -> is_sgn m j ->
+               is_sgn (Z.max n m + 1) (Int.add j i)).
+  { intros. rewrite Z.max_comm; eauto. }
   intros. unfold Val.add, add. destruct Archi.ptr64.
-- inv H; inv H0; constructor.
-- inv H; inv H0; constructor;
+- inv H; inv H0; eauto with va.
+- inv H; inv H0; eauto with va; constructor;
   ((apply padd_sound; assumption) || (eapply poffset_sound; eassumption) || idtac).
   apply pmatch_lub_r. eapply poffset_sound; eauto.
   apply pmatch_lub_l. eapply poffset_sound; eauto.
@@ -1597,9 +1753,15 @@ Qed.
 Definition sub (v w: aval) :=
   match v, w with
   | I i1, I i2 => I (Int.sub i1 i2)
-  | Ptr p, I i => if Archi.ptr64 then Ifptr (poffset p) else Ptr (psub p (Ptrofs.of_int i))
+  | I i1, IU i2 | IU i1, I i2 | IU i1, IU i2 => IU (Int.sub i1 i2)
+  | (I i | IU i), Uns p n | Uns p n, (I i | IU i) => sgn p (Z.max (n + 1) (ssize i) + 1)
+  | (I i | IU i), Sgn p n | Sgn p n, (I i | IU i) => sgn p (Z.max n (ssize i) + 1)
+  | Uns p1 n1, Uns p2 n2 => sgn (plub p1 p2) (Z.max n1 n2 + 1)
+  | Sgn p1 n1, Sgn p2 n2 => sgn (plub p1 p2) (Z.max n1 n2 + 1)
+  | Uns p1 n1, Sgn p2 n2 | Sgn p2 n2, Uns p1 n1 => sgn (plub p1 p2) (Z.max (n1 + 1) n2 + 1)
+  | Ptr p, (I i | IU i) => if Archi.ptr64 then Ifptr (poffset p) else Ptr (psub p (Ptrofs.of_int i))
   | Ptr p, _   => Ifptr (poffset p)
-  | Ifptr p, I i => if Archi.ptr64 then Ifptr (plub (poffset p) (provenance w)) else Ifptr (psub p (Ptrofs.of_int i))
+  | Ifptr p, (I i | IU i) => if Archi.ptr64 then Ifptr (plub (poffset p) (provenance w)) else Ifptr (psub p (Ptrofs.of_int i))
   | Ifptr p, _ => Ifptr (plub (poffset p) (provenance w))
   | _, _ => ntop2 v w
   end.
@@ -1607,36 +1769,195 @@ Definition sub (v w: aval) :=
 Lemma sub_sound:
   forall v w x y, vmatch v x -> vmatch w y -> vmatch (Val.sub v w) (sub x y).
 Proof.
+  assert (UNS: forall n i m j,
+               0 <= n -> 0 <= m -> is_uns n i -> is_uns m j ->
+               is_sgn (Z.max n m + 1) (Int.sub i j)).
+  { intros. apply range_is_uns in H1; auto. apply range_is_uns in H2; auto.
+    apply is_sgn_range. lia.
+    assert (two_p n <= two_p (Z.max n m)) by (apply two_p_monotone; lia).
+    assert (two_p m <= two_p (Z.max n m)) by (apply two_p_monotone; lia).
+    replace (Z.max n m + 1 - 1) with (Z.max n m) by lia.
+    lia. }
+  assert (SGN: forall n i m j,
+               0 < n -> 0 < m -> is_sgn n i -> is_sgn m j ->
+               is_sgn (Z.max n m + 1) (Int.sub i j)).
+  { intros. apply range_is_sgn in H1; auto. apply range_is_sgn in H2; auto.
+    rewrite Int.sub_signed. apply is_sgn_range. lia.
+    set (p := Z.max n m - 1).
+    assert (two_p (n-1) <= two_p p) by (apply two_p_monotone; lia).
+    assert (two_p (m-1) <= two_p p) by (apply two_p_monotone; lia).
+    assert (two_p (Z.max n m + 1 - 1) = two_p p * 2).
+    { replace (Z.max n m + 1 - 1) with (p + 1) by lia. apply two_p_is_exp; lia. }
+    lia. }
+  assert (SGN2: forall n i m j,
+               0 < n -> 0 < m -> is_sgn n i -> is_sgn m j ->
+               is_sgn (Z.max n m + 1) (Int.sub j i)).
+  { intros. rewrite Z.max_comm. eauto. }
   intros. unfold Val.sub, sub. destruct Archi.ptr64.
 - inv H; inv H0; eauto with va.
 - inv H; inv H0; try (destruct (eq_block b b0)); eauto using psub_sound, poffset_sound, pmatch_lub_l with va.
 Qed.
 
-Definition mul := binop_int Int.mul.
+Definition mul_base (v w: aval) :=
+  match v, w with
+  | Uns p n1, (I n2 | IU n2) | (I n2 | IU n2), Uns p n1 => uns p (n1 + usize n2)
+  | Uns p1 n1, Uns p2 n2 => uns (plub p1 p2) (n1 + n2)
+  | Sgn p n1, (I n2 | IU n2) | (I n2 | IU n2), Sgn p n1 => sgn p (n1 + ssize n2)
+  | Sgn p1 n1, Sgn p2 n2 => sgn (plub p1 p2) (n1 + n2)
+  | Uns p1 n1, Sgn p2 n2 => sgn (plub p1 p2) ((n1 + 1) + n2)
+  | Sgn p1 n1, Uns p2 n2 => sgn (plub p1 p2) (n1 + (n2 + 1))
+  | _, _ => ntop2 v w
+  end.
+
+Lemma mul_base_sound:
+  forall v x w y, vmatch v x -> vmatch w y -> vmatch (Val.mul v w) (mul_base x y).
+Proof.
+  intros.
+  assert (UNS: forall i1 i2 n1 n2 p,
+             0 <= n1 -> is_uns n1 i1 ->
+             0 <= n2 -> is_uns n2 i2 ->
+             vmatch (Val.mul (Vint i1) (Vint i2)) (uns p (n1 + n2))).
+  { intros. apply vmatch_uns. apply is_uns_range. lia.
+    apply Zmult_unsigned_range; auto using range_is_uns. }
+  assert (SGN: forall i1 i2 n1 n2 p,
+             0 < n1 -> is_sgn n1 i1 ->
+             0 < n2 -> is_sgn n2 i2 ->
+             vmatch (Val.mul (Vint i1) (Vint i2)) (sgn p (n1 + n2))).
+  { intros. apply vmatch_sgn. rewrite Int.mul_signed. apply is_sgn_range. lia.
+    replace (n1 + n2 - 1) with ((n1 - 1) + (n2 - 1) + 1) by lia.
+    apply Zmult_signed_range; auto using range_is_sgn; lia. }
+  unfold mul_base.
+  inv H; inv H0; eauto with va; rewrite Z.add_comm; eauto with va.
+Qed.
+
+Definition mul (v w: aval) :=
+  match v, w with
+  | I i1, I i2 => I (Int.mul i1 i2)
+  | IU i1, I i2 | I i1, IU i2 | IU i1, IU i2 => IU (Int.mul i1 i2)
+  | _, _ =>
+      if vincl v (Uns Ptop 0) || vincl w (Uns Ptop 0)
+      then IU Int.zero
+      else mul_base v w
+  end.
 
 Lemma mul_sound:
   forall v x w y, vmatch v x -> vmatch w y -> vmatch (Val.mul v w) (mul x y).
-Proof (binop_int_sound Int.mul).
+Proof.
+  intros.
+  assert (vmatch (Val.mul v w)
+            (if vincl x (Uns Ptop 0) || vincl y (Uns Ptop 0)
+             then IU Int.zero
+             else mul_base x y)).
+  { destruct orb eqn:INCL; auto using mul_base_sound.
+    rewrite orb_true_iff in INCL; destruct INCL;
+    exploit vmatch_Uns_0; eauto using vmatch_ge, vincl_ge;
+    intros [E|E]; subst; simpl.
+    - auto with va.
+    - destruct w; auto with va.
+    - destruct v; auto with va.
+    - destruct v; simpl; rewrite ? Int.mul_zero; auto with va.
+  }
+  inv H; inv H0; auto with va.
+Qed.
 
-Definition mulhs := binop_int Int.mulhs.
+Definition mulhs_base (v w: aval) :=
+  sgn (plub (provenance v) (provenance w)) (srange v + srange w - Int.zwordsize).
+
+Lemma mulhs_base_sound:
+  forall v x w y, vmatch v x -> vmatch w y -> vmatch (Val.mulhs v w) (mulhs_base x y).
+Proof.
+  intros. unfold Val.mulhs, mulhs_base; destruct v, w; auto with va.
+  rename i0 into j.
+  apply srange_sound in H. destruct H as [A1 B1]. apply range_is_sgn in B1; auto.
+  apply srange_sound in H0. destruct H0 as [A2 B2]. apply range_is_sgn in B2; auto.
+  set (n := srange x) in *. set (m := srange y) in *.
+  unfold Int.mulhs. set (a := Int.signed i) in *. set (b := Int.signed j) in *.
+  exploit (Zmult_signed_range (n-1) a (m-1) b); auto with va.
+  replace (n - 1 + (m - 1) + 1) with (n + m - 1) by lia.
+  intros P.
+  rewrite Int.modulus_power. change Int.zwordsize with 32. rewrite <- Zshiftr_div_two_p by lia.
+  apply vmatch_sgn. red; intros. rewrite ! Int.testbit_repr by lia. rewrite ! Z.shiftr_spec by lia.
+  apply (Zbits_signed_range (n + m - 1)); lia.
+Qed.
+
+Definition mulhs (v w: aval) :=
+  match v, w with
+  | I i1, I i2 => I (Int.mulhs i1 i2)
+  | IU i1, I i2 | I i1, IU i2 | IU i1, IU i2 => IU (Int.mulhs i1 i2)
+  | _, _ =>
+      if vincl v (Uns Ptop 0) || vincl w (Uns Ptop 0) then
+        IU Int.zero
+      else
+        mulhs_base v w
+  end.
 
 Lemma mulhs_sound:
   forall v x w y, vmatch v x -> vmatch w y -> vmatch (Val.mulhs v w) (mulhs x y).
-Proof (binop_int_sound Int.mulhs).
+Proof.
+  intros. unfold mulhs.
+  destruct (vincl x (Uns Ptop 0) || vincl y (Uns Ptop 0)) eqn:?; auto with va.
+  - rewrite orb_true_iff in Heqb;  destruct Heqb.
+    exploit vmatch_Uns_0. eapply vmatch_ge. eapply vincl_ge; eauto. eexact H.
+    intros. destruct H2; inv H2; inv H; inv H0; auto with va.
+    exploit vmatch_Uns_0. eapply vmatch_ge. eapply vincl_ge; eauto. eexact H0.
+    intros. destruct H2; inv H2; inv H; inv H0; simpl; try rewrite Int.mulhs_zero; auto with va.
+  - inversion H; inversion H0; subst; eauto using mulhs_base_sound with va.
+Qed.
 
-Definition mulhu := binop_int Int.mulhu.
+Definition mulhu_base (v w: aval) :=
+  uns (plub (provenance v) (provenance w)) (urange v + urange w - Int.zwordsize).
+
+Lemma mulhu_base_sound:
+  forall v x w y, vmatch v x -> vmatch w y -> vmatch (Val.mulhu v w) (mulhu_base x y).
+Proof.
+  intros. unfold Val.mulhu, mulhu_base; destruct v, w; auto with va.
+  apply urange_sound in H. destruct H as [A1 B1]. apply range_is_uns in B1; auto.
+  apply urange_sound in H0. destruct H0 as [A2 B2]. apply range_is_uns in B2; auto.
+  set (n1 := urange x) in *. set (n2 := urange y) in *.
+  unfold Int.mulhu. set (x1 := Int.unsigned i) in *. set (x2 := Int.unsigned i0) in *.
+  exploit (Zmult_unsigned_range n1 x1 n2 x2); auto. intros P.
+  rewrite Int.modulus_power. change Int.zwordsize with 32. rewrite <- Zshiftr_div_two_p by lia.
+  apply vmatch_uns. red; intros. rewrite Int.testbit_repr by auto. rewrite Z.shiftr_spec by lia.
+  apply (Zbits_unsigned_range (n1 + n2)); lia.
+Qed.
+
+Definition mulhu (v w: aval):=
+  match v, w with
+  | I i1, I i2 => I (Int.mulhu i1 i2)
+  | I i1, IU i2 | IU i1, I i2 | IU i1, IU i2  => IU (Int.mulhu i1 i2)
+  | _, _ =>
+      if vincl v (Uns Ptop 1) || vincl w (Uns Ptop 1)
+      then IU Int.zero
+      else mulhu_base v w
+  end.
 
 Lemma mulhu_sound:
   forall v x w y, vmatch v x -> vmatch w y -> vmatch (Val.mulhu v w) (mulhu x y).
-Proof (binop_int_sound Int.mulhu).
+Proof.
+  intros. destruct (vincl x (Uns Ptop 1) || vincl y (Uns Ptop 1)) eqn:?; try eapply mulhu_base_sound; eauto; unfold mulhu; rewrite Heqb.
+  - rewrite orb_true_iff in Heqb. destruct Heqb.
+    exploit (vmatch_Uns_1 Ptop v). eapply vmatch_ge; eauto. eapply vincl_ge; eauto.
+    intros. destruct H2; inv H2. simpl. inv H; destruct y; auto with va.
+    simpl. inv H; destruct y; inv H0; auto with va. simpl.
+    inv H; destruct y; inv H0; try rewrite Int.mulhu_commut; try rewrite Int.mulhu_one; auto with va.
+    exploit (vmatch_Uns_1 Ptop w). eapply vmatch_ge; eauto. eapply vincl_ge; eauto.
+    intros. destruct H2; inv H2. inv H; inv H0; simpl; auto with va.
+    inv H0; inv H; simpl; auto with va; rewrite Int.mulhu_zero; auto with va.
+    inv H0; inv H; simpl; auto with va; rewrite Int.mulhu_one; auto with va.
+  - inversion H; inversion H0; subst; eauto using mulhu_base_sound with va.
+Qed.
 
 Definition divs (v w: aval) :=
   match w, v with
-  | I i2, I i1 =>
+  | (I i2 | IU i2), (I i1 | IU i1) =>
       if Int.eq i2 Int.zero
       || Int.eq i1 (Int.repr Int.min_signed) && Int.eq i2 Int.mone
       then if va_strict tt then Vbot else ntop
       else I (Int.divs i1 i2)
+  | (I i2 | IU i2), _ =>
+      if Int.eq i2 Int.zero
+      then if va_strict tt then Vbot else ntop
+      else sgn (provenance v) (srange v + 1 - Z.log2 (Z.abs (Int.signed i2)))
   | _, _ => ntop2 v w
   end.
 
@@ -1644,54 +1965,87 @@ Lemma divs_sound:
   forall v w u x y, vmatch v x -> vmatch w y -> Val.divs v w = Some u -> vmatch u (divs x y).
 Proof.
   intros. destruct v; destruct w; try discriminate; simpl in H1.
-  destruct (Int.eq i0 Int.zero
-         || Int.eq i (Int.repr Int.min_signed) && Int.eq i0 Int.mone) eqn:E; inv H1.
-  inv H; inv H0; auto with va. simpl. rewrite E. constructor.
+  destruct orb eqn:E; inv H1.
+  rename i0 into j.
+  assert (E': Int.eq j Int.zero = false). { apply orb_false_elim in E. tauto. }
+  assert (Int.signed j <> 0).
+  { red; intros. rewrite <- (Int.repr_signed j) in E. rewrite H1 in E. discriminate. }
+  set (q := srange x + 1 - Z.log2 (Z.abs (Int.signed j))).
+  set (q1 := Z.max 0 ((srange x - 1) + 1 - Z.log2 (Z.abs (Int.signed j)))).
+  assert (Z.max 1 q - 1 = q1) by lia.
+  assert (vmatch (Vint (Int.divs i j)) (sgn (provenance x) q)).
+  { apply srange_sound in H. destruct H as [A B]. apply range_is_sgn in B; auto.
+    apply vmatch_sgn'. apply is_sgn_range. lia.
+    rewrite ! H2. apply Zdiv_signed_range; auto. lia. }
+  unfold divs; inv H; inv H0; auto with va; rewrite ? E, ? E'; auto with va.
 Qed.
 
 Definition divu (v w: aval) :=
-  match w, v with
-  | I i2, I i1 =>
-      if Int.eq i2 Int.zero
-       then if va_strict tt then Vbot else ntop
-      else I (Int.divu i1 i2)
-  | _, _ => ntop2 v w
+  match w with
+  | I i2 | IU i2 =>
+      if Int.eq i2 Int.zero then
+        if va_strict tt then Vbot else ntop
+      else
+        match v with
+        | I i1 | IU i1 => I (Int.divu i1 i2)
+        | _ => uns (provenance v) (urange v - Z.log2 (Int.unsigned i2))
+        end
+  | _ => ntop2 v w
   end.
 
 Lemma divu_sound:
   forall v w u x y, vmatch v x -> vmatch w y -> Val.divu v w = Some u -> vmatch u (divu x y).
 Proof.
   intros. destruct v; destruct w; try discriminate; simpl in H1.
-  destruct (Int.eq i0 Int.zero) eqn:E; inv H1.
-  inv H; inv H0; auto with va. simpl. rewrite E. constructor.
+  rename i0 into j. destruct (Int.eq j Int.zero) eqn:E; inv H1.
+  assert (Int.unsigned j <> 0).
+  { red; intros. rewrite <- (Int.repr_unsigned j) in E. rewrite H1 in E. discriminate. }
+  assert (0 < Int.unsigned j).
+  { pose proof (Int.unsigned_range j). lia. } 
+  assert (vmatch (Vint (Int.divu i j)) (uns (provenance x) (urange x - Z.log2 (Int.unsigned j)))).
+  { apply urange_sound in H. destruct H as [A B]. apply range_is_uns in B; auto.
+    apply vmatch_uns'. apply is_uns_range. lia.
+    apply Zdiv_unsigned_range; auto. }
+  unfold divu; inv H; inv H0; auto with va; rewrite E; auto with va.
 Qed.
 
 Definition mods (v w: aval) :=
   match w, v with
-  | I i2, I i1 =>
+  | (I i2 | IU i2), (I i1 | IU i1) =>
       if Int.eq i2 Int.zero
       || Int.eq i1 (Int.repr Int.min_signed) && Int.eq i2 Int.mone
       then if va_strict tt then Vbot else ntop
       else I (Int.mods i1 i2)
+  | (I i2 | IU i2), _ => sgn (provenance v) (ssize i2)
   | _, _ => ntop2 v w
   end.
 
 Lemma mods_sound:
   forall v w u x y, vmatch v x -> vmatch w y -> Val.mods v w = Some u -> vmatch u (mods x y).
 Proof.
+  assert (SGN: forall i j, Int.eq j Int.zero = false -> is_sgn (ssize j) (Int.mods i j)).
+  {
+    intros. unfold Int.mods.
+    pose proof (is_sgn_ssize j). apply range_is_sgn in H0; auto with va.
+    set (x := Int.signed i) in *. set (y := Int.signed j) in *.
+    assert (y <> 0).
+    { unfold y; red; intros. rewrite <- (Int.repr_signed j), H1 in H. discriminate. }
+    assert (Z.abs (Z.rem x y) < Z.abs y) by (apply Z.rem_bound_abs; auto).
+    apply is_sgn_range. auto with va. lia.
+  }
   intros. destruct v; destruct w; try discriminate; simpl in H1.
-  destruct (Int.eq i0 Int.zero
-         || Int.eq i (Int.repr Int.min_signed) && Int.eq i0 Int.mone) eqn:E; inv H1.
-  inv H; inv H0; auto with va. simpl. rewrite E. constructor.
+  destruct orb eqn:E; inv H1.
+  assert (E': Int.eq i0 Int.zero = false).  { apply orb_false_elim in E. tauto. }
+  unfold mods; inv H; inv H0; auto with va; rewrite ? E; auto with va.
 Qed.
 
 Definition modu (v w: aval) :=
   match w, v with
-  | I i2, I i1 =>
+  | (I i2 | IU i2), (I i1| IU i1) =>
       if Int.eq i2 Int.zero
       then if va_strict tt then Vbot else ntop
       else I (Int.modu i1 i2)
-  | I i2, _ => uns (provenance v) (usize i2)
+  | (I i2 | IU i2), _ => uns (provenance v) (usize i2)
   | _, _ => ntop2 v w
   end.
 
@@ -1711,7 +2065,7 @@ Proof.
   intros. destruct v; destruct w; try discriminate; simpl in H1.
   destruct (Int.eq i0 Int.zero) eqn:Z; inv H1.
   assert (i0 <> Int.zero) by (generalize (Int.eq_spec i0 Int.zero); rewrite Z; auto).
-  unfold modu. inv H; inv H0; auto with va. rewrite Z. constructor.
+  unfold modu. inv H; inv H0; auto with va; rewrite Z; constructor.
 Qed.
 
 Definition shrx (v w: aval) :=
@@ -2106,6 +2460,7 @@ Proof (binop_single_sound Float32.div).
 Definition zero_ext (nbits: Z) (v: aval) :=
   match v with
   | I i => I (Int.zero_ext nbits i)
+  | IU i => IU (Int.zero_ext nbits i)
   | Uns p n => uns p (Z.min n nbits)
   | _ => uns (provenance v) nbits
   end.
@@ -2127,6 +2482,7 @@ Definition sign_ext (nbits: Z) (v: aval) :=
   if zle nbits 0 then Uns (provenance v) 0 else
   match v with
   | I i => I (Int.sign_ext nbits i)
+  | IU i => IU (Int.sign_ext nbits i)
   | Uns p n => if zlt n nbits then Uns p n else sgn p nbits
   | Sgn p n => sgn p (Z.min n nbits)
   | _ => sgn (provenance v) nbits
@@ -2520,7 +2876,7 @@ Definition cmp_intv (c: comparison) (i: Z * Z) (n: Z) : abool :=
   let (lo, hi) := i in
   match c with
   | Ceq => if zlt n lo || zlt hi n then Maybe false else Btop
-  | Cne => Btop
+  | Cne => if zlt n lo || zlt hi n then Maybe true else Btop
   | Clt => if zlt hi n then Maybe true else if zle n lo then Maybe false else Btop
   | Cle => if zle hi n then Maybe true else if zlt n lo then Maybe false else Btop
   | Cgt => if zlt n lo then Maybe true else if zle hi n then Maybe false else Btop
@@ -2549,6 +2905,8 @@ Proof.
   destruct (zlt hi n). rewrite zeq_false by lia. constructor.
   constructor.
 - (* ne *)
+  destruct (zlt n lo). rewrite zeq_false by lia. constructor.
+  destruct (zlt hi n). rewrite zeq_false by lia. constructor.
   constructor.
 - (* lt *)
   destruct (zlt hi n). rewrite zlt_true by lia. constructor.
@@ -2576,7 +2934,7 @@ Proof.
 - (* eq *)
   destruct (zlt n lo). constructor. destruct (zlt hi n); constructor.
 - (* ne *)
-  constructor.
+  destruct (zlt n lo). constructor. destruct (zlt hi n); constructor.
 - (* lt *)
   destruct (zlt hi n). constructor. destruct (zle n lo); constructor.
 - (* le *)
@@ -2585,6 +2943,24 @@ Proof.
   destruct (zlt n lo). constructor. destruct (zle hi n); constructor.
 - (* ge *)
   destruct (zle n lo). constructor. destruct (zlt hi n); constructor.
+Qed.
+
+Lemma cmp_intv_different_blocks:
+  forall c i n, cmatch (Val.cmp_different_blocks c) (cmp_intv c i n).
+Proof.
+  intros c [lo hi] n; unfold Val.cmp_different_blocks.
+  destruct c; auto using cmp_intv_None; simpl.
+- destruct orb; constructor.
+- destruct orb; constructor.
+Qed.
+
+Lemma cmp_intv_different_blocks_2:
+  forall c i n, cmatch (Val.cmp_different_blocks c) (cmp_intv (swap_comparison c) i n).
+Proof.
+  intros c [lo hi] n; unfold Val.cmp_different_blocks.
+  destruct c; auto using cmp_intv_None; simpl.
+- destruct orb; constructor.
+- destruct orb; constructor.
 Qed.
 
 Definition uintv (v: aval) : Z * Z :=
@@ -2685,11 +3061,12 @@ Qed.
 Definition cmpu_bool (c: comparison) (v w: aval) : abool :=
   match v, w with
   | I i1, I i2 => Just (Int.cmpu c i1 i2)
+  | I i1, IU i2 | IU i1, I i2 | IU i1, IU i2 => Maybe (Int.cmpu c i1 i2)
   | Ptr _, I i => if Int.eq i Int.zero then cmp_different_blocks c else Btop
   | I i, Ptr _ => if Int.eq i Int.zero then cmp_different_blocks c else Btop
   | Ptr p1, Ptr p2 => pcmp c p1 p2
-  | _, I i => club (cmp_intv c (uintv v) (Int.unsigned i)) (cmp_different_blocks c)
-  | I i, _ => club (cmp_intv (swap_comparison c) (uintv w) (Int.unsigned i)) (cmp_different_blocks c)
+  | _, (I i | IU i) => cmp_intv c (uintv v) (Int.unsigned i)
+  | (I i | IU i), _ => cmp_intv (swap_comparison c) (uintv w) (Int.unsigned i)
   | _, _ => Btop
   end.
 
@@ -2700,26 +3077,41 @@ Proof.
   assert (IP: forall i b ofs,
     cmatch (Val.cmpu_bool valid c (Vint i) (Vptr b ofs)) (cmp_different_blocks c)).
   {
-    intros. simpl. destruct Archi.ptr64.
-    apply cmp_different_blocks_none.
-    destruct (Int.eq i Int.zero && (valid b (Ptrofs.unsigned ofs) || valid b (Ptrofs.unsigned ofs - 1))).
-    apply cmp_different_blocks_sound. apply cmp_different_blocks_none.
+    intros. simpl. destruct Archi.ptr64; auto using cmp_different_blocks_none.
+    destruct andb; auto using cmp_different_blocks_sound, cmp_different_blocks_none.
   }
   assert (PI: forall i b ofs,
     cmatch (Val.cmpu_bool valid c (Vptr b ofs) (Vint i)) (cmp_different_blocks c)).
   {
-    intros. simpl. destruct Archi.ptr64.
-    apply cmp_different_blocks_none.
-    destruct (Int.eq i Int.zero && (valid b (Ptrofs.unsigned ofs) || valid b (Ptrofs.unsigned ofs - 1))).
-    apply cmp_different_blocks_sound. apply cmp_different_blocks_none.
+    intros. simpl. destruct Archi.ptr64; auto using cmp_different_blocks_none.
+    destruct andb; auto using cmp_different_blocks_sound, cmp_different_blocks_none.
+  }
+  assert (IP2: forall i b ofs itv,
+    cmatch (Val.cmpu_bool valid c (Vint i) (Vptr b ofs)) (cmp_intv (swap_comparison c) itv (Int.unsigned i))).
+  {
+    intros. simpl. destruct Archi.ptr64; auto using cmp_intv_None.
+    destruct andb; auto using cmp_intv_different_blocks_2, cmp_intv_None.
+  }
+  assert (PI2: forall i b ofs itv,
+    cmatch (Val.cmpu_bool valid c (Vptr b ofs) (Vint i)) (cmp_intv c itv (Int.unsigned i))).
+  {
+    intros. simpl. destruct Archi.ptr64; auto using cmp_intv_None.
+    destruct andb; auto using cmp_intv_different_blocks, cmp_intv_None.
   }
   unfold cmpu_bool; inversion H; subst; inversion H0; subst;
-  auto using cmatch_top, cmp_different_blocks_none, pcmp_none,
-             cmatch_lub_l, cmatch_lub_r, pcmp_sound,
+  auto using cmatch_top, cmp_different_blocks_none, pcmp_none, pcmp_sound,
              cmpu_intv_sound, cmpu_intv_sound_2, cmp_intv_None.
+- constructor.
+- constructor.
 - constructor.
 - destruct (Int.eq i Int.zero); auto using cmatch_top.
 - simpl; destruct (Int.eq i Int.zero); auto using cmatch_top, cmp_different_blocks_none.
+- constructor.
+- constructor.
+- constructor.
+- constructor.
+- constructor.
+- constructor.
 - destruct (Int.eq i Int.zero); auto using cmatch_top.
 - simpl; destruct (Int.eq i Int.zero); auto using cmatch_top, cmp_different_blocks_none.
 Qed.
@@ -2727,8 +3119,9 @@ Qed.
 Definition cmp_bool (c: comparison) (v w: aval) : abool :=
   match v, w with
   | I i1, I i2 => Just (Int.cmp c i1 i2)
-  | _, I i => cmp_intv c (sintv v) (Int.signed i)
-  | I i, _ => cmp_intv (swap_comparison c) (sintv w) (Int.signed i)
+  | I i1, IU i2 | IU i1, I i2 | IU i1, IU i2 => Maybe (Int.cmp c i1 i2)
+  | _, (I i | IU i) => cmp_intv c (sintv v) (Int.signed i)
+  | (I i | IU i), _ => cmp_intv (swap_comparison c) (sintv w) (Int.signed i)
   | _, _ => Btop
   end.
 
@@ -2737,8 +3130,8 @@ Lemma cmp_bool_sound:
 Proof.
   intros.
   unfold cmp_bool; inversion H; subst; inversion H0; subst;
-  auto using cmatch_top, cmp_intv_sound, cmp_intv_sound_2, cmp_intv_None.
-- constructor.
+  auto using cmatch_top, cmp_intv_sound, cmp_intv_sound_2, cmp_intv_None;
+  constructor.
 Qed.
 
 Definition cmplu_bool (c: comparison) (v w: aval) : abool :=
@@ -2822,6 +3215,7 @@ Qed.
 Definition maskzero (x: aval) (mask: int) : abool :=
   match x with
   | I i => Just (Int.eq (Int.and i mask) Int.zero)
+  | IU i => Maybe (Int.eq (Int.and i mask) Int.zero)
   | Uns p n => if Int.eq (Int.zero_ext n mask) Int.zero then Maybe true else Btop
   | _ => Btop
   end.
@@ -2844,21 +3238,20 @@ Qed.
 Definition of_optbool (ab: abool) : aval :=
   match ab with
   | Just b => I (if b then Int.one else Int.zero)
+  | Maybe b => IU (if b then Int.one else Int.zero)
   | _ => Uns Pbot 1
   end.
 
 Lemma of_optbool_sound:
   forall ob ab, cmatch ob ab -> vmatch (Val.of_optbool ob) (of_optbool ab).
 Proof.
-  intros.
-  assert (DEFAULT: vmatch (Val.of_optbool ob) (Uns Pbot 1)).
-  {
-    destruct ob; simpl; auto with va.
-    destruct b; constructor; try lia.
-    change 1 with (usize Int.one). apply is_uns_usize.
-    red; intros. apply Int.bits_zero.
-  }
-  inv H; auto. simpl. destruct b; constructor.
+  intros. inv H; simpl; auto with va.
+- destruct b; constructor.
+- destruct b; constructor.
+- destruct ob; simpl; auto with va.
+  destruct b; constructor; try lia.
+  change 1 with (usize Int.one). apply is_uns_usize.
+  red; intros. apply Int.bits_zero.
 Qed.
 
 Definition resolve_branch (ab: abool) : option bool :=
@@ -2875,15 +3268,13 @@ Proof.
   intros. inv H; simpl in H0; congruence.
 Qed.
 
-(** Select either returns one of its arguments, or Vundef. *)
+(** Add the possibility that the result may be [Vundef].
+    Used for the [select] operation when the condition may be undefined. *)
 
 Definition add_undef (x: aval) :=
   match x with
   | Vbot => ntop
-  | I i =>
-      if Int.lt i Int.zero
-      then sgn Pbot (ssize i)
-      else uns Pbot (usize i)
+  | I i => IU i
   | L _ | F _ | FS _ => ntop
   | _ => x
   end.
@@ -2892,44 +3283,64 @@ Lemma add_undef_sound:
   forall v x, vmatch v x -> vmatch v (add_undef x).
 Proof.
   destruct 1; simpl; auto with va.
-  destruct (Int.lt i Int.zero).
-  apply vmatch_sgn; apply is_sgn_ssize.
-  apply vmatch_uns; apply is_uns_usize.
 Qed.
 
 Lemma add_undef_undef:
   forall x, vmatch Vundef (add_undef x).
 Proof.
   destruct x; simpl; auto with va.
-  destruct (Int.lt n Int.zero); auto with va.
 Qed.
 
-Lemma add_undef_normalize:
-  forall v x ty, vmatch v x -> vmatch (Val.normalize v ty) (add_undef x).
+(** Normalization by the select operation. *)
+
+Definition vnormalize_type (ty: typ) (x: aval) : aval :=
+  match x, ty with
+  | Vbot, _ => Vbot
+  | I _, Tint => x
+  | L _, Tlong => x
+  | F _, Tfloat => x
+  | FS _, Tsingle => x
+  | (I _ | FS _), Tany32 => x
+  | (I _ | L _ | F _ | FS _), Tany64 => x
+  | _, _ => add_undef x
+  end.
+
+Lemma vnormalize_type_sound: forall v x ty,
+  vmatch v x -> vmatch (Val.normalize v ty) (vnormalize_type ty x).
 Proof.
-  intros. destruct (Val.lessdef_normalize v ty);
-  auto using add_undef_sound, add_undef_undef.
+  intros.
+  assert (A: Val.has_type v ty /\ vnormalize_type ty x = x
+          \/ vnormalize_type ty x = add_undef x).
+  { unfold vnormalize_type, Val.has_type; inv H; destruct ty; auto. }
+  destruct A as [[A B] | A].
+- rewrite B, Val.normalize_idem by auto. auto.
+- rewrite A. destruct (Val.lessdef_normalize v ty);
+  auto using add_undef_sound, add_undef_undef. 
 Qed.
 
-Definition select (ab: abool) (x y: aval) :=
+(** Select either returns one of its arguments, or Vundef. *)
+
+Definition select (ab: abool) (x y: aval) (ty: typ) :=
   match ab with
   | Bnone => ntop
-  | Just b | Maybe b => add_undef (if b then x else y)
-  | Btop => add_undef (vlub x y)
+  | Just b => vnormalize_type ty (if b then x else y)
+  | Maybe b => add_undef (vnormalize_type ty (if b then x else y))
+  | Btop => add_undef (vnormalize_type ty (vlub x y))
   end.
 
 Lemma select_sound:
   forall ob v w ab x y ty,
   cmatch ob ab -> vmatch v x -> vmatch w y ->
-  vmatch (Val.select ob v w ty) (select ab x y).
+  vmatch (Val.select ob v w ty) (select ab x y ty).
 Proof.
   unfold Val.select, select; intros. inv H.
 - auto with va.
-- apply add_undef_normalize; destruct b; auto.
+- apply vnormalize_type_sound; destruct b; auto.
 - apply add_undef_undef.
-- apply add_undef_normalize; destruct b; auto.
+- apply add_undef_sound; apply vnormalize_type_sound; destruct b; auto.
 - destruct ob as [b|]. 
-+ apply add_undef_normalize. destruct b; [apply vmatch_lub_l|apply vmatch_lub_r]; auto.
++ apply add_undef_sound; apply vnormalize_type_sound.
+  destruct b; [apply vmatch_lub_l|apply vmatch_lub_r]; auto.
 + apply add_undef_undef.
 Qed.
 
@@ -2941,22 +3352,29 @@ Definition vnormalize (chunk: memory_chunk) (v: aval) :=
   | Mbool, I i =>
       let j := Int.zero_ext 8 i in
       if Int.eq j Int.zero || Int.eq j Int.one then I j else Uns Pbot 1
+  | Mbool, IU i =>
+      let j := Int.zero_ext 8 i in
+      if Int.eq j Int.zero || Int.eq j Int.one then IU j else Uns Pbot 1
   | Mbool, _ => Uns (provenance v) 1
   | Mint8signed, I i => I (Int.sign_ext 8 i)
+  | Mint8signed, IU i => IU (Int.sign_ext 8 i)
   | Mint8signed, Uns p n => if zlt n 8 then Uns (provenance v) n else Sgn (provenance v) 8
   | Mint8signed, Sgn p n => Sgn (provenance v) (Z.min n 8)
   | Mint8signed, _ => Sgn (provenance v) 8
   | Mint8unsigned, I i => I (Int.zero_ext 8 i)
+  | Mint8unsigned, IU i => IU (Int.zero_ext 8 i)
   | Mint8unsigned, Uns p n => Uns (provenance v) (Z.min n 8)
   | Mint8unsigned, _ => Uns (provenance v) 8
   | Mint16signed, I i => I (Int.sign_ext 16 i)
+  | Mint16signed, IU i => IU (Int.sign_ext 16 i)
   | Mint16signed, Uns p n => if zlt n 16 then Uns (provenance v) n else Sgn (provenance v) 16
   | Mint16signed, Sgn p n => Sgn (provenance v) (Z.min n 16)
   | Mint16signed, _ => Sgn (provenance v) 16
   | Mint16unsigned, I i => I (Int.zero_ext 16 i)
+  | Mint16unsigned, IU i => IU (Int.zero_ext 16 i)
   | Mint16unsigned, Uns p n => Uns (provenance v) (Z.min n 16)
   | Mint16unsigned, _ => Uns (provenance v) 16
-  | Mint32, (I _ | Uns _ _ | Sgn _ _ | Num _) => v
+  | Mint32, (I _ | IU _ | Uns _ _ | Sgn _ _ | Num _) => v
   | Mint32, (Ptr p | Ifptr p) => if Archi.ptr64 then Num (provenance v) else v
   | Mint32, _ => Num (provenance v)
   | Mint64, L _ => v
@@ -2966,12 +3384,11 @@ Definition vnormalize (chunk: memory_chunk) (v: aval) :=
   | Mfloat32, _ => Num (provenance v)
   | Mfloat64, F f => v
   | Mfloat64, _ => Num (provenance v)
-  | Many32, (I _ | Uns _ _ | Sgn _ _ | FS _) => v
+  | Many32, (I _ | IU _ | Uns _ _ | Sgn _ _ | FS _) => v
   | Many32, (Ptr p | Ifptr p) => if Archi.ptr64 then Num (provenance v) else v
   | Many32, _ => Num (provenance v)
   | Many64, _ => v
   end.
-
 
 Lemma vnormalize_sound:
   forall chunk v x, vmatch v x -> vmatch (Val.load_result chunk v) (vnormalize chunk x).
@@ -2983,6 +3400,11 @@ Proof.
   predSpec Int.eq Int.eq_spec j Int.zero. rewrite H. apply vmatch_i.
   predSpec Int.eq Int.eq_spec j Int.one. rewrite H0. apply vmatch_i.
   simpl. unfold proj_sumbool, Vtrue, Vfalse. rewrite ! dec_eq_false by congruence. apply vmatch_Uns_undef.
+- set (j := Int.zero_ext 8 i). unfold Val.norm_bool, Val.is_bool.
+  predSpec Int.eq Int.eq_spec j Int.zero. rewrite H. apply vmatch_iu.
+  predSpec Int.eq Int.eq_spec j Int.one. rewrite H0. apply vmatch_iu.
+  simpl. unfold proj_sumbool, Vtrue, Vfalse. rewrite ! dec_eq_false by congruence. apply vmatch_Uns_undef.
+- destruct orb; auto with va.
 - destruct (zlt n 8); constructor; auto with va.
   apply is_sign_ext_uns; auto.
   apply is_sign_ext_sgn; auto with va.
@@ -3057,19 +3479,28 @@ Lemma vnormalize_monotone:
   vge x y -> vge (vnormalize chunk x) (vnormalize chunk y).
 Proof with (auto using provenance_monotone, provenance_ifptr_ge with va).
 Local Opaque provenance.
-  assert (BOOL: forall p i,
-          vge (Uns p 1) (if Int.eq i Int.zero || Int.eq i Int.one then I i else Uns Pbot 1)).
+  assert (BOOL1: forall p i,
+          vge (Uns p 1) (if Int.eq i Int.zero || Int.eq i Int.one then IU i else Uns Pbot 1)).
   {
     intros. predSpec Int.eq Int.eq_spec i Int.zero; subst.
-    apply vge_uns_i. lia. red; intros. apply Int.bits_zero.
+    apply vge_uns_iu. lia. red; intros. apply Int.bits_zero.
     predSpec Int.eq Int.eq_spec i Int.one; subst.
-    apply vge_uns_i. lia. apply (is_uns_usize Int.one).
+    apply vge_uns_iu. lia. apply (is_uns_usize Int.one).
     apply vge_uns_uns. lia. auto with va.
   }
+  assert (BOOL2: forall p i,
+          vge (Uns p 1) (if Int.eq i Int.zero || Int.eq i Int.one then I i else Uns Pbot 1)).
+  { intros. eapply vge_trans. apply (BOOL1 p i). destruct orb; auto with va. } 
   induction 1;
   unfold vnormalize; generalize Archi.ptr64; intro ptr64; subst; 
   destruct chunk eqn:C; simpl;
   repeat match goal with |- vge (if ?x then _ else _) _ => destruct x end...
+- constructor... apply is_sign_ext_uns...
+- constructor... apply is_sign_ext_sgn...
+- constructor... apply is_zero_ext_uns... apply Z.min_case...
+- constructor... apply is_sign_ext_uns...
+- constructor... apply is_sign_ext_sgn...
+- constructor... apply is_zero_ext_uns... apply Z.min_case...
 - constructor... apply is_sign_ext_uns...
 - constructor... apply is_sign_ext_sgn...
 - constructor... apply is_zero_ext_uns... apply Z.min_case...
@@ -3084,14 +3515,26 @@ Local Opaque provenance.
 - constructor... apply is_zero_ext_uns...
 - constructor... apply is_sign_ext_sgn... apply Z.min_case...
 - constructor... apply is_zero_ext_uns...
+- constructor... apply is_sign_ext_sgn... apply Z.min_case...
+- constructor... apply is_zero_ext_uns...
+- constructor... apply is_sign_ext_sgn... apply Z.min_case...
+- constructor... apply is_zero_ext_uns...
 - destruct (zlt n2 8); constructor...
 - destruct (zlt n2 16); constructor...
 - constructor... apply is_sign_ext_sgn...
 - constructor... apply is_zero_ext_uns...
 - constructor... apply is_sign_ext_sgn...
 - constructor... apply is_zero_ext_uns...
+- constructor... apply is_sign_ext_sgn...
+- constructor... apply is_zero_ext_uns...
+- constructor... apply is_sign_ext_sgn...
+- constructor... apply is_zero_ext_uns...
 - destruct (zlt n 8); constructor...
 - destruct (zlt n 16); constructor...
+- constructor... apply is_sign_ext_sgn...
+- constructor... apply is_zero_ext_uns...
+- constructor... apply is_sign_ext_sgn...
+- constructor... apply is_zero_ext_uns...
 - constructor... apply is_sign_ext_sgn...
 - constructor... apply is_zero_ext_uns...
 - constructor... apply is_sign_ext_sgn...
@@ -3138,6 +3581,31 @@ Lemma aval_of_val_sound:
   forall v a, aval_of_val v = Some a -> vmatch v a. 
 Proof.
   intros v a E; destruct v; simpl in E; inv E; constructor.
+Qed.
+
+(** Lifting an extended type to a value approximation. *)
+
+Definition of_xtype (x: xtype) (p: aptr) : aval :=
+  match x with
+  | Xbool => Uns p 1
+  | Xint8signed => Sgn p 8
+  | Xint8unsigned => Uns p 8
+  | Xint16signed => Sgn p 16
+  | Xint16unsigned => Uns p 16
+  | _ => Ifptr p
+  end.
+
+Lemma of_xtype_arg_sound: forall v x p,
+  Val.has_argtype v x ->
+  vmatch v (Ifptr p) ->
+  vmatch v (of_xtype x p).
+Proof.
+  intros. destruct x, v; simpl in *; try contradiction; auto with va.
+- constructor. lia. apply is_uns_zero_ext. destruct H; subst i; auto.
+- constructor. lia. apply is_sgn_sign_ext. lia. auto.
+- constructor. lia. apply is_uns_zero_ext. auto.
+- constructor. lia. apply is_sgn_sign_ext. lia. auto.
+- constructor. lia. apply is_uns_zero_ext. auto.
 Qed.
 
 (** * Abstracting memory blocks *)
@@ -4325,6 +4793,94 @@ Qed.
 
 End MATCH.
 
+(** * Nonaliasing tests. *)
+
+(** [pdisjoint p1 sz1 p2 sz2] returns [true] if there can be no overlap
+    between a block of size [sz1] in the region characterized by [p1]
+    and a block of size [sz2] in the region characterized by [p2]. *)
+
+Definition pdisjoint (p1: aptr) (sz1: Z) (p2: aptr) (sz2: Z) : bool :=
+  match p1, p2 with
+  | Pbot, _ => true
+  | _, Pbot => true
+  | Gl id1 ofs1, Gl id2 ofs2 =>
+      if peq id1 id2
+      then zle (Ptrofs.unsigned ofs1 + sz1) (Ptrofs.unsigned ofs2)
+           || zle (Ptrofs.unsigned ofs2 + sz2) (Ptrofs.unsigned ofs1)
+      else true
+  | Gl id1 ofs1, Glo id2 => negb(peq id1 id2)
+  | Glo id1, Gl id2 ofs2 => negb(peq id1 id2)
+  | Glo id1, Glo id2 => negb(peq id1 id2)
+  | Stk ofs1, Stk ofs2 =>
+      zle (Ptrofs.unsigned ofs1 + sz1) (Ptrofs.unsigned ofs2)
+      || zle (Ptrofs.unsigned ofs2 + sz2) (Ptrofs.unsigned ofs1)
+  | (Gl _ _ | Glo _ | Glob | Nonstack), (Stk _ | Stack) => true
+  | (Stk _ | Stack), (Gl _ _ | Glo _ | Glob | Nonstack) => true
+  | _, _ => false
+  end.
+
+Lemma pdisjoint_sound:
+  forall (bc: block_classification) sz1 b1 ofs1 p1 sz2 b2 ofs2 p2,
+  pdisjoint p1 sz1 p2 sz2 = true ->
+  pmatch bc b1 ofs1 p1 -> pmatch bc b2 ofs2 p2 ->
+  b1 <> b2 \/ Ptrofs.unsigned ofs1 + sz1 <= Ptrofs.unsigned ofs2 \/ Ptrofs.unsigned ofs2 + sz2 <= Ptrofs.unsigned ofs1.
+Proof.
+  intros. inv H0; inv H1; simpl in H; try discriminate; try (left; congruence).
+- destruct (peq id id0). subst id0. destruct (orb_true_elim _ _ H); InvBooleans; auto.
+  left; congruence.
+- destruct (peq id id0); try discriminate. left; congruence.
+- destruct (peq id id0); try discriminate. left; congruence.
+- destruct (peq id id0); try discriminate. left; congruence.
+- destruct (orb_true_elim _ _ H); InvBooleans; auto.
+Qed.
+
+(** This is a stronger property of [pdisjoint], guaranteeing nonaliasing
+    even if the two pointers are considered in different, but compatible
+    block classifications. *)
+
+Lemma pdisjoint_sound_strong:
+  forall sz1 b1 ofs1 bc1 p1 sz2 b2 ofs2 bc2 p2 ge sp,
+  pdisjoint p1 sz1 p2 sz2 = true ->
+  pmatch bc1 b1 ofs1 p1 -> pmatch bc2 b2 ofs2 p2 ->
+  genv_match bc1 ge -> bc1 sp = BCstack ->
+  genv_match bc2 ge -> bc2 sp = BCstack ->
+  b1 <> b2 \/ Ptrofs.unsigned ofs1 + sz1 <= Ptrofs.unsigned ofs2 \/ Ptrofs.unsigned ofs2 + sz2 <= Ptrofs.unsigned ofs1.
+Proof.
+  assert (GLOB_GLOB: forall (bc1 bc2: block_classification) ge b1 b2 id1 id2,
+           genv_match bc1 ge -> genv_match bc2 ge ->
+           bc1 b1 = BCglob id1 -> bc2 b2 = BCglob id2 ->
+           id1 <> id2 -> b1 <> b2).
+  { intros until id2; intros GE1 GE2 EQ1 EQ2 DIFF.
+    apply GE1 in EQ1; apply GE2 in EQ2.
+    apply Genv.find_invert_symbol in EQ1; apply Genv.find_invert_symbol in EQ2.
+    congruence. }
+  assert (GLOB_STACK: forall (bc1 bc2: block_classification) ge sp b1 b2 id,
+           genv_match bc1 ge -> bc1 sp = BCstack -> bc2 sp = BCstack ->
+           bc1 b1 = BCglob id -> bc2 b2 = BCstack ->
+           b1 <> b2).
+  { intros until id; intros GE1 SP1 SP2 EQ1 EQ2.
+    apply GE1 in EQ1.
+    assert (bc1 b1 <> BCstack) by (apply GE1; eapply (Senv.find_symbol_below ge); eauto).
+    assert (b2 = sp) by (eapply bc2.(bc_stack); eauto).
+    congruence. }
+  assert (STACK_OTHER: forall (bc1 bc2: block_classification) sp b1 b2,
+           bc1 sp = BCstack -> bc2 sp = BCstack ->
+           bc1 b1 = BCstack -> bc2 b2 <> BCstack ->
+           b1 <> b2).
+  { intros until b2; intros SP1 SP2 EQ1 EQ2.
+    assert (b1 = sp) by (eapply bc1.(bc_stack); eauto).
+    congruence. }
+  intros until sp; intros DISJ PM1 PM2 GE1 SP1 GE2 SP2.
+  inv PM1; inv PM2; simpl in DISJ; try discriminate; eauto using not_eq_sym.
+  - destruct (peq id id0).
+    + subst id0. destruct (orb_true_elim _ _ DISJ); InvBooleans; auto.
+    + eauto.
+  - destruct (peq id id0); discriminate || eauto.
+  - destruct (peq id id0); discriminate || eauto.
+  - destruct (peq id id0); discriminate || eauto.
+  - destruct (orb_true_elim _ _ DISJ); InvBooleans; auto.
+Qed.
+
 (** * Monotonicity properties when the block classification changes. *)
 
 Lemma genv_match_exten:
@@ -4588,36 +5144,47 @@ Proof.
   unfold AVal.eq; red; intros. subst av. inv H0.
 Qed.
 
-Fixpoint einit_regs (rl: list reg) : aenv :=
-  match rl with
-  | r1 :: rs => AE.set r1 (Ifptr Nonstack) (einit_regs rs)
-  | nil => AE.top
+Fixpoint einit_regs (rl: list reg) (tl: list xtype) : aenv :=
+  match rl, tl with
+  | nil, _ => AE.top
+  | r1 :: rs, t1 :: ts =>
+      let a1 :=
+        if Conventions1.parameter_needs_normalization t1
+        then Ifptr Nonstack
+        else of_xtype t1 Nonstack in
+      AE.set r1 a1 (einit_regs rs ts)
+  | r1 :: rs, nil => AE.set r1 (Ifptr Nonstack) (einit_regs rs nil)
   end.
 
 Lemma ematch_init:
-  forall rl vl,
+  forall rl vl tl,
+  Val.has_argtype_list vl tl ->
   (forall v, In v vl -> vmatch bc v (Ifptr Nonstack)) ->
-  ematch (init_regs vl rl) (einit_regs rl).
+  ematch (init_regs vl rl) (einit_regs rl tl).
 Proof.
-  induction rl; simpl; intros.
-- red; intros. rewrite Regmap.gi. simpl.
-  constructor.
-- destruct vl as [ | v1 vs ].
-  + assert (ematch (init_regs nil rl) (einit_regs rl)).
-    { apply IHrl. simpl; tauto. }
-    replace (init_regs nil rl) with (Regmap.init Vundef) in H0 by (destruct rl; auto).
-    red; intros. rewrite AE.gsspec. destruct (peq r a).
-    rewrite Regmap.gi. constructor.
-    apply H0.
-    red; intros EQ; rewrite EQ in H0. specialize (H0 xH). simpl in H0. inv H0.
-    unfold AVal.eq, AVal.bot. congruence.
-  + assert (ematch (init_regs vs rl) (einit_regs rl)).
-    { apply IHrl. eauto with coqlib. }
-    red; intros. rewrite Regmap.gsspec. rewrite AE.gsspec. destruct (peq r a).
-    auto with coqlib.
-    apply H0.
-    red; intros EQ; rewrite EQ in H0. specialize (H0 xH). simpl in H0. inv H0.
-    unfold AVal.eq, AVal.bot. congruence.
+Local Opaque Conventions1.parameter_needs_normalization.
+  assert (A: forall rs ae, ematch rs ae -> ae <> AE.Bot).
+  { intros; red; intros EQ. rewrite EQ in H. specialize (H 1%positive). simpl in H. inv H. }
+  assert (B: ~AVal.eq (Ifptr Nonstack) AVal.bot) by (unfold AVal.eq, AVal.bot; congruence).
+  assert (C: forall t, ~AVal.eq (of_xtype t Nonstack) AVal.bot).
+  { intros. unfold AVal.eq, AVal.bot; destruct t; simpl; congruence. }
+  induction rl; simpl; intros vl tl T V.
+- red; intros. rewrite Regmap.gi. simpl. constructor.
+- inv T.
+  + assert (REC: ematch (init_regs nil rl) (einit_regs rl nil)).
+    { apply IHrl. constructor. auto. }
+    replace (init_regs nil rl) with (Regmap.init Vundef) in REC by (destruct rl; auto).
+    red; intros. rewrite AE.gsspec by eauto. destruct (peq r a).
+    rewrite Regmap.gi; constructor.
+    apply REC.
+  + assert (REC: ematch (init_regs al rl) (einit_regs rl bl)).
+    { apply IHrl; eauto with coqlib. }
+    red; intros. rewrite Regmap.gsspec, AE.gsspec; eauto.
+    * destruct (peq r a).
+      destruct (Conventions1.parameter_needs_normalization b1);
+      auto using of_xtype_arg_sound with coqlib.
+      apply REC.
+    * destruct (Conventions1.parameter_needs_normalization b1); auto.
 Qed.
 
 Fixpoint eforget (rl: list reg) (ae: aenv) {struct rl} : aenv :=

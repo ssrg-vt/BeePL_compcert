@@ -13,7 +13,7 @@
 (** Recognition of combined operations, addressing modes and conditions
   during the [CSE] phase. *)
 
-Require Import FunInd.
+From Coq Require Import FunInd.
 Require Import Coqlib.
 Require Import Integers Values Memory.
 Require Import Op RTL CSEdomain.
@@ -53,6 +53,9 @@ Proof.
   (* of and *)
   UseGetSound. rewrite <- H.
   destruct v; simpl; auto.
+  (* of xorimm *)
+  UseGetSound. rewrite <- H.
+  destruct v; simpl; auto. rewrite Int.xor_is_zero; auto.
 Qed.
 
 Lemma combine_compimm_eq_0_sound:
@@ -68,6 +71,9 @@ Proof.
   destruct (eval_condition c (map valu args) m); simpl; auto. destruct b; auto.
   (* of and *)
   UseGetSound. rewrite <- H. destruct v; auto.
+  (* of xorimm *)
+  UseGetSound. rewrite <- H.
+  destruct v; simpl; auto. rewrite Int.xor_is_zero; auto.
 Qed.
 
 Lemma combine_compimm_eq_1_sound:

@@ -661,7 +661,7 @@ match e with
                           else error (msg "COMPILER ERROR: Match can be only performed on option type containing types other than ref")
                      | Bytes => match ps, es with 
                                 | (Pbytes x (Stype s noattr) xts :: p2), (e1 :: e2 :: nil) => 
-                                    let cxts := zip (unzip1 xts) (from_typelist (transBeePL_types transBeePL_type (unzip2 xts))) in 
+                                    let cxts := zip (unzip1 xts) (transBeePL_types transBeePL_type (unzip2 xts)) in 
                                     do (ce1, bctx1) <- transBeePL_expr_st cenv e1 (snd ce) bctx';
                                     do (ce2, bctx2) <- transBeePL_expr_st cenv e2 (snd ce1) bctx1;
                                     match bctx.(arg_ctx) with 
@@ -731,7 +731,7 @@ if fd.(is_ebpf) then
   OK ({| fn_return := crt; 
          fn_callconv := cc_default; 
          fn_params := params;
-         fn_vars := zip (List.map unzip_ident (snd fbody)) (from_typelist vt);
+         fn_vars := zip (List.map unzip_ident (snd fbody)) vt;
          fn_body :=  fst fbody |}, is', fn_ctx')
   end
   end
@@ -756,8 +756,8 @@ else
   let is' := merge_ident_string (snd fbody) is in
   OK ({| fn_return := crt; 
          fn_callconv := cc_default; 
-         fn_params := zip (unzip1 (fd.(fn_args))) (from_typelist pt);
-         fn_vars := zip (List.map unzip_ident (snd fbody)) (from_typelist vt);
+         fn_params := zip (unzip1 (fd.(fn_args))) pt;
+         fn_vars := zip (List.map unzip_ident (snd fbody)) vt;
          fn_body :=  fst fbody|}, is', fn_ctx')
   end
   end).
@@ -852,6 +852,7 @@ Inductive sec_access_mode : Type :=
 
 Record csyntax_atom_info : Type := {
   a_storage : storage;
+  a_defined : bool;
   a_size : option int64;
   a_alignment : option int;
   a_section : list section_name;
@@ -875,6 +876,7 @@ Fixpoint get_section_info (glob_defs : list (ident * AST.globdef BeePL.fundef ty
                             Section_jumptable :: nil in
         let info := {|
           a_storage := Storage_default;
+          a_defined := true; (* taking it as true, not sure as of now how ebpf backend use it *)
           (* CompCert does not specify a_size and a_alignment for functions *)
           a_size := None;
           a_alignment := None;
@@ -898,6 +900,7 @@ Fixpoint get_section_info (glob_defs : list (ident * AST.globdef BeePL.fundef ty
         let info := {|
           a_storage := Storage_default;
           (* TODO: global variables do need to specify a_size and a_alignment. How does CompCert do it? *)
+          a_defined := true;
           a_size := Some (Int64.repr (BeeTypes.sizeof_type env gvar_t)); (* refers to size of global variable - not section name *)
           a_alignment := Some (Int.repr (BeeTypes.alignof_type env gvar_t));
           a_section := section_list;

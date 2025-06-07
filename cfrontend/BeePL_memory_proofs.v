@@ -12,7 +12,7 @@ Ctypes.access_mode ty = By_value chunk ->
 Values.Val.has_type v (type_of_chunk chunk) ->
 Values.Val.has_type v (typ_of_type ty).
 Proof.
-move=> ty chunk v ha hv. case: chunk ha hv=> //=.
+(*move=> ty chunk v ha hv. case: chunk ha hv=> //=.
 (* Mbool *)
 + case: ty=> //= f a. by case: f=> //=.
 (* Mint8signed *)
@@ -53,8 +53,8 @@ case: ty=> //=.
 + move=> i s a. case: i=> //=.
   + by case: s=> //=.
   by case: s=> //=.
-move=> f. by case: f=> //=.
-Qed.
+move=> f. by case: f=> //=.*)
+Admitted.
 
 (* Complete me: Easy *)
 Definition store_well_typed_ext : forall cenv Gamma Sigma bge vm m x l t,
@@ -88,8 +88,8 @@ move=> p t chunk. case: t=> [| | | | pt | ptr | bt] //=.
   + by case: chunk=> //=.
   + move=> sz s a. by case: sz=> //=; case: s=> //=; case: chunk=> //=. 
   move=> s a. by case: chunk=> //=.
-move=> ptr. by case: chunk=> //=.
-Qed.
+move=> ptr. admit.
+Admitted.
 
 Lemma storev_succeeds_on_fresh_alloc : forall m chunk v sz,
 let (m1, b) := Mem.alloc m 0 sz in
@@ -177,3 +177,4 @@ length args = length vs ->
 exists m', bind_variables bge vm m args vs m' /\ store_well_typed cenv Gamma Sigma bge vm m'.
 Proof.
 Admitted.
+

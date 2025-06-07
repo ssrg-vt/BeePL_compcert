@@ -324,7 +324,8 @@ Proof.
   intros. destruct H. unfold Mach.undef_caller_save_regs, Asm.undef_caller_save_regs; split.
 - unfold proj_sumbool; rewrite dec_eq_true. auto.
 - auto.
-- intros. unfold proj_sumbool. rewrite dec_eq_false by (apply preg_of_not_SP). 
+- intros. unfold proj_sumbool. rewrite! dec_eq_false by (auto with asmgen).
+
   destruct (in_dec preg_eq (preg_of r) (List.map preg_of (List.filter is_callee_save all_mregs))); simpl.
 + apply list_in_map_inv in i. destruct i as (mr & A & B). 
   assert (r = mr) by (apply preg_of_injective; auto). subst mr; clear A.
@@ -955,13 +956,20 @@ Section MATCH_STACK.
 
 Variable ge: Mach.genv.
 
+Inductive is_base_pointer : val -> Prop :=
+  is_base_pointer_mk : forall stk, is_base_pointer (Vptr stk Ptrofs.zero).
+
+Inductive retaddr_block : block -> val -> Prop :=
+| retaddr_block_intro : forall b o, retaddr_block b (Vptr b o) .
+
 Inductive match_stack: list Mach.stackframe -> Prop :=
   | match_stack_nil:
       match_stack nil
   | match_stack_cons: forall fb sp ra c s f tf tc,
       Genv.find_funct_ptr ge fb = Some (Internal f) ->
       transl_code_at_pc ge ra fb f c false tf tc ->
-      sp <> Vundef ->
+      is_base_pointer sp ->
+      retaddr_block fb ra ->
       match_stack s ->
       match_stack (Stackframe fb sp ra c :: s).
 
@@ -969,7 +977,7 @@ Lemma parent_sp_def: forall s, match_stack s -> parent_sp s <> Vundef.
 Proof.
   induction 1; simpl.
   unfold Vnullptr; destruct Archi.ptr64; congruence.
-  auto.
+  inv H1. congruence.
 Qed.
 
 Lemma parent_ra_def: forall s, match_stack s -> parent_ra s <> Vundef.

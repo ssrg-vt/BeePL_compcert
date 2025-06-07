@@ -359,17 +359,18 @@ case: t ht1 ht2 hteq=> //= p; case: p=> //= sz s a.
     + move=> b ht2. by inversion ht2.
     + move=> i' ht3. rewrite /Cop.sem_sub /Cop.classify_sub /=.
       case: sz ht1 ht3=>//=.
-      + rewrite /Cop.sem_binarith /= /Cop.sem_cast /=. case: Archi.ptr64=> //= hp.
+      + rewrite /Cop.sem_binarith /= /Cop.sem_cast /= /Cop.sem_mul /= /Cop.sem_binarith /Cop.sem_cast /=.
+        case: Archi.ptr64=> //= hp.
         + exists (Values.Vint (Int.mul i i')). rewrite /trans_cvalue_bvalue /=.
           by exists (Vint (Int.mul i i')).
         case: (intsize_eq I32 I32)=> //= _. exists (Values.Vint (Int.mul i i')). 
         rewrite /trans_cvalue_bvalue /=. by exists (Vint (Int.mul i i')).
-      + rewrite /Cop.sem_binarith /= /Cop.sem_cast /=. case: Archi.ptr64=> //= hp.
+      + rewrite /Cop.sem_binarith /= /Cop.sem_cast /= /= /Cop.sem_mul /= /Cop.sem_binarith /Cop.sem_cast /=. case: Archi.ptr64=> //= hp.
         + exists (Values.Vint (Int.mul i i')). rewrite /trans_cvalue_bvalue /=.
           by exists (Vint (Int.mul i i')).
         case: (intsize_eq I32 I32)=> //= _. exists (Values.Vint (Int.mul i i')). 
         rewrite /trans_cvalue_bvalue /=. by exists (Vint (Int.mul i i')).
-      + rewrite /Cop.sem_binarith /= /Cop.sem_cast /= /Cop.classify_cast /=. 
+      + rewrite /Cop.sem_binarith /= /Cop.sem_cast /= /Cop.classify_cast /= /= /Cop.sem_mul /= /Cop.sem_binarith /Cop.sem_cast /=. 
         case: s=> //=.
         + case: Archi.ptr64=> //= hp.
           + exists (Values.Vint (Int.mul i i')). rewrite /trans_cvalue_bvalue /=.
@@ -381,7 +382,7 @@ case: t ht1 ht2 hteq=> //= p; case: p=> //= sz s a.
           by exists (Vint (Int.mul i i')).
         case: (intsize_eq I32 I32)=> //= _. exists (Values.Vint (Int.mul i i')). 
         rewrite /trans_cvalue_bvalue /=. by exists (Vint (Int.mul i i')).
-      rewrite /Cop.sem_binarith /= /Cop.sem_cast /=. case: Archi.ptr64=> //= hp.
+      rewrite /Cop.sem_binarith /= /Cop.sem_cast /= /Cop.sem_mul /= /Cop.sem_binarith /Cop.sem_cast /=. case: Archi.ptr64=> //= hp.
       + exists (Values.Vint (Int.mul i i')). rewrite /trans_cvalue_bvalue /=.
         by exists (Vint (Int.mul i i')).
       case: (intsize_eq I32 I32)=> //= _. exists (Values.Vint (Int.mul i i')). 
@@ -401,8 +402,8 @@ case: t ht1 ht2 hteq=> //= p; case: p=> //= sz s a.
     + move=> hte'. by inversion hte'.
     + move=> b' hte'. by inversion hte'.
     + move=> i' hte'. by inversion hte'.
-    + move=> l' hte' _. rewrite /Cop.sem_sub /= /Cop.sem_binarith /= /Cop.sem_cast /=.
-      case: sz hte hte'=> //=.
+    + move=> l' hte' _. rewrite /Cop.sem_sub /= /Cop.sem_binarith /= /Cop.sem_cast
+      /= /Cop.sem_mul /= /Cop.sem_binarith /Cop.sem_cast /=. case: sz hte hte'=> //=.
       + case: Archi.ptr64=> //= hp.
         + move=>hte'. exists (Values.Vlong (Int64.mul l l')). 
           rewrite /trans_cvalue_bvalue /=. by exists (Vint64 (Int64.mul l l')).
@@ -653,9 +654,9 @@ case: s hs hc=> //=.
       + move=> _ ht; by inversion ht.
       + move=> b _ ht; by inversion ht.
       + move=> i h1 h2 _ _. case: ifP=> //= hi _.
-        rewrite /Cop.sem_div /= /Cop.sem_binarith /Cop.sem_cast /=.
-        case: ifP=> //= h. + by rewrite h in hi.
-        case: Archi.ptr64=> //=. case: v1 h1=> //=.
+        rewrite /Cop.sem_div /= /Cop.sem_binarith /Cop.sem_cast /=. 
+        case: Archi.ptr64=> //=.
+        + case: v1 h1=> //=.
         + move=> ht; by inversion ht.
         + move=> b ht; by inversion ht.
         + move=> i' ht /=. rewrite hi /=.
@@ -685,7 +686,6 @@ case: s hs hc=> //=.
       + move=> b _ ht; by inversion ht.
       + move=> i h1 h2 _ _. case: ifP=> //= hi _.
         rewrite /Cop.sem_div /= /Cop.sem_binarith /Cop.sem_cast /=.
-        case: ifP=> //= h. + by rewrite h in hi.
         case: Archi.ptr64=> //=. case: v1 h1=> //=.
         + move=> ht; by inversion ht.
         + move=> b ht; by inversion ht.
@@ -716,7 +716,6 @@ case: s hs hc=> //=.
       + move=> b _ ht; by inversion ht.
       + move=> i h1 h2 _ _. case: ifP=> //= hi _.
         rewrite /Cop.sem_div /= /Cop.sem_binarith /Cop.sem_cast /=.
-        case: ifP=> //= h. + by rewrite h in hi.
         case: Archi.ptr64=> //=. case: v1 h1=> //=.
         + move=> ht; by inversion ht.
         + move=> b ht; by inversion ht.
@@ -743,7 +742,6 @@ case: s hs hc=> //=.
       + move=> b _ ht; by inversion ht.
       + move=> i h1 h2 _ _. case: ifP=> //= hi _.
         rewrite /Cop.sem_div /= /Cop.sem_binarith /Cop.sem_cast /=.
-        case: ifP=> //= h. + by rewrite h in hi.
         case: Archi.ptr64=> //=. case: v1 h1=> //=.
         + move=> ht; by inversion ht.
         + move=> b ht; by inversion ht.
@@ -1010,7 +1008,6 @@ case: s hs hc=> //=.
       + move=> b _ ht; by inversion ht.
       + move=> i h1 h2 _ _. case: ifP=> //= hi _.
         rewrite /Cop.sem_mod /= /Cop.sem_binarith /Cop.sem_cast /=.
-        case: ifP=> //= h. + by rewrite h in hi.
         case: Archi.ptr64=> //=. case: v1 h1=> //=.
         + move=> ht; by inversion ht.
         + move=> b ht; by inversion ht.
@@ -1041,7 +1038,6 @@ case: s hs hc=> //=.
       + move=> b _ ht; by inversion ht.
       + move=> i h1 h2 _ _. case: ifP=> //= hi _.
         rewrite /Cop.sem_mod /= /Cop.sem_binarith /Cop.sem_cast /=.
-        case: ifP=> //= h. + by rewrite h in hi.
         case: Archi.ptr64=> //=. case: v1 h1=> //=.
         + move=> ht; by inversion ht.
         + move=> b ht; by inversion ht.
@@ -1072,7 +1068,6 @@ case: s hs hc=> //=.
       + move=> b _ ht; by inversion ht.
       + move=> i h1 h2 _ _. case: ifP=> //= hi _.
         rewrite /Cop.sem_mod /= /Cop.sem_binarith /Cop.sem_cast /=.
-        case: ifP=> //= h. + by rewrite h in hi.
         case: Archi.ptr64=> //=. case: v1 h1=> //=.
         + move=> ht; by inversion ht.
         + move=> b ht; by inversion ht.
@@ -1099,7 +1094,6 @@ case: s hs hc=> //=.
       + move=> b _ ht; by inversion ht.
       + move=> i h1 h2 _ _. case: ifP=> //= hi _.
         rewrite /Cop.sem_mod /= /Cop.sem_binarith /Cop.sem_cast /=.
-        case: ifP=> //= h. + by rewrite h in hi.
         case: Archi.ptr64=> //=. case: v1 h1=> //=.
         + move=> ht; by inversion ht.
         + move=> b ht; by inversion ht.

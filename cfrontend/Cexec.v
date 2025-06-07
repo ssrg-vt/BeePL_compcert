@@ -12,9 +12,8 @@
 
 (** Animating the CompCert C semantics *)
 
-Require Import FunInd.
-Require Import Axioms Classical.
-Require Import String Coqlib Decidableplus.
+From Coq Require Import FunInd Classical String.
+Require Import Axioms Coqlib Decidableplus.
 Require Import Errors Maps Integers Floats.
 Require Import AST Values Memory Events Globalenvs Builtins Determinism.
 Require Import Ctypes Cop Csyntax Csem.
@@ -28,19 +27,19 @@ Local Open Scope list_scope.
 Declare Scope option_monad_scope.
 
 Notation "'do' X <- A ; B" := (match A with Some X => B | None => None end)
-  (at level 200, X ident, A at level 100, B at level 200)
+  (at level 200, X name, A at level 100, B at level 200)
   : option_monad_scope.
 
 Notation "'do' X , Y <- A ; B" := (match A with Some (X, Y) => B | None => None end)
-  (at level 200, X ident, Y ident, A at level 100, B at level 200)
+  (at level 200, X name, Y name, A at level 100, B at level 200)
   : option_monad_scope.
 
 Notation "'do' X , Y , Z <- A ; B" := (match A with Some (X, Y, Z) => B | None => None end)
-  (at level 200, X ident, Y ident, Z ident, A at level 100, B at level 200)
+  (at level 200, X name, Y name, Z name, A at level 100, B at level 200)
   : option_monad_scope.
 
 Notation "'do' X , Y , Z , W <- A ; B" := (match A with Some (X, Y, Z, W) => B | None => None end)
-  (at level 200, X ident, Y ident, Z ident, W ident, A at level 100, B at level 200)
+  (at level 200, X name, Y name, Z name, W name, A at level 100, B at level 200)
   : option_monad_scope.
 
 Notation " 'check' A ; B" := (if A then B else None)
@@ -50,7 +49,7 @@ Notation " 'check' A ; B" := (if A then B else None)
 Declare Scope list_monad_scope.
 
 Notation "'do' X <- A ; B" := (match A with Some X => B | None => nil end)
-  (at level 200, X ident, A at level 100, B at level 200)
+  (at level 200, X name, A at level 100, B at level 200)
   : list_monad_scope.
 
 Notation " 'check' A ; B" := (if A then B else nil)
@@ -717,10 +716,10 @@ Section EXPRS.
 Variable e: env.
 Variable w: world.
 
-Fixpoint sem_cast_arguments (vtl: list (val * type)) (tl: typelist) (m: mem) : option (list val) :=
+Fixpoint sem_cast_arguments (vtl: list (val * type)) (tl: list type) (m: mem) : option (list val) :=
   match vtl, tl with
-  | nil, Tnil => Some nil
-  | (v1,t1)::vtl, Tcons t1' tl =>
+  | nil, nil => Some nil
+  | (v1,t1)::vtl, t1'::tl =>
       do v <- sem_cast v1 t1 t1' m; do vl <- sem_cast_arguments vtl tl m; Some(v::vl)
   | _, _ => None
   end.
@@ -751,19 +750,19 @@ Definition incontext2 {A1 A2 B: Type}
 Declare Scope reducts_monad_scope.
 
 Notation "'do' X <- A ; B" := (match A with Some X => B | None => stuck end)
-  (at level 200, X ident, A at level 100, B at level 200)
+  (at level 200, X name, A at level 100, B at level 200)
   : reducts_monad_scope.
 
 Notation "'do' X , Y <- A ; B" := (match A with Some (X, Y) => B | None => stuck end)
-  (at level 200, X ident, Y ident, A at level 100, B at level 200)
+  (at level 200, X name, Y name, A at level 100, B at level 200)
   : reducts_monad_scope.
 
 Notation "'do' X , Y , Z <- A ; B" := (match A with Some (X, Y, Z) => B | None => stuck end)
-  (at level 200, X ident, Y ident, Z ident, A at level 100, B at level 200)
+  (at level 200, X name, Y name, Z name, A at level 100, B at level 200)
   : reducts_monad_scope.
 
 Notation "'do' X , Y , Z , W <- A ; B" := (match A with Some (X, Y, Z, W) => B | None => stuck end)
-  (at level 200, X ident, Y ident, Z ident, W ident, A at level 100, B at level 200)
+  (at level 200, X name, Y name, Z name, W name, A at level 100, B at level 200)
   : reducts_monad_scope.
 
 Notation " 'check' A ; B" := (if A then B else stuck)
@@ -2308,7 +2307,7 @@ Definition do_initial_state (p: program): option (genv * state) :=
   do m0 <- Genv.init_mem p;
   do b <- Genv.find_symbol ge p.(prog_main);
   do f <- Genv.find_funct_ptr ge b;
-  check (type_eq (type_of_fundef f) (Tfunction Tnil type_int32s cc_default));
+  check (type_eq (type_of_fundef f) (Tfunction nil type_int32s cc_default));
   Some (ge, Callstate f nil Kstop m0).
 
 Definition at_final_state (S: state): option int :=

@@ -61,10 +61,11 @@ match p1, p2 with
 | _, _ => false
 end. 
 
+
 Record bsignature := { bsig_args : list type; bsig_ef : effect; bsig_res : type; bsig_cc : calling_convention }. 
 
 Definition bsig_to_csig (bsig : bsignature) : AST.signature :=
-{| sig_args :=  (map typ_of_type (from_typelist (transBeePL_types transBeePL_type bsig.(bsig_args)))); 
+{| sig_args :=  (map xtyp_of_type (transBeePL_types transBeePL_type bsig.(bsig_args))); 
    sig_res := (rettype_of_type (transBeePL_type bsig.(bsig_res))); 
    sig_cc := bsig.(bsig_cc) |}.
 

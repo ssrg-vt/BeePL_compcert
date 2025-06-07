@@ -12,7 +12,8 @@
 
 (** Correctness proof for RTL generation. *)
 
-Require Import Wellfounded Coqlib Maps AST Linking.
+From Coq Require Import Wellfounded.
+Require Import Coqlib Maps AST Linking.
 Require Import Integers Values Memory Events Smallstep Globalenvs.
 Require Import Switch Registers Cminor Op CminorSel RTL.
 Require Import RTLgen RTLgenspec.
@@ -1534,7 +1535,7 @@ Proof.
     eapply add_vars_wf; eauto. eapply add_vars_wf; eauto. apply init_mapping_wf.
   edestruct Mem.alloc_extends as [tm' []]; eauto; try apply Z.le_refl.
   econstructor; split.
-  left; apply plus_one. eapply exec_function_internal; simpl; eauto.
+  left; apply plus_one. eapply exec_function_internal; simpl; eauto using Val.has_argtype_list_lessdef.
   simpl. econstructor; eauto.
   econstructor; eauto.
   inversion MS; subst; econstructor; eauto.
