@@ -504,6 +504,41 @@ Definition block_of_binding (id_b_ty: ident * (positive * BeeTypes.type)) :=
 Definition blocks_of_env (e: vmap) : list (ident * Z * Z) :=
   List.map block_of_binding (PTree.elements e).
 
+Fixpoint vars_bound_by (p : pattern) : list ident :=
+  match p with
+  | Pnone => nil
+  | Psome x => x :: nil
+  | Pbytes x _ fields => x :: map fst fields
+  end.
+
+Section SubstHelper.
+
+Variable subst : ident -> expr -> expr -> expr.
+
+Fixpoint x_in_xs (x : ident) (p : list ident) : bool :=
+  match p with 
+  | nil => false
+  | y :: ys => if (x =? y)%positive then true else x_in_xs x ys
+end.
+
+Definition x_in_pattern (x : ident) (p : pattern) : bool :=
+let bound_vars := vars_bound_by p in
+x_in_xs x bound_vars.
+
+Fixpoint subst_match_branches (x : ident) (se : expr) (ps : list pattern) (es : list expr) : list expr :=
+  match ps, es with
+  | nil, nil => nil
+  | p :: ps', e :: es' =>
+      let e' := if x_in_pattern x p
+                then e
+                else subst x se e in
+      e' :: subst_match_branches x se ps' es'
+  | _, _ => es
+  end.
+
+End SubstHelper.
+
+
 (* Substitution *)
 Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
   match e with 
@@ -521,12 +556,14 @@ Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
   | Addr l p t => Addr l p t
   | Hexpr h e t => Hexpr h (subst x se e) t
   | Eapp ef ts es t => Eapp ef ts (map (subst x se) es) t
-  | Sinit x ids es t => Sinit x ids (map (subst x se) es) t (* fix we need to make comparison with ids? *)
+  | Sinit y ids es t => if (x =? y)%positive then Sinit y ids es t
+                        else Sinit y ids (map (subst x se) es) t
   | Sfield e fld t => Sfield (subst x se e) fld t
   | For e1 e2 d e' t => For (subst x se e1) (subst x se e2) d (subst x se e') t
   | Enone t => Enone t 
   | Esome e t => Esome (subst x se e) t
-  | Match e ps es t => Match (subst x se e) ps (map (subst x se) es) t
+  | Match e ps es t => (*Match (subst x se e) ps (subst_match_branches subst x se ps es) t : correct *)
+    Match (subst x se e) ps (map (subst x se) es) t (* replace this with above *)
   | Ebytes es t => Ebytes (map (subst x se) es) t
   end.
 
