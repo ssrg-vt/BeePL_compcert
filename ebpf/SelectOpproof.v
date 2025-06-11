@@ -20,6 +20,22 @@ Require Import Mulh SelectOp SelectLong.
 
 Local Open Scope cminorsel_scope.
 
+Lemma offset_ptr_add_int : forall sp n1 n2,
+  Val.lessdef (Val.add (Vint n1) (Val.offset_ptr sp n2)) (Val.offset_ptr sp (Ptrofs.add (Ptrofs.of_int n1) n2)).
+Proof.
+  intros.
+  rewrite Val.add_commut.
+  unfold Val.offset_ptr.
+  destruct sp; try apply Val.lessdef_refl.
+  simpl. destruct Archi.ptr64.
+  - constructor.
+  - rewrite Ptrofs.add_assoc.
+    rewrite (Ptrofs.add_commut n2).
+    constructor.
+Qed.
+
+
+
 (** * Useful lemmas and tactics *)
 
 (** The following are trivial lemmas and custom tactics that help
@@ -161,7 +177,7 @@ Proof.
     rewrite Val.add_assoc.
     rewrite <- (Val.add_commut v1).
     apply Val.add_lessdef; auto.
-    apply Val.offset_ptr_add_int.
+    apply offset_ptr_add_int.
   - subst.
     econstructor; split.
     repeat econstructor ; eauto.
@@ -170,7 +186,7 @@ Proof.
     rewrite <- (Val.add_commut v1).
     apply Val.add_lessdef; auto.
     rewrite Ptrofs.add_commut.
-    apply Val.offset_ptr_add_int.
+    apply offset_ptr_add_int.
   - subst.
     rewrite Val.add_commut.
     rewrite <- Val.add_assoc.
