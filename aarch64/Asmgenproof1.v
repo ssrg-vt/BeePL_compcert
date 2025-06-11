@@ -1833,6 +1833,7 @@ Proof.
   split. apply agree_nextinstr. apply agree_set_other; auto.
   apply agree_change_sp with (Vptr stk soff).
   apply agree_exten with rs; auto. intros; apply C1; auto with asmgen.
+  Locate parent_sp_def.
   eapply parent_sp_def; eauto.
   split. auto.
   split. Simpl. 
