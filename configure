@@ -60,8 +60,6 @@ Supported targets:
   rv64-linux           (RISC-V 64 bits, Linux)
   aarch64-linux        (AArch64, i.e. ARMv8 in 64-bit mode, Linux)
   aarch64-macos        (AArch64, i.e. Apple silicon, MacOS)
-  ebpf32               (EBPF 32 bits)
-  rbpf                 (EBPF 32 bits, specialised for riot OS)
   ebpf64               (EBPF 64 bits, experimental)
   manual               (edit configuration file by hand)
 
@@ -204,10 +202,6 @@ case "$target" in
       arch="riscV"; model="64"; endianness="little"; bitsize=64;;
   aarch64-*|arm64-*)
       arch="aarch64"; model="default"; endianness="little"; bitsize=64;;
-  ebpf32)
-      arch="ebpf"; model="32"; endianness="little"; bitsize=32;;
-  rbpf)
-      arch="ebpf"; model="rbpf"; endianness="little"; bitsize=32;;
   ebpf64)
       arch="ebpf"; model="64"; endianness="little"; bitsize=64;;
   manual)

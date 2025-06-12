@@ -202,13 +202,9 @@ Proof.
       { simpl.
         unfold Size.Ptrofs.is_int in C.
         unfold warchi in WARCH. destruct Archi.ptr64 eqn:ARCH ; try discriminate.
-        simpl in WARCH.
-        apply lessdef_offset_ptr_add; auto.
       }
       { simpl.
         apply lessdef_offset_ptr_addl; auto.
-        unfold warchi in WARCH.
-        destruct Archi.ptr64 eqn:A;try discriminate. auto.
       }
     * intros; Simpl.
 Qed.
@@ -989,18 +985,7 @@ Proof.
       unfold rs1.
       Simpl.
       unfold rs1. Simpl.
-      unfold warchi in ARCH. destruct (Archi.ptr64) eqn:ARCH'; try discriminate.
-      pose proof (lessdef_offset_ptr_add (rs x0) i ARCH') as LD.
-      inv LD.
-      rewrite H1 in LOAD.
-      destruct (rs x0) ; try discriminate.
-      rewrite Val.offset_ptr_assoc.
-      rewrite Ptrofs.add_zero.
-      simpl in LOAD.
-      rewrite ARCH' in LOAD.
-      simpl in LOAD. rewrite Ptrofs.of_int_to_int in LOAD by auto.
-      apply LOAD.
-      rewrite <- H0 in LOAD ; discriminate.
+      unfold warchi in ARCH. discriminate.
     }
     {
     set (rs1 := (nextinstr (nextinstr rs # x <- (rs x0)) # x <- (Val.addl (rs x0) (Vlong (int64_of_int (Ptrofs.to_int i)))))).
@@ -1029,7 +1014,6 @@ Proof.
       rewrite <- H1 in LOAD.
       discriminate.
     }
-    unfold warchi in ARCH. rewrite ARCH' in ARCH. discriminate.
     }
 Qed.
 

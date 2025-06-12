@@ -147,15 +147,12 @@ Proof.
   - subst n. intros. exists x; split; auto.
     destruct x; simpl; auto.
     rewrite Int.add_zero; auto.
-    destruct Archi.ptr64; auto. rewrite Ptrofs.add_zero; auto.
   - case (addimm_match a); intros; InvEval; simpl.
     + TrivialExists; simpl. rewrite Int.add_commut. auto.
     + econstructor; split. EvalOp. simpl; eauto.
       unfold Genv.symbol_address. destruct (Genv.find_symbol ge s); simpl; auto.
-      destruct Archi.ptr64; auto. rewrite Ptrofs.add_commut; auto.
     + econstructor; split. EvalOp. simpl; eauto.
-      destruct sp; simpl; auto. destruct Archi.ptr64; auto.
-      rewrite Ptrofs.add_assoc. rewrite (Ptrofs.add_commut m0). auto.
+      destruct sp; simpl; auto.
     + TrivialExists; simpl. subst x. rewrite Val.add_assoc. rewrite Int.add_commut. auto.
     + TrivialExists.
 Qed.
@@ -224,7 +221,6 @@ Theorem eval_shlimm:
                                     (fun x => Val.shl x (Vint n)).
 Proof.
   red; intros until x.  unfold shlimm.
-
   predSpec Int.eq Int.eq_spec n Int.zero.
   intros; subst. exists x; split; auto. destruct x; simpl; auto. rewrite Int.shl_zero; auto.
   destruct (negb (Int.ltu n Int.iwordsize)) eqn:LT; simpl.
@@ -930,8 +926,7 @@ Proof.
     constructor. EvalOp. simpl. congruence. constructor. simpl. rewrite Ptrofs.add_zero. congruence.
   - destruct (Size.Int.is_16_signed n) eqn:sz.
     + exists (v1 :: nil); split. eauto with evalexpr. simpl.
-    destruct v1; simpl in H; try discriminate. destruct Archi.ptr64 eqn:SF; inv H.
-    simpl. auto.
+    destruct v1; simpl in H; try discriminate.
     + exists (Vptr b ofs:: nil);  split.
       repeat econstructor;eauto with evalexpr.
       simpl. congruence.

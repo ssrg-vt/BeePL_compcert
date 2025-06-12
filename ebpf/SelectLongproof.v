@@ -123,7 +123,6 @@ Proof.
   predSpec Int64.eq Int64.eq_spec n Int64.zero.
   subst. exists x; split; auto.
   destruct x; simpl; rewrite ?Int64.add_zero, ?Ptrofs.add_zero; auto.
-  destruct Archi.ptr64; auto.
   destruct (addlimm_match a); InvEval.
 - econstructor; split. apply eval_longconst. rewrite Int64.add_commut; auto.
 - econstructor; split. EvalOp. simpl; eauto. 
@@ -169,7 +168,6 @@ Proof.
     destruct Archi.ptr64 eqn:SF; auto. 
     apply Val.lessdef_same. f_equal. rewrite ! Ptrofs.add_assoc. f_equal. 
     rewrite (Ptrofs.add_commut (Ptrofs.of_int64 n1)), Ptrofs.add_assoc. f_equal. auto with ptrofs.
-    destruct Archi.ptr64 eqn:SF; auto.
   - subst. econstructor; split.
     EvalOp. constructor. EvalOp. simpl; eauto. constructor. eauto. constructor. simpl; eauto.
     destruct sp; simpl; auto.
@@ -177,7 +175,6 @@ Proof.
     destruct Archi.ptr64 eqn:SF; auto. 
     apply Val.lessdef_same. f_equal. rewrite ! Ptrofs.add_assoc. f_equal. f_equal.
     rewrite Ptrofs.add_commut. auto with ptrofs.
-    destruct Archi.ptr64 eqn:SF; auto.
   - subst.
     replace (Val.addl (Val.addl v1 (Vlong n1)) y)
        with (Val.addl (Val.addl v1 y) (Vlong n1)).
@@ -346,7 +343,6 @@ Proof.
   subst x. destruct v1; simpl; auto.
   simpl in B2; inv B2. simpl in B3; inv B3. rewrite Int64.mul_add_distr_l.
   rewrite (Int64.mul_commut n). auto.
-  destruct Archi.ptr64; simpl; auto.
 - apply eval_mullimm_base; auto.
 Qed.
 
