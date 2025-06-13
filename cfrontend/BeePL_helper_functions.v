@@ -5,6 +5,7 @@ Require Import BeePL_aux BeePL BeePL_values BeeTypes BeePL_mem Errors Csyntaxdef
 From mathcomp Require Import all_ssreflect. 
 
 Local Open Scope error_monad_scope.
+Local Open Scope string.
 
 (************* External Call Type Information *******************)
 (***** Map containing information about external calls *****)
@@ -33,3 +34,31 @@ match efenv[s] with
 | Some t => OK t
 | None => Error (msg "TYPE ERROR: The type signature of external function is not present in ef_env")
 end.
+
+(* Add more pairs for sec attributes and function arguments *)
+Definition check_type_attr (t : type) (s : string) : bool :=
+let id1 := ident_of_string "xdp" in
+let id2 := ident_of_string "__sk_buff" in 
+let id3 := ident_of_string "pt_regs" in
+match t, s with 
+| Ptrtype (Sptype id1 _), "xdp" => true 
+| (Stype id1 _), "xdp" => true 
+| Ptrtype (Sptype id2 _), "socket" => true 
+| (Stype id2 _), "socket" => true 
+| Ptrtype (Sptype id2 _), "tc" => true 
+| (Stype id2 _), "tc" => true 
+| Ptrtype (Sptype id2 _), "cls" => true 
+| (Stype id2 _), "cls" => true 
+| Ptrtype (Sptype id2 _), "act" => true 
+| (Stype id2 _), "act" => true 
+| Ptrtype (Sptype id2 _), "cgroup/ingress" => true 
+| (Stype id2 _), "cgroup/ingress" => true 
+| Ptrtype (Sptype id2 _), "cgroup/skb" => true 
+| (Stype id2 _), "cgroup/skb" => true 
+| Ptrtype (Sptype id3 _), "kretprobe/do_sys_open" => true 
+| (Stype id3 _), "kretprobe/do_sys_open" => true 
+
+| _, _ => false
+end.
+
+

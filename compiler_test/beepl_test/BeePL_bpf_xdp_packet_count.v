@@ -83,14 +83,14 @@ Proof.
   unfold build_bcomposite_env; simpl; constructor. 
 Qed.
 
-Definition example1 : BeePL.program := @mkbprogram bcomposites 
+(*Definition example1 : BeePL.program := @mkbprogram bcomposites 
                                                    global_definitions 
                                                    public_idents 
                                                    _xdp_packet_count 
                                                    bcomposite_correct
                                                    ident_to_string.
 
-(*Compute (type_check_expr example1.(prog_comp_env) 
+Compute (type_check_expr example1.(prog_comp_env) 
                          (bind_vars (bind_vars empty_context f_xdp_packet_count.(fn_args)) f_xdp_packet_count.(fn_vars)) empty_context f_xdp_packet_count.(fn_body)).
 
 

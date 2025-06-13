@@ -26,9 +26,9 @@ BeePL_bpf_safe_null_check BeePL_globvar_local.
 
 (* Construct the BeePL.program *)
 
-Definition example1 : BeePL.program := @mkbprogram BeePL_globvar_local.bcomposites 
-                                                   BeePL_globvar_local.global_definitions 
-                                                   BeePL_globvar_local.public_idents 
-                                                   BeePL_globvar_local._main 
-                                                   BeePL_globvar_local.bcomposite_correct
-                                                   BeePL_globvar_local.ident_to_string.
+Definition example1 : BeePL.program := @mkbprogram BeePL_add.bcomposites 
+                                                   BeePL_add.global_definitions 
+                                                   BeePL_add.public_idents 
+                                                   BeePL_add._main 
+                                                   BeePL_add.bcomposite_correct
+                                                   BeePL_add.ident_to_string.
