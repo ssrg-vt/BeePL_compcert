@@ -1,0 +1,31 @@
+
+** Conflict (shift/reduce) in state 37.
+** Tokens involved: UNIT REF LPAREN INT32 IDENT BANG
+** The following explanations concentrate on token UNIT.
+** This state is reached from program after reading:
+
+app_expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+program 
+list(toplevel) EOF 
+(?)
+
+** In state 37, looking ahead at UNIT, reducing production
+** expr -> app_expr
+** is permitted because of the following sub-derivation:
+
+toplevel list(toplevel) // lookahead token appears because list(toplevel) can begin with UNIT
+expr // lookahead token is inherited
+app_expr . 
+
+** In state 37, looking ahead at UNIT, shifting is permitted
+** because of the following sub-derivation:
+
+toplevel list(toplevel) 
+expr 
+app_expr 
+app_expr simple_expr 
+         . UNIT 

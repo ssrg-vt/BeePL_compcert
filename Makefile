@@ -100,7 +100,7 @@ VLIB=Axioms.v Coqlib.v Intv.v Maps.v Heaps.v Lattice.v Ordered.v \
   Parmov.v UnionFind.v Wfsimpl.v \
   Postorder.v FSetAVLplus.v IntvSets.v Decidableplus.v BoolEqual.v
 
-# Until BeePL has a functioning lexer and parser the test programs must be 
+# Until BeePL has a functioning lexer and parser the test programs must be
 # compiled with the rest of CompCert
 
 BEEPL_TESTS=\
@@ -115,7 +115,7 @@ BEEPL_TESTS=\
 
 #  BeePL_div_zero.v BeePL_div_zero1.v BeePL_external_call.v BeePL_ref.v \
 #  BeePL_struct_ex2.v BeePL_for_ex1.v BeePL_for_ex2.v BeePL_globvar1.v \
-#  BeePL_bpf_get_prandom.v BeePL_bpf_ktime_get_ns.v 
+#  BeePL_bpf_get_prandom.v BeePL_bpf_ktime_get_ns.v
 
 # Parts common to BeePL
 

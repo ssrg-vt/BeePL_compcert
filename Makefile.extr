@@ -44,7 +44,7 @@ cparser/pre_parser_messages.ml:
 # Directories containing plain Caml code
 
 DIRS=extraction \
-  lib common $(ARCH) backend cfrontend cparser driver \
+  lib common $(ARCH) backend cfrontend bparser cparser driver \
   export debug
 
 INCLUDES=$(patsubst %,-I %, $(DIRS))
@@ -84,15 +84,29 @@ OCAMLLEX=ocamllex -q
 MODORDER=tools/modorder .depend.extr
 COPY=cp
 
-PARSERS=cparser/pre_parser.mly
+PARSERS=cparser/pre_parser.mly bparser/beepl_parser.mly
 LEXERS=cparser/Lexer.mll lib/Tokenize.mll \
-	     lib/Readconfig.mll lib/Responsefile.mll
+	     lib/Readconfig.mll lib/Responsefile.mll bparser/beepl_lexer.mll
 
 LIBS=str.cmxa unix.cmxa $(MENHIR_LIBS)
 LIBS_BYTE=$(patsubst %.cmxa,%.cma,$(patsubst %.cmx,%.cmo,$(LIBS)))
 
 EXECUTABLES=ccomp ccomp.byte cchecklink cchecklink.byte clightgen clightgen.byte
 GENERATED=$(PARSERS:.mly=.mli) $(PARSERS:.mly=.ml) $(LEXERS:.mll=.ml) cparser/pre_parser_messages.ml
+
+bparser/beepl_ast.cmi bparser/beepl_ast.cmo:  bparser/beepl_ast.ml
+	echo "bparser AST RULE"
+	echo $(PWD)
+	@$(OCAMLC) -c $<
+
+bparser/beepl_parser.ml bparser/beepl_parser.mli: bparser/beepl_parser.mly bparser/beepl_ast.cmi bparser/beepl_ast.cmo
+	echo "bparser PARSER RULE"
+	echo $(PWD)
+	@rm -f $@
+	$(MENHIR) --infer --explain --ocamlc "ocamlc $(COMPFLAGS)" $<
+
+bparser/beepl_lexer.ml: bparser/beepl_lexer.mll
+	$(OCAMLLEX) $<
 
 # Beginning of part that assumes .depend.extr already exists
 

@@ -27,8 +27,10 @@ let tool_name = "C verified compiler"
 (* Optional sdump suffix *)
 let sdump_suffix = ref ".json"
 
+let num_bpl_files = ref 0
+
 let nolink () =
-  !option_c || !option_S || !option_E || !option_interp || not Configuration.has_linking_step
+  !option_c || !option_S || !option_E || !option_interp || not Configuration.has_linking_step || !num_bpl_files > 0
 
 let object_filename sourcename =
   if nolink () then
@@ -299,6 +301,15 @@ let process_h_file sourcename =
   end else
     fatal_error no_loc "input file %s ignored (not in -E mode)\n" sourcename
 
+let process_bpl_file sourcename =
+  let transformed = Beepl_transformer.transform_input sourcename in
+  (* Save transformed string to .beepl file *)
+  let output_name = output_filename sourcename ~suffix:".beepl" in
+  let oc = open_out output_name in
+  output_string oc transformed;
+  close_out oc;
+  transformed
+
 let process_b_file sourcename =
   let asmname =
     if !option_dasm
@@ -542,6 +553,9 @@ let cmdline_actions =
   Prefix "-", Self (fun s ->
       fatal_error no_loc "Unknown option `%s'" s);
 (* File arguments *)
+  Suffix ".bpl", Self (fun s ->
+      push_action process_bpl_file s; incr num_source_files; incr num_input_files; incr num_bpl_files;
+      );
   Suffix ".b", Self (fun s ->
       push_action process_b_file s; incr num_source_files; incr num_input_files);
   Suffix ".c", Self (fun s ->
