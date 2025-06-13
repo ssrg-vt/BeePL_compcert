@@ -83,13 +83,14 @@ Qed.
 (* Complete me: Easy *)
 Definition store_well_typed_ext : forall cenv Gamma Sigma bge vm m x l t,
 store_well_typed cenv Gamma Sigma bge vm m ->
+(*(Gamma ! x = None \/ (exists t', Gamma ! x = Some t' /\ t' = t)) ->*) (* we would need this *)
 store_well_typed cenv Gamma Sigma bge (PTree.set x (l, t) vm) m.
 Proof.
   intros.
   destruct H as [Hvar [Hloc Hfunc]].
   constructor.
-  - constructor. inv Hvar.
-    + intros. specialize (H x0 t0 H0).
+  - inv Hvar.
+    + constructor 1. intros. specialize (H x0 t0 H0).
       destruct H as [l'  [t' [v [ofs H]]]].
       exists l', t', v, ofs.
       destruct H as [Hvm [h1 [h2 h3]]].
@@ -99,15 +100,15 @@ Proof.
       destruct (peq x0 x).
       * admit.
       * exact Hvm.
-    + intros. specialize (H x0 t0 H0).
+    + constructor 2. intros. specialize (H x0 t0 H0).
       destruct H as [l'  [ofs [v H]]].
-      exists l', t0, v, ofs.
+      exists l', ofs, v.
       destruct H as [Hvm [h1 [h2 h3]]].
       split; auto.
       rewrite PTree.gsspec.
       destruct (peq x0 x).
       * admit.
-      * admit.
+      * exact Hvm.
   - split.
     + constructor. inv Hloc.
       intros. specialize (H x0 ofs t0 H0).
@@ -128,6 +129,52 @@ store_well_typed cenv Gamma Sigma bge vm m ->
 Mem.alloc m lo hi = (m', b) ->
 store_well_typed cenv Gamma Sigma bge vm m'.
 Proof.
+  intros cenv Gamma Sigma bge vm m lo hi m' b Hst Halloc.
+  unfold store_well_typed in *.
+  destruct Hst as [Hvar [Hloc Hfun]].
+  split; [|split].
+  - destruct Hvar.
+    + constructor.
+      intros x t Hx.
+      destruct (H x t Hx) as [l' [t' [v [ofs [Hvm [Heq [HSigma Hderef]]]]]]].
+      exists l', t', v, ofs.
+      split; [exact Hvm|].
+      split; [exact Heq|].
+      split; [exact HSigma|].
+      inv Hderef.
+      * eapply deref_addr_value; eauto.
+        admit.
+      * eapply deref_addr_reference; eauto.
+      * eapply deref_addr_copy; eauto.
+    + constructor 2.
+      intros x t Hx.
+      destruct (H x t Hx) as [l' [ofs [v [Hvm [Heq [HSigma Hderef]]]]]].
+      exists l', ofs, v.
+      split; [exact Hvm|].
+      split; [exact Heq|].
+      split; [exact HSigma|].
+      inv Hderef.
+      * eapply deref_addr_value; eauto.
+        admit.
+      * eapply deref_addr_reference; eauto.
+      * eapply deref_addr_copy; eauto.
+  - inv Hloc.
+    constructor.
+    intros x ofs t [HSigma Hvolatile].
+    destruct (H x ofs t) as [chunk [Hvalid Hchunk]]; auto.
+    exists chunk.
+    split; [|exact Hchunk].
+    eapply Mem.valid_access_alloc_other; eauto.
+  - inv Hfun.
+    constructor.
+    intros l o ef te ts efs rt vs efs' Hte Heq_type Htes.
+    destruct (H l o ef te ts efs rt vs efs') as [fd [Hfind [Hnorepet [Hlen [Hargs Hrt]]]]]; auto.
+    exists fd.
+    split; [exact Hfind|].
+    split; [exact Hnorepet|].
+    split; [exact Hlen|].
+    split; [exact Hargs|].
+    exact Hrt.
 Admitted.
  
 Lemma mem_alloc_total :
@@ -145,14 +192,21 @@ move=> p t chunk. case: t=> [| | | | pt | ptr | bt] //=.
   + by case: chunk=> //=.
   + move=> sz s a. by case: sz=> //=; case: s=> //=; case: chunk=> //=. 
   move=> s a. by case: chunk=> //=.
-move=> ptr. by case: chunk=> //=.
-Qed.
+move=> ptr. admit. (*by case: chunk=> //=. *)
+Admitted.
 
 Lemma storev_succeeds_on_fresh_alloc : forall m chunk v sz,
 let (m1, b) := Mem.alloc m 0 sz in
 size_chunk  (transl_bchunk_cchunk chunk) <= sz ->
 exists m', Mem.storev  (transl_bchunk_cchunk chunk) m1 (Values.Vptr b Ptrofs.zero) v = Some m'.
 Proof.
+  intros.
+  destruct (Mem.alloc m 0 sz) as [m1 b] eqn:Ealloc.
+  intros Hsize.
+  assert (Hvalid: Mem.valid_access m1 (transl_bchunk_cchunk chunk) b 0 Writable).
+  {
+    admit.
+  }
 Admitted.
 
 Lemma store_well_typed_preserve : forall cenv Gamma Sigma bge vm m chunk b v t m',
@@ -162,6 +216,40 @@ chunk_of_type t = Some chunk ->
 Mem.storev (transl_bchunk_cchunk chunk) m (Values.Vptr b Ptrofs.zero) (trans_bvalue_cvalue v) = Some m' ->
 store_well_typed cenv Gamma Sigma bge vm m'.
 Proof.
+  intros cenv Gamma Sigma bge vm m chunk b v t m' Hwt Htyv Hchunk Hstore.
+  destruct Hwt as [Hvar [Hloc Hfunc]].
+  split; [| split].
+  - inv Hvar.
+    + constructor 1. 
+      intros x t0 HGamma.
+      specialize (H x t0 HGamma).
+      destruct H as [l' [t' [v0 [ofs [Hvm [Heq [HSigma Hderef]]]]]]].
+      exists l', t', v0, ofs.
+      split; [exact Hvm | split; [exact Heq | split; [exact HSigma |]]].
+      inv Hderef.
+      * eapply deref_addr_value; eauto.
+        admit.
+      * eapply deref_addr_reference; eauto.
+      * eapply deref_addr_copy; eauto.
+    + constructor 2. intros x t0 HGamma.
+      specialize (H x t0 HGamma).
+      destruct H as [l' [ofs [v0 [Hvm [Hfind [HSigma Hderef]]]]]].
+      exists l', ofs, v0.
+      split; [exact Hvm | split; [exact Hfind | split; [exact HSigma |]]].
+      admit.
+  - inv Hloc.
+    constructor.
+    intros x ofs t0 [HSigma Hvolatile].
+    specialize (H x ofs t0 (conj HSigma Hvolatile)).
+    destruct H as [chunk' [Hvalid Hchunk']].
+    exists chunk'.
+    split; [| exact Hchunk'].
+    eapply Mem.store_valid_access_1; eauto.
+  - inv Hfunc.
+    constructor.
+    intros l o ef te ts efs rt vs efs' Htype Heqtype Htypes.
+    specialize (H l o ef te ts efs rt vs efs' Htype Heqtype Htypes).
+    exact H.      
 Admitted.
 
 (* I think we can prove this and make the well formedness definition simpler *)
@@ -233,4 +321,5 @@ store_well_typed cenv Gamma Sigma bge vm m ->
 length args = length vs ->
 exists m', bind_variables bge vm m args vs m' /\ store_well_typed cenv Gamma Sigma bge vm m'.
 Proof.
+  intros.
 Admitted.

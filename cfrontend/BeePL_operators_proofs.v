@@ -29,7 +29,7 @@ move=> cenv Gamma Sigma bge vm m v ef hw hte.
 rewrite / Cop.sem_unary_operation /= /Cop.sem_notbool /= /option_map /=.
 case: v hte=> //=.
 (* unit : bad case *)
-+ move=> hte. by inversion hte.
++ move=> hte. by inversion hte; subst. 
 (* bool : good case *)
 + move=> b hte. case: b hte=> //=. 
   (* b = true *)
@@ -436,7 +436,7 @@ negb (Int.eq i (Int.repr Int.min_signed)).
 Proof.
 Admitted.
 
-(* div is well-formed *) 
+(* div is well-formed *) (* make the proof small using ltac latter *)
 Lemma well_formed_div : forall cenv benv Gamma Sigma bge vm m v1 t ef1 v2 ef2 s,
 store_well_typed benv Gamma Sigma bge vm m ->
 type_expr benv Gamma Sigma (Val v1 t) ef1 t ->

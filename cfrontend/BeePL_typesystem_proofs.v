@@ -122,9 +122,10 @@ apply type_exprs_type_expr_ind_mut=> //=.
     have hw'' := store_well_typed_mem_alloc cenv Gamma Sigma bge vm m 0 (sizeof_type (prog_comp_env p) t) m' b hw ha. 
     have [m'' [] chunk [] v' [] htv [] hc [] hs hws] := ref_allocation_succeeds cenv Gamma Sigma p bge vm m v t (m', b) hw hvt ha. 
     exists m''. exists vm. 
-    exists (Val (Vloc b Ptrofs.zero) (Ptrtype (Reftype h bt a))). split=> //=.
+    exists (Val (Vloc (Mem.alloc m 0 (sizeof_type (prog_comp_env p) (construct_type_btype bt))).2 Ptrofs.zero) 
+              (Ptrtype (Reftype h bt a))). split=> //=.
     apply type_val_reflx in hte; subst.
-    apply ssem_ref2 with (Mem.alloc m 0 (sizeof_type (prog_comp_env p) (construct_type_btype bt))) chunk Sigma
+    apply ssem_ref2 with chunk (Mem.alloc m 0 (sizeof_type (prog_comp_env p) (construct_type_btype bt))).2 Sigma
     (extend_context Sigma (Mem.alloc m 0 (sizeof_type (prog_comp_env p) (construct_type_btype bt))).2 (Ptrtype (Reftype h bt a))).
     + by auto.
     + by apply hc.
@@ -157,7 +158,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
                                                 ef t (Ptrtype pt) hte; subst.
       inversion hw2. case: hpt=> [] hpteq; subst.
       have hand : Sigma ! l = Some (Ptrtype (Reftype h' bt a)) /\ type_is_volatile (transBeePL_type (get_data_type ((Reftype h' bt a)))) = false.
-      + by split=> //=.  move: (H l ofs (Reftype h' bt a) hand)=> [] chunk [] hvl hc.
+      + by split=> //=.  case: H=> H1 H2. move: (H1 l ofs (Reftype h' bt a) hand)=> [] chunk [] hvl hc.
       have [v hd]:= safe_deref_valid_pointers Sigma m l ofs (Reftype h' bt a) chunk hl hvo hc hvl.
       exists m. exists vm. exists (Val v (get_data_type (Reftype h' bt a))). split.
       by apply ssem_deref2 with Full. by apply hsw.
@@ -393,87 +394,51 @@ admit.
   exists m'. exists vm'. exists (Prim (Bop Cop.Omod) [:: e'; e''] (typeof_expr e)). 
   split=> //=. have h := type_rel_typeof cenv Gamma Sigma e ef1 t hte. 
   rewrite -h. by apply ssem_bop1.
-
-(*
-(* bop *)
-+ move=> Gamma Sigma op e ef t e' hf hf' hte hin hte' hin' bge vm m hw. right.
-  move: (hin bge vm m hw)=> [] hv.
-  (* value e *)
-  + case: e hte hin hv=> //= v t' hte hin _. move:(hin' bge vm m hw)=> [] hv'.
-    (* value e' *)
-    + case: e' hte' hin' hv'=> //= v' t'' hte' hin' _.
-      have hteq := type_val_reflx Gamma Sigma v t' ef t hte; subst.
-      have hteq' := type_val_reflx Gamma Sigma v' t'' ef t hte'; subst.
-      have [hwt1 hwt2] := well_typed_success. 
-      move: (hwt2 Gamma Sigma (Val v t) ef t hte)=> [] ct1 [] g [] i hct1.
-      move: (hwt2 Gamma Sigma (Val v' t) ef t hte')=> [] ct2 [] g' [] i' hct2.
-      have htop := type_bop_inject Gamma Sigma (Val v t) (Val v' t) t ef op hf hf' hte hte'.
-      have [v'' hsop] := well_formed_bop Gamma Sigma bge vm (BeePL.genv_cenv bge) v v' ef t op 
-                         m ct1 g i htop hct1 hw.
-      have [v''' htv] := trans_value_bop_success Gamma Sigma bge (BeePL.genv_cenv bge) vm 
-                         op v v' ef t ct1 g i m v'' htop hct1 hw hsop.
-      exists m. exists vm. exists (Val v''' t). split=> //=. 
-      by apply ssem_bop3 with (BeePL.genv_cenv bge) v'' ct1 g g i.
-    (* e' steps *)
-    move: hv'. move=> [] m' [] vm' [] e'' [] he'' hs. exists m'. exists vm'. 
-    have hteq := type_val_reflx Gamma Sigma v t' ef t hte; subst.
-    exists (Prim (Bop op) [:: Val v t; e''] t). split=> //=. by apply ssem_bop2. 
-  (* e steps *)
-  move: hv. move=> [] m' [] vm' [] e'' [] he'' hs. exists m'. exists vm'. 
-  have hteq := type_rel_typeof Gamma Sigma e ef t hte; subst.
-  exists (Prim (Bop op) [:: e''; e'] (typeof_expr e)). split=> //=. by apply ssem_bop1. 
-(* bind *)
-+ move=> Gamma Sigma x t e e' t' ef ef' hte hin hte' hin' bge vm m hw. right.
-  move: (hin bge vm m hw)=> [] hv.
-  (* value e *)
-  + case: e hte hin hv=> //= v tv hte hin _. exists m. exists vm. exists (subst x (Val v tv) e').
-    have hteq := type_rel_typeof (extend_context Gamma x t) Sigma e' ef' t' hte'; subst. 
-    have hteq' := type_rel_typeof Gamma Sigma (Val v tv) ef t hte; subst. split=> //=.
-    by apply ssem_bind2.
-  (* e steps *)
-  move: hv. move=> [] m' [] vm' [] e'' [] he'' hs. exists m'. exists vm'. exists (Bind x t e'' e' t').
-  have hteq := type_rel_typeof (extend_context Gamma x t) Sigma e' ef' t' hte'; subst. split=> //=.
-  by apply ssem_bind1.
-(* cond *)
-+ move=> Gamma Sigma e1 e2 e3 tb t ef1 ef2 hte1 hin htbv hte2 hin' hte3 hin'' bge vm m hw.
-  right. move: (hin bge vm m hw)=> [] hv.
-  (* value e1 *)
-  + case: e1 hte1 hin hv=> //= v t' hte1 hin _. exists m. exists vm. exists e2.
-    have hteq := type_rel_typeof Gamma Sigma e2 ef2 t hte2; subst. 
-    have [hwt1 hwt2] := well_typed_success. move: (hwt2 Gamma Sigma (Val v t') ef1 tb hte1).
-    move=> [] ct [] g [] i hct. split=> //=.
-    apply ssem_ctrue with g ct g i. 
-    + by have hteq := type_val_reflx Gamma Sigma v t' ef1 tb hte1; subst.
-    have hteq := type_val_reflx Gamma Sigma v t' ef1 tb hte1; subst.
-    by have := type_bool_val Gamma Sigma v tb ef1 ct m true hte1 htbv.
-  (* e1 steps *) 
-  move: hv. move=> [] m' [] vm' [] e1' [] he1' hs. exists m'. exists vm'.
-  exists (Cond e1' e2 e3 t). have hteq := type_rel_typeof Gamma Sigma e2 ef2 t hte2; subst.
-  split=> //=. by apply ssem_cond.
-(* unit *)
-+ move=> Gamma Sigma bge vm m hw. right. exists m. exists vm. exists (Val Vunit (Ptype Tunit)).
-  split=> //=. by apply ssem_ut.
-(* addr *)
-+ move=> Gamma Sigma l ofs h bt a hs bge vm m hw. right.
-  exists m. exists vm. exists (Val (Vloc l.(lname) ofs) (Reftype h bt a)). split=> //=. by apply ssem_adr.
-(* eapp *)
-+ move=> Gamma Sigma exf ts es ef rt hrt [] hut hft htseq hts hin bge vm m hw; subst.
-  right. admit. (* aslso add success of external call as hypothesis in Events.v *)
+(* Oand *)
++ admit. (* provable *)
+(* Oor *)
++ admit. (* provable *)
+(* Oxor *)
++ admit. (* provable *)
+(* Oshl *)
++ admit.
+(* Oshr *)
++ admit.
+(* Oeq *)
++ admit. (* provable *)
+(* One *)
++ admit. (* provable *)
+(* Olt *)
++ admit. (* provable *)
+(* Ogt *)
++ admit. (* provable *)
+(* Ole *)
++ admit. (* provable *)
+(* Oge *)
++ admit. (* provable *)
+(* Bind *)
++ admit.
+(* Cond *)
++ admit.
+(* Unit *)
++ admit.
+(* Addr *)
++ admit.
+(* Sinit *)
++ admit.
+(* Sfield *)
++ admit.
+(* For *)
++ admit.
+(* Enone *)
++ admit.
+(* Esome *)
++ admit.
+(* Match *)
++ admit.
 (* nil *)
-+ move=> Gamma Sigma bge vm m hw. by left.
-(* cons *)
-move=> Gamma Sigma e es ef efs t ts hte hin htes hins bge vm m hw.
-move: (hin bge vm m hw)=> [] hv.
-(* value e *)
-+ move: (hins bge vm m hw)=> [] hvs.
-  (* value es *)
-  + left. by rewrite /andb hv. 
-  (* es steps *)
-  move: hvs. move=> [] m' [] vm' [] es' [] hes hs. right.
-  case: e hte hin hv=> //= v t' hte hin _. exists m'. exists vm'.
-  exists (Val v t' :: es'). split=> //=. by apply ssem_cons2.
-move: hv. move=> [] m' [] vm' [] e' [] he' hs. right.
-exists m'. exists vm'. exists (e' :: es). split=> //=. by apply ssem_cons1.*)
++ admit.
+admit.
 Admitted.
 
 Lemma not_ptr_cval : forall cv bv, 
@@ -490,17 +455,42 @@ Qed.
 Lemma subst_preservation : forall cenv Gamma Sigma x t se e ef' ef t', 
 type_expr cenv (extend_context Gamma x t) Sigma e ef' t' ->
 type_expr cenv Gamma Sigma se ef t ->
-type_expr cenv Gamma Sigma (subst x se e) (ef ++ ef') t'.
+exists ef'', type_expr cenv Gamma Sigma (subst x se e) ef'' t' /\ sub_effect ef'' (ef ++ ef').
 Proof.
+move=> cenv Gamma Sigma x t se e. move: cenv Gamma Sigma se x t.
+induction e=> //=. 
+(* val *)
++ admit.
+(* var *)
++ move=> cenv Gamma Sigma se x t1 ef' ef yt hte htse. case: ifP=> //=.
+  (* x = y *)
+  + move=> h. exists ef. admit. (* provable *)
+  admit. (* provable *)
+(* const *)
++ admit. (* provable *)
+(* app *)
++ move=> cenv Gamma Sigma se x t1 ef' ef t' hta htse. 
+  admit. (* not provable, as we have no information about the effect of body of the function *)
+(* prim *)
++ move=> cenv Gamma Sigma se x t1 ef' ef t2. case: b=> //=.
+ (* ref *)
+ + move=> hte htse. inversion hte; subst.
+   exists (ef0 ++ [:: Alloc h]). split=> //=.
+   + apply ty_ref.
 Admitted.
 
 (* we need extra assertion that value cannot be a pointer because 
    in C, they allow it and we use deref_addr from CompCert *)
 Lemma well_typed_val_expr : forall cenv Gamma Sigma v t ef bf m l ofs,
 deref_addr t m l ofs bf v ->
-is_vloc v = false ->
 type_expr cenv Gamma Sigma (Val v t) ef t.
 Proof.
+(*move=> cenv Gamma Sigma v t ef bf m l ofs hd.
+case: v hd=>[ | b | i | i64 | l' ofs'| o] hd //=; subst.
+(* unit *)
++ have ht : type_expr cenv Gamma Sigma (Val Vunit tunit) nil tunit.  
+  + by apply ty_valu. *)
+
 (*move=> cenv bge Gamma Sigma v t ef bf m l ofs hd hw. 
 case hv: v hd=> [ | b | i | i64 | l' ofs'| o] //=; subst.
 (* unit *)
@@ -632,17 +622,23 @@ apply type_exprs_type_expr_ind_mut=> //=.
 (* val loc *)
 + move=> cenv Gamma Sigma l ofs h t a hs bge p vm m vm' m' e' hw he. exists nil.
   by inversion he; subst; split=> //=.
+(* val option *)
++ move=> cenv Gamma Sigma o t bge p vm m vm' m' e' hw he. by inversion he.
 (* var *)
-+ admit.
++ move=> cenv Gamma Sigma x t hxt hin p vm m vm' m' e' hw he. inversion he; subst.
+  (* local *)
+  + exists nil. split=> //=. by apply well_typed_val_expr with Full m' l ofs.
+  (* global *)
+  + exists nil. split=> //=. by apply well_typed_val_expr with Full m' l ofs.
 (* const int *)
-+ (*move=> Gamma Sigma t sz s a i bge vm m vm' m' e' he; subst.
-  inversion he; subst; split=> //=. by apply ty_vali.*) admit.
++ move=> Gamma Sigma t sz s a i bge p vm m vm' m' e' hw he; subst.
+  inversion he; subst. exists nil. split=> //=. by apply ty_vali. 
 (* const long *)
-+ (*move=> Gamma Sigma t s a i bge vm m vm' m' e' he; subst.
-  inversion he; subst; split=> //=. by apply ty_vall.*) admit.
++ move=> Gamma Sigma t s a i bge p vm m vm' m' e' hw he; subst.
+  inversion he; subst. exists nil. split=> //=. by apply ty_vall. 
 (* const unit *)
-+ (* move=> Gamma Sigma t bge vm m vm' m' e' he; subst.
-  inversion he; subst; split=> //=. by apply ty_valu.*) admit.
++ move=> Gamma Sigma t bge p vm m vm' m' e' hw he; subst.
+  inversion he; subst; exists nil. split=> //=. by apply ty_valu.  
 (* app *)
 + (*move=> Gamma Sigma e es rt efs ts ef efs' hte hin htes hin' bge vm m vm' m' e' hw he. 
   inversion he; subst; split=> //=. apply ty_app with ts.
@@ -652,9 +648,16 @@ apply type_exprs_type_expr_ind_mut=> //=.
   + by move: (hin bge vm m vm' m' e'0 hw H7)=> [] h1 h2.
   admit. (* hard case *) admit.*) admit.
 (* ref *)
-+ admit.
++ move=> cenv Gamma Sigma e ef h bt a hte hin htv bge p vm m vm' m' e' hw he.
+  inversion he; subst.
+  + admit.
+  exists nil. split=> //=. 
+  + apply ty_valloc. case: hw=> hw1 [] hw2 hw3.
+    inversion hw2. case: H=> h1 h2. admit.
+  split=> //=. + by apply sub_effect_nil.
+  admit.
 (* deref *)
-+ admit.
++ 
 (*(* massgn *)
 + move=> Gamma Sigma e e' h t ef a ef' hte hin hte' hin' bge vm m vm' m' e'' hw he.
   inversion he; subst.
