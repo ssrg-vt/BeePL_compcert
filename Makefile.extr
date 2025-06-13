@@ -95,13 +95,9 @@ EXECUTABLES=ccomp ccomp.byte cchecklink cchecklink.byte clightgen clightgen.byte
 GENERATED=$(PARSERS:.mly=.mli) $(PARSERS:.mly=.ml) $(LEXERS:.mll=.ml) cparser/pre_parser_messages.ml
 
 bparser/beepl_ast.cmi bparser/beepl_ast.cmo:  bparser/beepl_ast.ml
-	echo "bparser AST RULE"
-	echo $(PWD)
 	@$(OCAMLC) -c $<
 
 bparser/beepl_parser.ml bparser/beepl_parser.mli: bparser/beepl_parser.mly bparser/beepl_ast.cmi bparser/beepl_ast.cmo
-	echo "bparser PARSER RULE"
-	echo $(PWD)
 	@rm -f $@
 	$(MENHIR) --infer --explain --ocamlc "ocamlc $(COMPFLAGS)" $<
 
