@@ -397,7 +397,7 @@ match fn with
                                                 if eq_type t (get_rt_eapp ef) 
                                                 then if eq_types eq_type ts (get_at_eapp ef)
                                                      then if eq_types eq_type ts (fst efs) 
-                                                          then if eq_type t (fst (snd efs)) && is_ptrtype t == false 
+                                                          then if eq_type t (fst (snd efs))
                                                                then if eq_effect (get_ef_eapp ef) (snd (snd efs)) 
                                                                     then OK "SUCCESS: Fundef type checks!" 
                                                                     else Error (msg "TYPE ERROR: Effect of external function is not as expected")
