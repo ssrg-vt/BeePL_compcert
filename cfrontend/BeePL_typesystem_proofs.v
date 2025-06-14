@@ -441,16 +441,6 @@ admit.
 admit.
 Admitted.
 
-Lemma not_ptr_cval : forall cv bv, 
-trans_cvalue_bvalue cv = OK bv ->
-is_vloc bv = false -> 
-Values.is_vptr cv = false.
-Proof.
-move=> cv bv. rewrite /trans_cvalue_bvalue /=.
-case: cv=> //=.
-by move=> b p [] h; subst.
-Qed.
-
 (**** Substitution preserves typing ****)
 Lemma subst_preservation : forall cenv Gamma Sigma x t se e ef' ef t', 
 type_expr cenv (extend_context Gamma x t) Sigma e ef' t' ->

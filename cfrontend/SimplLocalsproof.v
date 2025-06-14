@@ -12,7 +12,7 @@
 
 (** Semantic preservation for the SimplLocals pass. *)
 
-Require Import FSets.
+From Coq Require Import FSets.
 Require Import Coqlib Errors Ordered Maps Integers Floats.
 Require Import AST Linking.
 Require Import Values Memory Globalenvs Events Smallstep.
@@ -222,12 +222,12 @@ Proof.
   induction 1; intros tyl F; inv F; constructor; eauto. eapply val_casted_inject; eauto.
 Qed.
 
-Inductive val_casted_list: list val -> typelist -> Prop :=
+Inductive val_casted_list: list val -> list type -> Prop :=
   | vcl_nil:
-      val_casted_list nil Tnil
+      val_casted_list nil nil
   | vcl_cons: forall v1 vl ty1 tyl,
       val_casted v1 ty1 -> val_casted_list vl tyl ->
-      val_casted_list (v1 :: vl) (Tcons  ty1 tyl).
+      val_casted_list (v1 :: vl) (ty1 :: tyl).
 
 Lemma val_casted_list_params:
   forall params vl,
@@ -1138,7 +1138,7 @@ Local Opaque Conventions1.parameter_needs_normalization.
     eauto.
   intros (tle & tm' & U & V & X & Y & Z).
   exists tle, tm'; split; [|auto].
-  destruct (Conventions1.parameter_needs_normalization (rettype_of_type ty)); [|assumption].
+  destruct (Conventions1.parameter_needs_normalization (argtype_of_type ty)); [|assumption].
   assert (A: tle!id = Some v').
   { erewrite bind_parameter_temps_inv by eauto. apply PTree.gss. }
   eapply star_left. constructor.
@@ -2328,7 +2328,5 @@ Local Transparent Linker_fundef.
   destruct f1; monadInv H3; destruct f2; monadInv H4; try discriminate.
   destruct e; inv H2. exists (Internal x); split; auto. simpl; rewrite EQ; auto.
   destruct e; inv H2. exists (Internal x); split; auto. simpl; rewrite EQ; auto.
-  destruct (external_function_eq e e0 && typelist_eq t t1 &&
-            type_eq t0 t2 && calling_convention_eq c c0); inv H2.
-  econstructor; split; eauto. 
+  destruct andb; inv H2. econstructor; split; eauto. 
 Qed.

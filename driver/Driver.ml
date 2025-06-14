@@ -88,6 +88,10 @@ let populate_decl_atom (section_info : (AST.ident * BeePL_Csyntax.csyntax_atom_i
       | BeePL_Csyntax.Storage_register -> C.Storage_register
     in
 
+    let defined : bool = 
+     info.BeePL_Csyntax.a_defined
+    in  
+
     let size : int64 option =
       match info.BeePL_Csyntax.a_size with
       | Some i -> Some (Camlcoq.camlint64_of_coqint i)
@@ -135,6 +139,7 @@ let populate_decl_atom (section_info : (AST.ident * BeePL_Csyntax.csyntax_atom_i
 
     Hashtbl.add C2C.decl_atom id { 
       C2C.a_storage = storage;
+      C2C.a_defined = defined;
       C2C.a_size = size;
       C2C.a_alignment = alignment;
       C2C.a_sections = sec_list;

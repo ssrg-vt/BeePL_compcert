@@ -25,7 +25,8 @@ Require Import Op.
 
 (** Registers. *)
 
-Inductive ireg: Type := R0 | R1 | R2 | R3 | R4 | R5 | R6 | R7 | R8 | R9 | R10.
+Inductive ireg: Type := R0 | R1 | R2 | R3 | R4 | R5 | R6 | R7 | R8 | R9 | R10
+                   | BP (**r base address register *).
 
 Inductive freg: Type := F0 | F1 | F2.
 
@@ -75,7 +76,7 @@ Declare Scope asm.
 
 (** Conventional names for stack pointer ([SP]) *)
 
-Notation "'SP'" := R10 (only parsing) : asm.
+Notation "'SP'" := BP (only parsing) : asm.
 
 
 (** The instruction set.  Most instructions correspond exactly to
@@ -168,9 +169,11 @@ Inductive instruction : Type :=
 
 
 Definition code := list instruction.
-Record function : Type := mkfunction {fn_sig: signature; fn_code: code}.
+Record function : Type := mkfunction {fn_sig: signature; fn_stksz: Z; fn_code: code}.
 Definition fundef := AST.fundef function.
 Definition program := AST.program fundef unit.
+
+Definition dummy_function := mkfunction signature_main 0 nil.
 
 (** * Operational semantics *)
 
@@ -429,6 +432,28 @@ Definition exec_branch (f: function) (l: label) (rs: regset) (m: mem) (res: opti
   | None => Stuck
   end.
 
+
+Definition stack_offset (z:Z) :=
+  Ptrofs.repr (z - 2 * 8).
+
+Definition stack_size_of_ra (ra:val) : option Z :=
+  match ra with
+  | Vptr stk _ =>
+      match Genv.find_funct_ptr ge stk  with
+      | Some (Internal f) => Some f.(fn_stksz)
+      | _                 => None
+      end
+  | _   => None
+  end.
+
+Definition offset_ptr (v:val) (o:option Z) :=
+  match o with
+  | None => v
+  | Some o' => Val.offset_ptr v (stack_offset o')
+  end.
+
+
+
 (** Execution of a single instruction [i] in initial state
     [rs] and [m].  Return updated state.  For instructions
     that correspond to actual eBPF instructions, the cases are
@@ -456,30 +481,34 @@ Definition exec_instr (f: function) (i: instruction) (rs:regset) (m: mem) : outc
   (** Pseudo-instructions *)
   | Pallocframe sz ofs_ra ofs_link =>
       let (m1, stk) := Mem.alloc m 0 sz in
-      let sp := (Vptr stk Ptrofs.zero) in
-      match Mem.storev Mptr m1 (Val.offset_ptr sp ofs_link) rs#SP with
+      let bp := (Vptr stk Ptrofs.zero) in
+      let sp := Val.offset_ptr bp (stack_offset sz) in
+      match Mem.storev Mptr m1 (Val.offset_ptr bp ofs_link) rs#BP with
       | None => Stuck
       | Some m2 =>
-          match Mem.storev Mptr m2 (Val.offset_ptr sp ofs_ra) rs#RA with
+          match Mem.storev Mptr m2 (Val.offset_ptr bp ofs_ra) rs#RA with
           | None => Stuck
-          | Some m3 => Next (nextinstr (rs #R0 <- (rs#SP) #SP <- sp)) m3
+          | Some m3 => Next (nextinstr (rs #R10 <- sp #BP <- bp)) m3
           end
       end
 
   | Pfreeframe sz ofs_ra ofs_link =>
-      match Mem.loadv Mptr m (Val.offset_ptr rs#SP ofs_ra) with
+      match Mem.loadv Mptr m (Val.offset_ptr rs#BP ofs_ra) with
       | None => Stuck
       | Some ra =>
-          match Mem.loadv Mptr m (Val.offset_ptr rs#SP ofs_link) with
+          match Mem.loadv Mptr m (Val.offset_ptr rs#BP ofs_link) with
           | None => Stuck
-          | Some sp =>
-              match rs#SP with
+          | Some bp =>
+              match rs#BP with
               | Vptr stk ofs =>
                   match Mem.free m stk 0 sz with
                   | None => Stuck
-                  | Some m' => Next (nextinstr (rs#SP <- sp #RA <- ra)) m'
+                  | Some m' =>
+                      let sz' := stack_size_of_ra ra in
+                      let sp := offset_ptr bp sz' in
+                      Next (nextinstr (rs#R10 <- sp #BP <- bp #RA <- ra)) m'
                   end
-              | _ => Stuck
+              |  _   => Stuck
               end
           end
       end
@@ -489,11 +518,11 @@ Definition exec_instr (f: function) (i: instruction) (rs:regset) (m: mem) : outc
   | _                => Stuck
   end.
 
-(** Undefine all registers except SP and callee-save registers *)
+(** Undefine all registers except SP, BP and callee-save registers *)
 
 Definition undef_caller_save_regs (rs: regset) : regset :=
   fun r =>
-    if preg_eq r SP
+    if preg_eq r BP || preg_eq r R10
     || In_dec preg_eq r (List.map preg_of (List.filter is_callee_save all_mregs))
     then rs r
     else Vundef.
@@ -508,7 +537,7 @@ Inductive extcall_arg (rs: regset) (m: mem): loc -> val -> Prop :=
   | extcall_arg_stack: forall ofs ty bofs v,
       bofs = Stacklayout.fe_ofs_arg + 4 * ofs ->
       Mem.loadv (chunk_of_type ty) m
-                (Val.offset_ptr rs#SP (Ptrofs.repr bofs)) = Some v ->
+                (Val.offset_ptr rs#BP (Ptrofs.repr bofs)) = Some v ->
       extcall_arg rs m (S Outgoing ofs ty) v.
 
 Inductive extcall_arg_pair (rs: regset) (m: mem): rpair loc -> val -> Prop :=
@@ -545,7 +574,7 @@ Inductive step: state -> trace -> state -> Prop :=
       rs PC = Vptr b ofs ->
       Genv.find_funct_ptr ge b = Some (Internal f) ->
       find_instr (Ptrofs.unsigned ofs) f.(fn_code) = Some (Pbuiltin ef args res) ->
-      eval_builtin_args ge rs (rs SP) m args vargs ->
+      eval_builtin_args ge rs (rs BP) m args vargs ->
       external_call ef ge vargs m t vres m' ->
       rs' = nextinstr
               (set_res res vres
@@ -569,9 +598,10 @@ Inductive initial_state (p: program): state -> Prop :=
       let ge := Genv.globalenv p in
       let rs0 :=
         (Pregmap.init Vundef)
-        # PC <- (Genv.symbol_address ge p.(prog_main) Ptrofs.zero)
-        # SP <- Vnullptr
-        # RA <- Vnullptr in
+          # PC <- (Genv.symbol_address ge p.(prog_main) Ptrofs.zero)
+          # R10 <- Vnullptr
+          # BP  <- Vnullptr
+          # RA <- Vnullptr in
       Genv.init_mem p = Some m0 ->
       initial_state p (State rs0 m0).
 
@@ -647,6 +677,16 @@ Qed.
 (** Classification functions for processor registers (used in Asmgenproof). *)
 
 Definition data_preg (r: preg) : bool :=
+  match r with
+  | IR R10 => false
+  | IR _ => true
+  | FR _ => true
+  | PC   => false
+  | RA   => false
+  end.
+
+(* data_preg_sp includes R10 *)
+Definition data_preg_sp (r: preg) : bool :=
   match r with
   | IR _ => true
   | FR _ => true

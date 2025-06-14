@@ -123,7 +123,7 @@ let fixup_gen single double sg =
         end
     | _, _ -> ()
   in
-    List.iter2 fixup sg.sig_args (Conventions1.loc_arguments sg)
+    List.iter2 fixup (proj_sig_args sg) (Conventions1.loc_arguments sg)
 
 let fixup_call sg =
   fixup_gen move_single_arg move_double_arg sg
@@ -394,7 +394,7 @@ let rec args_size l ri rf ofs =
    but not arguments passed in FP registers. *)
 
 let arguments_size sg =
-  let (ri, _, ofs) = args_size sg.sig_args 0 0 0 in
+  let (ri, _, ofs) = args_size (proj_sig_args sg) 0 0 0 in
   ri + ofs
 
 let save_arguments first_reg base_ofs =
@@ -557,6 +557,25 @@ let expand_ctz ~sixtyfour ~splitlong =
                      else Psrliw(X6, X X6, coqint_of_camlint 31l));
   emit (Psubw(X7, X X7, X X6))
 
+(* Full register width "and", "xor" *)
+
+let _Pand (r, a1, a2) =
+  if Archi.ptr64 then Pandl(r, a1, a2) else Pandw(r, a1, a2)
+let _Pxor (r, a1, a2) =
+  if Archi.ptr64 then Pxorl(r, a1, a2) else Pxorw(r, a1, a2)
+
+(* Conditional move *)
+(* res <- if cond then arg1 else arg2
+   cond must be 0 or 1. *)
+
+let expand_csel res cond arg1 arg2 =
+  emit (Psubw(X31, X0, cond)); (* X31 = -1 if cond = 1, 0 if cond = 0 *)
+  emit (_Pxor(X1, arg1, arg2));
+  emit (_Pand(X1, X X1, X X31));
+  emit (_Pxor(res, arg2, X X1))
+     (* res = (arg1 ^ arg2) ^ arg2 = arg1  if cond = 1
+        res = 0 ^ arg2 = arg2              if cond = 0 *)
+
 (* Handling of compiler-inlined builtins *)
 
 let expand_builtin_inline name args res =
@@ -697,6 +716,8 @@ let expand_instruction instr =
       end else 0 in
      expand_addptrofs X2 X2 (Ptrofs.repr (Z.add sz (Z.of_uint extra_sz)))
 
+  | Pcsel(rd, rcond, rs1, rs2) ->
+      expand_csel rd (X rcond) (X rs1) (X rs2)
   | Pseqw(rd, rs1, rs2) ->
       (* emulate based on the fact that x == 0 iff x <u 1 (unsigned cmp) *)
       if rs2 = X0 then begin

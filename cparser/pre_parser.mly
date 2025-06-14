@@ -55,7 +55,8 @@
   COLON AND MUL_ASSIGN DIV_ASSIGN MOD_ASSIGN ADD_ASSIGN SUB_ASSIGN LEFT_ASSIGN
   RIGHT_ASSIGN AND_ASSIGN XOR_ASSIGN OR_ASSIGN LPAREN RPAREN LBRACK RBRACK
   LBRACE RBRACE DOT COMMA SEMICOLON ELLIPSIS TYPEDEF EXTERN STATIC RESTRICT
-  AUTO REGISTER INLINE NORETURN CHAR SHORT INT LONG SIGNED UNSIGNED FLOAT DOUBLE
+  AUTO REGISTER INLINE NORETURN CHAR SHORT INT LONG SIGNED UNSIGNED 
+  FLOAT FLOAT16 DOUBLE
   UNDERSCORE_BOOL CONST VOLATILE VOID STRUCT UNION ENUM CASE DEFAULT IF ELSE
   SWITCH WHILE DO FOR GOTO CONTINUE BREAK RETURN BUILTIN_VA_ARG ALIGNOF
   ATTRIBUTE ALIGNAS PACKED ASM BUILTIN_OFFSETOF STATIC_ASSERT GENERIC
@@ -510,6 +511,7 @@ type_specifier_no_typedef_name:
 | INT
 | LONG
 | FLOAT
+| FLOAT16
 | DOUBLE
 | SIGNED
 | UNSIGNED
@@ -694,6 +696,14 @@ direct_declarator:
     { match snd x with
       | Decl_ident -> (fst x, Decl_other)
       | _ -> x }
+| x = direct_declarator LBRACK STATIC type_qualifier_list? assignment_expression RBRACK
+    { match snd x with
+      | Decl_ident -> (fst x, Decl_other)
+      | _ -> x }
+| x = direct_declarator LBRACK type_qualifier_list STATIC assignment_expression RBRACK
+    { match snd x with
+      | Decl_ident -> (fst x, Decl_other)
+      | _ -> x }
 | x = direct_declarator LPAREN ctx = context_parameter_type_list RPAREN
     { match snd x with
       | Decl_ident -> (fst x, Decl_fun ctx)
@@ -764,6 +774,8 @@ abstract_declarator(phantom):
 direct_abstract_declarator:
 | LPAREN save_context abstract_declarator(type_name) RPAREN
 | direct_abstract_declarator? LBRACK type_qualifier_list? optional(assignment_expression, RBRACK)
+| direct_abstract_declarator? LBRACK STATIC type_qualifier_list? assignment_expression RBRACK
+| direct_abstract_declarator? LBRACK type_qualifier_list STATIC assignment_expression RBRACK
 | ioption(direct_abstract_declarator) LPAREN context_parameter_type_list? RPAREN
     {}
 

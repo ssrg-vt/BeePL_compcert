@@ -60,13 +60,28 @@ Proof.
   monadInv B. rewrite H0 in EQ; inv EQ; auto.
 Qed.
 
+Lemma transf_function_stack : forall f tf,
+    transf_function f = OK tf ->
+    fn_stksz tf = fn_stacksize f.
+Proof.
+  intros. monadInv H.
+  destruct (zlt Ptrofs.max_unsigned (list_length_z (fn_code x)));
+    try discriminate.
+  destruct (zlt Ptrofs.max_unsigned (fn_stacksize f) || zlt (fn_stacksize f) 0);
+    try discriminate.
+  inv EQ0. monadInv EQ.
+  reflexivity.
+Qed.
+
 (** * Properties of control flow *)
 
 Lemma transf_function_no_overflow:
   forall f tf,
   transf_function f = OK tf -> list_length_z tf.(fn_code) <= Ptrofs.max_unsigned.
 Proof.
-  intros. monadInv H. destruct (zlt Ptrofs.max_unsigned (list_length_z x.(fn_code))); inv EQ0.
+  intros. monadInv H. destruct (zlt Ptrofs.max_unsigned (list_length_z x.(fn_code))); try discriminate.
+  destruct (zlt Ptrofs.max_unsigned (fn_stacksize f) || zlt (fn_stacksize f) 0);
+    try discriminate. inv EQ0.
   apply Z.ge_le. assumption.
 Qed.
 
@@ -173,8 +188,8 @@ Proof.
 Qed.
 
 Remark transl_op_label:
-  forall op args r k c,
-  transl_op op args r k = OK c -> tail_nolabel k c.
+  forall sz op args r k c,
+  transl_op sz op args r k = OK c -> tail_nolabel k c.
 Proof.
 Opaque Int.eq.
   unfold transl_op; intros; destruct op; TailNoLabel.
@@ -182,15 +197,15 @@ Opaque Int.eq.
 Qed.
 
 Remark transl_load_label:
-  forall chunk addr args dst k c,
-  transl_load chunk addr args dst k = OK c -> tail_nolabel k c.
+  forall sz chunk addr args dst k c,
+  transl_load sz chunk addr args dst k = OK c -> tail_nolabel k c.
 Proof.
   intros. unfold transl_load,transl_load_indexed, transl_load_indexed_in_range in H;destruct args, addr,chunk; TailNoLabel.
 Qed.
 
 Remark transl_store_label:
-  forall chunk addr args dst k c,
-  transl_store chunk addr args dst k = OK c -> tail_nolabel k c.
+  forall sz chunk addr args dst k c,
+  transl_store sz chunk addr args dst k = OK c -> tail_nolabel k c.
 Proof.
   intros. unfold transl_store, transl_store_indexed,transl_store_indexed_in_range in H; destruct args, addr,chunk; TailNoLabel.
 Qed.
@@ -203,13 +218,13 @@ Proof.
   unfold transl_instr; intros; destruct i; TailNoLabel.
 - eapply loadind_label; eauto.
 - eapply storeind_label; eauto.
-- destruct ep. eapply loadind_label;eauto.
-  eapply tail_nolabel_trans. apply loadind_ptr_label. eapply loadind_label; eauto.
+(*- destruct ep. eapply loadind_label;eauto.
+  eapply tail_nolabel_trans. apply loadind_ptr_label. eapply loadind_label; eauto. *)
 - eapply transl_op_label; eauto.
 - eapply transl_load_label; eauto.
 - eapply transl_store_label; eauto.
 - destruct s0; monadInv H; TailNoLabel.
-- destruct s0; monadInv H; TailNoLabel.
+(* - destruct s0; monadInv H; TailNoLabel. *)
 - eapply transl_cbranch_label; eauto.
 Qed.
 
@@ -249,7 +264,9 @@ Lemma transl_find_label:
   end.
 Proof.
   intros. monadInv H. destruct (zlt Ptrofs.max_unsigned (list_length_z x.(fn_code))); inv EQ0.
-  monadInv EQ. rewrite transl_code'_transl_code in EQ0. unfold fn_code.
+  destruct (zlt Ptrofs.max_unsigned (fn_stacksize f) || zlt (fn_stacksize f) 0);
+    try discriminate. inv H0.
+  monadInv EQ.  rewrite transl_code'_transl_code in EQ0. unfold fn_code.
   simpl. eapply transl_code_label; eauto.
 Qed.
 
@@ -292,12 +309,266 @@ Proof.
 - intros. exploit transl_instr_label; eauto.
   destruct i; try (intros [A B]; apply A). intros. subst c0. repeat constructor.
 - intros. monadInv H0.
-  destruct (zlt Ptrofs.max_unsigned (list_length_z x.(fn_code))); inv EQ0. monadInv EQ.
+  destruct (zlt Ptrofs.max_unsigned (list_length_z x.(fn_code))); inv EQ0.
+  destruct (zlt Ptrofs.max_unsigned (fn_stacksize f0) || zlt (fn_stacksize f0) 0);
+    try discriminate. inv H1.
+  monadInv EQ.
   rewrite transl_code'_transl_code in EQ0.
-  exists x; exists true; split; auto. unfold fn_code.
+  exists x; exists false; split; auto. unfold fn_code.
   constructor. constructor.
 - exact transf_function_no_overflow.
 Qed.
+
+(** Extended [agree] predicate *)
+
+Record agree_ofs (o: option Z) (ms:Mach.regset) (bp:val)   (rs:regset) : Prop :=
+  {
+    agree_regs  : agree ms bp  rs;
+    agree_bp    : rs#R10 = (offset_ptr bp o);
+  }.
+
+Lemma agree_ofs_exten :
+  forall sz (ms : Mach.regset) (bp: val) (rs : regset) (rs' : preg -> val),
+    agree_ofs sz ms bp rs ->
+    (forall r : preg, data_preg r = true -> rs' r = rs r) ->
+    rs' R10 = rs R10 ->
+    agree_ofs sz ms bp rs'.
+Proof.
+  intros. destruct H. constructor.
+  eapply agree_exten;eauto.
+  congruence.
+Qed.
+
+Lemma agree_ofs_nextinstr: forall o rs bp rs',
+    agree_ofs o rs bp rs' ->
+      agree_ofs o rs bp (nextinstr rs').
+Proof.
+  intros.
+  destruct H.
+  constructor; auto.
+  now apply agree_nextinstr.
+Qed.
+
+Lemma agree_ofs_set_other :
+  forall sz (ms : Mach.regset) (bp  : val) (rs : regset) (r : preg) (v : val),
+    agree_ofs sz ms bp  rs -> data_preg r = false ->
+    r <> R10 ->
+    agree_ofs sz ms bp rs # r <- v.
+Proof.
+  intros.
+  destruct H.
+  constructor; auto.
+  eapply agree_set_other;eauto.
+  rewrite Pregmap.gso; auto.
+Qed.
+
+Lemma agree_ofs_change_sp : forall sz sz' bp rs rs' bp' sp',
+    agree_ofs sz  rs bp  rs' ->
+    sp' = (offset_ptr bp' sz') ->
+    bp' <> Vundef ->
+    agree_ofs sz' rs bp' (rs' # R10 <- sp') # BP <- bp' .
+Proof.
+  intros.
+  destruct H.
+  constructor; auto.
+  eapply agree_change_sp; eauto.
+  eapply agree_set_other; eauto.
+Qed.
+
+(*
+Lemma agree_ofs_change_sp : forall sz sz' bp rs rs' bp' sp',
+    agree_ofs sz  rs bp  rs' ->
+    sp' = (offset_ptr bp' sz') ->
+    bp' <> Vundef ->
+    agree_ofs sz' rs bp' (rs' # BP <- bp') # R10 <- sp'.
+Proof.
+  intros.
+  destruct H.
+  constructor; auto.
+  apply agree_set_other.
+  eapply agree_change_sp; eauto.
+  reflexivity.
+Qed.
+*)
+
+Lemma agree_ofs_set_pair
+     : forall sz (sp : val) (p : rpair mreg) (v v' : val)
+         (ms : Mach.regset) (rs : regset),
+       agree_ofs sz ms sp rs ->
+       Val.lessdef v v' ->
+       agree_ofs sz (Mach.set_pair p v ms) sp (set_pair (map_rpair preg_of p) v' rs).
+Proof.
+  intros.
+  destruct H.
+  constructor.
+  eapply agree_set_pair; eauto.
+  unfold set_pair. destruct (map_rpair preg_of p) eqn:MP.
+  - rewrite Pregmap.gso. auto.
+    unfold map_rpair in MP.
+    destruct p; try discriminate. inv MP. auto with asmgen.
+  - rewrite! Pregmap.gso. auto.
+    unfold map_rpair in MP.
+    destruct p; try discriminate. inv MP. auto with asmgen.
+    destruct p; try discriminate. inv MP. auto with asmgen.
+Qed.
+
+Lemma agree_ofs_undef_caller_save_regs
+     : forall sz (ms : Mach.regset) (sp : val) (rs : regset),
+       agree_ofs sz ms sp rs ->
+       agree_ofs sz (Mach.undef_caller_save_regs ms) sp (undef_caller_save_regs rs).
+Proof.
+  intros.
+  destruct H; constructor.
+  apply agree_undef_caller_save_regs; auto.
+  unfold undef_caller_save_regs.
+  destruct (preg_eq R10 BP). discriminate.
+  simpl. auto.
+Qed.
+
+Lemma sp_val_ofs : forall sz ofs rs bp rs',
+    agree_ofs (Some sz) rs bp  rs' ->
+    Val.offset_ptr bp ofs  =
+      Val.offset_ptr (rs'#R10) (Ptrofs.sub ofs (stack_offset  sz)).
+Proof.
+  intros.
+  destruct H.
+  rewrite agree_bp0.
+  simpl.
+  rewrite  Val.offset_ptr_assoc.
+  f_equal.
+  rewrite Ptrofs.sub_add_opp.
+  rewrite Ptrofs.add_commut.
+  rewrite Ptrofs.add_assoc.
+  rewrite (Ptrofs.add_commut (Ptrofs.neg _)).
+  rewrite <- Ptrofs.sub_add_opp.
+  rewrite Ptrofs.sub_idem.
+  rewrite Ptrofs.add_zero.
+  reflexivity.
+Qed.
+
+Lemma sp_val_ofs_zero : forall  sz rs bp rs',
+    agree_ofs (Some sz) rs bp rs' -> is_base_pointer bp ->
+    bp  = Val.offset_ptr (rs'#R10) (Ptrofs.neg (stack_offset sz)).
+Proof.
+  intros.
+  replace (Ptrofs.neg (stack_offset sz))
+            with (Ptrofs.sub Ptrofs.zero (stack_offset sz)).
+  - erewrite <- sp_val_ofs; eauto.
+    inv H0. simpl.
+    rewrite Ptrofs.add_zero. reflexivity.
+  - rewrite Ptrofs.sub_add_opp.
+    rewrite Ptrofs.add_zero_l.
+    reflexivity.
+Qed.
+
+
+Lemma bp_is_sp : forall sz rs bp rs',
+    agree_ofs sz rs bp rs' ->
+    rs' #BP = bp.
+Proof.
+  intros. destruct H. destruct agree_regs0. auto.
+Qed.
+
+Lemma bp_val_ofs : forall sz ofs rs bp rs',
+    agree_ofs sz rs bp rs' ->
+    Val.offset_ptr bp ofs  =
+      Val.offset_ptr (rs'#BP) ofs.
+Proof.
+  intros.
+  rewrite (bp_is_sp _ _ _ _  H).
+  reflexivity.
+Qed.
+
+
+
+Lemma agree_ofs_set_mreg : forall ms sz bp rs r v rs',
+    agree_ofs sz ms bp rs ->
+    Val.lessdef v (rs' (preg_of r)) ->
+    (forall r' : preg,
+        data_preg r' = true -> r' <> preg_of r -> rs' r' = rs r') ->
+    rs' # R10 = rs # R10 ->
+    agree_ofs sz (Regmap.set r v ms) bp rs'.
+Proof.
+  intros.
+  destruct H.
+  constructor; auto.
+  eapply agree_set_mreg; eauto.
+  congruence.
+Qed.
+
+
+Lemma preg_val_ofs :
+      forall sz (ms : Mach.regset) (bp : val) (rs : regset) (r : RegEq.t),
+       agree_ofs sz ms bp rs -> Val.lessdef (ms r) (rs (preg_of r)).
+Proof.
+  intros.
+  destruct H.
+  eapply preg_val;eauto.
+Qed.
+
+Lemma agree_ofs_undef_regs
+     : forall sz (ms : Mach.regset) (bp : val) (rl : list mreg)
+         (rs : regset) (rs' : preg -> val),
+       agree_ofs  sz ms bp rs ->
+       (forall r' : preg,
+        data_preg r' = true -> preg_notin r' rl -> rs' r' = rs r') ->
+       rs'#R10 = rs #R10 ->
+       agree_ofs sz (Mach.undef_regs rl ms) bp rs'.
+Proof.
+  intros.
+  destruct H. constructor; auto.
+  eapply agree_undef_regs;eauto.
+  inv agree_regs0.
+  congruence.
+Qed.
+
+
+Lemma preg_vals_ofs
+     : forall sz (ms : Mach.regset) (bp : val) (rs : regset),
+       agree_ofs sz ms bp rs ->
+       forall l : list RegEq.t, Val.lessdef_list ms ## l rs ## (preg_of ## l).
+Proof.
+  intros.
+  destruct H.
+  eapply preg_vals;eauto.
+Qed.
+
+Lemma agree_ofs_set_undef_mreg
+     : forall sz (ms : Mach.regset) (bp : val) (rs : regset)
+         (r : mreg) (v : val) (rl : list mreg) (rs' : preg -> val),
+       agree_ofs sz ms bp rs ->
+       Val.lessdef v (rs' (preg_of r)) ->
+       (forall r' : preg,
+        data_preg r' = true ->
+        r' <> preg_of r -> preg_notin r' rl -> rs' r' = rs r') ->
+       rs' R10 = rs R10 ->
+       agree_ofs sz (Regmap.set r v (Mach.undef_regs rl ms)) bp rs'.
+Proof.
+  intros.
+  destruct H. constructor; auto.
+  eapply agree_set_undef_mreg;eauto.
+  congruence.
+Qed.
+
+Lemma ireg_val_ofs
+     : forall sz (ms : Mach.regset) (bp : val) (rs : regset)
+         (r : mreg) (r' : ireg),
+       agree_ofs sz ms bp  rs -> ireg_of r = OK r' -> Val.lessdef (ms r) (rs r').
+Proof.
+  intros.
+  destruct H.
+  eapply ireg_val;eauto.
+Qed.
+
+Definition parent_stacksize (s:list stackframe) : option Z :=
+  match s with
+  | nil => None
+  | Stackframe bf' sp' ra' c :: s' =>
+      match Genv.find_funct_ptr ge bf' with
+      | Some (Internal f') => Some f'.(fn_stacksize)
+      | _  => None
+      end
+  end.
 
 (** * Proof of semantic preservation *)
 
@@ -319,20 +590,21 @@ Qed.
 
 Inductive match_states: Mach.state -> Asm.state -> Prop :=
   | match_states_intro:
-      forall s fb sp c ep ms m m' rs f tf tc
+      forall s fb bp c ep ms m m' rs f tf tc
         (STACKS: match_stack ge s)
         (FIND: Genv.find_funct_ptr ge fb = Some (Internal f))
         (MEXT: Mem.extends m m')
         (AT: transl_code_at_pc ge (rs PC) fb f c ep tf tc)
-        (AG: agree ms sp rs)
-        (DXP: ep = true -> rs#R0 = parent_sp s),
-      match_states (Mach.State s fb sp c ms m)
+        (AG: agree_ofs (Some f.(fn_stacksize)) ms bp rs)
+        (ISBP: is_base_pointer bp)
+      (*(DXP: ep = true -> rs#R0 = parent_sp s) *),
+      match_states (Mach.State s fb bp c ms m)
                    (Asm.State rs m')
   | match_states_call:
       forall s fb ms m m' rs
         (STACKS: match_stack ge s)
         (MEXT: Mem.extends m m')
-        (AG: agree ms (parent_sp s) rs)
+        (AG: agree_ofs (parent_stacksize s)  ms (parent_sp s) rs)
         (ATPC: rs PC = Vptr fb Ptrofs.zero)
         (ATLR: rs RA = parent_ra s),
       match_states (Mach.Callstate s fb ms m)
@@ -341,13 +613,13 @@ Inductive match_states: Mach.state -> Asm.state -> Prop :=
       forall s ms m m' rs
         (STACKS: match_stack ge s)
         (MEXT: Mem.extends m m')
-        (AG: agree ms (parent_sp s) rs)
+        (AG: agree_ofs (parent_stacksize s) ms (parent_sp s)  rs)
         (ATPC: rs PC = parent_ra s),
       match_states (Mach.Returnstate s ms m)
                    (Asm.State rs m').
 
 Lemma exec_straight_steps:
-  forall s fb f rs1 i c ep tf tc m1' m2 m2' sp ms2,
+  forall s fb f rs1 i c ep tf tc m1' m2 m2' bp  ms2,
   match_stack ge s ->
   Mem.extends m2 m2' ->
   Genv.find_funct_ptr ge fb = Some (Internal f) ->
@@ -355,11 +627,12 @@ Lemma exec_straight_steps:
   (forall k c (TR: transl_instr f i ep k = OK c),
    exists rs2,
        exec_straight tge tf c rs1 m1' k rs2 m2'
-    /\ agree ms2 sp rs2
-    /\ (it1_is_parent ep i = true -> rs2#R0 = parent_sp s)) ->
+       /\ agree_ofs (Some f.(fn_stacksize)) ms2 bp  rs2
+       /\ is_base_pointer bp
+  (*/\ (it1_is_parent ep i = true -> rs2#R0 = parent_sp s)*)) ->
   exists st',
   plus step tge (State rs1 m1') E0 st' /\
-  match_states (Mach.State s fb sp c ms2 m2) st'.
+  match_states (Mach.State s fb bp c ms2 m2) st'.
 Proof.
   intros. inversion H2. subst. monadInv H7.
   exploit H3; eauto. intros [rs2 [A [B C]]].
@@ -369,7 +642,7 @@ Proof.
 Qed.
 
 Lemma exec_straight_steps_goto:
-  forall s fb f rs1 i c ep tf tc m1' m2 m2' sp ms2 lbl c',
+  forall s fb f rs1 i c ep tf tc m1' m2 m2' bp ms2 lbl c',
   match_stack ge s ->
   Mem.extends m2 m2' ->
   Genv.find_funct_ptr ge fb = Some (Internal f) ->
@@ -379,14 +652,15 @@ Lemma exec_straight_steps_goto:
   (forall k c (TR: transl_instr f i ep k = OK c),
    exists jmp, exists k', exists rs2,
        exec_straight tge tf c rs1 m1' (jmp :: k') rs2 m2'
-    /\ agree ms2 sp rs2
-    /\ exec_instr tge tf jmp rs2 m2' = goto_label tf lbl rs2 m2') ->
+       /\ agree_ofs (Some f.(fn_stacksize)) ms2 bp  rs2
+       /\ is_base_pointer bp
+       /\ exec_instr tge tf jmp rs2 m2' = goto_label tf lbl rs2 m2') ->
   exists st',
   plus step tge (State rs1 m1') E0 st' /\
-  match_states (Mach.State s fb sp c' ms2 m2) st'.
+  match_states (Mach.State s fb bp c' ms2 m2) st'.
 Proof.
   intros. inversion H3. subst. monadInv H9.
-  exploit H5; eauto. intros [jmp [k' [rs2 [A [B C]]]]].
+  exploit H5; eauto. intros [jmp [k' [rs2 [A [B [C D]]]]]].
   generalize (functions_transl _ _ _ H7 H8); intro FN.
   generalize (transf_function_no_overflow _ _ H8); intro NOOV.
   exploit exec_straight_steps_2; eauto.
@@ -398,15 +672,14 @@ Proof.
   eapply exec_straight_steps_1; eauto.
   econstructor; eauto.
   eapply find_instr_tail. eauto.
-  rewrite C. eexact GOTO.
+  rewrite D. eexact GOTO.
   traceEq.
   econstructor; eauto.
-  apply agree_exten with rs2; auto with asmgen.
-  congruence.
+  eapply agree_ofs_exten with rs2; eauto with asmgen.
 Qed.
 
 Lemma exec_straight_opt_steps_goto:
-  forall s fb f rs1 i c ep tf tc m1' m2 m2' sp ms2 lbl c',
+  forall s fb f rs1 i c ep tf tc m1' m2 m2' bp  ms2 lbl c',
   match_stack ge s ->
   Mem.extends m2 m2' ->
   Genv.find_funct_ptr ge fb = Some (Internal f) ->
@@ -416,14 +689,15 @@ Lemma exec_straight_opt_steps_goto:
   (forall k c (TR: transl_instr f i ep k = OK c),
    exists jmp, exists k', exists rs2,
        exec_straight_opt tge tf c rs1 m1' (jmp :: k') rs2 m2'
-    /\ agree ms2 sp rs2
-    /\ exec_instr tge tf jmp rs2 m2' = goto_label tf lbl rs2 m2') ->
+       /\ agree_ofs (Some f.(fn_stacksize))  ms2 bp rs2
+       /\ is_base_pointer bp
+       /\ exec_instr tge tf jmp rs2 m2' = goto_label tf lbl rs2 m2') ->
   exists st',
   plus step tge (State rs1 m1') E0 st' /\
-  match_states (Mach.State s fb sp c' ms2 m2) st'.
+  match_states (Mach.State s fb bp c' ms2 m2) st'.
 Proof.
   intros. inversion H3. subst. monadInv H9.
-  exploit H5; eauto. intros [jmp [k' [rs2 [A [B C]]]]].
+  exploit H5; eauto. intros [jmp [k' [rs2 [A [B [C D]]]]]].
   generalize (functions_transl _ _ _ H7 H8); intro FN.
   generalize (transf_function_no_overflow _ _ H8); intro NOOV.
   inv A.
@@ -432,10 +706,9 @@ Proof.
   exists (State rs3 m2'); split.
   apply plus_one. econstructor; eauto.
   eapply find_instr_tail. eauto.
-  rewrite C. eexact GOTO.
+  rewrite D. eexact GOTO.
   econstructor; eauto.
-  apply agree_exten with rs2; auto with asmgen.
-  congruence.
+  eapply agree_ofs_exten with rs2; eauto with asmgen.
 - exploit exec_straight_steps_2; eauto.
   intros [ofs' [PC2 CT2]].
   exploit find_label_goto_label; eauto.
@@ -445,11 +718,10 @@ Proof.
   eapply exec_straight_steps_1; eauto.
   econstructor; eauto.
   eapply find_instr_tail. eauto.
-  rewrite C. eexact GOTO.
+  rewrite D. eexact GOTO.
   traceEq.
   econstructor; eauto.
-  apply agree_exten with rs2; auto with asmgen.
-  congruence.
+  eapply agree_ofs_exten with rs2; eauto with asmgen.
 Qed.
 
 (** We need to show that, in the simulation diagram, we cannot
@@ -473,6 +745,33 @@ Proof.
   exploit preg_of_injective; eauto. intros; subst r; discriminate.
 Qed.
 
+Lemma stack_size_of_ra_Vnullptr :
+  stack_size_of_ra tge Vnullptr = None.
+Proof.
+  unfold Vnullptr.
+  destruct Archi.ptr64; reflexivity.
+Qed.
+
+Lemma Vnullptr_not_Vundef :
+  Vnullptr <> Vundef.
+Proof.
+  unfold Vnullptr.
+  destruct Archi.ptr64; congruence.
+Qed.
+
+Lemma offset_ptr_def : forall s,
+    match_stack ge s ->
+    offset_ptr (parent_sp s) (stack_size_of_ra tge (parent_ra s)) <> Vundef.
+Proof.
+  intros. inversion H.
+  - simpl.
+    rewrite stack_size_of_ra_Vnullptr.
+    simpl. apply Vnullptr_not_Vundef.
+  - simpl.
+    inv H2.
+    destruct (stack_size_of_ra tge ra); simpl; congruence.
+Qed.
+
 
 (** This is the simulation diagram.  We prove it by case analysis on the Mach transition. *)
 
@@ -486,104 +785,79 @@ Proof.
 
 - (* Mlabel *)
   left; eapply exec_straight_steps; eauto; intros.
-  monadInv TR. econstructor; split. apply exec_straight_one. simpl; eauto. auto.
-  split. apply agree_nextinstr; auto. simpl; congruence.
+  monadInv TR. econstructor; ssplit; auto.
+  + apply exec_straight_one. simpl; eauto. auto.
+  + apply agree_ofs_nextinstr; eauto.
 
 - (* Mgetstack *)
   unfold load_stack,loadind in H.
   exploit Mem.loadv_extends; eauto. intros [v' [A B]].
-  rewrite (sp_val _ _ _ AG) in A.
+  rewrite (sp_val_ofs  _ _ _ _ _ AG) in A.
   left; eapply exec_straight_steps; eauto. intros. simpl in TR.
   exploit loadind_correct; eauto with asmgen. intros [rs' [P [Q R]]].
-  exists rs'; split. eauto.
-  split. eapply agree_set_mreg; eauto with asmgen. congruence.
-  simpl; congruence.
+  exists rs'; ssplit;auto. eauto.
+  eapply agree_ofs_set_mreg; eauto with asmgen. congruence.
 
 - (* Msetstack *)
   unfold store_stack in H.
-  assert (Val.lessdef (rs src) (rs0 (preg_of src))). eapply preg_val; eauto.
+  assert (Val.lessdef (rs src) (rs0 (preg_of src))). eapply preg_val_ofs; eauto.
   exploit Mem.storev_extends; eauto. intros [m2' [A B]].
   left; eapply exec_straight_steps; eauto.
-  rewrite (sp_val _ _ _ AG) in A. intros. simpl in TR.
+  rewrite (sp_val_ofs  _ _ _ _ _  AG) in A. intros. simpl in TR.
   exploit storeind_correct; eauto with asmgen. intros [rs' [P Q]].
-  exists rs'; split. eauto.
-  split. eapply agree_undef_regs; eauto with asmgen.
-  simpl; intros. rewrite Q; auto with asmgen.
+  exists rs'; ssplit;auto. eauto.
+  eapply agree_ofs_undef_regs; eauto with asmgen.
 
 - (* Mgetparam *)
-  assert (f0 = f) by congruence; subst f0.
-  unfold load_stack in *.
-  exploit Mem.loadv_extends. eauto. eexact H0. auto.
-  intros [parent' [A B]]. rewrite (sp_val _ _ _ AG) in A.
-  exploit lessdef_parent_sp; eauto. clear B; intros B; subst parent'.
-  exploit Mem.loadv_extends. eauto. eexact H1. auto.
-  intros [v' [C D]].
-Opaque loadind.
-  left; eapply exec_straight_steps; eauto; intros. monadInv TR.
-  destruct ep.
-  + (* I0 contains parent *)
-  exploit loadind_correct.  eexact EQ.
-  instantiate (2 := rs0). rewrite DXP; eauto.
-  intros [rs1 [P [Q R]]].
-  exists rs1; split. eauto.
-  split. eapply agree_set_mreg. eapply agree_set_mreg; eauto. congruence. auto with asmgen.
-  simpl; intros. rewrite R; auto with asmgen.
-  apply preg_of_not_R0; auto.
- + (* I0 does not contain parent *)
-  rewrite chunk_of_Tptr in A.
-  exploit loadind_ptr_correct. eexact A. intros [rs1 [P [Q R]]].
-  exploit loadind_correct. eexact EQ. instantiate (2 := rs1). rewrite Q. eauto.
-  intros [rs2 [S [T U]]].
-  exists rs2; split. eapply exec_straight_trans; eauto.
-  split. eapply agree_set_mreg. eapply agree_set_mreg. eauto. eauto.
-  instantiate (1 := rs1#R0 <- (rs2#R0)). intros.
-  rewrite Pregmap.gso; auto with asmgen.
-  congruence.
-  intros. unfold Pregmap.set. destruct (PregEq.eq r' R0). congruence. auto with asmgen.
-  simpl; intros. rewrite U; auto with asmgen.
-  apply preg_of_not_R0; auto.
+  inv AT.
+  monadInv H5.
 
 - (* Mop *)
   assert (eval_operation tge sp op rs##args m = Some v).
   rewrite <- H. apply eval_operation_preserved. exact symbols_preserved.
-  exploit eval_operation_lessdef. eapply preg_vals; eauto. eauto. eexact H0.
-  intros [v' [A B]]. rewrite (sp_val _ _ _ AG) in A.
+  exploit eval_operation_lessdef. eapply preg_vals_ofs; eauto. eauto. eexact H0.
+  intros [v' [A B]]. rewrite (sp_val_ofs_zero _ _ _ _ AG) in A.
   left; eapply exec_straight_steps; eauto; intros. simpl in TR.
-  exploit transl_op_correct; eauto. intros [rs2 [P [Q R]]].
-  exists rs2; split. eauto. split. auto.
-  apply agree_set_undef_mreg with rs0; auto.
-  apply Val.lessdef_trans with v'; auto.
-  simpl; intros. destruct (andb_prop _ _ H1); clear H1.
-  rewrite R; auto. apply preg_of_not_R0; auto.
-Local Transparent destroyed_by_op.
-  destruct op; simpl; auto; congruence.
+  exploit transl_op_correct; eauto. intros [rs2 [P [Q R ]]].
+  exists rs2; ssplit;auto.
+  + eauto.
+  + eapply agree_ofs_set_undef_mreg with rs0; eauto.
+    apply Val.lessdef_trans with v'; auto with asmgen.
+    intros. apply R; auto. rewrite data_preg_sp_eq. tauto.
+    apply R; auto with asmgen.
+    rewrite destroyed_by_op_nil. simpl;auto.
+  + auto.
+
 - (* Mload *)
   assert (eval_addressing tge sp addr (map rs args) = Some a).
     rewrite <- H. apply eval_addressing_preserved. exact symbols_preserved.
-  exploit eval_addressing_lessdef. eapply preg_vals; eauto. eexact H1.
-  intros [a' [A B]]. rewrite (sp_val _ _ _ AG) in A.
+  exploit eval_addressing_lessdef. eapply preg_vals_ofs; eauto. eexact H1.
+  intros [a' [A B]]. rewrite (sp_val_ofs_zero _ _ _ _ AG) in A.
   exploit Mem.loadv_extends; eauto. intros [v' [C D]].
   left; eapply exec_straight_steps; eauto; intros. simpl in TR.
   exploit transl_load_correct; eauto. intros [rs2 [P [Q R]]].
-  exists rs2; split. eauto.
-  split. eapply agree_set_undef_mreg; eauto.
+  exists rs2; ssplit. eauto.
+  eapply agree_ofs_set_undef_mreg; eauto.
   eapply Val.lessdef_trans;eauto.
-  intros; auto with asmgen.
-  simpl; congruence.
+  intros; eauto with asmgen.
+  apply R. congruence. auto with asmgen.
+  auto. auto.
 
 - (* Mstore *)
   assert (eval_addressing tge sp addr (map rs args) = Some a).
     rewrite <- H. apply eval_addressing_preserved. exact symbols_preserved.
-  exploit eval_addressing_lessdef. eapply preg_vals; eauto. eexact H1.
-  intros [a' [A B]]. rewrite (sp_val _ _ _ AG) in A.
-  assert (Val.lessdef (rs src) (rs0 (preg_of src))). eapply preg_val; eauto.
+  exploit eval_addressing_lessdef. eapply preg_vals_ofs; eauto. eexact H1.
+  intros [a' [A B]]. rewrite (sp_val_ofs_zero _ _ _ _  AG) in A.
+  assert (Val.lessdef (rs src) (rs0 (preg_of src))). eapply preg_val_ofs; eauto.
   exploit Mem.storev_extends; eauto. intros [m2' [C D]].
   left; eapply exec_straight_steps; eauto.
-  intros. simpl in TR. exploit transl_store_correct; eauto. intros [rs2 [P Q]].
-  exists rs2; split. eauto.
-  split. eapply agree_undef_regs; eauto with asmgen.
-  simpl; congruence.
-
+  intros. simpl in TR. exploit transl_store_correct; eauto. intros [rs2 [P [Q R]]].
+  exists rs2; ssplit;auto. eauto.
+  eapply agree_ofs_undef_regs; eauto with asmgen.
+  intros.  apply Q. rewrite data_preg_sp_eq. tauto.
+  auto. apply Q. reflexivity.
+  rewrite destroyed_by_store_nil. simpl. auto.
+  auto.
 - (* Mcall *)
   assert (f0 = f) by congruence.  subst f0.
   inv AT.
@@ -600,10 +874,14 @@ Local Transparent destroyed_by_op.
   simpl. reflexivity.
   econstructor; eauto.
   econstructor; eauto.
-  eapply agree_sp_def; eauto.
-  simpl. eapply agree_exten; eauto. intros. Simpl.
+  { constructor. }
+  { simpl. rewrite H3. eapply agree_ofs_exten;eauto.
+    intros. Simpl.
+  }
+  (*eapply agree_sp_def; eauto.
+  simpl. eapply agree_exten; eauto. intros. Simpl. *)
   Simpl.
-  eapply ireg_val in EQ1;eauto.
+  eapply ireg_val_ofs in EQ1;eauto.
   destruct (rs rf); try discriminate.
   destruct (Ptrofs.eq i Ptrofs.zero) eqn:Z;try discriminate.
   inv EQ1. inv Z.
@@ -620,12 +898,14 @@ Local Transparent destroyed_by_op.
   simpl. unfold Genv.symbol_address. rewrite symbols_preserved. rewrite H. eauto.
   econstructor; eauto.
   econstructor; eauto.
-  eapply agree_sp_def; eauto.
-  simpl. eapply agree_exten; eauto. intros. Simpl.
+  { constructor. }
+  { simpl. rewrite H3.
+    eapply agree_ofs_exten; eauto. intros. Simpl. }
   Simpl. rewrite <- H2. auto.
 
 - (* Mtailcall *)
-  assert (f0 = f) by congruence.  subst f0.
+  inv AT. monadInv H7. destruct ros ; discriminate.
+(*  assert (f0 = f) by congruence.  subst f0.
   inv AT.
   assert (NOOV: list_length_z tf.(fn_code) <= Ptrofs.max_unsigned).
     eapply transf_function_no_overflow; eauto.
@@ -650,7 +930,7 @@ Local Transparent destroyed_by_op.
   apply agree_set_other; auto. apply agree_nextinstr. apply agree_set_other; auto.
   eapply agree_change_sp; eauto. eapply parent_sp_def; eauto.
   rewrite Pregmap.gss. unfold Genv.symbol_address. rewrite symbols_preserved. rewrite H. auto.
-
+*)
 - (* Mbuiltin *)
   inv AT. monadInv H4.
 
@@ -664,28 +944,30 @@ Local Transparent destroyed_by_op.
   eapply find_instr_tail; eauto.
   simpl; eauto.
   econstructor; eauto.
-  eapply agree_exten; eauto with asmgen.
-  congruence.
+  eapply agree_ofs_exten; eauto with asmgen.
 
 - (* Mcond true *)
   assert (f0 = f) by congruence. subst f0.
-  exploit eval_condition_lessdef. eapply preg_vals; eauto. eauto. eauto. intros EC.
+  exploit eval_condition_lessdef. eapply preg_vals_ofs; eauto. eauto. eauto. intros EC.
   left; eapply exec_straight_opt_steps_goto; eauto.
   intros. simpl in TR.
-  exploit transl_cbranch_correct_true; eauto. intros (rs' & jmp & A & B & C).
+  exploit transl_cbranch_correct_true; eauto.
+  destruct AG ; eauto.
+  intros (rs' & jmp & A & B & C).
   exists jmp; exists k; exists rs'.
-  split. eexact A.
-  split. apply agree_exten with rs0; auto with asmgen.
+  ssplit;auto. eexact A.
+  eapply agree_ofs_exten with rs0; eauto with asmgen.
   exact B.
 
 - (* Mcond false *)
-  exploit eval_condition_lessdef. eapply preg_vals; eauto. eauto. eauto. intros EC.
+  exploit eval_condition_lessdef. eapply preg_vals_ofs; eauto. eauto. eauto. intros EC.
   left; eapply exec_straight_steps; eauto. intros. simpl in TR.
-  exploit transl_cbranch_correct_false; eauto. intros (rs' & A & B).
+  exploit transl_cbranch_correct_false; eauto.  destruct AG;eauto.
+  intros (rs' & A & B).
   exists rs'.
-  split. eexact A.
-  split. apply agree_exten with rs0; auto with asmgen.
-  simpl. congruence.
+  ssplit;auto. eexact A.
+  apply agree_ofs_exten with rs0; eauto with asmgen.
+
 
 - (* Mjumptable *)
   inv AT. monadInv H6.
@@ -695,7 +977,7 @@ Local Transparent destroyed_by_op.
   inv AT.
   assert (NOOV: list_length_z tf.(fn_code) <= Ptrofs.max_unsigned).
     eapply transf_function_no_overflow; eauto.
-  rewrite (sp_val _ _ _ AG) in *. unfold load_stack in *.
+(*  rewrite (sp_val_ofs_zero _ _ _ _ _ AG) in *.*) unfold load_stack in *.
   replace (chunk_of_type Tptr) with Mptr in * by (unfold Tptr, Mptr; destruct Archi.ptr64; auto).
   exploit Mem.loadv_extends. eauto. eexact H0. auto. simpl. intros [parent' [A B]].
   exploit lessdef_parent_sp; eauto. intros. subst parent'. clear B.
@@ -703,23 +985,48 @@ Local Transparent destroyed_by_op.
   exploit lessdef_parent_ra; eauto. intros. subst ra'. clear D.
   exploit Mem.free_parallel_extends; eauto. intros [m2' [E F]].
   monadInv H6.
+  destruct (zlt Ptrofs.max_unsigned (fn_stacksize f) || zlt (fn_stacksize f) 0) eqn:STK; try discriminate. monadInv EQ0.
   exploit code_tail_next_int; eauto. intro CT1.
   left; econstructor; split.
   eapply plus_left. eapply exec_step_internal. eauto.
   eapply functions_transl; eauto. eapply find_instr_tail; eauto.
-  simpl. rewrite C. rewrite A. rewrite <- (sp_val _ _ _ AG). rewrite E. eauto.
+  simpl. rewrite (bp_is_sp  _ _ _ _ AG).
+  simpl. rewrite C. rewrite A. rewrite E.
+
+  eauto.
   apply star_one. eapply exec_step_internal.
   transitivity (Val.offset_ptr rs0#PC Ptrofs.one). auto. rewrite <- H3. simpl. eauto.
   eapply functions_transl; eauto. eapply find_instr_tail; eauto.
   simpl. eauto. traceEq.
-  constructor; auto.
-  apply agree_set_other; auto. apply agree_nextinstr. apply agree_set_other; auto.
-  eapply agree_change_sp; eauto. eapply parent_sp_def; eauto.
+
+  constructor; eauto.
+  apply agree_ofs_set_other; auto; try congruence.
+  apply agree_ofs_nextinstr.
+  apply agree_ofs_set_other; auto; try congruence.
+  eapply agree_ofs_change_sp; eauto.
+  f_equal.
+  {
+    inv STACKS.
+    - simpl. unfold stack_size_of_ra. unfold Vnullptr.
+      destruct Archi.ptr64; reflexivity.
+    - simpl. unfold stack_size_of_ra.
+      inv H10.
+      exploit functions_translated; eauto.
+      intros (tf1 & FIND1 & TDEF).
+      rewrite H6. rewrite FIND1.
+      monadInv TDEF.
+      f_equal.
+      eapply transf_function_stack; eauto.
+  }
+  {
+    eapply parent_sp_def; eauto.
+  }
 
 - (* internal function *)
   exploit functions_translated; eauto. intros [tf [A B]]. monadInv B.
   generalize EQ; intros EQ'. monadInv EQ'.
   destruct (zlt Ptrofs.max_unsigned (list_length_z (fn_code x0))); inv EQ1.
+  destruct (zlt Ptrofs.max_unsigned (fn_stacksize f) || zlt (fn_stacksize f) 0) eqn: SIZE; try discriminate. inv H4.
   monadInv EQ0. rewrite transl_code'_transl_code in EQ1.
   unfold store_stack in *.
   exploit Mem.alloc_extends. eauto. eauto. apply Z.le_refl. apply Z.le_refl.
@@ -733,25 +1040,28 @@ Local Transparent destroyed_by_op.
   simpl. rewrite Ptrofs.unsigned_zero. simpl. eauto.
   simpl. rewrite C. simpl in F, P.
   replace (chunk_of_type Tptr) with Mptr in F, P by (unfold Tptr, Mptr; destruct Archi.ptr64; auto).
-  rewrite (sp_val _ _ _ AG) in F. rewrite F.
+  rewrite (bp_is_sp _ _ _ _  AG). rewrite F.
   rewrite ATLR. rewrite P. eauto.
   econstructor; eauto.
   unfold nextinstr. rewrite Pregmap.gss. repeat rewrite Pregmap.gso; auto with asmgen.
   rewrite ATPC. simpl. constructor; eauto.
   unfold fn_code. eapply code_tail_next_int. simpl in g. lia.
   constructor.
-  apply agree_nextinstr. eapply agree_change_sp; eauto.
+  apply agree_ofs_nextinstr. eapply agree_ofs_change_sp; eauto.
 Transparent destroyed_at_function_entry.
-  apply agree_undef_regs with rs0; eauto.
-  simpl. intros. apply Pregmap.gso; auto with asmgen.
+  apply agree_ofs_undef_regs with rs0; eauto.
+  discriminate. constructor.
+(*  simpl. intros. apply Pregmap.gso; auto with asmgen.
   congruence.
   intros. rewrite nextinstr_inv by eauto with asmgen.
-  rewrite Pregmap.gso; auto. rewrite Pregmap.gss; auto. eapply agree_sp; eauto. congruence.
+  rewrite Pregmap.gso; auto. rewrite Pregmap.gss; auto. eapply agree_sp; eauto. congruence. *)
 
 - (* external function *)
   exploit functions_translated; eauto.
   intros [tf [A B]]. simpl in B. inv B.
+  generalize AG ; intro AG'. destruct AG.
   exploit extcall_arguments_match; eauto.
+
   intros [args' [C D]].
   exploit external_call_mem_extends; eauto.
   intros [res' [m2' [P [Q [R S]]]]].
@@ -759,14 +1069,16 @@ Transparent destroyed_at_function_entry.
   apply plus_one. eapply exec_step_external; eauto.
   eapply external_call_symbols_preserved; eauto. apply senv_preserved.
   econstructor; eauto.
-  unfold loc_external_result. apply agree_set_other; auto. apply agree_set_pair; auto.
-  apply agree_undef_caller_save_regs; auto.
-
+  unfold loc_external_result. apply agree_ofs_set_other; auto.
+  apply agree_ofs_set_pair; auto.
+  apply agree_ofs_undef_caller_save_regs; auto.
+  congruence.
 - (* return *)
   inv STACKS. simpl in *.
-  right. split. lia. split. auto.
+  rewrite H4 in AG.
   rewrite <- ATPC in H5.
-  econstructor; eauto. congruence.
+  right. ssplit. lia. reflexivity.
+  econstructor; eauto.
 Qed.
 
 Lemma transf_initial_states:
@@ -782,8 +1094,11 @@ Proof.
   econstructor; eauto.
   constructor.
   apply Mem.extends_refl.
-  split. auto. simpl. unfold Vnullptr; destruct Archi.ptr64; congruence.
-  intros. rewrite Regmap.gi. auto.
+  { simpl. constructor.
+    - split. auto. apply Vnullptr_not_Vundef.
+      intros. rewrite Regmap.gi. auto.
+    - Simpl.
+  }
   unfold Genv.symbol_address.
   rewrite (match_program_main TRANSF).
   rewrite symbols_preserved.
@@ -796,7 +1111,7 @@ Lemma transf_final_states:
 Proof.
   intros. inv H0. inv H. constructor. assumption.
   compute in H1. inv H1.
-  generalize (preg_val _ _ _ I0 AG). rewrite H2. intros LD; inv LD. auto.
+  generalize (preg_val_ofs _ _ _ _ I0 AG). rewrite H2. intros LD; inv LD. auto.
 Qed.
 
 Theorem transf_program_correct:

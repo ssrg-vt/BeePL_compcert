@@ -312,6 +312,8 @@ Record function : Type := mkfunction { fn_sig: signature; fn_code: code }.
 Definition fundef := AST.fundef function.
 Definition program := AST.program fundef unit.
 
+Definition dummy_function := mkfunction signature_main nil.
+
 (** * Operational semantics *)
 
 (** The semantics operates over a single mapping from registers

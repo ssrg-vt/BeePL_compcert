@@ -26,7 +26,7 @@ Require Size.
   RTL pseudo-registers ([Rxx]).
 
   The type [mreg] does not include reserved machine registers such as
-  the the stack pointer (R10) and the global pointer.
+  the stack pointer (R10) and the global pointer.
 *)
 
 Inductive mreg: Type :=
@@ -153,6 +153,13 @@ Definition mregs_for_builtin (ef: external_function): list (option mreg) * list(
   match ef with
   | _ => (nil, nil)
   end.
+
+Lemma destroyed_by_op_nil : forall op, destroyed_by_op op = nil.
+Proof. destruct op; reflexivity. Qed.
+
+Lemma destroyed_by_store_nil : forall k a, destroyed_by_store k a = nil.
+Proof. reflexivity. Qed.
+
 
 Global Opaque
     destroyed_by_op destroyed_by_load destroyed_by_store

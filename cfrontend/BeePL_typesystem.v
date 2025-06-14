@@ -170,7 +170,7 @@ Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> e
 | ty_sinit : forall cenv Gamma Sigma x es efs h id a a' co ids cts bts, 
              type_exprs cenv Gamma Sigma es efs bts ->
              PTree.get id cenv = Some co ->
-             type_of_members (combine (map Ctypes.attr_of_type (typelist_to_list_type (transBeePL_types transBeePL_type bts))) ids) 
+             type_of_members (combine (map Ctypes.attr_of_type (transBeePL_types transBeePL_type bts)) ids) 
                              (bmembers_cmembers co.(co_members)) = OK cts ->
              trans_ctypes_btypes trans_ctype_btype cts = OK bts ->
              type_expr cenv Gamma Sigma (Sinit x ids es (Ptrtype (Reftype h (Bstruct id a) a'))) efs (Ptrtype (Reftype h (Bstruct id a) a'))
@@ -831,7 +831,7 @@ type_expr cenv Gamma Sigma (Sinit x ids es t) efs t' ->
 exists h id a a' efs bts co cts, 
 t = (Ptrtype (Reftype h (Bstruct id a) a')) /\ t' = (Ptrtype (Reftype h (Bstruct id a) a')) /\
 type_exprs cenv Gamma Sigma es efs bts /\ PTree.get id cenv = Some co /\ 
-type_of_members (combine (map Ctypes.attr_of_type (typelist_to_list_type (transBeePL_types transBeePL_type bts))) ids) 
+type_of_members (combine (map Ctypes.attr_of_type (transBeePL_types transBeePL_type bts)) ids) 
 (bmembers_cmembers co.(co_members)) = OK cts /\ trans_ctypes_btypes trans_ctype_btype cts = OK bts.
 Proof.
 move=> cenv Gamma Sigma x ids es t efs t'.

@@ -41,19 +41,12 @@ Proof.
   eexact H.
 - intros. destruct f; simpl in H0.
 + monadInv H0. constructor; auto.
-+ destruct (signature_eq (ef_sig e) (signature_of_type t t0 c)); inv H0.
++ destruct signature_eq; inv H0.
   constructor; auto.
 - intros; red; auto.
 Qed.
 
 (** * Properties of operations over types *)
-
-Remark transl_params_types:
-  forall params,
-  map typ_of_type (map snd params) = typlist_of_typelist (type_of_params params).
-Proof.
-  induction params; simpl. auto. destruct a as [id ty]; simpl. f_equal; auto.
-Qed.
 
 Lemma transl_fundef_sig1:
   forall ce f tf args res cc,
@@ -62,9 +55,7 @@ Lemma transl_fundef_sig1:
   funsig tf = signature_of_type args res cc.
 Proof.
   intros. inv H.
-- monadInv H1. simpl. inversion H0.
-  unfold signature_of_function, signature_of_type.
-  f_equal. apply transl_params_types.
+- monadInv H1. simpl. inversion H0. reflexivity.
 - simpl in H0. unfold funsig. congruence.
 Qed.
 
@@ -1393,10 +1384,18 @@ Proof.
   eapply make_cast_correct; eauto. eapply transl_expr_correct; eauto. auto.
 Qed.
 
+Lemma transl_arglist_typed:
+  forall al tyl vl,
+  Clight.eval_exprlist ge e le m al tyl vl ->
+  Val.has_argtype_list vl (List.map argtype_of_type tyl).
+Proof.
+  induction 1; intros; simpl; constructor; eauto using val_casted_has_argtype, cast_val_is_casted.
+Qed.
+
 Lemma typlist_of_arglist_eq:
   forall al tyl vl,
   Clight.eval_exprlist ge e le m al tyl vl ->
-  typlist_of_arglist al tyl = typlist_of_typelist tyl.
+  typlist_of_arglist al tyl = List.map argtype_of_type tyl.
 Proof.
   induction 1; simpl.
   auto.
@@ -1501,7 +1500,8 @@ Inductive match_states: Clight.state -> Csharpminor.state -> Prop :=
           (TR: match_fundef cu fd tfd)
           (MK: match_cont ce tres 0%nat 0%nat k tk)
           (ISCC: Clight.is_call_cont k)
-          (TY: type_of_fundef fd = Tfunction targs tres cconv),
+          (TY: type_of_fundef fd = Tfunction targs tres cconv)
+          (CASTED: Val.has_argtype_list args (List.map argtype_of_type targs)),
       match_states (Clight.Callstate fd args k m)
                    (Callstate tfd args tk m)
   | match_returnstate:
@@ -1713,6 +1713,7 @@ Proof.
     econstructor; eauto.
     eapply match_Kcall with (ce := prog_comp_env cu') (cu := cu); eauto.
     exact I.
+    eapply transl_arglist_typed; eauto.
   + (* with normalization of return value *)
     subst optid.
     econstructor; split.
@@ -1724,6 +1725,7 @@ Proof.
     eapply match_Kcall_normalize  with (ce := prog_comp_env cu') (cu := cu); eauto.
     intros. eapply make_normalization_correct; eauto. constructor; eauto.
     exact I.
+    eapply transl_arglist_typed; eauto.
 
 - (* builtin *)
   monadInv TR. inv MTR.
@@ -1893,8 +1895,11 @@ Proof.
   exploit match_env_alloc_variables; eauto.
   apply match_env_empty.
   intros [te1 [C D]].
+  simpl in TY. unfold type_of_function in TY.
   econstructor; split.
   apply plus_one. eapply step_internal_function.
+  simpl. replace (map snd (Clight.fn_params f)) with targs. exact CASTED.
+  unfold type_of_params in TY; congruence.
   simpl. erewrite transl_vars_names by eauto. assumption.
   simpl. assumption.
   simpl. assumption.
@@ -1903,8 +1908,7 @@ Proof.
   simpl. econstructor; eauto.
   unfold transl_function. rewrite EQ; simpl. rewrite EQ1; simpl. auto.
   constructor.
-  replace (fn_return f) with tres. eassumption.
-  simpl in TY. unfold type_of_function in TY. congruence. 
+  replace (fn_return f) with tres. eassumption. congruence. 
 
 - (* external function *)
   inv TR.
@@ -1940,11 +1944,11 @@ Proof.
   exploit function_ptr_translated; eauto. intros (cu & tf & A & B & C).
   assert (D: Genv.find_symbol tge (AST.prog_main tprog) = Some b).
   { destruct TRANSL as (P & Q & R). rewrite Q. rewrite symbols_preserved. auto. }
-  assert (E: funsig tf = signature_of_type Tnil type_int32s cc_default).
+  assert (E: funsig tf = signature_of_type nil type_int32s cc_default).
   { eapply transl_fundef_sig2; eauto. }
   econstructor; split.
   econstructor; eauto. apply (Genv.init_mem_match TRANSL). eauto.
-  econstructor; eauto. instantiate (1 := prog_comp_env cu). constructor; auto. exact I.
+  econstructor; eauto. instantiate (1 := prog_comp_env cu). constructor; auto. exact I. constructor.
 Qed.
 
 Lemma transl_final_states:

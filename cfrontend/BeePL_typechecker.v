@@ -299,7 +299,7 @@ match e with
                         match t with 
                         | Ptrtype (Reftype mem_ident (Bstruct id a) a') => match cenv!id with 
                                                                  | Some co => do cts <- type_of_members 
-                                                                                        (combine (map Ctypes.attr_of_type (typelist_to_list_type (transBeePL_types transBeePL_type tes))) ids) 
+                                                                                        (combine (map Ctypes.attr_of_type (transBeePL_types transBeePL_type tes)) ids) 
                                                                                         (bmembers_cmembers co.(co_members));
                                                                               do bts <- trans_ctypes_btypes trans_ctype_btype cts;
                                                                               if eq_types eq_type tes bts 
