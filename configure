@@ -447,17 +447,14 @@ fi
 #
 if test "$arch" = "ebpf"; then
     case "$bitsize" in
-	32)
-            cprepro_options="-std=c99 -m32 -D__ccomp__ -U__GNUC__ -E";;
 	64)
-	    cprepro_options="-std=c99 -m64 -U__SIZEOF_INT128__ -D__ccomp__ -U__GNUC__ -E";;
+	    cprepro_options="-std=c99 -m64 -U__SIZEOF_INT128__ -D__ccomp__ -D__bpf_helper_as_extern__ -U__GNUC__ -E";;
 	*)
-	    echo "Error: '$bitsize' is either 32 or 64." 1>&2
+	    echo "Error: '$bitsize' should be 64." 1>&2
 	    echo "$usage" 1>&2
 	    exit 2;;
     esac 
     case "$model" in
-        rbpf) abi="rbpf";;
 	*)   abi="standard";;
     esac
     casm="llvm-mc"
