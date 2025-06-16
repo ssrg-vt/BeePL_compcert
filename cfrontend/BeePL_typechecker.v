@@ -434,24 +434,6 @@ match gd with
             OK "SUCCESS: Program type checks!"
 end.
 
-Fixpoint check_get_fundef_sec (pds : list (ident * BeePL.globdef BeePL.fundef BeeTypes.type * option string)) : bool :=
-match pds with 
-| nil => true 
-| pd :: pds => match pd.1.2 with 
-               | AST.Gfun f => match f with 
-                               | Internal f => if f.(is_ebpf) 
-                                               then let ts := unzip2 f.(fn_args) in
-                                                    match pd.2 with 
-                                                    | Some s => check_type_attrs ts s && check_get_fundef_sec pds
-                                                    | None => check_get_fundef_sec pds
-                                                    end
-                                               else true 
-                               | _ => true 
-                               end
-               | _ => check_get_fundef_sec pds (* fix it later to also check for global variable related to map creation *)
-               end
-     
-end.
 (* Store context: Not needed in the executable type checker because location is never used by programmer, it only comes as intermediate results in semantics *) 
 Definition type_check_program (p : BeePL.program) : res string :=
 let sb := check_get_fundef_sec p.(prog_defs) in 

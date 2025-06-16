@@ -113,7 +113,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
   (* e is not a value *)
   admit. (* provable *)
 (* ref *)
-+ move=> cenv Gamma Sigma e ef h bt a hte hin hvo bge p vm m hw.
++ move=> cenv Gamma Sigma e ef h bt a hte hin bge p vm m hw.
   move: (hin bge p vm m hw)=> [] he.
   (* is value *)
   + right. case: e hte hin he=> //= v t hte hin _.
@@ -136,7 +136,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
   exists vm'. exists (Prim Ref [:: e'] (Ptrtype (Reftype h bt a))). 
   split=> //=. by apply ssem_ref1.
 (* deref *)
-+ move=> cenv Gamma Sigma e ef pt h hte hin ho hvo bge p vm m hw.
++ move=> cenv Gamma Sigma e ef pt h hte hin ho bge p vm m hw.
   move: (hin bge p vm m hw)=> [].
   (* is value *)
   + move=> hv. right. rewrite /is_value in hv. case: e hv hte hin=> v t //= _. case: v=> //=.
@@ -157,9 +157,8 @@ apply type_exprs_type_expr_ind_mut=> //=.
       have [h' [bt [a [m' [hpt hl ]]]]] := type_infer_loc cenv Gamma Sigma l ofs 
                                                 ef t (Ptrtype pt) hte; subst.
       inversion hw2. case: hpt=> [] hpteq; subst.
-      have hand : Sigma ! l = Some (Ptrtype (Reftype h' bt a)) /\ type_is_volatile (transBeePL_type (get_data_type ((Reftype h' bt a)))) = false.
-      + by split=> //=.  case: H=> H1 H2. move: (H1 l ofs (Reftype h' bt a) hand)=> [] chunk [] hvl hc.
-      have [v hd]:= safe_deref_valid_pointers Sigma m l ofs (Reftype h' bt a) chunk hl hvo hc hvl.
+      case: H=> H1 H2. move: (H1 l ofs (Reftype h' bt a) hl)=> [] chunk [] hvl hc.
+      have [v hd] := safe_deref_valid_pointers bge Sigma m l ofs (Reftype h' bt a) chunk hl hc hvl.
       exists m. exists vm. exists (Val v (get_data_type (Reftype h' bt a))). split.
       by apply ssem_deref2 with Full. by apply hsw.
     (* option *) (* deref does not allow pointer coming from option type until it is gone through match *)
@@ -170,6 +169,8 @@ apply type_exprs_type_expr_ind_mut=> //=.
   move: (hin bge p vm m hw)=> hin'. move=> [] m' [] vm' [] e' [] he hs. right.
   exists m'. exists vm'. exists (Prim Deref [:: e'] (get_data_type pt)). split=> //=. 
   apply ssem_deref1. by apply he.
+(* massgn *)
++ admit.
 (*
 (* massgn *)
 + move=> Gamma Sigma e e' h bt ef a ef' hte hin hte' hin' bge vm m hw. 
@@ -215,7 +216,6 @@ apply type_exprs_type_expr_ind_mut=> //=.
   (* e steps *)
   move=> [] m' [] vm' [] e'' [] he'' hs. exists m'. exists vm'.
   exists (Prim Massgn [:: e''; e'] (Ptype Tunit)). split=> //=. by apply ssem_massgn1. *)
-admit.
 (* notbool *) (* complete *)
 + move=> cenv Gamma Sigma e ef hte hin bge p vm m hw. 
   move: (hin bge p vm m hw)=> [].
@@ -472,7 +472,7 @@ Admitted.
 (* we need extra assertion that value cannot be a pointer because 
    in C, they allow it and we use deref_addr from CompCert *)
 Lemma well_typed_val_expr : forall cenv Gamma Sigma v t ef bf m l ofs,
-deref_addr t m l ofs bf v ->
+deref_addr cenv t m l ofs bf v ->
 type_expr cenv Gamma Sigma (Val v t) ef t.
 Proof.
 (*move=> cenv Gamma Sigma v t ef bf m l ofs hd.
@@ -615,11 +615,11 @@ apply type_exprs_type_expr_ind_mut=> //=.
 (* val option *)
 + move=> cenv Gamma Sigma o t bge p vm m vm' m' e' hw he. by inversion he.
 (* var *)
-+ move=> cenv Gamma Sigma x t hxt hin p vm m vm' m' e' hw he. inversion he; subst.
++ move=> cenv Gamma Sigma x t hxt bge p vm m vm' m' e' hw he. inversion he; subst.
   (* local *)
-  + exists nil. split=> //=. by apply well_typed_val_expr with Full m' l ofs.
+  + exists nil. split=> //=. admit.
   (* global *)
-  + exists nil. split=> //=. by apply well_typed_val_expr with Full m' l ofs.
+  + exists nil. split=> //=. (*by apply well_typed_val_expr with Full m' l ofs.*) admit.
 (* const int *)
 + move=> Gamma Sigma t sz s a i bge p vm m vm' m' e' hw he; subst.
   inversion he; subst. exists nil. split=> //=. by apply ty_vali. 
@@ -638,7 +638,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
   + by move: (hin bge vm m vm' m' e'0 hw H7)=> [] h1 h2.
   admit. (* hard case *) admit.*) admit.
 (* ref *)
-+ move=> cenv Gamma Sigma e ef h bt a hte hin htv bge p vm m vm' m' e' hw he.
++ move=> cenv Gamma Sigma e ef h bt a hte hin bge p vm m vm' m' e' hw he.
   inversion he; subst.
   + admit.
   exists nil. split=> //=. 
