@@ -311,8 +311,7 @@ Inductive well_formed_loc (Sigma : store_context) (bge : BeePL.genv) (vm : vmap)
                                          chunk_of_type (get_data_type t) = Some chunk)) /\
                           (forall chunk x ofs t, Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable /\
                                                  chunk_of_type (get_data_type t) = Some chunk -> 
-                                                 PTree.get x Sigma = Some (Ptrtype t) /\ 
-                                                 type_is_volatile (transBeePL_type (get_data_type t)) = false) ->
+                                                 PTree.get x Sigma = Some (Ptrtype t)) ->
                           well_formed_loc Sigma bge vm m.
 
 (*** Well formed function ***)

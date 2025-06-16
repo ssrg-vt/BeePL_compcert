@@ -392,7 +392,6 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                                 (Prim Massgn ((Val (Vloc l ofs) (Ptrtype t)) :: e2' :: nil) Utype)
 | ssem_massgn3 : forall p vm m t m' l ofs bf v,  
                  assign_addr ge (get_data_type t) m l ofs bf v m' v -> 
-                 is_vloc v = false ->
                  ssem_expr p vm m (Prim Massgn (Val (Vloc l ofs) (Ptrtype t) ::  Val v (get_data_type t):: nil) Utype )
                                 m' vm (Val Vunit Utype)
 | ssem_uop1 : forall p vm m e e' uop m' vm',

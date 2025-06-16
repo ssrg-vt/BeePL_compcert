@@ -122,13 +122,14 @@ Admitted.
 
 
 (* I think we can prove this and make the well formedness definition simpler *)
-Lemma safe_assgn_valid_pointers : forall Sigma bge m x ofs pt v chunk, 
+Lemma safe_assgn_valid_pointers : forall cenv Gamma Sigma bge vm m x ofs pt v chunk, 
+store_well_typed cenv Gamma Sigma bge vm m ->
 PTree.get x Sigma = Some (Ptrtype pt) ->
 chunk_of_type (get_data_type pt) = Some chunk ->
 Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
-exists bf m', assign_addr bge (get_data_type pt) m x ofs bf v m' v.
+exists bf m', assign_addr bge (get_data_type pt) m x ofs bf v m' v /\ store_well_typed cenv Gamma Sigma bge vm m'.
 Proof.
-move=> Sigma bge m x ofs h bt a hs hv. 
+move=> cenv Sigma bge vm m x ofs h bt a hs hv. 
 Admitted.
 
 (* Allocation through ref should be successful in getting space in memory and storing value v to it *)
