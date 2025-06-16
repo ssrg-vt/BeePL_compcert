@@ -63,8 +63,8 @@ end.
 
 Fixpoint check_type_attrs (ts : list type) (s : string) : bool :=
 match ts with 
-| nil => false 
-| t :: ts' => check_type_attr t s || check_type_attrs ts' s
+| nil => true 
+| t :: ts' => check_type_attr t s && check_type_attrs ts' s
 end.
 
 

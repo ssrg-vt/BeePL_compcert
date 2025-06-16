@@ -382,7 +382,7 @@ Definition type_check_function (cenv : bcomposite_env) (Gamma : ty_context) (Sig
 let Gamma' := bind_vars (bind_vars Gamma fn.(fn_args)) fn.(fn_vars) in
 match type_check_expr cenv Gamma' Sigma fn.(fn_body) with 
 | Error msg => Error msg
-| OK tef => if eq_type fn.(fn_return) tef.1 && eq_effect fn.(fn_effect) tef.2 
+| OK tef =>  if eq_type fn.(fn_return) tef.1 && eq_effect fn.(fn_effect) tef.2 
              then if is_ptrtype tef.1 == false 
                   then OK "SUCCESS: Function type checks!" 
                   else Error (msg "TYPE ERROR: Function declaration cannot return an address")
@@ -409,7 +409,6 @@ match fn with
                          end
 end.
 
-
 Definition type_check_globvar (efenv : ef_env) (Gamma : ty_context) (Sigma : store_context) (gv : BeePL.globvar type) : res (type * effect) :=
 do ef <- construct_ef_gvars gv.(gvar_init);
 OK (gv.(gvar_info), ef).
@@ -435,9 +434,30 @@ match gd with
             OK "SUCCESS: Program type checks!"
 end.
 
+Fixpoint check_get_fundef_sec (pds : list (ident * BeePL.globdef BeePL.fundef BeeTypes.type * option string)) : bool :=
+match pds with 
+| nil => true 
+| pd :: pds => match pd.1.2 with 
+               | AST.Gfun f => match f with 
+                               | Internal f => if f.(is_ebpf) 
+                                               then let ts := unzip2 f.(fn_args) in
+                                                    match pd.2 with 
+                                                    | Some s => check_type_attrs ts s && check_get_fundef_sec pds
+                                                    | None => check_get_fundef_sec pds
+                                                    end
+                                               else true 
+                               | _ => true 
+                               end
+               | _ => check_get_fundef_sec pds (* fix it later to also check for global variable related to map creation *)
+               end
+     
+end.
 (* Store context: Not needed in the executable type checker because location is never used by programmer, it only comes as intermediate results in semantics *) 
 Definition type_check_program (p : BeePL.program) : res string :=
+let sb := check_get_fundef_sec p.(prog_defs) in 
 let defs := map (fun '(id, gd, _) => (id, gd)) p.(prog_defs) in
 let Gamma := bind_globdef (PTree.empty _) defs in
 let cenv := p.(prog_comp_env) in 
-type_check_globdefs type_check_globdef beepl_ef_env cenv Gamma empty_context (unzip2 defs).
+if sb then
+type_check_globdefs type_check_globdef beepl_ef_env cenv Gamma empty_context (unzip2 defs)
+else Error (msg "TYPE ERROR: Section attribute related to program type").
