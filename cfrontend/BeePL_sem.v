@@ -443,14 +443,10 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
 | ssem_cond : forall p vm m e1 e2 e3 vm' m' e1', 
               ssem_expr p vm m e1 m' vm' e1' -> 
               ssem_expr p vm m (Cond e1 e2 e3 (typeof_expr e2)) m' vm' (Cond e1' e2 e3 (typeof_expr e2))
-| ssem_ctrue : forall p vm m v1 e2 e3 t1 ct1, 
-               transBeePL_type t1 = ct1 ->
-               bool_val (trans_bvalue_cvalue v1) ct1 m = Some true ->
-               ssem_expr p vm m (Cond (Val v1 t1) e2 e3 (typeof_expr e2)) m vm e2
-| ssem_cfalse : forall p vm m v1 e2 e3 t1 ct1, 
-                transBeePL_type t1 = ct1 ->
-                bool_val (trans_bvalue_cvalue v1) ct1 m = Some false ->
-                ssem_expr p vm m (Cond (Val v1 t1) e2 e3 (typeof_expr e2)) m vm e3
+| ssem_ctrue : forall p vm m e2 e3, 
+               ssem_expr p vm m (Cond (Val (Vbool true) (Vtype Tbool)) e2 e3 (typeof_expr e2)) m vm e2
+| ssem_cfalse : forall p vm m e2 e3,
+                ssem_expr p vm m (Cond (Val (Vbool false) (Vtype Tbool)) e2 e3 (typeof_expr e3)) m vm e3
 | ssem_ut : forall p vm m, 
             ssem_expr p vm m (Unit Utype) m vm (Val Vunit Utype)
 | ssem_adr : forall p vm m l ofs h t a,

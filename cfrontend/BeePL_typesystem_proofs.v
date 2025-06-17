@@ -417,7 +417,39 @@ apply type_exprs_type_expr_ind_mut=> //=.
 (* Bind *)
 + admit.
 (* Cond *)
-+ admit.
++ move=> cenv Gamma Sigma e1 e2 e3 t ef1 ef2 hte1 hin1 hte2 hin2 hte3 hin3 bge p vm m hw.
+  right. move: (hin1 bge p vm m hw)=> [].
+  (* e1 is value *)
+  + move=> hv1. case: e1 hte1 hin1 hv1=> //= v1 t1. case: v1=> //=.
+    + move=> ht. have [h1 h2] := type_infer_vunit cenv Gamma Sigma ef1 t1 (Vtype Tbool) ht; subst.
+      by inversion ht.
+    + move=> b ht hin1 _. case: b ht hin1=> //= ht hin1.
+      (* true *)
+      + exists m. exists vm. exists e2. split=> //=.
+        have hte2' := type_rel_typeof cenv Gamma Sigma e2 ef2 t hte2; subst.
+        have h := type_val_reflx cenv Gamma Sigma (Vbool true) t1 ef1 (Vtype Tbool) ht; subst.
+        by apply ssem_ctrue.
+      (* false *)
+      exists m. exists vm. exists e3. split=> //=.
+      have hte2' := type_rel_typeof cenv Gamma Sigma e3 ef2 t hte3; subst.
+      have h := type_val_reflx cenv Gamma Sigma (Vbool false) t1 ef1 (Vtype Tbool) ht; subst.
+      by apply ssem_cfalse.
+    (* int *)
+    + move=> i hte hin. 
+      by have [h1 [sz] [s] [] h2 h3] := type_infer_int cenv Gamma Sigma i ef1 t1 (Vtype Tbool) hte; subst.
+    (* long *)
+    + move=> l hte hin. 
+      by have [s [] a' [] h1 h2] := type_infer_long cenv Gamma Sigma l ef1 t1 (Vtype Tbool) hte.
+    (* loc *)
+    + move=> l ofs hte hin.
+      have [h [bt [a [h1 [h2 h3]]]]] := type_infer_loc cenv Gamma Sigma l ofs ef1 t1 (Vtype Tbool) hte; subst.
+      by inversion hte.
+    (* option *)
+    move=> o hte hin _.
+    have [pt [h1 h2]] := type_infer_option cenv Gamma Sigma ef1 o t1 (Vtype Tbool) hte; subst. by inversion hte.
+ (* e1 steps *)
+ move=> [] m' [] vm' [] e1' [] he' hw'. exists m'. exists vm'. exists (Cond e1' e2 e3 t). split=> //=.
+ have hte2' := type_rel_typeof cenv Gamma Sigma e2 ef2 t hte2; subst. by apply ssem_cond.
 (* Unit *)
 + admit.
 (* Addr *)
