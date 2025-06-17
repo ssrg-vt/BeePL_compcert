@@ -22,20 +22,34 @@ Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
 Definition _ctx : ident := $"ctx".
 Definition _r : ident := $"r".
 Definition ___stringlit_1 : ident := $"__stringlit_1".
+Definition ___license : ident := $"__license".
 Definition _xdp_packet_count : ident := $"xdp_packet_count".
 Definition _main : ident := $"main".
 
 Definition ident_to_string : list (ident * string) := ident_to_string_hf ++ ident_to_string_xdp_md ++
-                                                      ((_ctx, "ctx") :: (___stringlit_1, "__stringlit_1") ::
+                                                      ((_ctx, "ctx") :: (___stringlit_1, "__stringlit_1") :: (___license, "___license") ::
                                                        (_r, "r") ::
                                                        (_xdp_packet_count, "xdp_packet_count") :: 
                                                        (_main, "main") :: nil).
 
+Definition v___license : globvar type := {|
+  gvar_info := tbarray tint8s 4 noattr;
+  gvar_init := (Init_int8 (Int.repr 71) ::  (* 'G' *)
+                Init_int8 (Int.repr 80) ::  (* 'P' *)
+                Init_int8 (Int.repr 76) ::  (* 'L' *)
+                Init_int8 (Int.repr 0) :: nil);  (* '\0' *)
+  gvar_readonly := true;
+  gvar_volatile := false
+|}.
+
 Definition v___stringlit_1 := {|
   gvar_info := (tbarray tint8s 6 noattr);
-  gvar_init := (Init_int8 (Int.repr 72) :: Init_int8 (Int.repr 101) ::
-                Init_int8 (Int.repr 108) :: Init_int8 (Int.repr 108) ::
-                Init_int8 (Int.repr 111) :: Init_int8 (Int.repr 0) :: nil);
+  gvar_init := (Init_int8 (Int.repr 72) :: (* 'H' *)
+                Init_int8 (Int.repr 101) :: (* 'e' *)
+                Init_int8 (Int.repr 108) :: (* 'l' *)
+                Init_int8 (Int.repr 108) :: (* 'l' *)
+                Init_int8 (Int.repr 111) :: (* 'o' *)
+                Init_int8 (Int.repr 0) :: nil); (* '\0' *)
   gvar_readonly := true;
   gvar_volatile := false
 |}.
@@ -55,7 +69,8 @@ Definition f_xdp_packet_count : BeePL.function := {|
 Definition bcomposites : list bcomposite_definition := bcomposites_xdp_md.
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef BeeTypes.type * option string) 
-   :=  (___stringlit_1, Gvar v___stringlit_1, None) ::
+   :=  (___stringlit_1, Gvar v___license, Some "license") ::
+       (___stringlit_1, Gvar v___stringlit_1, None) ::
        (bpf_printk, AST.Gfun(BeePL.External bpf_printk_ef
                                      (trint8s :: nil) tint32s
                                      {|cc_vararg:=(Some (Z.of_nat 1)); cc_unproto:=false; cc_structret:=false|}), None) ::
