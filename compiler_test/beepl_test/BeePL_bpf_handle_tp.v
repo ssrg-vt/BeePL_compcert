@@ -112,6 +112,6 @@ Qed.
 Compute (type_check_expr example1.(prog_comp_env) 
                          (bind_vars (bind_vars empty_context f_handle_tp.(fn_args)) f_handle_tp.(fn_vars)) empty_context f_handle_tp.(fn_body)).
 
-Compute (type_check_program example1). *) (* Doe not type checks *)
+Compute (type_check_program example1). *) (* Does not type checks *)
 
 
