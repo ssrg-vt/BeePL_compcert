@@ -32,7 +32,7 @@ Definition ident_to_string : list (ident * string) := ident_to_string_hf ++ iden
                                                        (_xdp_packet_count, "xdp_packet_count") :: 
                                                        (_main, "main") :: nil).
 
-Definition v___license : globvar type := {|
+Definition v___license := {|
   gvar_info := tbarray tint8s 4 noattr;
   gvar_init := (Init_int8 (Int.repr 71) ::  (* 'G' *)
                 Init_int8 (Int.repr 80) ::  (* 'P' *)
@@ -69,7 +69,7 @@ Definition f_xdp_packet_count : BeePL.function := {|
 Definition bcomposites : list bcomposite_definition := bcomposites_xdp_md.
 
 Definition global_definitions : list (ident * AST.globdef BeePL.fundef BeeTypes.type * option string) 
-   :=  (___stringlit_1, Gvar v___license, Some "license") ::
+   :=  (___license, Gvar v___license, Some "license") ::
        (___stringlit_1, Gvar v___stringlit_1, None) ::
        (bpf_printk, AST.Gfun(BeePL.External bpf_printk_ef
                                      (trint8s :: nil) tint32s

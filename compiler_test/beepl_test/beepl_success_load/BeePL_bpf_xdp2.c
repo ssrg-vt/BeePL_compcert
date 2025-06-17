@@ -8,7 +8,7 @@ struct xdp_md {
   unsigned int egress_ifindex;
 };
 
-extern signed char const __stringlit_1[4];
+extern signed char const ___license[4];
 
 extern signed char const __stringlit_1[6];
 
@@ -52,7 +52,7 @@ extern long long __compcert_i64_smulh(long long, long long);
 
 extern unsigned long long __compcert_i64_umulh(unsigned long long, unsigned long long);
 
-signed char const __stringlit_1[4] = "GPL";
+signed char const ___license[4] = { 71, 80, 76, 0, };
 
 signed char const __stringlit_1[6] = "Hello";
 
