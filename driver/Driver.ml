@@ -305,6 +305,23 @@ let process_h_file sourcename =
     fatal_error no_loc "input file %s ignored (not in -E mode)\n" sourcename
 
 let process_b_file sourcename =
+  if !option_S then begin
+    let asmname = output_filename ~final:true sourcename ~suffix:".s" in
+    compile_b_file sourcename asmname;
+    ""
+  end else begin
+    let asmname =
+      if !option_dasm
+      then output_filename sourcename ~suffix:".s"
+      else tmp_file ".s" in
+    compile_b_file sourcename asmname;
+    let objname = object_filename sourcename in
+    assemble asmname objname;
+    objname
+  end
+
+(*
+let process_b_file sourcename =
   let asmname =
     if !option_dasm
     then output_filename sourcename ~suffix:".s"
@@ -312,7 +329,7 @@ let process_b_file sourcename =
   compile_b_file sourcename asmname;
   let objname = object_filename sourcename in
   assemble asmname objname;
-  objname
+  objname *)
 
 let target_help =
   if Configuration.arch = "arm" && Configuration.model <> "armv6" then
