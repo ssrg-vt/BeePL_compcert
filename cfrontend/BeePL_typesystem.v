@@ -305,9 +305,13 @@ Inductive well_formed_var (Gamma : ty_context) (Sigma : store_context) (bge : Be
 (*** Well formed loc (coming from ref, not variables) ***)
 Inductive well_formed_loc (Sigma : store_context) (bge : BeePL.genv) (vm : vmap) (m : Memory.mem) : Prop :=
 | store_well_typed_loc : (forall x ofs t, PTree.get x Sigma = Some (Ptrtype t) /\ 
-                                               type_is_volatile (transBeePL_type (get_data_type t)) = false ->
+                                          type_is_volatile (transBeePL_type (get_data_type t)) = false ->
                           (exists chunk, Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable /\
-                                         chunk_of_type (get_data_type t) = Some chunk)) ->
+                                         chunk_of_type (get_data_type t) = Some chunk)) /\
+                          (forall chunk x ofs t, Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable /\
+                                                 chunk_of_type (get_data_type t) = Some chunk -> 
+                                                 PTree.get x Sigma = Some (Ptrtype t) /\ 
+                                                 type_is_volatile (transBeePL_type (get_data_type t)) = false) ->
                           well_formed_loc Sigma bge vm m.
 
 (*** Well formed function ***)

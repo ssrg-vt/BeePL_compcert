@@ -29,7 +29,7 @@ move=> cenv Gamma Sigma bge vm m v ef hw hte.
 rewrite / Cop.sem_unary_operation /= /Cop.sem_notbool /= /option_map /=.
 case: v hte=> //=.
 (* unit : bad case *)
-+ move=> hte. by inversion hte.
++ move=> hte. by inversion hte; subst. 
 (* bool : good case *)
 + move=> b hte. case: b hte=> //=. 
   (* b = true *)
