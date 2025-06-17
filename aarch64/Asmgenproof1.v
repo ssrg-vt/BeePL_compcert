@@ -12,8 +12,9 @@
 
 (** Correctness proof for AArch64 code generation: auxiliary results. *)
 
-Require Import Recdef Coqlib Zwf Zbits.
-Require Import Maps Errors AST Integers Floats Values Memory Globalenvs.
+From Coq Require Import Recdef Zwf.
+Require Import Zbits Coqlib Maps Errors.
+Require Import AST Integers Floats Values Memory Globalenvs.
 Require Import Op Locations Mach Asm Conventions.
 Require Import Asmgen.
 Require Import Asmgenproof0.
@@ -1832,6 +1833,7 @@ Proof.
   split. apply agree_nextinstr. apply agree_set_other; auto.
   apply agree_change_sp with (Vptr stk soff).
   apply agree_exten with rs; auto. intros; apply C1; auto with asmgen.
+  Locate parent_sp_def.
   eapply parent_sp_def; eauto.
   split. auto.
   split. Simpl. 

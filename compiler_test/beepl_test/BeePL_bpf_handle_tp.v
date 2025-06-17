@@ -72,9 +72,9 @@ Definition f_handle_tp : BeePL.function := {|
                                                                   (Var _pid_filter tlongu :: Var _pid tlongu :: nil) tlongu)
                                                              (cint (Int.repr 0) tint32s)
                                                              (Bind _t tlongu
-                                                               (App (Var bpf_printk (tfun (trint8s :: nil) (Io :: nil) tint32s))
+                                                               (App (Var bpf_printk (tfun (trint8s :: tint32s :: nil) (Io :: nil) tint32s))
                                                                   (Var ___stringlit_1 (tbarray tint8s 3 noattr) ::
-                                                                  Var _pid tlongu :: nil) tint32s)
+                                                                   Var _pid tlongu :: nil) tint32s)
                                                                (cint (Int.repr 0) tint32s) tint32s) tint32s)
                                                          (cint (Int.repr 0) tint32s) tint32s) tint32s
                                                  ;
@@ -88,7 +88,7 @@ Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * op
                                      nil tlongu
                                      (cc_default)), None) :: 
        (bpf_printk, AST.Gfun(BeePL.External bpf_printk_ef
-                                     (trint8s :: nil) tint32s
+                                     (trint8s :: tint32s :: nil) tint32s
                                      {|cc_vararg:=(Some (Z.of_nat 1)); cc_unproto:=false; cc_structret:=false|}), None) ::
        (_handle_tp, AST.Gfun(BeePL.Internal (f_handle_tp)), None) :: nil.
 
@@ -112,6 +112,6 @@ Qed.
 Compute (type_check_expr example1.(prog_comp_env) 
                          (bind_vars (bind_vars empty_context f_handle_tp.(fn_args)) f_handle_tp.(fn_vars)) empty_context f_handle_tp.(fn_body)).
 
-Compute (type_check_program example1). *) (* Doe not type checks *)
+Compute (type_check_program example1). *) (* Does not type checks *)
 
 

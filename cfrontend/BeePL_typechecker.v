@@ -282,8 +282,8 @@ match e with
 | Cond e1 e2 e3 t =>  do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
                       do (te2, ef2) <- type_check_expr cenv Gamma Sigma e2;
                       do (te3, ef3) <- type_check_expr cenv Gamma Sigma e3;
-                      if is_primbool te1 && eq_type te2 te3 && eq_effect ef2 ef3 && eq_type t te2
-                      then OK (te2, ef1 ++ ef2)
+                      if is_primbool te1 && eq_type te2 te3 && eq_type t te2
+                      then OK (te2, ef1 ++ ef2 ++ ef3)
                       else Error (msg "TYPE ERROR: Type of cond does not match the inferred type")
 | Unit t => OK (Utype, nil)
 | Addr l ofs t =>  match PTree.get l.(lname) Sigma with 
@@ -299,7 +299,7 @@ match e with
                         match t with 
                         | Ptrtype (Reftype mem_ident (Bstruct id a) a') => match cenv!id with 
                                                                  | Some co => do cts <- type_of_members 
-                                                                                        (combine (map Ctypes.attr_of_type (typelist_to_list_type (transBeePL_types transBeePL_type tes))) ids) 
+                                                                                        (combine (map Ctypes.attr_of_type (transBeePL_types transBeePL_type tes)) ids) 
                                                                                         (bmembers_cmembers co.(co_members));
                                                                               do bts <- trans_ctypes_btypes trans_ctype_btype cts;
                                                                               if eq_types eq_type tes bts 
@@ -382,8 +382,10 @@ Definition type_check_function (cenv : bcomposite_env) (Gamma : ty_context) (Sig
 let Gamma' := bind_vars (bind_vars Gamma fn.(fn_args)) fn.(fn_vars) in
 match type_check_expr cenv Gamma' Sigma fn.(fn_body) with 
 | Error msg => Error msg
-| OK tef => if eq_type fn.(fn_return) tef.1 && eq_effect fn.(fn_effect) tef.2
-             then OK "SUCCESS: Function type checks!" 
+| OK tef =>  if eq_type fn.(fn_return) tef.1 && eq_effect fn.(fn_effect) tef.2 
+             then if is_ptrtype tef.1 == false 
+                  then OK "SUCCESS: Function type checks!" 
+                  else Error (msg "TYPE ERROR: Function declaration cannot return an address")
              else Error (msg "TYPE ERROR: Type from function body does not match with the return type in the function declaration")
 end.
 
@@ -406,7 +408,6 @@ match fn with
                                                 
                          end
 end.
-
 
 Definition type_check_globvar (efenv : ef_env) (Gamma : ty_context) (Sigma : store_context) (gv : BeePL.globvar type) : res (type * effect) :=
 do ef <- construct_ef_gvars gv.(gvar_init);
@@ -435,7 +436,10 @@ end.
 
 (* Store context: Not needed in the executable type checker because location is never used by programmer, it only comes as intermediate results in semantics *) 
 Definition type_check_program (p : BeePL.program) : res string :=
+let sb := check_get_fundef_sec p.(prog_defs) in 
 let defs := map (fun '(id, gd, _) => (id, gd)) p.(prog_defs) in
 let Gamma := bind_globdef (PTree.empty _) defs in
 let cenv := p.(prog_comp_env) in 
-type_check_globdefs type_check_globdef beepl_ef_env cenv Gamma empty_context (unzip2 defs).
+if sb then
+type_check_globdefs type_check_globdef beepl_ef_env cenv Gamma empty_context (unzip2 defs)
+else Error (msg "TYPE ERROR: Section attribute related to program type").

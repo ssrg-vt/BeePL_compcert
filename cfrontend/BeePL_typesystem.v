@@ -40,17 +40,17 @@ Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> e
            type_expr cenv Gamma Sigma (App e es rt) (ef ++ efs ++ efs') rt
 | ty_ref : forall cenv Gamma Sigma e ef h bt a, 
            type_expr cenv Gamma Sigma e ef (construct_type_btype bt) ->
-           type_is_volatile (transBeePL_type (construct_type_btype bt)) = false ->
+           (*type_is_volatile (transBeePL_type (construct_type_btype bt)) = false ->*)
            type_expr cenv Gamma Sigma (Prim Ref (e::nil) (Ptrtype (Reftype h bt a))) (ef ++ (Alloc h :: nil)) (Ptrtype (Reftype h bt a)) 
 | ty_deref : forall cenv Gamma Sigma e ef pt h, (* inner expression should be unrestricted as it will be used later *)
              type_expr cenv Gamma Sigma e ef (Ptrtype pt) -> 
              is_option_ptr_type pt = false ->
-             type_is_volatile (transBeePL_type (get_data_type pt)) = false ->
+             (*type_is_volatile (transBeePL_type (get_data_type pt)) = false ->*)
              type_expr cenv Gamma Sigma (Prim Deref (e::nil) (get_data_type pt)) (ef ++ (Read h :: nil)) (get_data_type pt)
 | ty_massgn : forall cenv Gamma Sigma e e' h pt ef ef', 
               type_expr cenv Gamma Sigma e ef (Ptrtype pt) ->
               is_option_ptr_type pt = false ->
-              type_is_volatile (transBeePL_type (get_data_type pt)) = false ->
+              (*type_is_volatile (transBeePL_type (get_data_type pt)) = false ->*)
               type_expr cenv Gamma Sigma e' ef' (get_data_type pt) ->
               type_expr cenv Gamma Sigma (Prim Massgn (e::e'::nil) tunit) (ef ++ ef' ++ (Write h :: nil)) tunit
 | ty_notbool : forall cenv Gamma Sigma e ef,
@@ -170,7 +170,7 @@ Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> e
 | ty_sinit : forall cenv Gamma Sigma x es efs h id a a' co ids cts bts, 
              type_exprs cenv Gamma Sigma es efs bts ->
              PTree.get id cenv = Some co ->
-             type_of_members (combine (map Ctypes.attr_of_type (typelist_to_list_type (transBeePL_types transBeePL_type bts))) ids) 
+             type_of_members (combine (map Ctypes.attr_of_type (transBeePL_types transBeePL_type bts)) ids) 
                              (bmembers_cmembers co.(co_members)) = OK cts ->
              trans_ctypes_btypes trans_ctype_btype cts = OK bts ->
              type_expr cenv Gamma Sigma (Sinit x ids es (Ptrtype (Reftype h (Bstruct id a) a'))) efs (Ptrtype (Reftype h (Bstruct id a) a'))
@@ -236,6 +236,7 @@ Inductive type_function : bcomposite_env -> ty_context -> store_context -> BeePL
                 bind_vars (bind_vars Gamma fn.(fn_args)) fn.(fn_vars) = Gamma' -> 
                 type_expr cenv Gamma' Sigma fn.(fn_body) ef tb ->
                 tb = fn.(fn_return) ->
+                is_ptrtype tb = false ->
                 ef = fn.(fn_effect) ->
                 type_function cenv Gamma Sigma fn.
 
@@ -279,6 +280,7 @@ Inductive type_globdefs :  ef_env -> bcomposite_env -> ty_context -> store_conte
 
 Inductive type_program : BeePL.program -> Prop :=
 | ty_prog : forall p cenv Gamma,
+            check_get_fundef_sec p.(prog_defs) = true ->
             Gamma = bind_globdef (PTree.empty _) (map (fun '(id, gd, _) => (id, gd)) p.(prog_defs)) ->
             cenv = p.(prog_comp_env) ->
             type_globdefs beepl_ef_env cenv Gamma empty_context (map (fun '(_, gd, _) => gd) p.(prog_defs)) ->
@@ -293,25 +295,23 @@ Inductive well_formed_var (Gamma : ty_context) (Sigma : store_context) (bge : Be
                            Gamma ! x = Some t ->
                            (exists l' t' v ofs, vm ! x = Some (l', t') /\
                            t = t' /\ PTree.get l' Sigma = Some t /\ 
-                                                  deref_addr t m l' ofs Full v)) ->
+                                                  deref_addr bge t m l' ofs Full v)) ->
                           well_formed_var Gamma Sigma bge vm m
 | store_well_typed_gvar : (forall x t,
                           Gamma ! x = Some t ->
                           (exists l' ofs v, vm ! x = None /\ Genv.find_symbol bge x = Some l' /\ 
                                             PTree.get l' Sigma = Some t /\ 
-                                            deref_addr t m l' ofs Full v)) ->
+                                            deref_addr bge t m l' ofs Full v)) ->
                          well_formed_var Gamma Sigma bge vm m.
 
 (*** Well formed loc (coming from ref, not variables) ***)
 Inductive well_formed_loc (Sigma : store_context) (bge : BeePL.genv) (vm : vmap) (m : Memory.mem) : Prop :=
-| store_well_typed_loc : (forall x ofs t, PTree.get x Sigma = Some (Ptrtype t) /\ 
-                                          type_is_volatile (transBeePL_type (get_data_type t)) = false ->
+| store_well_typed_loc : (forall x ofs t, PTree.get x Sigma = Some (Ptrtype t) ->
                           (exists chunk, Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable /\
                                          chunk_of_type (get_data_type t) = Some chunk)) /\
                           (forall chunk x ofs t, Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable /\
                                                  chunk_of_type (get_data_type t) = Some chunk -> 
-                                                 PTree.get x Sigma = Some (Ptrtype t) /\ 
-                                                 type_is_volatile (transBeePL_type (get_data_type t)) = false) ->
+                                                 PTree.get x Sigma = Some (Ptrtype t)) ->
                           well_formed_loc Sigma bge vm m.
 
 (*** Well formed function ***)
@@ -496,12 +496,12 @@ Qed.
 
 Lemma type_infer_ref: forall cenv Gamma Sigma e ef t t',
 type_expr cenv Gamma Sigma (Prim Ref [:: e] t) ef t' ->
-(exists h bt a, t = Ptrtype (Reftype h bt a) /\ t' = Ptrtype (Reftype h bt a) /\ type_is_volatile (transBeePL_type (construct_type_btype bt)) = false).
+(exists h bt a, t = Ptrtype (Reftype h bt a) /\ t' = Ptrtype (Reftype h bt a)).
 Proof.
 move=> cenv Gamma Sigma e ef t t'.
 move eq: (Prim Ref [:: e] t)=> rv ht.
 elim: ht eq=> //=.
-move=> cenv' Gamma' Sigma' e' ef' h' bt' a' ht hin h1 [] h2; subst.
+move=> cenv' Gamma' Sigma' e' ef' h' bt' a' ht hin [] h1 h2; subst.
 by exists h', bt', a'; split=> //=.
 Qed.
 
@@ -509,13 +509,12 @@ Lemma type_infer_deref: forall cenv Gamma Sigma e ef t t',
 type_expr cenv Gamma Sigma (Prim Deref [:: e] t) ef t' ->
 (exists pt ef', t = (get_data_type pt) /\ 
                 t' = (get_data_type pt) /\
-                type_expr cenv Gamma Sigma e ef' (Ptrtype pt) /\
-                type_is_volatile (transBeePL_type (get_data_type pt)) = false).
+                type_expr cenv Gamma Sigma e ef' (Ptrtype pt)).
 Proof.
 move=> cenv Gamma Sigma e ef t t'.
 move eq: (Prim Deref [:: e] t)=> rv ht.
 elim: ht eq=> //=.
-move=> cenv' Gamma' Sigma' e' ef' pt h ht1 hin1 h1 h2 [] h3; subst.
+move=> cenv' Gamma' Sigma' e' ef' pt h ht1 hin1 h1 [] h2 h3; subst.
 by exists pt, ef'; split=>//=. 
 Qed.
 
@@ -529,7 +528,7 @@ Proof.
 move=> cenv Gamma Sigma e e' ef t t'.
 move eq: (Prim Massgn [:: e; e'] t)=> rv ht.
 elim: ht eq=> //=.
-move=> cenv' Gamma' Sigma' e1 e2 h pt ef1 ef2 ht hin ho hvo ht' hin' [] h1 h2 h3; subst; split=> //=.
+move=> cenv' Gamma' Sigma' e1 e2 h pt ef1 ef2 ht hin ho ht' hin' [] h1 h2 h3; subst; split=> //=.
 split=> //=. by exists pt, ef1, ef2.
 Qed.
 
@@ -831,7 +830,7 @@ type_expr cenv Gamma Sigma (Sinit x ids es t) efs t' ->
 exists h id a a' efs bts co cts, 
 t = (Ptrtype (Reftype h (Bstruct id a) a')) /\ t' = (Ptrtype (Reftype h (Bstruct id a) a')) /\
 type_exprs cenv Gamma Sigma es efs bts /\ PTree.get id cenv = Some co /\ 
-type_of_members (combine (map Ctypes.attr_of_type (typelist_to_list_type (transBeePL_types transBeePL_type bts))) ids) 
+type_of_members (combine (map Ctypes.attr_of_type (transBeePL_types transBeePL_type bts)) ids) 
 (bmembers_cmembers co.(co_members)) = OK cts /\ trans_ctypes_btypes trans_ctype_btype cts = OK bts.
 Proof.
 move=> cenv Gamma Sigma x ids es t efs t'.

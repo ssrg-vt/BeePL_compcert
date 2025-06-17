@@ -763,30 +763,20 @@ Proof.
   TrivialExists.
 Qed.
 
-Theorem eval_select: 
-  forall le ty cond al vl a1 v1 a2 v2 a b,
-  select ty cond al a1 a2 = Some a ->
+Theorem eval_select:
+  forall le ty cond al vl a1 v1 a2 v2,
+  select_supported ty = true ->
   eval_exprlist ge sp e m le al vl ->
   eval_expr ge sp e m le a1 v1 ->
   eval_expr ge sp e m le a2 v2 ->
-  eval_condition cond vl m = Some b ->
-  exists v, 
-     eval_expr ge sp e m le a v
-  /\ Val.lessdef (Val.select (Some b) v1 v2 ty) v.
+  exists v,
+     eval_expr ge sp e m le (select ty cond al a1 a2) v
+  /\ Val.lessdef (Val.select (eval_condition cond vl m) v1 v2 ty) v.
 Proof.
-  unfold select; intros. 
-  destruct (select_supported ty); try discriminate.
+  unfold select; intros.
   destruct (select_swap cond); inv H.
-- exists (Val.select (Some (negb b)) v2 v1 ty); split.
-  apply eval_Eop with (v2 :: v1 :: vl).
-  constructor; auto. constructor; auto.
-  simpl. rewrite eval_negate_condition, H3; auto.
-  destruct b; auto.
-- exists (Val.select (Some b) v1 v2 ty); split.
-  apply eval_Eop with (v1 :: v2 :: vl).
-  constructor; auto. constructor; auto.
-  simpl. rewrite H3; auto.
-  auto.
+- TrivialExists. simpl. rewrite eval_negate_condition. destruct (eval_condition cond vl m) as [[]|]; simpl; auto.
+- TrivialExists.
 Qed.
 
 Theorem eval_singleoffloat: unary_constructor_sound singleoffloat Val.singleoffloat.

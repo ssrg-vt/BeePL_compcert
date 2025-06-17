@@ -90,6 +90,10 @@ let populate_decl_atom (section_info : (AST.ident * BeePL_Csyntax.csyntax_atom_i
       | BeePL_Csyntax.Storage_register -> C.Storage_register
     in
 
+    let defined : bool = 
+     info.BeePL_Csyntax.a_defined
+    in  
+
     let size : int64 option =
       match info.BeePL_Csyntax.a_size with
       | Some i -> Some (Camlcoq.camlint64_of_coqint i)
@@ -137,6 +141,7 @@ let populate_decl_atom (section_info : (AST.ident * BeePL_Csyntax.csyntax_atom_i
 
     Hashtbl.add C2C.decl_atom id { 
       C2C.a_storage = storage;
+      C2C.a_defined = defined;
       C2C.a_size = size;
       C2C.a_alignment = alignment;
       C2C.a_sections = sec_list;
@@ -311,6 +316,23 @@ let process_bpl_file sourcename =
   transformed
 
 let process_b_file sourcename =
+  if !option_S then begin
+    let asmname = output_filename ~final:true sourcename ~suffix:".s" in
+    compile_b_file sourcename asmname;
+    ""
+  end else begin
+    let asmname =
+      if !option_dasm
+      then output_filename sourcename ~suffix:".s"
+      else tmp_file ".s" in
+    compile_b_file sourcename asmname;
+    let objname = object_filename sourcename in
+    assemble asmname objname;
+    objname
+  end
+
+(*
+let process_b_file sourcename =
   let asmname =
     if !option_dasm
     then output_filename sourcename ~suffix:".s"
@@ -318,7 +340,7 @@ let process_b_file sourcename =
   compile_b_file sourcename asmname;
   let objname = object_filename sourcename in
   assemble asmname objname;
-  objname
+  objname *)
 
 let target_help =
   if Configuration.arch = "arm" && Configuration.model <> "armv6" then

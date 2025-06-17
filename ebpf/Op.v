@@ -111,6 +111,8 @@ Inductive operation : Type :=
 
 (*c Boolean tests: *)
   | Ocmp (cond: condition)   (**r [rd = 1] if condition holds, [rd = 0] otherwise. *)
+  | Osel (cond: condition) (ty: typ)
+                             (**r [rd = r1] if condition holds, [rd = r2] otherwise. *)
 
 (*c Following operations are not available in eBPF, will throw errors in Asmgen step *)
   | Ofloatconst (n: float)   (**r [rd] is set to the given float constant *)
@@ -220,6 +222,7 @@ Definition string_of_operation (o:operation) : string :=
   | Oshrluimm _  => "Oshrluimm"
 
   | Ocmp _c      => "Ocmp"
+  | Osel _ _     => "Osel"
 
   | Ofloatconst _ => "Ofloatconst"
   | Osingleconst _ => "Osingleconst"
@@ -288,7 +291,7 @@ Defined.
 
 Definition eq_operation: forall (x y: operation), {x=y} + {x<>y}.
 Proof.
-  generalize Int.eq_dec Int64.eq_dec Ptrofs.eq_dec Float.eq_dec Float32.eq_dec ident_eq eq_condition; intros.
+  generalize Int.eq_dec Int64.eq_dec Ptrofs.eq_dec Float.eq_dec Float32.eq_dec ident_eq eq_condition typ_eq; intros.
   decide equality.
 Defined.
 
@@ -377,6 +380,7 @@ Definition eval_operation
   | Oshru, v1 :: v2 :: nil => Some (Val.shru v1 v2)
   | Oshruimm n, v1 :: nil => Some (Val.shru v1 (Vint n))
   | Ocmp c, _ => Some (Val.of_optbool (eval_condition c vl m))
+  | Osel c ty, v1::v2::vl => Some (Val.select (eval_condition c vl m) v1 v2 ty)
   (* 64 bits *)
   | Ocast32unsigned, v1 :: nil => Some (Val.longofintu v1)
   | Ocast32signed, v1 :: nil => Some (Val.longofint v1)
@@ -602,6 +606,7 @@ Definition type_of_operation (op: operation) : list typ * typ :=
   | Osingleoflong => (Tlong :: nil, Tsingle)
   | Osingleoflongu => (Tlong :: nil, Tsingle)
   | Ocmp c => (type_of_condition c, Tint)
+  | Osel c ty => (ty :: ty :: type_of_condition c, ty)
   end.
 
 Definition type_of_addressing (addr: addressing) : list typ :=
@@ -679,6 +684,10 @@ Proof with (try exact I; try reflexivity; auto using Val.Vptr_has_type).
     destruct (Int64.eq  n Int64.zero); try congruence. inv H2...
   - (* cmp *)
     destruct (eval_condition cond vl m)... destruct b...
+  - (* sel *)
+    destruct (eval_condition cond vl m)... destruct b...
+    simpl. apply Val.normalize_type.
+    simpl. apply Val.normalize_type.
   (* addrsymbol *)
   - unfold Genv.symbol_address. destruct (Genv.find_symbol genv id)...
   - (* mods *)
@@ -859,12 +868,27 @@ Definition is_trivial_op (op: operation) : bool :=
 
 (** Operations that depend on the memory state. *)
 
+Definition cond_depends_on_memory (c: condition) : bool :=
+  match c with
+  | Ccompu _  | Ccompuimm _ _  => negb Archi.ptr64
+  | Ccomplu _ | Ccompluimm _ _ => Archi.ptr64
+  | _ => false
+  end.
+
+Lemma cond_depends_on_memory_correct:
+  forall c args m1 m2,
+  cond_depends_on_memory c = false ->
+  eval_condition c args m1 = eval_condition c args m2.
+Proof.
+  unfold cond_depends_on_memory; intros until m2; intros SF;
+  destruct c; try reflexivity; rewrite ? negb_false_iff in SF;
+  simpl; unfold Val.cmpu_bool, Val.cmplu_bool; rewrite SF; reflexivity.
+Qed.
+
 Definition op_depends_on_memory (op: operation) : bool :=
   match op with
-  | Ocmp (Ccompu _) => negb Archi.ptr64
-  | Ocmp (Ccompuimm _ _) => negb Archi.ptr64
-  | Ocmp (Ccomplu _) => Archi.ptr64
-  | Ocmp (Ccompluimm _ _) => Archi.ptr64
+  | Ocmp c => cond_depends_on_memory c
+  | Osel c ty => cond_depends_on_memory c
   | _ => false
   end.
 
@@ -873,10 +897,10 @@ Lemma op_depends_on_memory_correct:
   op_depends_on_memory op = false ->
   eval_operation ge sp op args m1 = eval_operation ge sp op args m2.
 Proof.
-  intros until m2. destruct op; simpl; try congruence.
-  destruct cond; simpl; intros SF; auto; rewrite ? negb_false_iff in SF;
-
-  unfold Val.cmpu_bool, Val.cmplu_bool; rewrite SF; reflexivity.
+  intros until m2. destruct op; simpl; try congruence; intros SF.
+- f_equal; f_equal; auto using cond_depends_on_memory_correct.
+- destruct args; auto. destruct args; auto.
+  f_equal; f_equal; auto using cond_depends_on_memory_correct.
 Qed.
 
 (** Global variables mentioned in an operation or addressing mode *)
@@ -1103,7 +1127,9 @@ Proof.
     exploit eval_condition_inj; eauto. intros EQ; rewrite EQ.
     destruct b; simpl; constructor.
     simpl; constructor.
-
+  (* sel *)
+  - apply Val.select_inject; auto. destruct (eval_condition cond vl1 m1) eqn:?; auto.
+    exploit eval_condition_inj; eauto.
   (* Operations not available in eBPF *)
 
   (* addrsymbol *)

@@ -68,7 +68,7 @@ Definition eval_static_operation (op: operation) (vl: list aval): aval :=
   | Oshru, v1::v2::nil => shru v1 v2
   | Oshruimm n, v1::nil => shru v1 (I n)
   | Ocmp c, _ => of_optbool (eval_static_condition c vl)
-
+  | Osel c ty, v1::v2::vl => select (eval_static_condition c vl) v1 v2 ty
   | Ofloatconst n, nil => if propagate_float_constants tt then F n else ntop
   | Osingleconst n, nil => if propagate_float_constants tt then FS n else ntop
   | Oaddrsymbol id ofs, nil => Ptr (Gl id ofs)
@@ -214,6 +214,7 @@ Proof.
   destruct op; InvHyps; eauto with va.
   - rewrite Ptrofs.add_zero_l; eauto with va.
   - apply of_optbool_sound. eapply eval_static_condition_sound; eauto.
+  - apply select_sound; eauto using eval_static_condition_sound.
   - destruct (propagate_float_constants tt); constructor.
   - destruct (propagate_float_constants tt); constructor.
 Qed.

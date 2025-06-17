@@ -64,7 +64,7 @@ end.
 Record bsignature := { bsig_args : list type; bsig_ef : effect; bsig_res : type; bsig_cc : calling_convention }. 
 
 Definition bsig_to_csig (bsig : bsignature) : AST.signature :=
-{| sig_args :=  (map typ_of_type (from_typelist (transBeePL_types transBeePL_type bsig.(bsig_args)))); 
+{| sig_args :=  (map xtyp_of_type (transBeePL_types transBeePL_type bsig.(bsig_args))); 
    sig_res := (rettype_of_type (transBeePL_type bsig.(bsig_res))); 
    sig_cc := bsig.(bsig_cc) |}.
 
@@ -420,23 +420,23 @@ Inductive deref_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : p
   Mem.loadv (transl_bchunk_cchunk chunk) m (trans_bvalue_cvalue (Vloc addr ofs)) = Some v ->
   trans_cvalue_bvalue v = OK v' ->
   deref_addr ty m addr ofs Full v'
-(*| deref_loc_volatile: forall chunk tr v v',
+| deref_loc_volatile: forall chunk tr v v',
   access_mode_type ty = By_value (transl_bchunk_cchunk chunk) -> 
   type_is_volatile (transBeePL_type ty) = true ->
   volatile_load ge (transl_bchunk_cchunk chunk) m addr ofs tr v ->
   trans_cvalue_bvalue v = OK v' ->
-  deref_addr ty m addr ofs Full v'*)
+  deref_addr ty m addr ofs Full v'
 | deref_addr_reference:
   access_mode_type ty = By_reference ->
   deref_addr ty m addr ofs Full (Vloc addr ofs) 
 | deref_addr_copy:
   access_mode_type ty = By_copy ->
-  deref_addr ty m addr ofs Full (Vloc addr ofs).
-(*| deref_addr_bitfield: forall sz sg pos width v v' cty,
+  deref_addr ty m addr ofs Full (Vloc addr ofs)
+| deref_addr_bitfield: forall sz sg pos width v v' cty,
   transBeePL_type ty = cty ->
   load_bitfield cty sz sg pos width m (Values.Vptr addr ofs) v ->
   trans_cvalue_bvalue v = OK v' ->
-  deref_addr ty m addr ofs (Bits sz sg pos width) v'.*)
+  deref_addr ty m addr ofs (Bits sz sg pos width) v'.
 
 
 (* [assign_addr ty m addr ofs v] returns the updated memory after storing the value v at address [addr] and offset 
@@ -448,12 +448,12 @@ Inductive assign_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : 
   Mem.storev (transl_bchunk_cchunk chunk) m (trans_bvalue_cvalue (Vloc addr ofs)) v = Some m' ->
   trans_cvalue_bvalue v = OK v' ->
   assign_addr ty m addr ofs Full v' m' v'
-(*| assign_loc_volatile: forall v chunk tr m' v',
+| assign_loc_volatile: forall v chunk tr m' v',
   access_mode_type ty = By_value (transl_bchunk_cchunk chunk) -> 
   type_is_volatile (transBeePL_type ty) = true ->
   volatile_store ge (transl_bchunk_cchunk chunk) m addr ofs v tr m' ->
   trans_cvalue_bvalue v = OK v' ->
-  assign_addr ty m addr ofs Full v' m' v'*)
+  assign_addr ty m addr ofs Full v' m' v'
 | assign_addr_copy: forall b' ofs' bytes m',
   access_mode_type ty = By_copy ->
   (alignof_blockcopy (bcomposite_composite_env (genv_cenv ge)) (transBeePL_type ty) | Ptrofs.unsigned ofs') ->
@@ -463,12 +463,12 @@ Inductive assign_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : 
               \/ Ptrofs.unsigned ofs + sizeof (bcomposite_composite_env (genv_cenv ge)) (transBeePL_type ty) <= Ptrofs.unsigned ofs' ->
    Mem.loadbytes m b' (Ptrofs.unsigned ofs') (sizeof (bcomposite_composite_env (genv_cenv ge)) (transBeePL_type ty)) = Some bytes ->
    Mem.storebytes m addr (Ptrofs.unsigned ofs) bytes = Some m' ->
-   assign_addr ty m addr ofs Full (Vloc b' ofs') m' (Vloc b' ofs').
-(*| assign_addr_bitfield: forall sz sg pos width v m' v' bv bv',
+   assign_addr ty m addr ofs Full (Vloc b' ofs') m' (Vloc b' ofs')
+| assign_addr_bitfield: forall sz sg pos width v m' v' bv bv',
   store_bitfield (transBeePL_type ty) sz sg pos width m (Values.Vptr addr ofs) v m' v' ->
   trans_cvalue_bvalue v = OK bv ->
   trans_cvalue_bvalue v' = OK bv' -> 
-  assign_addr ty m addr ofs (Bits sz sg pos width) bv m' bv'.*) 
+  assign_addr ty m addr ofs (Bits sz sg pos width) bv m' bv'. 
 
 (* Allocation of function local variables *)
 (* [alloc_variables vm1 m1 vars vm2 m2] allocates one memory block for each variable

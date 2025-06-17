@@ -39,8 +39,7 @@ Require Initializers.
 Require BeePL_progs.
 
 (* Standard lib *)
-Require Import ExtrOcamlBasic.
-Require Import ExtrOcamlString.
+From Coq Require Import ExtrOcamlBasic ExtrOcamlString.
 
 (* Coqlib *)
 Extract Inlined Constant Coqlib.proj_sumbool => "(fun x -> x)".
@@ -174,6 +173,7 @@ Separate Extraction
    Conventions1.int_callee_save_regs Conventions1.float_callee_save_regs
    Conventions1.dummy_int_reg Conventions1.dummy_float_reg
    Conventions1.allocatable_registers
+   Asm.dummy_function
    RTL.instr_defs RTL.instr_uses
    Machregs.mregs_for_operation Machregs.mregs_for_builtin
    Machregs.two_address_op Machregs.is_stack_reg
