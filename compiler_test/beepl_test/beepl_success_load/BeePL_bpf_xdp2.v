@@ -61,8 +61,8 @@ Definition f_xdp_packet_count : BeePL.function := {|
                                    fn_args := (_ctx, tpstruct _xdp_md) :: nil ;
                                    fn_vars := (_r, tint32s) :: nil;
                                    fn_body := Bind _r tint32s 
-                                                (App (Var bpf_printk (tfun (trint8s :: nil) (Io :: nil) tint32s))
-                                                                  (Var ___stringlit_1 (tbarray tint8s 6 noattr) :: nil) tint32s)
+                                                (App (Var bpf_printk (tfun (trint8s :: tint32s :: nil) (Io :: nil) tint32s))
+                                                                  (Var ___stringlit_1 (tbarray tint8s 6 noattr) :: cint (Int.repr 6) tint32s :: nil) tint32s)
                                                 (cint (Int.repr 2) tint32s) tint32s;
                                    is_ebpf := true |}.
 
@@ -72,7 +72,7 @@ Definition global_definitions : list (ident * AST.globdef BeePL.fundef BeeTypes.
    :=  (___license, Gvar v___license, Some "license") ::
        (___stringlit_1, Gvar v___stringlit_1, None) ::
        (bpf_printk, AST.Gfun(BeePL.External bpf_printk_ef
-                                     (trint8s :: nil) tint32s
+                                     (trint8s :: tint32s :: nil) tint32s
                                      {|cc_vararg:=(Some (Z.of_nat 1)); cc_unproto:=false; cc_structret:=false|}), None) ::
        (_xdp_packet_count, AST.Gfun(BeePL.Internal (f_xdp_packet_count)), Some "xdp") :: nil.
 

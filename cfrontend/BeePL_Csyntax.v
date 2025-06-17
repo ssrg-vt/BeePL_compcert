@@ -894,6 +894,23 @@ Fixpoint get_section_info (glob_defs : list (ident * AST.globdef BeePL.fundef ty
       let gvar_t : BeeTypes.type := gvar_info gv in
       let tail := get_section_info rest env in
       match sec with
+      | Some "license" =>
+        (* License global variables should be only readable *)
+        let section_list := Section_user "license" false (*not writable*) false (*executable*) :: nil in
+        let info := {|
+          a_storage := Storage_default;
+          (* TODO: global variables do need to specify a_size and a_alignment. How does CompCert do it? *)       
+          a_defined := true;
+          a_size := Some (Int64.repr (BeeTypes.sizeof_type env gvar_t)); (* refers to size of global variable - not section name *)
+          a_alignment := Some (Int.repr (BeeTypes.alignof_type env gvar_t));
+          a_section := section_list;
+          a_access := Access_default;
+          a_inline := No_specifier;
+          (* Currently location information is not stored in BeePL.program. When
+             we implment a parser we can decise if we should do that*)
+          a_loc := ("", (Int.repr 0))
+        |} in
+        (id, info) :: tail
       | Some s =>
         (* User defined global variables should be writable and not executable *)
         let section_list := Section_user s true (*writable*) false (*executable*) :: nil in
