@@ -451,15 +451,22 @@ apply type_exprs_type_expr_ind_mut=> //=.
  move=> [] m' [] vm' [] e1' [] he' hw'. exists m'. exists vm'. exists (Cond e1' e2 e3 t). split=> //=.
  have hte2' := type_rel_typeof cenv Gamma Sigma e2 ef2 t hte2; subst. by apply ssem_cond.
 (* Unit *)
-+ admit.
++ move=> cenv Gamma Sigma bge p vm m hw. right. exists m. exists vm. exists (Val Vunit Utype). split=> //=.
+  by apply ssem_ut.
 (* Addr *)
-+ admit.
++ move=> cenv Gamma Sigma l ofs h t a hl bge p vm m hw. right.
+  exists m. exists vm. exists (Val (Vloc l.(lname) ofs) (Ptrtype (Reftype h t a))). split=> //=.
+  by apply ssem_adr.
 (* Sinit *)
 + admit.
 (* Sfield *)
 + admit.
 (* For *)
-+ admit.
++ move=> cenv Gamma Sigma e1 e2 d e ef1 t1 ef2 t2 fv1 fv2 fv ef t hte1 hin1 hte2 hin2 hte hin hteq hteq' hf1 hf2 hf3 hd1 hd2.
+  move=> bge p vm m hw. right. move: (hin1 bge p vm m hw)=> [].
+  (* e1 is a value *)
+  + move=> hv1. case: e1 hte1 hin1 hf1 hv1=> //= v tv hte1 hin1 hf1 _; subst. admit.
+  admit.
 (* Enone *)
 + admit.
 (* Esome *)
