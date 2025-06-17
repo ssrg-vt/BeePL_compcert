@@ -105,14 +105,22 @@ let rec transform_type = function
   | TName "int32s" -> "tint32s"
   | TName "int32u" -> "tint32u"
   | TName "unit" -> "tunit"
-  | TRef t -> "tr" ^ transform_type t
-  | TArrow (_, _) -> "tfunc" (* Handle function types *)
-  | _ -> "tint32s" (* Default *)
+  | TRef t ->
+      (match t with
+       | TName s -> "tr" ^ s
+       | _ -> "tr" ^ transform_type t)
+  | TArrow (_, _) -> "tfunc"
+  | t -> transform_type t
 
-let rec transform_expr expr var_table =
+let rec transform_expr ?(expected_type=None) expr var_table =
   match expr with
   | EUnit -> "tunit"
-  | EInt32 n -> Printf.sprintf "(cint (Int.repr %s) tint32s)" n
+  | EInt32 n ->
+      (* Use expected type if available, otherwise default to tint32s *)
+      let typ = match expected_type with
+                | Some t -> t
+                | None -> "tint32s" in
+      Printf.sprintf "(cint (Int.repr %s) %s)" n typ
   | EVar id ->
       let typ = try
         let (_, typ_opt, _) = Hashtbl.find var_table id in
@@ -122,32 +130,31 @@ let rec transform_expr expr var_table =
       with Not_found -> "tint32s" in
       Printf.sprintf "(Var %s %s)" id typ
   | EApply (func, args) ->
-      begin match func with
-      | EVar id when String.contains id '.' ->
-          let parts = String.split_on_char '.' id in
-          if List.length parts >= 2 then
-            let typ_name = List.nth parts 0 in
-            let typ = match typ_name with
-                     | "int32s" -> "tint32s"
-                     | "int32u" -> "tint32u"
-                     | _ -> "tint32s" in
-            let args_str = String.concat " :: " (List.map (fun arg -> transform_expr arg var_table) args) ^ " :: nil" in
-            Printf.sprintf "(Prim (Bop Cop.Oadd) (%s) %s)" args_str typ
-          else
-            "unknown_function"
-      | _ -> "unknown_function_call"
-      end
+      let func_str = transform_expr func var_table in
+      let args_str = String.concat " :: " (List.map (fun arg -> transform_expr arg var_table) args) ^ " :: nil" in
+      let ret_type_str = match expected_type with Some t -> t | None -> "tint32s" in (* Use expected type if available *)
+      Printf.sprintf "(App %s (%s) %s)" func_str args_str ret_type_str
   | ELet (pattern, typ_opt, e1, e2) ->
       let var_name = match pattern with
-                     | PIdent id -> id
-                     | PWildcard -> "_"
-                     | _ -> "_" in
-      let var_type = match typ_opt with
-                     | Some t -> transform_type t
-                     | None -> "tint32s" in
-      let val_expr = transform_expr e1 var_table in
+                    | PIdent id -> id
+                    | PAnnot (p, _) ->
+                        (match p with
+                          | PIdent id -> id
+                          | _ -> "_")
+                    | PWildcard -> "_"
+                    | _ -> "_" in
+      let var_type =
+        try
+          let (_, typ_opt_in_table, _) = Hashtbl.find var_table var_name in
+          match typ_opt_in_table with
+          | Some t -> transform_type t
+          | None -> "tint32s"
+        with Not_found -> "tint32s" in
+      (* Pass the variable's type as expected_type when transforming e1 *)
+      let val_expr = transform_expr ~expected_type:(Some var_type) e1 var_table in
       let body_expr = transform_expr e2 var_table in
-      Printf.sprintf "(Bind %s %s\n%s\n%s tint32s)" var_name var_type val_expr body_expr
+      (* Use var_type instead of hardcoded tint32s *)
+      Printf.sprintf "(Bind %s %s\n%s\n%s %s)" var_name var_type val_expr body_expr var_type
   | ERef e ->
       let expr_str = transform_expr e var_table in
       Printf.sprintf "(Prim Ref (%s :: nil) trint32s)" expr_str
@@ -163,10 +170,14 @@ let rec transform_expr expr var_table =
       String.concat ";\n" exprs_str
 
 let transform_function name params ret_type body var_table =
+  (* Get the actual return type instead of hardcoding tint32s *)
+  let return_type = match ret_type with
+                    | Some t -> transform_type t
+                    | None -> "tint32s" in
   let transformed_body = transform_expr body var_table in
 
   Printf.sprintf "Definition %s : BeePL.function := {|\n" name ^
-  "                                   fn_return := tint32s;\n" ^
+  Printf.sprintf "                                   fn_return := %s;\n" return_type ^
   "                                   fn_effect := (Alloc mem_ident :: Read mem_ident :: Write mem_ident :: Read mem_ident :: nil);\n" ^
   "                                   fn_callconv := cc_default;\n" ^
   "                                   fn_args := nil;\n" ^
@@ -179,8 +190,10 @@ let transform_program ast var_table =
 
   List.iter (fun toplevel ->
     match toplevel with
-    | TLFunc (name, params, ret_type, body) when name = "f_add" ->
-        let transformed = transform_function name params ret_type body var_table in
+    | TLFunc (name, params, ret_type, body) ->
+        (* Transform the function name by prepending "f_" *)
+        let transformed_name = "f_" ^ name in
+        let transformed = transform_function transformed_name params ret_type body var_table in
         result := transformed :: !result
     | _ -> () (* Skip other toplevel declarations *)
   ) ast;
