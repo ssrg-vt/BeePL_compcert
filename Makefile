@@ -30,6 +30,10 @@ endif
 
 DIRS := lib beepl common $(ARCHDIRS) ebpf backend cfrontend driver export cparser
 
+ifeq ($(CLIGHTGEN),true)
+DIRS += export
+endif
+
 COQINCLUDES := $(foreach d, $(DIRS), -R $(d) compcert.$(d))
 
 DIRS += compiler_test/beepl_test
@@ -50,28 +54,74 @@ endif
 # unused-pattern-matching-variable:
 #    warning introduced in 8.13
 #    the code rewrite that avoids the warning is not desirable
-# deprecated-ident-entry:
-#    warning introduced in 8.13
-#    suggested change (use `name` instead of `ident`) supported since 8.13
+# undeclared-scope:
+#    warning introduced in 8.12, addressed in the main CompCert files
+#    triggered by MenhirLib, to be solved upstream
 # deprecated-instance-without-locality:
 #    warning introduced in 8.14
 #    triggered by Menhir-generated files, to be solved upstream in Menhir
-# opaque-let:
-#    warning introduced in 8.18, addressed in the main CompCert files,
-#    still triggered by Flocq, to be solved upstream
+# deprecated-since-8.19
+# deprecated-since-8.20
+#    renamings performed in Coq's standard library;
+#    using the new names would break compatibility with earlier Coq versions.
+# deprecated-from-Coq
+#    Rocq wants "From Stdlib Require" while Coq wants "From Coq Require".
 
 COQCOPTS ?= \
   -w -unused-pattern-matching-variable \
   -w -deprecated-ident-entry \
-  -w -notation-overridden
+  -w -notation-overridden \
+  -w -deprecated-since-8.19 \
+  -w -deprecated-since-8.20 \
+  -w -deprecated-from-Coq
 
 cparser/Parser.vo: COQCOPTS += -w -deprecated-instance-without-locality
-flocq/IEEE754/Bits.vo: COQCOPTS += -w -opaque-let
+MenhirLib/Interpreter.vo: COQCOPTS += -w -undeclared-scope
+
+# Flocq and Menhirlib run into other renaming issues.
+# These warnings can only be addressed upstream.
+
+flocq/%.vo: COQCOPTS+=-w -deprecated-syntactic-definition -w -deprecated-since-9.0
+MenhirLib/%.vo: COQCOPTS+=-w -deprecated-syntactic-definition -w -deprecated-since-9.0
+
+# For the extraction phase, we silence other warnings:
+# change-dir-deprecated:
+#    warning introduced in 8.20, no alternative before 8.20
+# extraction-default-directory:
+#    warning introduced in 8.20, no alternative before 8.20
+# deprecated-from-Coq:
+#    see above
+COQEXTRACTOPTS ?= \
+  -w -change-dir-deprecated \
+  -w -extraction-default-directory \
+  -w -deprecated-from-Coq
+
+ifneq ($(INSTALL_COQDEV),true)
+# Disable costly generation of .cmx files, which are not used locally
+  COQCOPTS += -w -deprecated-native-compiler-option -native-compiler no
+endif
+
+ifneq (,$(TIMING))
+  # does this coq version support -time-file ? (Coq >= 8.18)
+  ifeq (,$(shell "$(COQBIN)coqc" -time-file /dev/null 2>&1))
+    COQCOPTS += -time-file $<.timing
+  endif
+endif
+
+ifneq (,$(PROFILING))
+  # does this coq version dupport -profile ? (Coq >= 8.19)
+  ifeq (,$(shell "$(COQBIN)coqc" -profile /dev/null 2>&1))
+    COQCOPTS += -profile $<.prof.json
+    PROFILE_ZIP = gzip -f $<.prof.json
+  else
+  endif
+endif
+PROFILE_ZIP ?= true
 
 COQC="$(COQBIN)coqc" -q $(COQINCLUDES) $(COQCOPTS)
 COQDEP="$(COQBIN)coqdep" $(COQINCLUDES)
 COQDOC="$(COQBIN)coqdoc"
-COQEXEC="$(COQBIN)coqtop" $(COQINCLUDES) -batch -load-vernac-source
+COQEXEC="$(COQBIN)coqtop" $(COQINCLUDES) $(COQEXTRACTOPTS) -batch -load-vernac-source
 COQCHK="$(COQBIN)coqchk" $(COQINCLUDES)
 MENHIR=menhir
 CP=cp
@@ -100,7 +150,7 @@ VLIB=Axioms.v Coqlib.v Intv.v Maps.v Heaps.v Lattice.v Ordered.v \
   Parmov.v UnionFind.v Wfsimpl.v \
   Postorder.v FSetAVLplus.v IntvSets.v Decidableplus.v BoolEqual.v
 
-# Until BeePL has a functioning lexer and parser the test programs must be 
+# Until BeePL has a functioning lexer and parser the test programs must be
 # compiled with the rest of CompCert
 
 BEEPL_TESTS=\
@@ -111,11 +161,12 @@ BEEPL_TESTS=\
     BeePL_bitstring1.v BeePL_globvar1.v BeePL_bpf_xdp_packet_count.v BeePL_bpf_xdp_packet_count1.v \
     BeePL_bpf_map_example1.v BeePL_bpf_drop_xdp_packet_iPv6.v BeePL_bpf_handle_tp.v BeePL_add_ref.v \
     BeePL_cast.v BeePL_cast1.v BeePL_shift.v BeePL_bpf_map_null_check.v BeePL_section.v BeePL_bpf_safe_null_check.v \
-    BeePL_globvar_local.v
+    BeePL_globvar_local.v BeePL_no_addr_return.v BeePL_check_sec.v beepl_success_load/BeePL_bpf_xdp1.v beepl_success_load/BeePL_bpf_xdp2.v \
+    beepl_success_load/BeePL_bpf_pid_tgid.v
 
 #  BeePL_div_zero.v BeePL_div_zero1.v BeePL_external_call.v BeePL_ref.v \
 #  BeePL_struct_ex2.v BeePL_for_ex1.v BeePL_for_ex2.v BeePL_globvar1.v \
-#  BeePL_bpf_get_prandom.v BeePL_bpf_ktime_get_ns.v 
+#  BeePL_bpf_get_prandom.v BeePL_bpf_ktime_get_ns.v
 
 # Parts common to BeePL
 
@@ -233,12 +284,6 @@ endif
 
 proof: $(FILES:.v=.vo)
 
-# Turn off some warnings for Flocq and Menhirlib
-# These warnings can only be addressed upstream
-
-flocq/%.vo: COQCOPTS+=-w -deprecated-syntactic-definition
-MenhirLib/%.vo: COQCOPTS+=-w -deprecated-syntactic-definition
-
 extraction: extraction/STAMP
 
 extraction/STAMP: $(FILES:.v=.vo) extraction/extraction.v $(ARCH)/extractionMachdep.v
@@ -274,21 +319,22 @@ FORCE:
 documentation: $(FILES)
 	mkdir -p doc/html
 	rm -f doc/html/*.html
-	coq2html -d doc/html/ -base compcert -short-names doc/*.glob \
-          $(filter-out doc/coq2html cparser/Parser.v, $^)
+	coq2html -d doc/html/ -base compcert -short-names \
+	  $(patsubst %, %/*.glob, $(DIRS)) \
+          $(filter-out cparser/Parser.v, $^)
 
 tools/ndfun: tools/ndfun.ml
 ifeq ($(OCAML_NATIVE_COMP),true)
-	ocamlopt -o tools/ndfun str.cmxa tools/ndfun.ml
+	ocamlopt -o tools/ndfun -I +str str.cmxa tools/ndfun.ml
 else
-	ocamlc -o tools/ndfun str.cma tools/ndfun.ml
+	ocamlc -o tools/ndfun -I +str str.cma tools/ndfun.ml
 endif
 
 tools/modorder: tools/modorder.ml
 ifeq ($(OCAML_NATIVE_COMP),true)
-	ocamlopt -o tools/modorder str.cmxa tools/modorder.ml
+	ocamlopt -o tools/modorder -I +str str.cmxa tools/modorder.ml
 else
-	ocamlc -o tools/modorder str.cma tools/modorder.ml
+	ocamlc -o tools/modorder -I +str str.cma tools/modorder.ml
 endif
 
 latexdoc:
@@ -297,7 +343,8 @@ latexdoc:
 %.vo: %.v
 	@rm -f doc/$(*F).glob
 	@echo "COQC $*.v"
-	@$(COQC) -dump-glob doc/$(*F).glob $*.v
+	@$(COQC) $*.v
+	@$(PROFILE_ZIP)
 
 %.v: %.vp tools/ndfun
 	@rm -f $*.v
@@ -306,7 +353,7 @@ latexdoc:
 	@chmod a-w $*.v
 
 compcert.ini: Makefile.config
-	(echo "stdlib_path=$(LIBDIR)"; \
+	(echo "stdlib_path=$(RELLIBDIR)"; \
          echo "prepro=$(CPREPRO)"; \
          echo "linker=$(CLINKER)"; \
          echo "asm=$(CASM)"; \
@@ -352,7 +399,7 @@ cparser/Parser.v: cparser/Parser.vy
 
 depend: $(GENERATED) depend1
 
-depend1: $(FILES) export/Clightdefs.v
+depend1: $(FILES)
 	@echo "Analyzing Coq dependencies"
 	@$(COQDEP) $^ > .depend
 
@@ -372,7 +419,7 @@ ifeq ($(INSTALL_COQDEV),true)
 	for d in $(DIRS); do \
           set -e; \
           install -d $(DESTDIR)$(COQDEVDIR)/$$d; \
-          install -m 0644 $$d/*.vo $(DESTDIR)$(COQDEVDIR)/$$d/; \
+          install -m 0644 $$d/*.v $$d/*.vo $$d/*.glob $(DESTDIR)$(COQDEVDIR)/$$d/; \
           if test -d $$d/.coq-native; then \
             install -d $(DESTDIR)$(COQDEVDIR)/$$d/.coq-native; \
             install -m 0644 $$d/.coq-native/* $(DESTDIR)$(COQDEVDIR)/$$d/.coq-native/; \
@@ -387,7 +434,9 @@ endif
 clean:
 	rm -f $(patsubst %, %/*.vo*, $(DIRS))
 	rm -f $(patsubst %, %/.*.aux, $(DIRS))
-	rm -rf doc/html doc/*.glob
+	rm -rf $(patsubst %, %/.coq-native, $(DIRS))
+	rm -f $(patsubst %, %/*.glob, $(DIRS))
+	rm -rf doc/html
 	rm -f driver/Version.ml
 	rm -f compcert.ini compcert.config
 	rm -f extraction/STAMP extraction/*.ml extraction/*.mli .depend.extr
@@ -402,7 +451,12 @@ distclean:
 	rm -f Makefile.config
 
 check-admitted: $(FILES)
-	@grep -w 'admit\|Admitted\|ADMITTED' $^ || echo "Nothing admitted."
+	@if grep -w 'admit\|Admitted\|ADMITTED' $^; \
+         then exit 2; else echo "Nothing admitted."; fi
+
+check-leftovers: $(FILES)
+	@if grep -w '^Check\|^Print\|^Search' $^; \
+         then exit 2; else echo "No leftover interactive commands."; fi
 
 check-proof: $(FILES)
 	$(COQCHK) compcert.driver.Complements

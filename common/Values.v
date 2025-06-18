@@ -17,10 +17,7 @@
 (** This module defines the type of values that is used in the dynamic
   semantics of all our intermediate languages. *)
 
-Require Import Coqlib.
-Require Import AST.
-Require Import Integers.
-Require Import Floats.
+Require Import Coqlib AST Integers Floats.
 
 Definition block : Type := positive.
 Definition eq_block := peq.
@@ -54,16 +51,6 @@ Definition Vnullptr :=
 
 Definition Vptrofs (n: ptrofs) :=
   if Archi.ptr64 then Vlong (Ptrofs.to_int64 n) else Vint (Ptrofs.to_int n).
-
-Definition is_vptr (v : val) : bool :=
-match v with 
-| Vundef => false
-| Vint i => false
-| Vlong l => false
-| Vfloat f => false
-| Vsingle f => false
-| Vptr b p => true 
-end.
 
 (** * Operations over values *)
 
@@ -100,30 +87,12 @@ Definition has_type (v: val) (t: typ) : Prop :=
   | _, _ => False
   end.
 
-Definition has_stype (v: val) (t: styp) : Prop :=
-  match v, t with 
-  | Vundef, _ => True
-  | Vint _, Tint32 => True 
-  | Vlong _, Tint64 => True
-  | Vfloat _, Tfloat64 => True 
-  | Vsingle _, Tfloat32 => True
-  | Vptr _ _, Tpointer => True 
-  | _, _ => False
-  end.
-
 Fixpoint has_type_list (vl: list val) (tl: list typ) {struct vl} : Prop :=
   match vl, tl with
   | nil, nil => True
   | v1 :: vs, t1 :: ts => has_type v1 t1 /\ has_type_list vs ts
   | _, _ => False
   end.
-
-Fixpoint has_stype_list (vl: list val) (tl: list styp) {struct vl} : Prop :=
- match vl, tl with 
- | nil, nil => True 
- | v1 :: vs, t1 :: ts => has_stype v1 t1 /\ has_stype_list vs ts 
- | _, _ => False
-end.
 
 Definition has_opttype (v: val) (ot: option typ) : Prop :=
   match ot with
@@ -178,35 +147,76 @@ Proof.
   auto.
 Defined.
 
-Definition has_rettype (v: val) (r: rettype) : Prop :=
+(** Strict matching between values and extended types:
+    the value cannot be [Vundef], unless the type is [Tvoid].
+    This matching is used to characterize arguments to function calls. *)
+
+Definition has_argtype (v: val) (x: xtype) : Prop :=
+  match x, v with
+  | Xbool, Vint n => n = Int.zero \/ n = Int.one
+  | Xint8signed, Vint n => n = Int.sign_ext 8 n
+  | Xint8unsigned, Vint n => n = Int.zero_ext 8 n
+  | Xint16signed, Vint n => n = Int.sign_ext 16 n
+  | Xint16unsigned, Vint n => n = Int.zero_ext 16 n
+  | Xint, Vint _ => True
+  | Xint, Vptr _ _ => Archi.ptr64 = false
+  | Xlong, Vlong _ => True
+  | Xlong, Vptr _ _ => Archi.ptr64 = true
+  | Xfloat, Vfloat _ => True
+  | Xsingle, Vsingle _ => True
+  | Xptr, Vptr _ _ => True
+  | Xptr, Vint _ => Archi.ptr64 = false
+  | Xptr, Vlong _ => Archi.ptr64 = true
+  | Xany32, (Vint _ | Vsingle _) => True
+  | Xany32, Vptr _ _ => Archi.ptr64 = false
+  | Xany64, (Vint _ | Vlong _ | Vptr _ _ | Vsingle _ | Vfloat _) => True
+  | Xvoid, _ => True
+  | _, _ => False
+  end.
+
+Definition has_argtype_list : list val -> list xtype -> Prop := list_forall2 has_argtype.
+
+(** Lax matching between values and extended types:
+    [Vundef] belongs to every type.
+    This matching is used to characterize return values from external calls
+    and built-in functions. *)
+
+Definition has_rettype (v: val) (r: xtype) : Prop :=
   match r, v with
-  | Tret t, _ => has_type v t
-  | Tbool, Vint n => n = Int.zero \/ n = Int.one
-  | Tint8signed, Vint n => n = Int.sign_ext 8 n
-  | Tint8unsigned, Vint n => n = Int.zero_ext 8 n
-  | Tint16signed, Vint n => n = Int.sign_ext 16 n
-  | Tint16unsigned, Vint n => n = Int.zero_ext 16 n
+  | Xbool, Vint n => n = Int.zero \/ n = Int.one
+  | Xint8signed, Vint n => n = Int.sign_ext 8 n
+  | Xint8unsigned, Vint n => n = Int.zero_ext 8 n
+  | Xint16signed, Vint n => n = Int.sign_ext 16 n
+  | Xint16unsigned, Vint n => n = Int.zero_ext 16 n
+  | Xint, Vint _ => True
+  | Xint, Vptr _ _ => Archi.ptr64 = false
+  | Xlong, Vlong _ => True
+  | Xlong, Vptr _ _ => Archi.ptr64 = true
+  | Xfloat, Vfloat _ => True
+  | Xsingle, Vsingle _ => True
+  | Xptr, Vptr _ _ => True
+  | Xptr, Vint _ => Archi.ptr64 = false
+  | Xptr, Vlong _ => Archi.ptr64 = true
+  | Xany32, (Vint _ | Vsingle _) => True
+  | Xany32, Vptr _ _ => Archi.ptr64 = false
+  | Xany64, _ => True
   | _, Vundef => True
   | _, _ => False
   end.
 
-
-Definition has_srettype (v : val) (t : srettype) : Prop :=
- match t, v with 
- | Trets t, _ => has_stype v t
- | Tbools, Vint n => n = Int.zero \/ n = Int.one
- | Tint8signeds, Vint n => n = Int.sign_ext 8 n
- | Tint8unsigneds, Vint n => n = Int.zero_ext 8 n
- | Tint16signeds, Vint n => n = Int.sign_ext 16 n
- | Tint16unsigneds, Vint n => n = Int.zero_ext 16 n
- | _, Vundef => True
- | _, _ => False
-end.
-
-Lemma has_proj_rettype: forall v r,
-  has_rettype v r -> has_type v (proj_rettype r).
+Lemma has_proj_xtype: forall v t,
+  has_rettype v t -> has_type v (proj_xtype t).
 Proof.
-  destruct r; simpl; intros; auto; destruct v; try contradiction; exact I.
+  intros. destruct t, v; simpl in *; auto; try contradiction.
+- unfold Tptr; rewrite H; auto.
+- unfold Tptr; rewrite H; auto.
+- unfold Tptr; destruct Archi.ptr64; auto.
+Qed.
+
+Lemma has_inj_type: forall v t,
+  has_type v t -> has_rettype v (inj_type t).
+Proof.
+  intros. destruct v, t; simpl in *; auto.
 Qed.
 
 (** Truth values.  Non-zero integers are treated as [True].
@@ -847,6 +857,13 @@ Definition rolml (v: val) (amount: int) (mask: int64): val :=
   | _ => Vundef
   end.
 
+Theorem rolml_zero:
+  forall x m,
+  rolml x Int.zero m = andl x (Vlong m).
+Proof.
+  intros; destruct x; simpl; auto. decEq. apply Int64.rolm_zero.
+Qed.
+
 Definition zero_ext_l (nbits: Z) (v: val) : val :=
   match v with
   | Vlong n => Vlong(Int64.zero_ext nbits n)
@@ -1075,8 +1092,8 @@ Proof.
   destruct (eq v Vtrue); auto. destruct (eq v Vfalse); auto.
 Qed.
 
-Lemma load_result_rettype:
-  forall chunk v, has_rettype (load_result chunk v) (rettype_of_chunk chunk).
+Lemma load_result_xtype:
+  forall chunk v, has_rettype (load_result chunk v) (xtype_of_chunk chunk).
 Proof.
   intros. unfold has_rettype; destruct chunk; destruct v; simpl; auto.
 - destruct (norm_bool_cases (Vint (Int.zero_ext 8 i))) as [A | [A | A]]; rewrite A; simpl; auto.
@@ -1092,8 +1109,8 @@ Qed.
 Lemma load_result_type:
   forall chunk v, has_type (load_result chunk v) (type_of_chunk chunk).
 Proof.
-  intros. rewrite <- proj_rettype_of_chunk. apply has_proj_rettype.
-  apply load_result_rettype.
+  intros. rewrite <-proj_xtype_of_chunk. apply has_proj_xtype.
+  apply load_result_xtype.
 Qed.
 
 Lemma load_result_same:
@@ -2241,20 +2258,6 @@ Proof.
   intros. destruct v; simpl; auto. f_equal. apply Ptrofs.add_assoc.
 Qed.
 
-Lemma offset_ptr_add_int : forall sp n1 n2,
-  Val.lessdef (Val.add (Vint n1) (Val.offset_ptr sp n2)) (Val.offset_ptr sp (Ptrofs.add (Ptrofs.of_int n1) n2)).
-Proof.
-  intros.
-  rewrite add_commut.
-  unfold offset_ptr.
-  destruct sp; try constructor.
-  simpl. destruct Archi.ptr64.
-  constructor.
-  rewrite Ptrofs.add_assoc.
-  rewrite (Ptrofs.add_commut n2).
-  constructor.
-Qed.
-
 Lemma lessdef_normalize:
   forall v ty, lessdef (normalize v ty) v.
 Proof.
@@ -2283,6 +2286,20 @@ Proof.
 - subst ob; auto.
 - subst ob'; destruct ob as [b|]; auto.
   apply normalize_lessdef. destruct b; auto.
+Qed.
+
+Lemma has_argtype_lessdef: forall v r v',
+  has_argtype v r -> lessdef v v' -> has_argtype v' r.
+Proof.
+  intros. inv H0; auto. destruct r; elim H || exact I.
+Qed.
+
+Lemma has_argtype_list_lessdef: forall vl rl vl',
+  has_argtype_list vl rl -> lessdef_list vl vl' -> has_argtype_list vl' rl.
+Proof.
+  unfold has_argtype_list; intros. revert vl vl' H0 rl H. induction 1; intros.
+- inv H. constructor.
+- inv H1. constructor; eauto using has_argtype_lessdef.
 Qed.
 
 (** * Values and memory injections *)
@@ -2599,6 +2616,20 @@ Proof.
 - subst ob; auto.
 - subst ob'; destruct ob as [b|]; auto.
   apply normalize_inject. destruct b; auto.
+Qed.
+
+Lemma has_argtype_inject: forall v r v',
+  has_argtype v r -> inject f v v' -> has_argtype v' r.
+Proof.
+  intros. inv H0; destruct r; try contradiction; auto.
+Qed.
+
+Lemma has_argtype_list_inject: forall vl rl vl',
+  has_argtype_list vl rl -> inject_list f vl vl' -> has_argtype_list vl' rl.
+Proof.
+  unfold has_argtype_list; intros. revert vl vl' H0 rl H. induction 1; intros.
+- inv H. constructor.
+- inv H1. constructor; eauto using has_argtype_inject.
 Qed.
 
 End VAL_INJ_OPS.

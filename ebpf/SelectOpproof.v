@@ -20,6 +20,22 @@ Require Import Mulh SelectOp SelectLong.
 
 Local Open Scope cminorsel_scope.
 
+Lemma offset_ptr_add_int : forall sp n1 n2,
+  Val.lessdef (Val.add (Vint n1) (Val.offset_ptr sp n2)) (Val.offset_ptr sp (Ptrofs.add (Ptrofs.of_int n1) n2)).
+Proof.
+  intros.
+  rewrite Val.add_commut.
+  unfold Val.offset_ptr.
+  destruct sp; try apply Val.lessdef_refl.
+  simpl. destruct Archi.ptr64.
+  - constructor.
+  - rewrite Ptrofs.add_assoc.
+    rewrite (Ptrofs.add_commut n2).
+    constructor.
+Qed.
+
+
+
 (** * Useful lemmas and tactics *)
 
 (** The following are trivial lemmas and custom tactics that help
@@ -131,15 +147,12 @@ Proof.
   - subst n. intros. exists x; split; auto.
     destruct x; simpl; auto.
     rewrite Int.add_zero; auto.
-    destruct Archi.ptr64; auto. rewrite Ptrofs.add_zero; auto.
   - case (addimm_match a); intros; InvEval; simpl.
     + TrivialExists; simpl. rewrite Int.add_commut. auto.
     + econstructor; split. EvalOp. simpl; eauto.
       unfold Genv.symbol_address. destruct (Genv.find_symbol ge s); simpl; auto.
-      destruct Archi.ptr64; auto. rewrite Ptrofs.add_commut; auto.
     + econstructor; split. EvalOp. simpl; eauto.
-      destruct sp; simpl; auto. destruct Archi.ptr64; auto.
-      rewrite Ptrofs.add_assoc. rewrite (Ptrofs.add_commut m0). auto.
+      destruct sp; simpl; auto.
     + TrivialExists; simpl. subst x. rewrite Val.add_assoc. rewrite Int.add_commut. auto.
     + TrivialExists.
 Qed.
@@ -161,7 +174,7 @@ Proof.
     rewrite Val.add_assoc.
     rewrite <- (Val.add_commut v1).
     apply Val.add_lessdef; auto.
-    apply Val.offset_ptr_add_int.
+    apply offset_ptr_add_int.
   - subst.
     econstructor; split.
     repeat econstructor ; eauto.
@@ -170,7 +183,7 @@ Proof.
     rewrite <- (Val.add_commut v1).
     apply Val.add_lessdef; auto.
     rewrite Ptrofs.add_commut.
-    apply Val.offset_ptr_add_int.
+    apply offset_ptr_add_int.
   - subst.
     rewrite Val.add_commut.
     rewrite <- Val.add_assoc.
@@ -208,7 +221,6 @@ Theorem eval_shlimm:
                                     (fun x => Val.shl x (Vint n)).
 Proof.
   red; intros until x.  unfold shlimm.
-
   predSpec Int.eq Int.eq_spec n Int.zero.
   intros; subst. exists x; split; auto. destruct x; simpl; auto. rewrite Int.shl_zero; auto.
   destruct (negb (Int.ltu n Int.iwordsize)) eqn:LT; simpl.
@@ -882,18 +894,21 @@ Proof.
 Qed.
 
 Theorem eval_select:
-  forall le ty cond al vl a1 v1 a2 v2 a b,
-  select ty cond al a1 a2 = Some a ->
+  forall le ty cond al vl a1 v1 a2 v2,
+  select_supported ty = true ->
   eval_exprlist ge sp e m le al vl ->
   eval_expr ge sp e m le a1 v1 ->
   eval_expr ge sp e m le a2 v2 ->
-  eval_condition cond vl m = Some b ->
   exists v,
-     eval_expr ge sp e m le a v
-  /\ Val.lessdef (Val.select (Some b) v1 v2 ty) v.
+     eval_expr ge sp e m le (select ty cond al a1 a2) v
+  /\ Val.lessdef (Val.select (eval_condition cond vl m) v1 v2 ty) v.
 Proof.
-  unfold select; intros; discriminate.
+  unfold select; intros.
+  destruct (select_swap cond); inv H.
+- TrivialExists. simpl. rewrite eval_negate_condition. destruct (eval_condition cond vl m) as [[]|]; simpl; auto.
+- TrivialExists.
 Qed.
+
 
 Theorem eval_addressing:
   forall le chunk a v b ofs,
@@ -911,8 +926,7 @@ Proof.
     constructor. EvalOp. simpl. congruence. constructor. simpl. rewrite Ptrofs.add_zero. congruence.
   - destruct (Size.Int.is_16_signed n) eqn:sz.
     + exists (v1 :: nil); split. eauto with evalexpr. simpl.
-    destruct v1; simpl in H; try discriminate. destruct Archi.ptr64 eqn:SF; inv H.
-    simpl. auto.
+    destruct v1; simpl in H; try discriminate.
     + exists (Vptr b ofs:: nil);  split.
       repeat econstructor;eauto with evalexpr.
       simpl. congruence.

@@ -20,16 +20,14 @@ Require Import ZArith List.
 Definition has_modu := false. (* Does the archi has modulo? *)
 (**  **)
 
-Parameter ptr64 : bool.
-
-Parameter rbpf : bool. (* Restrict code generation for the RIOT OS rbpf machine *)
+Definition ptr64 := true.
 
 Definition big_endian := false.
 
 Definition align_int64 := 4%Z.
 Definition align_float64 := 4%Z.
 
-Definition splitlong := negb ptr64.
+Definition splitlong := false.
 
 Lemma splitlong_ptr32: splitlong = true -> ptr64 = false.
 Proof.

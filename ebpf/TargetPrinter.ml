@@ -82,11 +82,13 @@ module Target : TARGET =
 
     let register_name = function
       | R0 -> "r0" | R1 -> "r1" | R2 -> "r2" | R3 -> "r3" | R4 -> "r4" | R5 -> "r5"
-      | R6 -> "r6" | R7 -> "r7" | R8 -> "r8" | R9 -> "r9" | R10 -> "r10"(*| RA -> "ra"*)
-        
+      | R6 -> "r6" | R7 -> "r7" | R8 -> "r8" | R9 -> "r9" | R10 -> "r10"
+      | BP -> assert false 
+
     let register32_name = function
       | R0 -> "w0" | R1 -> "w1" | R2 -> "w2" | R3 -> "w3" | R4 -> "w4" | R5 -> "w5"
-      | R6 -> "w6" | R7 -> "w7" | R8 -> "w8" | R9 -> "w9" | R10 -> "w10"(*| RA -> "wa"*)
+      | R6 -> "w6" | R7 -> "w7" | R8 -> "w8" | R9 -> "w9" | R10 -> "w10"
+      | BP -> assert false
 
     let register w oc ireg =
       output_string oc ((match w with

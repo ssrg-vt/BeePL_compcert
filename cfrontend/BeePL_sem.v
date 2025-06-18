@@ -135,19 +135,19 @@ Section Big_Step_Semantics.
 
 Variable (ge : BeePL.genv).
 
-(* Big step semantics without lv, rv, or context *) 
+(* Big step semantics without lv, rv, or context *)
 Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem -> vmap -> value -> Prop := 
 | bsem_value : forall p vm m v t,
                well_formed_value v t ->
                bsem_expr p vm m (Val v t) m vm v
 | bsem_lvar : forall p vm m x t l ofs v,
               vm!x = Some (l, t) -> 
-              deref_addr t m l ofs Full v ->
+              deref_addr ge t m l ofs Full v ->
               bsem_expr p vm m (Var x t) m vm v
 | bsem_gbvar : forall p vm m x t l ofs v,
                vm!x = None ->
                Genv.find_symbol ge x = Some l -> 
-               deref_addr t m l ofs Full v ->
+               deref_addr ge t m l ofs Full v ->
                bsem_expr p vm m (Var x t) m vm v
 | bsem_consti : forall p vm m i t,
                 bsem_expr p vm m (Const (ConsInt i) t) m vm (Vint i)
@@ -176,7 +176,7 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
              bsem_expr p vm m (Prim Ref [:: e] (Ptrtype (Reftype h (Bprim t) a))) m'' vm'' (Vloc l Ptrofs.zero)
 | bsem_deref : forall p vm m e m' vm' l ofs bf v,
                bsem_expr p vm m e m' vm' (Vloc l ofs) ->
-               deref_addr (typeof_expr e) m l ofs bf v ->
+               deref_addr ge (typeof_expr e) m l ofs bf v ->
                bsem_expr p vm m (Prim Deref (e :: nil) (typeof_expr e)) m' vm' v
 | bsem_massgn : forall p vm m e1 m' vm' l ofs bf e2 vm'' m'' v v' ct1 ct2,  
                 bsem_expr p vm m e1 m' vm' (Vloc l ofs) ->
@@ -323,12 +323,12 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                ssem_expr p vm m (Val v t) m vm (Val v t)*)
 | ssem_lvar : forall p vm m x t l ofs v,
               vm!x = Some (l, t) -> 
-              deref_addr t m l ofs Full v ->
+              deref_addr ge t m l ofs Full v ->
               ssem_expr p vm m (Var x t) m vm (Val v t)
 | ssem_gbvar : forall p vm m x t l ofs v,
                vm!x = None ->
                Genv.find_symbol ge x = Some l -> 
-               deref_addr t m l ofs Full v ->
+               deref_addr ge t m l ofs Full v ->
                ssem_expr p vm m (Var x t) m vm (Val v t)
 | ssem_consti : forall p vm m i t,
                 ssem_expr p vm m (Const (ConsInt i) t) m vm (Val (Vint i) t)
@@ -374,7 +374,7 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                 ssem_expr p vm m (Prim Deref (e :: nil) t) m' vm' 
                                  (Prim Deref (e' :: nil) t)
 | ssem_deref2 : forall p vm m l ofs bf v t,
-                deref_addr (get_data_type t) m l ofs bf v ->
+                deref_addr ge (get_data_type t) m l ofs bf v ->
                 ssem_expr p vm m (Prim Deref [:: Val (Vloc l ofs) (Ptrtype t)] (get_data_type t)) m vm 
                                (Val v (get_data_type t))
 | ssem_massgn1 : forall p vm m e1 e2 m' vm' e1',  
@@ -387,7 +387,6 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                                 (Prim Massgn ((Val (Vloc l ofs) (Ptrtype t)) :: e2' :: nil) Utype)
 | ssem_massgn3 : forall p vm m t m' l ofs bf v,  
                  assign_addr ge (get_data_type t) m l ofs bf v m' v -> 
-                 is_vloc v = false ->
                  ssem_expr p vm m (Prim Massgn (Val (Vloc l ofs) (Ptrtype t) ::  Val v (get_data_type t):: nil) Utype )
                                 m' vm (Val Vunit Utype)
 | ssem_uop1 : forall p vm m e e' uop m' vm',
@@ -439,14 +438,10 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
 | ssem_cond : forall p vm m e1 e2 e3 vm' m' e1', 
               ssem_expr p vm m e1 m' vm' e1' -> 
               ssem_expr p vm m (Cond e1 e2 e3 (typeof_expr e2)) m' vm' (Cond e1' e2 e3 (typeof_expr e2))
-| ssem_ctrue : forall p vm m v1 e2 e3 t1 ct1, 
-               transBeePL_type t1 = ct1 ->
-               bool_val (trans_bvalue_cvalue v1) ct1 m = Some true ->
-               ssem_expr p vm m (Cond (Val v1 t1) e2 e3 (typeof_expr e2)) m vm e2
-| ssem_cfalse : forall p vm m v1 e2 e3 t1 ct1, 
-                transBeePL_type t1 = ct1 ->
-                bool_val (trans_bvalue_cvalue v1) ct1 m = Some false ->
-                ssem_expr p vm m (Cond (Val v1 t1) e2 e3 (typeof_expr e2)) m vm e3
+| ssem_ctrue : forall p vm m e2 e3, 
+               ssem_expr p vm m (Cond (Val (Vbool true) (Vtype Tbool)) e2 e3 (typeof_expr e2)) m vm e2
+| ssem_cfalse : forall p vm m e2 e3,
+                ssem_expr p vm m (Cond (Val (Vbool false) (Vtype Tbool)) e2 e3 (typeof_expr e3)) m vm e3
 | ssem_ut : forall p vm m, 
             ssem_expr p vm m (Unit Utype) m vm (Val Vunit Utype)
 | ssem_adr : forall p vm m l ofs h t a,

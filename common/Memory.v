@@ -27,18 +27,11 @@
 - [free]: invalidate a memory block.
 *)
 
-Require Import Zwf.
-Require Import Axioms.
-Require Import Coqlib.
+From Coq Require Import Zwf.
 Require Intv.
-Require Import Maps.
 Require Archi.
-Require Import AST.
-Require Import Integers.
-Require Import Floats.
-Require Import Values.
-Require Export Memdata.
-Require Export Memtype.
+Require Import Axioms Coqlib Maps Integers Floats AST Values.
+Require Export Memdata Memtype.
 
 (* To avoid useless definitions of inductors in extracted code. *)
 Local Unset Elimination Schemes.
@@ -674,13 +667,13 @@ Proof.
   apply decode_val_type.
 Qed.
 
-Theorem load_rettype:
+Theorem load_xtype:
   forall m chunk b ofs v,
   load chunk m b ofs = Some v ->
-  Val.has_rettype v (rettype_of_chunk chunk).
+  Val.has_rettype v (xtype_of_chunk chunk).
 Proof.
   intros. exploit load_result; eauto; intros. rewrite H0.
-  apply decode_val_rettype.
+  apply decode_val_xtype.
 Qed.
 
 Theorem load_cast:

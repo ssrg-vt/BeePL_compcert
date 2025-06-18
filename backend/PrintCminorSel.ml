@@ -60,9 +60,9 @@ let rec print_varlist p (vars, first) =
 
 let print_sig p sg =
   List.iter
-    (fun t -> fprintf p "%s -> " (name_of_type t))
+    (fun t -> fprintf p "%s -> " (name_of_xtype t))
     sg.sig_args;
-  fprintf p "%s" (name_of_rettype sg.sig_res)
+  fprintf p "%s" (name_of_xtype sg.sig_res)
 
 let print_function p id f =
   fprintf p "\"%s\"(%a) : %a "

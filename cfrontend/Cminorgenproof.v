@@ -12,8 +12,8 @@
 
 (** Correctness proof for Cminor generation. *)
 
-Require Import Coq.Program.Equality FSets Permutation.
-Require Import FSets FSetAVL Orders Mergesort.
+From Coq Require Import Program.Equality Permutation Mergesort.
+From Coq Require Import Orders FSets FSetAVL.
 Require Import Coqlib Maps Ordered Errors Integers Floats.
 Require Intv.
 Require Import AST Linking.
@@ -2173,7 +2173,7 @@ Opaque PTree.set.
   exploit match_callstack_function_entry; eauto. simpl; eauto. simpl; auto.
   intros [f2 [MCS2 MINJ2]].
   left; econstructor; split.
-  apply plus_one. constructor; simpl; eauto.
+  apply plus_one. constructor; simpl; eauto using Val.has_argtype_list_inject.
   econstructor. eexact TRBODY. eauto. eexact MINJ2. eexact MCS2.
   inv MK; simpl in ISCC; contradiction || econstructor; eauto.
 

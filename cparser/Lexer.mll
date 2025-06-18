@@ -37,6 +37,7 @@ let () =
       ("_Bool", fun loc -> UNDERSCORE_BOOL loc);
       ("_Generic", fun loc -> GENERIC loc);
       ("_Complex", fun loc -> reserved_keyword loc "_Complex");
+      ("_Float16", fun loc -> FLOAT16 loc);
       ("_Imaginary", fun loc -> reserved_keyword loc "_Imaginary");
       ("_Static_assert", fun loc -> STATIC_ASSERT loc);
       ("__alignof", fun loc -> ALIGNOF loc);
@@ -148,6 +149,21 @@ let error lb fmt =
 let warning lb kind fmt =
   Diagnostics.warning
       (lb.lex_curr_p.pos_fname,lb.lex_curr_p.pos_lnum) kind fmt
+
+(* Identifiers or keywords *)
+
+let ident_or_keyword lb id =
+  try
+    let f = Hashtbl.find lexicon id in
+    f (currentLoc lb)
+  with Not_found ->
+    if String.contains id '$' then begin
+      if id = "$" then
+        error lb "not supported: identifier consisting of a single '$' sign"
+      else
+        warning lb Diagnostics.Dollar_in_identifier "'$' in identifier";
+    end;
+    PRE_NAME id
 
 (* Simple character escapes *)
 
@@ -415,12 +431,9 @@ rule initial = parse
   | ";"                           { SEMICOLON(currentLoc lexbuf) }
   | ","                           { COMMA(currentLoc lexbuf) }
   | "."                           { DOT(currentLoc lexbuf) }
-  | identifier as id              {
-    if SSet.mem id !ignored_keywords then
-      initial lexbuf
-    else
-      try Hashtbl.find lexicon id (currentLoc lexbuf)
-      with Not_found -> PRE_NAME id }
+  | identifier as id              { if SSet.mem id !ignored_keywords
+                                    then initial lexbuf
+                                    else ident_or_keyword lexbuf id }
   | eof                           { EOF }
   | _ as c                        { fatal_error lexbuf "invalid symbol %C" c }
 
@@ -638,6 +651,7 @@ and singleline_comment = parse
       | Pre_parser.EQEQ loc -> loop (Parser.EQEQ loc)
       | Pre_parser.EXTERN loc -> loop (Parser.EXTERN loc)
       | Pre_parser.FLOAT loc -> loop (Parser.FLOAT loc)
+      | Pre_parser.FLOAT16 loc -> loop (Parser.FLOAT16 loc)
       | Pre_parser.FOR loc -> loop (Parser.FOR loc)
       | Pre_parser.GENERIC loc -> loop (Parser.GENERIC loc)
       | Pre_parser.GEQ loc -> loop (Parser.GEQ loc)

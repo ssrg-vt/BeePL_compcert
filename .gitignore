@@ -8,6 +8,9 @@
 *.vok
 *.vos
 *.glob
+*.timing
+*.prof.json
+*.prof.json.gz
 *.o
 *.a
 *.cmi

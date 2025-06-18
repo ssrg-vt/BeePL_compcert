@@ -44,18 +44,37 @@ cparser/pre_parser_messages.ml:
 # Directories containing plain Caml code
 
 DIRS=extraction \
-  lib common $(ARCH) backend cfrontend cparser driver \
+  lib common $(ARCH) backend cfrontend bparser cparser driver \
   export debug
 
 INCLUDES=$(patsubst %,-I %, $(DIRS))
 
-# Control of warnings:
+# Control of warnings
 
-WARNINGS=-w +a-4-9-27-70
-extraction/%.cmx: WARNINGS +=-w -20-27-32..34-39-41-44..45-60-67
-extraction/%.cmo: WARNINGS +=-w -20-27-32..34-39-41-44..45-60-67
-cparser/pre_parser.cmx: WARNINGS += -w -41
-cparser/pre_parser.cmo: WARNINGS += -w -41
+# For hand-written code:
+WARNINGS=-w +a \
+  -w -fragile-match \
+  -w -missing-record-field-pattern \
+  -w -unused-var-strict \
+  -w -missing-mli
+
+# For Menhir-generated code: add
+cparser/pre_parser.cmx: WARNINGS += -w -ambiguous-name
+cparser/pre_parser.cmo: WARNINGS += -w -ambiguous-name
+
+# For Coq-generated code: add
+EXTRWARNINGS=$(WARNINGS) \
+  -w -ignored-extra-argument \
+  -w -unused-value-declaration \
+  -w -unused-open \
+  -w -unused-type-declaration \
+  -w -unused-rec-flag \
+  -w -ambiguous-name \
+  -w -open-shadow-identifier \
+  -w -open-shadow-label-constructor \
+  -w -unreachable-case \
+  -w -unused-module \
+  -w -unused-functor-parameter
 
 # Turn warnings into errors, but not for released tarballs
 ifeq ($(wildcard .git),.git)
@@ -66,7 +85,7 @@ endif
 
 COMPFLAGS+=-g -strict-sequence -safe-string \
   $(INCLUDES) -I "$(MENHIR_DIR)" -I +str -I +unix \
-  $(WARNINGS) $(WARN_ERRORS)
+  $(WARN_ERRORS) 
 
 # Using .opt compilers if available
 
@@ -84,15 +103,25 @@ OCAMLLEX=ocamllex -q
 MODORDER=tools/modorder .depend.extr
 COPY=cp
 
-PARSERS=cparser/pre_parser.mly
+PARSERS=cparser/pre_parser.mly bparser/beepl_parser.mly
 LEXERS=cparser/Lexer.mll lib/Tokenize.mll \
-	     lib/Readconfig.mll lib/Responsefile.mll
+	     lib/Readconfig.mll lib/Responsefile.mll bparser/beepl_lexer.mll
 
 LIBS=str.cmxa unix.cmxa $(MENHIR_LIBS)
 LIBS_BYTE=$(patsubst %.cmxa,%.cma,$(patsubst %.cmx,%.cmo,$(LIBS)))
 
 EXECUTABLES=ccomp ccomp.byte cchecklink cchecklink.byte clightgen clightgen.byte
 GENERATED=$(PARSERS:.mly=.mli) $(PARSERS:.mly=.ml) $(LEXERS:.mll=.ml) cparser/pre_parser_messages.ml
+
+bparser/beepl_ast.cmi bparser/beepl_ast.cmo:  bparser/beepl_ast.ml
+	@$(OCAMLC) -c $<
+
+bparser/beepl_parser.ml bparser/beepl_parser.mli: bparser/beepl_parser.mly bparser/beepl_ast.cmi bparser/beepl_ast.cmo
+	@rm -f $@
+	$(MENHIR) --infer --explain --ocamlc "ocamlc $(COMPFLAGS)" $<
+
+bparser/beepl_lexer.ml: bparser/beepl_lexer.mll
+	$(OCAMLLEX) $<
 
 # Beginning of part that assumes .depend.extr already exists
 
@@ -136,15 +165,25 @@ endif
 
 # End of part that assumes .depend.extr already exists
 
+extraction/%.cmi: extraction/%.mli
+	@echo "OCAMLC   $<"
+	@$(OCAMLC) $(EXTRWARNINGS) -c $<
+extraction/%.cmo: extraction/%.ml
+	@echo "OCAMLC   $<"
+	@$(OCAMLC) $(EXTRWARNINGS) -c $<
+extraction/%.cmx: extraction/%.ml
+	@echo "OCAMLOPT $<"
+	@$(OCAMLOPT) $(EXTRWARNINGS) -c $<
+
 %.cmi: %.mli
 	@echo "OCAMLC   $<"
-	@$(OCAMLC) -c $<
+	@$(OCAMLC) $(WARNINGS) -c $<
 %.cmo: %.ml
 	@echo "OCAMLC   $<"
-	@$(OCAMLC) -c $<
+	@$(OCAMLC) $(WARNINGS) -c $<
 %.cmx: %.ml
 	@echo "OCAMLOPT $<"
-	@$(OCAMLOPT) -c $<
+	@$(OCAMLOPT) $(WARNINGS) -c $<
 
 %.ml: %.mll
 	$(OCAMLLEX) $<

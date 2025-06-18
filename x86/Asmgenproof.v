@@ -379,6 +379,7 @@ Inductive match_states: Mach.state -> Asm.state -> Prop :=
         (MEXT: Mem.extends m m')
         (AT: transl_code_at_pc ge (rs PC) fb f c ep tf tc)
         (AG: agree ms sp rs)
+        (SP: is_base_pointer sp)
         (AXP: ep = true -> rs#RAX = parent_sp s),
       match_states (Mach.State s fb sp c ms m)
                    (Asm.State rs m')
@@ -409,14 +410,15 @@ Lemma exec_straight_steps:
   (forall k c (TR: transl_instr f i ep k = OK c),
    exists rs2,
        exec_straight tge tf c rs1 m1' k rs2 m2'
-    /\ agree ms2 sp rs2
-    /\ (it1_is_parent ep i = true -> rs2#RAX = parent_sp s)) ->
+       /\ agree ms2 sp rs2
+       /\ is_base_pointer sp
+       /\ (it1_is_parent ep i = true -> rs2#RAX = parent_sp s)) ->
   exists st',
   plus step tge (State rs1 m1') E0 st' /\
   match_states (Mach.State s fb sp c ms2 m2) st'.
 Proof.
   intros. inversion H2. subst. monadInv H7.
-  exploit H3; eauto. intros [rs2 [A [B C]]].
+  exploit H3; eauto. intros [rs2 [A [B [C D]]]].
   exists (State rs2 m2'); split.
   eapply exec_straight_exec; eauto.
   econstructor; eauto. eapply exec_straight_at; eauto.
@@ -433,14 +435,15 @@ Lemma exec_straight_steps_goto:
   (forall k c (TR: transl_instr f i ep k = OK c),
    exists jmp, exists k', exists rs2,
        exec_straight tge tf c rs1 m1' (jmp :: k') rs2 m2'
-    /\ agree ms2 sp rs2
-    /\ exec_instr tge tf jmp rs2 m2' = goto_label tf lbl rs2 m2') ->
+       /\ agree ms2 sp rs2
+       /\ is_base_pointer sp
+       /\ exec_instr tge tf jmp rs2 m2' = goto_label tf lbl rs2 m2') ->
   exists st',
   plus step tge (State rs1 m1') E0 st' /\
   match_states (Mach.State s fb sp c' ms2 m2) st'.
 Proof.
   intros. inversion H3. subst. monadInv H9.
-  exploit H5; eauto. intros [jmp [k' [rs2 [A [B C]]]]].
+  exploit H5; eauto. intros [jmp [k' [rs2 [A [B [C D]]]]]].
   generalize (functions_transl _ _ _ H7 H8); intro FN.
   generalize (transf_function_no_overflow _ _ H8); intro NOOV.
   exploit exec_straight_steps_2; eauto.
@@ -452,7 +455,7 @@ Proof.
   eapply exec_straight_steps_1; eauto.
   econstructor; eauto.
   eapply find_instr_tail. eauto.
-  rewrite C. eexact GOTO.
+  rewrite D. eexact GOTO.
   traceEq.
   econstructor; eauto.
   apply agree_exten with rs2; auto with asmgen.
@@ -487,7 +490,7 @@ Proof.
 - (* Mlabel *)
   left; eapply exec_straight_steps; eauto; intros.
   monadInv TR. econstructor; split. apply exec_straight_one. simpl; eauto. auto.
-  split. apply agree_nextinstr; auto. simpl; congruence.
+  split. apply agree_nextinstr; auto. split. assumption. simpl; congruence.
 
 - (* Mgetstack *)
   unfold load_stack in H.
@@ -497,7 +500,7 @@ Proof.
   exploit loadind_correct; eauto. intros [rs' [P [Q R]]].
   exists rs'; split. eauto.
   split. eapply agree_set_mreg; eauto. congruence.
-  simpl; congruence.
+  split. assumption. simpl; congruence.
 
 - (* Msetstack *)
   unfold store_stack in H.
@@ -533,6 +536,7 @@ Opaque loadind.
   intros [rs1 [P [Q R]]].
   exists rs1; split. eauto.
   split. eapply agree_set_mreg. eapply agree_set_mreg; eauto. congruence. auto.
+  split. assumption.
   simpl; intros. rewrite R; auto.
 (* RAX does not contain parent *)
   monadInv TR.
@@ -541,6 +545,7 @@ Opaque loadind.
   intros [rs2 [S [T U]]].
   exists rs2; split. eapply exec_straight_trans; eauto.
   split. eapply agree_set_mreg. eapply agree_set_mreg; eauto. congruence. auto.
+  split. assumption.
   simpl; intros. rewrite U; auto.
 
 - (* Mop *)
@@ -553,6 +558,7 @@ Opaque loadind.
   assert (S: Val.lessdef v (rs2 (preg_of res))) by (eapply Val.lessdef_trans; eauto).
   exists rs2; split. eauto.
   split. eapply agree_set_undef_mreg; eauto.
+  split. congruence.
   simpl; congruence.
 
 - (* Mload *)
@@ -565,6 +571,7 @@ Opaque loadind.
   exploit transl_load_correct; eauto. intros [rs2 [P [Q R]]].
   exists rs2; split. eauto.
   split. eapply agree_set_undef_mreg; eauto. congruence.
+  split. assumption.
   simpl; congruence.
 
 - (* Mstore *)
@@ -579,6 +586,7 @@ Opaque loadind.
   exploit transl_store_correct; eauto. intros [rs2 [P Q]].
   exists rs2; split. eauto.
   split. eapply agree_undef_regs; eauto.
+  split. assumption.
   simpl; congruence.
 
 - (* Mcall *)
@@ -603,13 +611,13 @@ Opaque loadind.
   simpl. eauto.
   econstructor; eauto.
   econstructor; eauto.
-  eapply agree_sp_def; eauto.
+  constructor.
   simpl. eapply agree_exten; eauto. intros. Simplifs.
   Simplifs. rewrite <- H2. auto.
 + (* Direct call *)
   generalize (code_tail_next_int _ _ _ _ NOOV H6). intro CT1.
   assert (TCA: transl_code_at_pc ge (Vptr fb (Ptrofs.add ofs Ptrofs.one)) fb f c false tf x).
-    econstructor; eauto.
+  econstructor; eauto.
   exploit return_address_offset_correct; eauto. intros; subst ra.
   left; econstructor; split.
   apply plus_one. eapply exec_step_internal. eauto.
@@ -617,7 +625,7 @@ Opaque loadind.
   simpl. unfold Genv.symbol_address. rewrite symbols_preserved. rewrite H. eauto.
   econstructor; eauto.
   econstructor; eauto.
-  eapply agree_sp_def; eauto.
+  constructor.
   simpl. eapply agree_exten; eauto. intros. Simplifs.
   Simplifs. rewrite <- H2. auto.
 
@@ -762,6 +770,7 @@ Opaque loadind.
   eapply exec_straight_trans. eexact A.
   apply exec_straight_one. simpl. rewrite B. eauto. auto.
   split. apply agree_nextinstr. eapply agree_exten; eauto.
+  split. assumption.
   simpl; congruence.
 (* jcc ; jcc *)
   destruct (eval_testcond c1 rs') as [b1|] eqn:TC1;
@@ -772,6 +781,7 @@ Opaque loadind.
   eapply exec_straight_two. simpl. rewrite TC1. eauto. auto.
   simpl. rewrite eval_testcond_nextinstr. rewrite TC2. eauto. auto. auto.
   split. apply agree_nextinstr. apply agree_nextinstr. eapply agree_exten; eauto.
+  split. assumption.
   simpl; congruence.
 (* jcc2 *)
   destruct (eval_testcond c1 rs') as [b1|] eqn:TC1;
@@ -783,6 +793,7 @@ Opaque loadind.
   destruct b1. simpl in *. subst b2. auto. auto.
   auto.
   split. apply agree_nextinstr. eapply agree_exten; eauto.
+  split. assumption.
   rewrite H1; congruence.
 
 - (* Mjumptable *)
@@ -859,6 +870,7 @@ Transparent destroyed_at_function_entry.
   apply agree_undef_regs with rs0; eauto.
   simpl; intros. apply Pregmap.gso; auto with asmgen. tauto.
   congruence.
+  constructor.
   intros. Simplifs. eapply agree_sp; eauto.
 
 - (* external function *)

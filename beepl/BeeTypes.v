@@ -218,20 +218,6 @@ match t with
 | Bytes => noattr
 end.
 
-(****** Translation from BeePL types to Csyntax types ******)
-
-Fixpoint from_typelist (ts : Ctypes.typelist) : list Ctypes.type :=
-match ts with
-| Tnil => nil
-| Tcons t ts => t :: from_typelist ts
-end. 
-
-Fixpoint to_typelist (ts : list Ctypes.type) : Ctypes.typelist :=
-match  ts with 
-| nil => Tnil
-| t :: ts => Tcons t (to_typelist ts)
-end.
-
 (* Definitions related to bcomposites (struct) *)
 Inductive bmember : Type :=
 | Member_plain : ident -> BeeTypes.type -> bmember
@@ -268,10 +254,10 @@ Section translate_types.
 Variable transBeePL_type : BeeTypes.type -> Ctypes.type.
 
 (* Translates a list of BeePL types to list of Clight types *) 
-Fixpoint transBeePL_types (ts : list BeeTypes.type) : Ctypes.typelist :=
+Fixpoint transBeePL_types (ts : list BeeTypes.type) : list Ctypes.type :=
 match ts with 
-| nil => Tnil
-| t :: ts => (Tcons (transBeePL_type t) (transBeePL_types ts))
+| nil => nil
+| t :: ts => (transBeePL_type t) :: (transBeePL_types ts)
 end.
 
 End translate_types.
@@ -908,6 +894,8 @@ Fixpoint eq_type (t1 t2 : type) : bool :=
   | Ftype ts1 ef1 t1', Ftype ts2 ef2 t2' =>
       eq_types eq_type ts1 ts2 && eq_effect ef1 ef2 && eq_type t1' t2'
   | Bytes, Bytes => true
+  | Atype t1 z1 a1, trint8s => true (* special case because of bpf_printk *)
+  | trint8s, Atype t2 z2 a2 => true (* special case because of bpf_printk *)
   | _, _ => false
   end
 
@@ -922,6 +910,7 @@ with eq_ptr_type (p1 p2 : ptr_type) : bool :=
   | Sptype id1 a1, Sptype id2 a2 => (id1 =? id2)%positive && attr_eq a1 a2
   | Otype t1, _ => true   (* we need this special case: all pointer type can be void * *)
   | _, Otype t1 => true   (* we need this special case: all pointer type can be void * *)
+  | Aptype t1 z1 a1, Aptype t2 z2 a2 => eq_type t1 t2 && (z1 =? z2)%Z && attr_eq a1 a2
   | _, _ => false
   end.
 
@@ -1017,18 +1006,6 @@ match sts, ats with
                         | _, _ => eq_type t t' && check_fun_ptr_fun ts ts'
                         end 
 | _, _ => false
-end.
-
-Fixpoint typelist_to_list_type (cts : typelist) : list Ctypes.type :=
-match cts with 
-| Tnil => nil
-| Tcons t ts => t :: (typelist_to_list_type ts)
-end.
-
-Fixpoint list_type_to_typelist (cts : list Ctypes.type) : typelist :=
-match cts with
-| nil => Tnil
-| t :: ts => Tcons t (list_type_to_typelist ts)
 end.
 
 Section Trans_ctypes_btypes.

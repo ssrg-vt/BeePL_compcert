@@ -68,4 +68,6 @@ Definition tostruct s a := Ptrtype (Otype (Sptype s a)).
 Definition tpfun ts ef t := Ptrtype (Fptype ts ef t).
 Definition tunit := Utype.
 Definition tbarray t z a := Atype t z a.
+Definition tparray t z a := Ptrtype (Aptype t z a).
+
 

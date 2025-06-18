@@ -16,17 +16,11 @@
 
 (** Observable events, execution traces, and semantics of external calls. *)
 
-Require Import String.
+From Coq Require Import String.
 Require Import Coqlib.
 Require Intv.
-Require Import AST.
-Require Import Integers.
-Require Import Floats.
-Require Import Values.
-Require Import Memory.
-Require Import Globalenvs.
-Require Import Builtins.
-Require Import Maps.
+Require Import AST Integers Floats Values Memory Globalenvs Builtins.
+Local Open Scope asttyp_scope.
 
 (** Backwards compatibility for Hint Rewrite locality attributes. *)
 Set Warnings "-unsupported-attributes".
@@ -602,9 +596,6 @@ Inductive volatile_store (ge: Senv.t):
 Definition extcall_sem : Type :=
   Senv.t -> list val -> mem -> trace -> val -> mem -> Prop.
 
-(*Definition extstore_well_typed : Type :=
-  PTree.t type -> Senv.t -> vmap -> Memory.mem -> Prop.*) 
-
 (** We now specify the expected properties of this predicate. *)
 
 Definition loc_out_of_bounds (m: mem) (b: block) (ofs: Z) : Prop :=
@@ -625,7 +616,6 @@ Definition inject_separated (f f': meminj) (m1 m2: mem): Prop :=
   f b1 = None -> f' b1 = Some(b2, delta) ->
   ~Mem.valid_block m1 b1 /\ ~Mem.valid_block m2 b2.
 
-
 Record extcall_properties (sem: extcall_sem) (sg: signature) : Prop :=
   mk_extcall_properties {
 
@@ -634,12 +624,6 @@ Record extcall_properties (sem: extcall_sem) (sg: signature) : Prop :=
     forall ge vargs m1 t vres m2,
     sem ge vargs m1 t vres m2 ->
     Val.has_rettype vres sg.(sig_res);
-
-(** The return value of an external call in BeePL must agree with its signtaure. 
-  bec_well_typed:
-    forall ge vargs m1 t vres m2,
-    sem ge vargs m1 t vres m2 ->
-    Val.has_srettype vres (rettype_to_srettype sg.(sig_res)); **)
 
 (** The semantics is invariant under change of global environment that preserves symbols. *)
   ec_symbols_preserved:
@@ -718,12 +702,6 @@ Record extcall_properties (sem: extcall_sem) (sg: signature) : Prop :=
     forall ge vargs m t1 vres1 m1 t2 vres2 m2,
     sem ge vargs m t1 vres1 m1 -> sem ge vargs m t2 vres2 m2 ->
     match_traces ge t1 t2 /\ (t1 = t2 -> vres1 = vres2 /\ m1 = m2)
-
-(** External calls preserves the well formedness of the store/mem. 
-  ec_store_wellformed:
-    forall Gamma Sigma vm m m' ge vs t vres,
-    sem ge vs m t vres m' -> 
-    store_well_typed Sigma bge vm m'*)
 }.
 
 (** ** Semantics of volatile loads *)
@@ -796,12 +774,12 @@ Qed.
 Lemma volatile_load_ok:
   forall chunk,
   extcall_properties (volatile_load_sem chunk)
-                     (mksignature (Tptr :: nil) (rettype_of_chunk chunk) cc_default).
+                     [Xptr ---> xtype_of_chunk chunk].
 Proof.
   intros; constructor; intros.
 (* well typed *)
-- inv H. inv H0. apply Val.load_result_rettype.
-  eapply Mem.load_rettype; eauto.
+- inv H. inv H0. apply Val.load_result_xtype.
+  eapply Mem.load_xtype; eauto.
 (* symbols *)
 - inv H0. constructor. eapply volatile_load_preserved; eauto.
 (* valid blocks *)
@@ -960,7 +938,7 @@ Qed.
 Lemma volatile_store_ok:
   forall chunk,
   extcall_properties (volatile_store_sem chunk)
-                     (mksignature (Tptr :: type_of_chunk chunk :: nil) Tvoid cc_default).
+                     [Xptr; xtype_of_chunk chunk ---> Xvoid].
 Proof.
   intros; constructor; intros.
 (* well typed *)
@@ -1005,7 +983,7 @@ Inductive extcall_malloc_sem (ge: Senv.t):
 
 Lemma extcall_malloc_ok:
   extcall_properties extcall_malloc_sem
-                     (mksignature (Tptr :: nil) Tptr cc_default).
+                     [Xsize_t ---> Xptr].
 Proof.
   assert (UNCHANGED:
     forall (P: block -> Z -> Prop) m lo hi v m' b m'',
@@ -1092,7 +1070,7 @@ Inductive extcall_free_sem (ge: Senv.t):
 
 Lemma extcall_free_ok:
   extcall_properties extcall_free_sem
-                     (mksignature (Tptr :: nil) Tvoid cc_default).
+                     [Xptr ---> Xvoid].
 Proof.
   constructor; intros.
 (* well typed *)
@@ -1200,7 +1178,7 @@ Inductive extcall_memcpy_sem (sz al: Z) (ge: Senv.t):
 Lemma extcall_memcpy_ok:
   forall sz al,
   extcall_properties (extcall_memcpy_sem sz al)
-                     (mksignature (Tptr :: Tptr :: nil) Tvoid cc_default).
+                     [Xptr; Xptr ---> Xvoid].
 Proof.
   intros. constructor.
 - (* return type *)
@@ -1312,7 +1290,7 @@ Inductive extcall_annot_sem (text: string) (targs: list typ) (ge: Senv.t):
 Lemma extcall_annot_ok:
   forall text targs,
   extcall_properties (extcall_annot_sem text targs)
-                     (mksignature targs Tvoid cc_default).
+                     (mksignature (List.map inj_type targs) Xvoid cc_default).
 Proof.
   intros; constructor; intros.
 (* well typed *)
@@ -1357,11 +1335,11 @@ Inductive extcall_annot_val_sem (text: string) (targ: typ) (ge: Senv.t):
 Lemma extcall_annot_val_ok:
   forall text targ,
   extcall_properties (extcall_annot_val_sem text targ)
-                     (mksignature (targ :: nil) targ cc_default).
+                     [inj_type targ ---> inj_type targ].
 Proof.
   intros; constructor; intros.
 (* well typed *)
-- inv H. eapply eventval_match_type; eauto.
+- inv H. apply Val.has_inj_type. eapply eventval_match_type; eauto.
 (* symbols *)
 - destruct H as (A & B & C). inv H0. econstructor; eauto.
   eapply eventval_match_preserved; eauto.
@@ -1401,7 +1379,7 @@ Inductive extcall_debug_sem (ge: Senv.t):
 Lemma extcall_debug_ok:
   forall targs,
   extcall_properties extcall_debug_sem
-                     (mksignature targs Tvoid cc_default).
+                     (mksignature (List.map inj_type targs) Xvoid cc_default).
 Proof.
   intros; constructor; intros.
 (* well typed *)
@@ -1444,6 +1422,24 @@ Inductive known_builtin_sem (bf: builtin_function) (ge: Senv.t):
       builtin_function_sem bf vargs = Some vres ->
       known_builtin_sem bf ge vargs m E0 vres m.
 
+Remark known_builtin_sem_inject: forall bf ge vargs m1 t vres m2 f ge' vargs' m',
+  known_builtin_sem bf ge vargs m1 t vres m2 ->
+  Val.inject_list f vargs vargs' ->
+  exists vres', known_builtin_sem bf ge' vargs' m' t vres' m' /\ Val.inject f vres vres'.
+Proof.
+  intros. inv H. exploit builtin_function_sem_inject; eauto. intros (vres' & A & B).
+  exists vres'; auto using known_builtin_sem.
+Qed.
+
+Remark known_builtin_sem_lessdef: forall bf ge vargs m1 t vres m2 ge' vargs' m',
+  known_builtin_sem bf ge vargs m1 t vres m2 ->
+  Val.lessdef_list vargs vargs' ->
+  exists vres', known_builtin_sem bf ge' vargs' m' t vres' m' /\ Val.lessdef vres vres'.
+Proof.
+  intros. inv H. exploit builtin_function_sem_lessdef; eauto. intros (vres' & A & B).
+  exists vres'; auto using known_builtin_sem.
+Qed.
+
 Lemma known_builtin_ok: forall bf,
   extcall_properties (known_builtin_sem bf) (builtin_function_sig bf).
 Proof.
@@ -1462,20 +1458,13 @@ Proof.
 (* readonly *)
 - inv H; auto.
 (* mem extends *)
-- inv H. fold bsem in H2. apply val_inject_list_lessdef in H1.
-  specialize (bs_inject _ bsem _ _ _ H1).
-  unfold val_opt_inject; rewrite H2; intros.
-  destruct (bsem vargs') as [vres'|] eqn:?; try contradiction.
-  exists vres', m1'; intuition auto using Mem.extends_refl, Mem.unchanged_on_refl.
-  constructor; auto.
-  apply val_inject_lessdef; auto.
-(* mem injects *)
-- inv H0. fold bsem in H3.
-  specialize (bs_inject _ bsem _ _ _ H2).
-  unfold val_opt_inject; rewrite H3; intros.
-  destruct (bsem vargs') as [vres'|] eqn:?; try contradiction.
-  exists f, vres', m1'; intuition auto using Mem.extends_refl, Mem.unchanged_on_refl.
-  constructor; auto.
+- assert (m2 = m1) by (inv H; auto). subst m2.
+  exploit known_builtin_sem_lessdef; eauto. intros (vres' & A & B).
+  exists vres', m1'; intuition eauto using Mem.unchanged_on_refl.
+(* mem inject *)
+- assert (m2 = m1) by (inv H0; auto). subst m2.
+  exploit known_builtin_sem_inject; eauto. intros (vres' & A & B).
+  exists f, vres', m1'; intuition eauto using Mem.unchanged_on_refl.
   red; intros; congruence.
 (* trace length *)
 - inv H; simpl; lia.
@@ -1589,7 +1578,7 @@ Lemma external_call_well_typed:
   external_call ef ge vargs m1 t vres m2 ->
   Val.has_type vres (proj_sig_res (ef_sig ef)).
 Proof.
-  intros. apply Val.has_proj_rettype. eapply external_call_well_typed_gen; eauto.
+  intros. apply Val.has_proj_xtype. eapply external_call_well_typed_gen; eauto.
 Qed.
 
 (** Corollary of [external_call_valid_block]. *)
@@ -1718,6 +1707,36 @@ Qed.
 End EVAL_BUILTIN_ARG.
 
 Global Hint Constructors eval_builtin_arg: barg.
+
+Fixpoint builtin_arg_depends_on_memory {A: Type} (ba: builtin_arg A) : bool :=
+  match ba with
+  | BA_loadstack _ _ | BA_loadglobal _ _ _ => true
+  | BA_splitlong a1 a2 | BA_addptr a1 a2 =>
+      builtin_arg_depends_on_memory a1 || builtin_arg_depends_on_memory a2
+  | _ => false
+  end.
+
+Lemma builtin_arg_depends_on_memory_correct:
+  forall (A: Type) m' ge e sp m (ba: builtin_arg A) v,
+  eval_builtin_arg ge e sp m ba v ->
+  builtin_arg_depends_on_memory ba = false ->
+  eval_builtin_arg ge e sp m' ba v.
+Proof.
+  induction 1; simpl; intros; InvBooleans; discriminate || eauto using eval_builtin_arg.
+Qed.
+
+Definition builtin_args_depends_on_memory {A: Type} (bal: list (builtin_arg A)) : bool :=
+  List.existsb builtin_arg_depends_on_memory bal.
+
+Lemma builtin_args_depends_on_memory_correct:
+  forall (A: Type) m' ge e sp m (bal: list (builtin_arg A)) vl,
+  eval_builtin_args ge e sp m bal vl ->
+  builtin_args_depends_on_memory bal = false ->
+  eval_builtin_args ge e sp m' bal vl.
+Proof.
+  unfold eval_builtin_args; induction 1; simpl; intros;
+  InvBooleans; constructor; eauto using builtin_arg_depends_on_memory_correct.
+Qed.
 
 (** Invariance by change of global environment. *)
 

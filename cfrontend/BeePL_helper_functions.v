@@ -5,6 +5,7 @@ Require Import BeePL_aux BeePL BeePL_values BeeTypes BeePL_mem Errors Csyntaxdef
 From mathcomp Require Import all_ssreflect. 
 
 Local Open Scope error_monad_scope.
+Local Open Scope string.
 
 (************* External Call Type Information *******************)
 (***** Map containing information about external calls *****)
@@ -26,10 +27,65 @@ ef_empty_map ["bpf_get_prandom_u32" <- (nil, (tint32u, (Io :: nil)))]
              ["bpf_map_lookup_elem" <- ((tostruct (ident_of_string "bpf_map_type_hash") noattr :: tolongu :: nil), 
                                             (tolongu, (Read mem_ident :: Io :: nil)))]
              ["bpf_map_update_elem" <- ((tostruct (ident_of_string "bpf_map_type_hash") noattr :: tolongu :: tolongu :: tlongu :: nil), 
-                                           (tlongu, (Write mem_ident :: Io :: nil)))].
+                                           (tlongu, (Write mem_ident :: Io :: nil)))]
+             ["bpf_printk" <- ((trint8s :: tint32s :: nil), (tint32s, (Io :: nil)))].
 
 Definition get_ef_type (efenv : ef_env) (s : string) : res ef_info :=
 match efenv[s] with 
 | Some t => OK t
 | None => Error (msg "TYPE ERROR: The type signature of external function is not present in ef_env")
 end.
+
+(* Add more pairs for sec attributes and function arguments *)
+Definition check_type_attr (t : type) (s : string) : bool :=
+let id1 := ident_of_string "xdp" in
+let id2 := ident_of_string "__sk_buff" in 
+let id3 := ident_of_string "pt_regs" in
+match t, s with 
+| Ptrtype (Sptype id1 _), "xdp" => true 
+| (Stype id1 _), "xdp" => true 
+| Ptrtype (Sptype id2 _), "socket" => true 
+| (Stype id2 _), "socket" => true 
+| Ptrtype (Sptype id2 _), "tc" => true 
+| (Stype id2 _), "tc" => true 
+| Ptrtype (Sptype id2 _), "cls" => true 
+| (Stype id2 _), "cls" => true 
+| Ptrtype (Sptype id2 _), "act" => true 
+| (Stype id2 _), "act" => true 
+| Ptrtype (Sptype id2 _), "cgroup/ingress" => true 
+| (Stype id2 _), "cgroup/ingress" => true 
+| Ptrtype (Sptype id2 _), "cgroup/skb" => true 
+| (Stype id2 _), "cgroup/skb" => true 
+| Ptrtype (Sptype id3 _), "kretprobe/do_sys_open" => true 
+| (Stype id3 _), "kretprobe/do_sys_open" => true 
+
+| _, _ => false
+end.
+
+Fixpoint check_type_attrs (ts : list type) (s : string) : bool :=
+match ts with 
+| nil => true 
+| t :: ts' => check_type_attr t s && check_type_attrs ts' s
+end.
+
+
+Fixpoint check_get_fundef_sec (pds : list (ident * BeePL.globdef BeePL.fundef BeeTypes.type * option string)) : bool :=
+match pds with 
+| nil => true 
+| pd :: pds => match pd.1.2 with 
+               | AST.Gfun f => match f with 
+                               | Internal f => if f.(is_ebpf) 
+                                               then let ts := unzip2 f.(fn_args) in
+                                                    match pd.2 with 
+                                                    | Some s => check_type_attrs ts s && check_get_fundef_sec pds
+                                                    | None => check_get_fundef_sec pds
+                                                    end
+                                               else true 
+                               | _ => true 
+                               end
+               | _ => check_get_fundef_sec pds (* fix it later to also check for global variable related to map creation *)
+               end
+     
+end.
+
+
