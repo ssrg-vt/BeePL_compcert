@@ -74,14 +74,14 @@ let parse_file (filename : string) : program =
         (Lexing.lexeme lexbuf);
       exit (-1)
 
-let () =
+(*let () =
   if Array.length Sys.argv < 2 then
     Printf.eprintf "Usage: %s <file.bpl>\n" Sys.argv.(0)
   else
     let program = parse_file Sys.argv.(1) in
     let output = transform_program program in
     print_endline "(* Generated BeePL Coq Function *)\n";
-    print_endline output
+    print_endline output*)
 
 let parse_and_transform_bpl (filename : string) : string =
       let program = parse_file filename in

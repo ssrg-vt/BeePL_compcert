@@ -116,7 +116,8 @@ GENERATED=$(PARSERS:.mly=.mli) $(PARSERS:.mly=.ml) $(LEXERS:.mll=.ml) cparser/pr
 bparser/beepl_ast.cmi bparser/beepl_ast.cmo:  bparser/beepl_ast.ml
 	@$(OCAMLC) -c $<
 
-bparser/beepl_parser.ml bparser/beepl_parser.mli: bparser/beepl_parser.mly bparser/beepl_ast.cmi
+bparser/beepl_parser.ml bparser/beepl_parser.mli: bparser/beepl_parser.mly bparser/beepl_ast.cmi bparser/beepl_ast.cmo
+	@rm -f $@
 	$(MENHIR) --infer --explain --ocamlc "ocamlc $(COMPFLAGS)" $<
 
 bparser/beepl_lexer.ml: bparser/beepl_lexer.mll
@@ -190,7 +191,7 @@ extraction/%.cmx: extraction/%.ml
 clean:
 	rm -f $(EXECUTABLES)
 	rm -f $(GENERATED)
-	for d in $(DIRS); do rm -f $$d/*.cm[iotx] $$d/*cmti $$d/*.o; done
+	for d in $(DIRS); do rm -f $$d/*.cm[iotx] $$d/*cmti $$d/*.o $$d/*.conflicts; done
 	$(MAKE) -C cparser clean
 
 # Generation of .depend.extr
