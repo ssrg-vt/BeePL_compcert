@@ -1,38 +1,39 @@
-type ident = string
+type effect = 
+  | Read of string 
+  | Write of string 
+  | Alloc of string 
+  | Io
 
+type ptype = 
+  | Tbool
+  | Tint32
+  | Tlong
 
-type typ =
-  | TName  of string
-  | TRef   of typ
-  | TArrow of typ list * typ
+type typ = 
+  | Utype
+  | Vtype of ptype 
 
+type const = 
+  | Cunit 
+  | Cbool of bool
+  | Cint32 of int32
+  | Clong of int64
 
-type pattern =
-  | PWildcard
-  | PUnit
-  | PIdent  of ident
-  | PAnnot  of pattern * typ
-
-
-type param = ident * typ option
-
-
+(** The type of the abstract syntax tree (AST). *)
 type expr =
-  | EUnit
-  | EInt32  of string
-  | EVar    of ident
-  | EApply  of expr * expr list
-  | ELet    of pattern * typ option * expr * expr
+  | Var of string 
+  | Const of const
+  | Let of string * typ * expr * expr
+  | If of expr * expr * expr
 
-  | ERef    of expr
-  | EDeref  of expr
-  | EAssign of expr * expr
-  | EBlock  of expr list
+type fundecl = 
+  | Tfundecl of string * typ * effect * (string * typ) list * (string * typ) list * expr * bool
 
-
-type toplevel =
-  | TLLet  of pattern * typ option * expr
-  | TLFunc of ident * param list * typ option * expr
-  | TLExpr of expr
+type toplevel = 
+  | Internal of fundecl 
 
 type program = toplevel list
+
+  
+
+  
