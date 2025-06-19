@@ -10,6 +10,10 @@ open Beepl_ast
 %token INT16TYPE UINT16TYPE 
 %token BOOLTYPE INT32TYPE UINT32TYPE ULONGTYPE LONGTYPE
 %token UNIT
+%token RBOOLTYPE RINT8TYPE RUINT8TYPE  
+%token RINT16TYPE RUINT16TYPE RINT32TYPE RUINT32TYPE
+%token RLONGTYPE RULONGTYPE RARRAY RSTRUCT
+%token RABOOL RAINT8 RAUINT8 RAUINT16 RAINT16 RAINT32 RAUINT32 RALONG RAULONG
 %token FUNC LET IN IF THEN ELSE
 %token LPAREN RPAREN COLON COMMA EQ
 %token LBRACE RBRACE
@@ -17,6 +21,7 @@ open Beepl_ast
 %token STRUCT
 %token HASHEBPF
 %token <string> SECTION
+%token STAR    
 %token EOF
 
 %start <Beepl_ast.program> prog
@@ -78,6 +83,27 @@ typ:
   | ULONGTYPE { Vtype Tulong }
   | LONGTYPE  { Vtype Tlong }
   | UNIT      { Utype }
+  | RBOOLTYPE  { Ptr (Reftype ("h", (Bprim Tbool))) }
+  | RINT8TYPE  { Ptr (Reftype ("h", (Bprim Tint8))) }
+  | RUINT8TYPE { Ptr (Reftype ("h", (Bprim Tuint8))) }
+  | RINT16TYPE { Ptr (Reftype ("h", (Bprim Tint16))) }
+  | RUINT16TYPE { Ptr (Reftype ("h", (Bprim Tuint16))) }
+  | RINT32TYPE { Ptr (Reftype ("h", (Bprim Tint32))) }
+  | RUINT32TYPE { Ptr (Reftype ("h", (Bprim Tuint32))) }
+  | RLONGTYPE { Ptr (Reftype ("h", (Bprim Tlong))) }
+  | RULONGTYPE { Ptr (Reftype ("h", (Bprim Tulong))) }
+  | STRUCT IDENT STAR { Ptr (Reftype ("h", (Bstruct $2))) }
+  | RABOOL LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tbool, Int32.to_int n)))) }
+  | RAINT8 LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tint8, Int32.to_int n)))) }
+  | RAUINT8 LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tuint8, Int32.to_int n)))) }
+  | RAINT16 LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tint16, Int32.to_int n)))) }
+  | RAUINT16 LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tuint16, Int32.to_int n)))) }
+  | RAINT32 LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tint32, Int32.to_int n)))) }
+  | RAUINT32 LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tuint32, Int32.to_int n)))) }
+  | RALONG LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tlong, Int32.to_int n)))) }
+  | RAULONG LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tulong, Int32.to_int n)))) }
+
+(* --- END OF typ --- *)
 
 const:
   | b = BOOL { Cbool b }

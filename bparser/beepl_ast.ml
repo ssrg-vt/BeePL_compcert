@@ -16,9 +16,18 @@ type ptype =
   | Tulong
   | Tlong
 
+type btype =
+  | Bprim of ptype 
+  | Bstruct of string
+  | Barray of ptype * int
+
+type ptrtype =
+  | Reftype of string * btype
+
 type typ = 
   | Utype
   | Vtype of ptype 
+  | Ptr of ptrtype
 
 type const = 
   | Cunit 

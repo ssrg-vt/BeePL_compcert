@@ -38,6 +38,16 @@ rule read_token = parse
   | "bool"          { BOOLTYPE }
   | "ulong"         { ULONGTYPE }
   | "long"          { LONGTYPE }
+  | "bool*"        { RBOOLTYPE }
+  | "int8*"        { RINT8TYPE }
+  | "uint8*"       { RUINT8TYPE }
+  | "int16*"       { RINT16TYPE }
+  | "uint16*"      { RUINT16TYPE }
+  | "int32*"       { RINT32TYPE }
+  | "uint32*"      { RUINT32TYPE }
+  | "long*"        { RLONGTYPE }
+  | "ulong*"       { RULONGTYPE }
+  | "struct*"      { RSTRUCT }
   | "io"            { IO }
   | "divergence"    { DIVERGENCE }
   | "read"          { READ }
@@ -52,6 +62,8 @@ rule read_token = parse
   | "}"             { RBRACE }
   | "[" "]"         { EMPTYBRACKETS }
   | "struct"        { STRUCT }
+  | "*"             { STAR }
+  
 
   | '-'? digit+ as i32 { INT32 (Int32.of_string i32) }
   | '-'? digit+ ['l' 'L'] as l64 {

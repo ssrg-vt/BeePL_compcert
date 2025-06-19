@@ -65,6 +65,21 @@ Local Open Scope csyntax_scope.
   in
   header ^ "\n\n" ^ dattr_def ^ defs ^ "\n\n"
 
+let rec btype_to_coq (bt : btype) : string =
+  match bt with
+  | Bprim Tbool -> "BeeTypes.Tbool"
+  | Bprim Tuint8 -> "BeeTypes.Tuint8 Unsigned dattr"
+  | Bprim Tint8 -> "BeeTypes.Tint I8 Unsigned dattr"
+  | Bprim Tuint16 -> "BeeTypes.Tuint I16 Unsigned dattr"
+  | Bprim Tint16 -> "BeeTypes.Tint I16 Unsigned dattr"
+  | Bprim Tuint32 -> "BeeTypes.Tuint I32 Unsigned dattr"
+  | Bprim Tint32 -> "BeeTypes.Tint I32 Unsigned dattr"
+  | Bprim Tulong -> "BeeTypes.Tulong Unsigned dattr"
+  | Bprim Tlong -> "BeeTypes.Tlong"
+  | Bstruct name -> Printf.sprintf "(Bstruct _%s noattr)" name
+  | Barray (t, n) ->
+    Printf.sprintf "Barray (%s) %d" (btype_to_coq (Bprim t)) n
+
 let typ_to_coq (t : typ) : string =
   match t with
   | Utype -> "Utype"
@@ -77,6 +92,10 @@ let typ_to_coq (t : typ) : string =
   | Vtype Tulong -> "Vtype (BeeTypes.Tulong Unsigned dattr)"
   | Vtype Tbool -> "Vtype Tbool"
   | Vtype Tlong -> "Vtype Tlong"
+  | Ptr (Reftype (name, btype)) ->
+    Printf.sprintf "Ptrtype (Reftype _%s (%s) noattr)" name (btype_to_coq btype)
+
+  
 
 let effect_to_coq (eff : effect) : string =
   match eff with
