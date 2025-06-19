@@ -9,11 +9,14 @@ open Beepl_ast
 %token INT8TYPE UINT8TYPE
 %token INT16TYPE UINT16TYPE 
 %token BOOLTYPE INT32TYPE UINT32TYPE ULONGTYPE LONGTYPE
-%token TRUE FALSE UNIT
-%token FUNC LET IN IF THEN ELSE HASHEBPF
+%token UNIT
+%token FUNC LET IN IF THEN ELSE
 %token LPAREN RPAREN COLON COMMA EQ
 %token LBRACE RBRACE
 %token IO DIVERGENCE READ WRITE ALLOC EMPTYBRACKETS
+%token STRUCT
+%token HASHEBPF
+%token <string> SECTION
 %token EOF
 
 %start <Beepl_ast.program> prog
@@ -21,15 +24,31 @@ open Beepl_ast
 %%
 
 prog:
-  | f = fundecl EOF                { [Internal f] }
-  | HASHEBPF f = fundecl EOF       { [EBPFInternal f] }
+  | tops = toplevel_list EOF { tops }
 
-fundecl:
-  | FUNC id = IDENT LPAREN args = separated_list(COMMA, arg) RPAREN
-    COLON ret = typ COMMA effects = effect_list LBRACE body = expr RBRACE
+toplevel_list:
+  | tl = toplevel { [tl] }
+  | tl = toplevel tlrest = toplevel_list { tl :: tlrest }
+
+toplevel:
+  | anns = annotations FUNC id = IDENT LPAREN args = separated_list(COMMA, arg) RPAREN
+    COLON ret = typ COMMA effs = effect_list LBRACE body = expr RBRACE
     {
-      Tfundecl(id, ret, effects, args, [], body)
+      let f = Tfundecl(id, ret, effs, args, [], body) in
+      match anns with
+      | (false, sec) -> Internal (f, sec)
+      | (true, sec)  -> EBPFInternal (f, sec)
     }
+  | STRUCT id = IDENT LBRACE fields = separated_list(COMMA, field_decl) RBRACE
+    { StructDecl(id, fields) }
+
+annotations:
+  | anns = annotation_list { anns }
+
+annotation_list:
+  | HASHEBPF rest = annotation_list { let (is_ebpf, section) = rest in (true, section) }
+  | secname = SECTION rest = annotation_list { let (is_ebpf, _) = rest in (is_ebpf, Some secname) }
+  | /* empty */ { (false, None) }
 
 effect_list:
   | EMPTYBRACKETS { [] }
@@ -37,6 +56,9 @@ effect_list:
 
 arg:
   | t = typ id = IDENT { (id, t) }
+
+field_decl:
+  | id = IDENT COLON t = typ { (id, t) }
 
 effect:
   | DIVERGENCE { Divergence }
@@ -58,9 +80,8 @@ typ:
   | UNIT      { Utype }
 
 const:
-  | TRUE    { Cbool true }
-  | FALSE   { Cbool false }
-  | UNIT    { Cunit }
+  | b = BOOL { Cbool b }
+  | UNIT     { Cunit }
   | i = INT32 { Cint32 i }
   | l = INT64 { Clong l }
 
@@ -71,5 +92,3 @@ expr:
     { Let(id, t, e1, e2) }
   | IF e1 = expr THEN e2 = expr ELSE e3 = expr
     { If(e1, e2, e3) }
-
-

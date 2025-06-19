@@ -67,6 +67,7 @@ let infer_fundecl (Tfundecl (_name, ret_type, _eff, args, _vars, body)) : (strin
 let infer_program (prog : program) =
   List.iter
     (function
-      | Internal f -> ignore (infer_fundecl f)
-      | EBPFInternal f -> ignore (infer_fundecl f)
+      | Internal (f, section) -> ignore (infer_fundecl f)
+      | EBPFInternal (f, section) -> ignore (infer_fundecl f)
+      | StructDecl (_id, _fields) -> ()
     ) prog

@@ -1,3 +1,4 @@
+(* beepl_lexer.mll *)
 {
 open Beepl_parser
 open Lexing
@@ -9,11 +10,12 @@ let next_line lexbuf =
   lexbuf.lex_curr_p <- { pos with pos_bol = lexbuf.lex_curr_pos; pos_lnum = pos.pos_lnum + 1 }
 }
 
-let whitespace = [' ' '\t' '\r']
+let whitespace = [' ' '	' '\r']
 let newline = '\n'
 let letter = ['a'-'z' 'A'-'Z' '_']
 let digit = ['0'-'9']
 let ident = letter (letter | digit)*
+let identchar = letter | digit | '_'
 
 rule read_token = parse
   | whitespace+     { read_token lexbuf }
@@ -49,6 +51,7 @@ rule read_token = parse
   | "{"             { LBRACE }
   | "}"             { RBRACE }
   | "[" "]"         { EMPTYBRACKETS }
+  | "struct"        { STRUCT }
 
   | '-'? digit+ as i32 { INT32 (Int32.of_string i32) }
   | '-'? digit+ ['l' 'L'] as l64 {
@@ -57,9 +60,7 @@ rule read_token = parse
     }
 
   | ident as id     { IDENT id }
-  | "#" ['a'-'z' 'A'-'Z' '_']+ as tag { match tag with
-    | "#ebpf" -> HASHEBPF
-    | _ -> raise (SyntaxError ("Unknown annotation: " ^ tag))
-  }
+  | "#ebpf"         { HASHEBPF }
+  | "#section" whitespace+ (letter identchar*) as id { SECTION id }
   | eof             { EOF }
   | _               { raise (SyntaxError ("Unrecognized character: " ^ Lexing.lexeme lexbuf)) }

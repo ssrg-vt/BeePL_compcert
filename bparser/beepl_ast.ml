@@ -37,8 +37,10 @@ type fundecl =
   | Tfundecl of string * typ * effect list * (string * typ) list * (string * typ) list * expr
 
 type toplevel =
-  | Internal of fundecl
-  | EBPFInternal of fundecl
+  | Internal of fundecl * string option  (* section *)
+  | EBPFInternal of fundecl * string option
+  | StructDecl of string * (string * typ) list
+
 
 type program = toplevel list
 

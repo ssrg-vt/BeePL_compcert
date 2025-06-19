@@ -21,11 +21,14 @@ let collect_idents (prog : program) : string list =
   in
   List.fold_left (fun acc top ->
     match top with
-    | Internal (Tfundecl (name, _, _, args, _, body))
-    | EBPFInternal (Tfundecl (name, _, _, args, _, body)) ->
+    | Internal (Tfundecl (name, _, _, args, _, body), _)
+    | EBPFInternal (Tfundecl (name, _, _, args, _, body), _) ->
         let acc = if List.mem name acc then acc else name :: acc in
         let acc = List.fold_left add_var acc args in
         from_expr acc body
+    | StructDecl (sname, fields) ->
+        let acc = if List.mem sname acc then acc else sname :: acc in
+        List.fold_left add_var acc fields      
   ) [] prog
 
 (* Generate Coq identifier declarations *)
@@ -103,28 +106,26 @@ let const_to_coq c =
     match e with
     | Var id ->
         let ty = List.assoc id env in
-        Printf.sprintf "Var _%s (%s)" id (typ_to_coq ty)
+        Printf.sprintf "(Var _%s (%s))" id (typ_to_coq ty)
     | Const c ->
         let ty = typ_to_coq (infer_expr (list_to_env env) e) in
-        Printf.sprintf "Const %s (%s)" (const_to_coq c) ty
+        Printf.sprintf "(Const %s (%s))" (const_to_coq c) ty
     | Let (id, t, e1, e2) ->
         let e1_str = expr_to_coq env e1 in
         let env' = (id, t) :: env in
         let e2_str = expr_to_coq env' e2 in
         let ty2 = typ_to_coq (infer_expr (list_to_env env') e2) in
         Printf.sprintf 
-        "Bind _%s (%s)\n                  %s\n                  %s\n                  %s"
+        "(Bind _%s (%s)\n                  %s\n                  %s\n             (%s))"
           id (typ_to_coq t) e1_str e2_str ty2
     | If (e1, e2, e3) ->
         let ty2 = typ_to_coq (infer_expr (list_to_env env) e2) in
-        Printf.sprintf "Cond %s %s %s %s"
+        Printf.sprintf 
+        "(Cond (%s)\n                       (%s)\n                       (%s)\n                  (%s))"
           (expr_to_coq env e1)
           (expr_to_coq env e2)
           (expr_to_coq env e3)
           ty2
-
-  
-  
 
 let transform_function (Tfundecl (name, ret, eff, args, vars, body)) is_ebpf =
   let env = infer_fundecl (Tfundecl (name, ret, eff, args, vars, body)) in
@@ -142,14 +143,101 @@ let transform_function (Tfundecl (name, ret, eff, args, vars, body)) is_ebpf =
     body_str
     (if is_ebpf then "true" else "false")
 
+let transform_struct (name : string) (fields : (string * typ) list) : string =
+  let members = List.map (fun (id, t) -> Printf.sprintf "Member_plain _%s (%s)" id (typ_to_coq t)) fields in
+  Printf.sprintf
+    "Definition bcomposites : list bcomposite_definition :=\n(Bcomposite _%s Struct\n   (%s :: nil)\n   noattr :: nil)." name (String.concat " ::\n    " members)
+
+let starts_with ~prefix s =
+  let plen = String.length prefix in
+  String.length s >= plen && String.sub s 0 plen = prefix
+    
+let coq_globals prog =
+      let clean_section s =
+        let prefix = "#section " in
+        if starts_with ~prefix s then String.sub s (String.length prefix) (String.length s - String.length prefix)
+        else s
+      in
+      let entries =
+        List.filter_map (function
+          | Internal (Tfundecl (name, _, _, _, _, _), section)
+          | EBPFInternal (Tfundecl (name, _, _, _, _, _), section) ->
+              let sec_str = match section with
+                | Some s -> Printf.sprintf "Some \"%s\"" (clean_section s)
+                | None -> "None"
+              in
+              Some (Printf.sprintf "(_%s, AST.Gfun (BeePL.Internal f_%s), %s)" name name sec_str)
+          | _ -> None
+        ) prog
+      in
+      if entries = [] then ""
+      else "Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) :=\n  " ^
+            String.concat " ::\n  " entries ^ " :: nil.\n"
+    
+    
+let collect_public_idents prog =
+  List.filter_map (function
+    | Internal (Tfundecl (name, _, _, _, _, _), _)
+    | EBPFInternal (Tfundecl (name, _, _, _, _, _), _) ->
+        Some ("_" ^ name)
+      | _ -> None
+  ) prog
+
+  let coq_public_idents prog =
+    let idents = collect_public_idents prog in
+    match idents with
+    | [] -> ""
+    | _ ->
+      Printf.sprintf "Definition public_idents : list ident := (%s :: nil).\n"
+        (String.concat " :: " idents)
+  
+let find_main_or_fallback prog : string =
+  let is_main name = name = "main" in
+  let extract_name = function
+    | Internal (Tfundecl (name, _, _, _, _, _), _)
+    | EBPFInternal (Tfundecl (name, _, _, _, _, _), _) -> Some name
+    | _ -> None in
+  let names = List.filter_map extract_name prog in
+  match List.find_opt is_main names with
+    | Some name -> name
+    | None ->
+  match names with
+    | fn :: _ -> fn
+    | [] -> failwith "No function declarations found"
+        
+let coq_program_wrapper ?(name="example1") (entry : string) : string =
+  Printf.sprintf
+    "Definition %s : BeePL.program := @mkbprogram bcomposites\n\
+         \                                        global_definitions\n\
+         \                                        public_idents\n\
+         \                                        _%s\n\
+         \                                        bcomposite_correct\n\
+         \                                        ident_to_string.\n"
+        name entry
+                      
+
 let transform_toplevel = function
-  | Internal f -> transform_function f false
-  | EBPFInternal f -> transform_function f true
+  | Internal(f, sec) -> transform_function f false
+  | EBPFInternal(f, sec) -> transform_function f true
+  | StructDecl (name, fields) -> transform_struct name fields
 
-let transform_program (prog : program) =
-    let coq_header = generate_coq_prelude prog in
-    coq_header ^ String.concat "\n\n" (List.map transform_toplevel prog)
-
+let coq_bcomposite_correct_lemma = {|
+Lemma bcomposite_correct : wf_bcomposites bcomposites.
+Proof.
+  unfold wf_bcomposites.
+  unfold build_bcomposite_env; simpl; reflexivity.
+Qed. |}
+  
+let transform_program prog =
+  let coq_header = generate_coq_prelude prog in
+  let defs = List.map transform_toplevel prog in
+  let globals = coq_globals prog in
+  let publics = coq_public_idents prog in
+  let entry = find_main_or_fallback prog in
+  let wrapper = coq_program_wrapper ~name:"bprogram" entry in
+  coq_header ^ String.concat "\n\n" defs ^ "\n\n" ^ globals ^ "\n" ^ publics ^ "\n" ^ coq_bcomposite_correct_lemma ^ "\n\n" ^ wrapper
+  
+  
 let parse_file (filename : string) : program =
   let ch = open_in filename in
   let lexbuf = from_channel ch in
