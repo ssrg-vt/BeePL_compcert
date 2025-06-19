@@ -308,8 +308,8 @@ let process_h_file sourcename =
 
 let process_bpl_file sourcename =
   let transformed = Beepl_transformer.parse_and_transform_bpl sourcename in
-  (* Save transformed string to .beepl file *)
-  let output_name = output_filename sourcename ~suffix:".beepl" in
+  (* Save transformed string to .v file *)
+  let output_name = output_filename sourcename ~suffix:".v" in
   let oc = open_out output_name in
   output_string oc transformed;
   close_out oc;

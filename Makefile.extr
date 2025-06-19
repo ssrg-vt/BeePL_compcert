@@ -123,6 +123,15 @@ bparser/beepl_parser.ml bparser/beepl_parser.mli: bparser/beepl_parser.mly bpars
 bparser/beepl_lexer.ml: bparser/beepl_lexer.mll
 	$(OCAMLLEX) $<
 
+bparser/beepl_ast_typechecker.cmi: bparser/beepl_ast_typechecker.mli
+	@echo "OCAMLC   $<"
+	@$(OCAMLC) $(WARNINGS) -c $<
+
+bparser/beepl_ast_typechecker.cmo: bparser/beepl_ast_typechecker.ml bparser/beepl_ast_typechecker.cmi
+	@echo "OCAMLC   $<"
+	@$(OCAMLC) $(WARNINGS) -c $<
+
+
 # Beginning of part that assumes .depend.extr already exists
 
 ifeq ($(wildcard .depend.extr),.depend.extr)

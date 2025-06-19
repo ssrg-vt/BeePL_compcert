@@ -27,10 +27,20 @@ rule read_token = parse
   | "true"          { BOOL true }
   | "false"         { BOOL false }
   | "unit"          { UNIT }
-  | "int"           { INT32TYPE }
+  | "int8"          { INT8TYPE }
+  | "uint8"         { UINT8TYPE }
+  | "int16"         { INT16TYPE }
+  | "uint16"        { UINT16TYPE }
+  | "int32"         { INT32TYPE }
+  | "uint32"        { UINT32TYPE }
   | "bool"          { BOOLTYPE }
+  | "ulong"         { ULONGTYPE }
   | "long"          { LONGTYPE }
   | "io"            { IO }
+  | "divergence"    { DIVERGENCE }
+  | "read"          { READ }
+  | "write"         { WRITE }
+  | "alloc"         { ALLOC }
   | "("             { LPAREN }
   | ")"             { RPAREN }
   | ":"             { COLON }
@@ -38,6 +48,7 @@ rule read_token = parse
   | "="             { EQ }
   | "{"             { LBRACE }
   | "}"             { RBRACE }
+  | "[" "]"         { EMPTYBRACKETS }
 
   | '-'? digit+ as i32 { INT32 (Int32.of_string i32) }
   | '-'? digit+ ['l' 'L'] as l64 {
@@ -46,5 +57,9 @@ rule read_token = parse
     }
 
   | ident as id     { IDENT id }
+  | "#" ['a'-'z' 'A'-'Z' '_']+ as tag { match tag with
+    | "#ebpf" -> HASHEBPF
+    | _ -> raise (SyntaxError ("Unknown annotation: " ^ tag))
+  }
   | eof             { EOF }
   | _               { raise (SyntaxError ("Unrecognized character: " ^ Lexing.lexeme lexbuf)) }
