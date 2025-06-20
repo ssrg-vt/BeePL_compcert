@@ -75,10 +75,16 @@ Proof.
       * exact Hvm.
   - split.
     + constructor. inv Hloc.
-      intros. specialize (H x0 ofs t0 H0).
-      destruct H as [chunk [h1 h2]].
-      exists chunk.
-      auto.
+      destruct H as [H1 H2].
+      split.
+      * intros. 
+        specialize (H1 x0 ofs t0 H).
+        destruct H1 as [chunk [h1 h2]].
+        exists chunk.
+        auto.
+      * intros.
+        specialize (H2 chunk x0 ofs t0 H).
+        exact H2.
     + constructor. inv Hfunc.
       intros. specialize (H l0 o ef te ts efs rt vs efs' H0 H1 H2).
       destruct H as [fd H].
@@ -108,6 +114,8 @@ Proof.
       inv Hderef.
       * eapply deref_addr_value; eauto.
         admit.
+      * eapply deref_loc_volatile; eauto.
+        admit.
       * eapply deref_addr_reference; eauto.
       * eapply deref_addr_copy; eauto.
     + constructor 2.
@@ -120,15 +128,25 @@ Proof.
       inv Hderef.
       * eapply deref_addr_value; eauto.
         admit.
+      * eapply deref_loc_volatile; eauto.
+        admit.
       * eapply deref_addr_reference; eauto.
       * eapply deref_addr_copy; eauto.
   - inv Hloc.
+    destruct H as [H1 H2].
     constructor.
-    intros x ofs t [HSigma Hvolatile].
-    destruct (H x ofs t) as [chunk [Hvalid Hchunk]]; auto.
-    exists chunk.
-    split; [|exact Hchunk].
-    eapply Mem.valid_access_alloc_other; eauto.
+    split.
+    + intros x ofs t Hsigma.
+      destruct (H1 x ofs t) as [chunk [Hvalid Hchunk]]; auto.
+      exists chunk.
+      split; [|exact Hchunk].
+      eapply Mem.valid_access_alloc_other; eauto.
+    + intros chunk x ofs t Hvalid.
+      specialize (H2 chunk x ofs t).
+      destruct Hvalid as [Hmem Hchunk].
+      apply H2.
+      split; [|exact Hchunk].
+      admit.
   - inv Hfun.
     constructor.
     intros l o ef te ts efs rt vs efs' Hte Heq_type Htes.
@@ -194,6 +212,8 @@ Proof.
       inv Hderef.
       * eapply deref_addr_value; eauto.
         admit.
+      * eapply deref_loc_volatile; eauto.
+        admit.
       * eapply deref_addr_reference; eauto.
       * eapply deref_addr_copy; eauto.
     + constructor 2. intros x t0 HGamma.
@@ -203,13 +223,21 @@ Proof.
       split; [exact Hvm | split; [exact Hfind | split; [exact HSigma |]]].
       admit.
   - inv Hloc.
+    destruct H as [H1 H2].
     constructor.
-    intros x ofs t0 [HSigma Hvolatile].
-    specialize (H x ofs t0 (conj HSigma Hvolatile)).
-    destruct H as [chunk' [Hvalid Hchunk']].
-    exists chunk'.
-    split; [| exact Hchunk'].
-    eapply Mem.store_valid_access_1; eauto.
+    split.
+    + intros x ofs t0 Hsigma.
+      specialize (H1 x ofs t0 Hsigma).
+      destruct H1 as [chunk' [Hvalid Hchunk']].
+      exists chunk'.
+      split; [| exact Hchunk'].
+      eapply Mem.store_valid_access_1; eauto.
+    + intros chunk' x ofs t0 Hvalid.
+      specialize (H2 chunk' x ofs t0).
+      destruct Hvalid as [Hmem Hchunk'].
+      apply H2.
+      split; [|exact Hchunk'].
+      admit.
   - inv Hfunc.
     constructor.
     intros l o ef te ts efs rt vs efs' Htype Heqtype Htypes.
@@ -218,11 +246,11 @@ Proof.
 Admitted.
 
 (* I think we can prove this and make the well formedness definition simpler *)
-Lemma safe_deref_valid_pointers : forall Sigma m x ofs pt chunk, 
+Lemma safe_deref_valid_pointers : forall bge Sigma m x ofs pt chunk, 
 PTree.get x Sigma = Some (Ptrtype pt) ->
 chunk_of_type (get_data_type pt) = Some chunk ->
 Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
-exists v, deref_addr (get_data_type pt) m x ofs Full v. 
+exists v, deref_addr bge (get_data_type pt) m x ofs Full v. 
 Proof.
 move=> Sigma m x ofs pt chunk hs htv hc hl. 
 (*Mem.valid_access_freeable_any*)
@@ -243,6 +271,7 @@ move=> cenv Sigma bge vm m x ofs h bt a hs hv.
 Admitted.
 
 (* Allocation through ref should be successful in getting space in memory and storing value v to it *)
+(* Not true, if t = Utype and v = Vunit then typeof_value v t holds but chunk_of_type t = None *)
 Lemma ref_allocation_succeeds : forall cenv Gamma Sigma (p : BeePL.program) (bge : BeePL.genv) (vm : vmap) 
 (m : Memory.mem) (v : BeePL_values.value) (t : type) ml,
 store_well_typed cenv Gamma Sigma bge vm m ->
@@ -260,8 +289,61 @@ case hc: (chunk_of_type t)=> [chunk | ] //=.
   have hs : size_chunk (transl_bchunk_cchunk chunk) <= sizeof_type (p.(prog_comp_env)) t. + by apply chunk_fits_allocation.
   have [m' hms] := storev_succeeds_on_fresh_alloc m chunk v' (sizeof_type (p.(prog_comp_env)) t) hs.
   exists m'. exists chunk. exists v'. split=> //=; split=> //=; split=> //=.
-  + admit.
-  admit.
+  + assert (b = Mem.nextblock m).
+    {
+      injection ha; intros; auto.
+    }
+    subst b.
+    assert (H: m1 = {|
+      Mem.mem_contents := PMap.set (Mem.nextblock m) (ZMap.init Undef) (Mem.mem_contents m);
+      Mem.mem_access := PMap.set (Mem.nextblock m)
+        (fun ofs : Z => fun=> (if zle 0 ofs && zlt ofs (sizeof_type (prog_comp_env p) t)
+                                 then Some Freeable else None)) (Mem.mem_access m);
+      Mem.nextblock := Pos.succ (Mem.nextblock m);
+      Mem.access_max := fun b => [eta Memory.Mem.alloc_obligation_1 m 0 (sizeof_type (prog_comp_env p) t) b];
+      Mem.nextblock_noaccess := fun b ofs k => [eta Memory.Mem.alloc_obligation_2 m 0 (sizeof_type (prog_comp_env p) t) b ofs k];
+      Mem.contents_default := [eta Memory.Mem.alloc_obligation_3 m]
+    |}).
+    {
+      injection ha; intros; subst.
+      apply Mem.mkmem_ext; auto.
+    }
+    rewrite <- H in hms.
+    unfold Mem.storev in hms.
+    rewrite Ptrofs.unsigned_zero in hms.
+    exact hms.
+  assert (Hm1_wt: store_well_typed cenv Gamma Sigma bge vm m1).
+  {
+    apply (store_well_typed_mem_alloc cenv Gamma Sigma bge vm m 0 (sizeof_type (prog_comp_env p) t) m1 b).
+    - exact he.
+    - exact ha.
+  }
+
+  apply (store_well_typed_preserve cenv Gamma Sigma bge vm m1 chunk (Mem.nextblock m) v t m').
+  - exact Hm1_wt.
+  - exact ht.
+  - exact hc.
+  - assert (b = Mem.nextblock m).
+    {
+      injection ha; intros; auto.
+    }
+    subst b.
+    assert (H: m1 = {|
+      Mem.mem_contents := PMap.set (Mem.nextblock m) (ZMap.init Undef) (Mem.mem_contents m);
+      Mem.mem_access := PMap.set (Mem.nextblock m)
+        (fun ofs : Z => fun=> (if zle 0 ofs && zlt ofs (sizeof_type (prog_comp_env p) t)
+                                 then Some Freeable else None)) (Mem.mem_access m);
+      Mem.nextblock := Pos.succ (Mem.nextblock m);
+      Mem.access_max := fun b => [eta Memory.Mem.alloc_obligation_1 m 0 (sizeof_type (prog_comp_env p) t) b];
+      Mem.nextblock_noaccess := fun b ofs k => [eta Memory.Mem.alloc_obligation_2 m 0 (sizeof_type (prog_comp_env p) t) b ofs k];
+      Mem.contents_default := [eta Memory.Mem.alloc_obligation_3 m]
+    |}).
+    {
+      injection ha; intros; subst.
+      apply Mem.mkmem_ext; auto.
+    }
+    rewrite <- H in hms.
+    exact hms.
 admit.
 Admitted.
 
