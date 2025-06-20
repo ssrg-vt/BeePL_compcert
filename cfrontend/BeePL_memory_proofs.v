@@ -14,70 +14,33 @@ Values.Val.has_type v (typ_of_type ty).
 Proof.
   intros ty chunk v ha hv.
   destruct chunk; simpl in *.
-  (* Mbool *)
   - induction ty; intros; try discriminate; auto.
     destruct f; discriminate.
-    injection ha as contra.
-    unfold Mptr in contra.
-    destruct Archi.ptr64 eqn:Eptr; discriminate.
-  (* Mint8signed *)
   - induction ty; intros; try discriminate; auto.
     destruct f; discriminate.
-    injection ha as contra.
-    unfold Mptr in contra.
-    destruct Archi.ptr64 eqn:Eptr; discriminate.
   - induction ty; intros; try discriminate; auto.
     destruct f; discriminate.
-    injection ha as contra.
-    unfold Mptr in contra.
-    destruct Archi.ptr64 eqn:Eptr; discriminate.
   - induction ty; intros; try discriminate; auto.
     destruct f; discriminate.
-    injection ha as contra.
-    unfold Mptr in contra.
-    destruct Archi.ptr64 eqn:Eptr; discriminate.
-- induction ty; intros; try discriminate; auto.
+  - induction ty; intros; try discriminate; auto.
     destruct f; discriminate.
-    injection ha as contra.
-    unfold Mptr in contra.
-    destruct Archi.ptr64 eqn:Eptr; discriminate.
   - induction ty; intros; try discriminate; auto.
     destruct f eqn:Ef; try discriminate.
-    injection ha as contra.
-    unfold Mptr in contra.
-    destruct Archi.ptr64 eqn:Eptr; try discriminate.
-    simpl. unfold Tptr. rewrite Eptr. auto.
   - induction ty; intros; try discriminate; auto.
     destruct i; destruct s; discriminate.
     destruct f; discriminate.
-    injection ha as contra.
-    unfold Mptr in contra.
-    destruct Archi.ptr64 eqn:Eptr; try discriminate.
-    simpl. unfold Tptr. rewrite Eptr. auto.
   - induction ty; intros; try discriminate; auto.
     destruct i; destruct s; discriminate.
     destruct f; try discriminate; auto.
-    injection ha as contra.
-    unfold Mptr in contra.
-    destruct Archi.ptr64 eqn:Eptr; discriminate.
   - induction ty; intros; try discriminate; auto.
     destruct i; destruct s; discriminate.
     destruct f; try discriminate; auto.
-    injection ha as contra.
-    unfold Mptr in contra.
-    destruct Archi.ptr64 eqn:Eptr; discriminate.
   - induction ty; intros; try discriminate; auto.
     destruct i; destruct s; discriminate.
     destruct f eqn:Ef; try discriminate.
-    injection ha as contra.
-    unfold Mptr in contra.
-    destruct Archi.ptr64 eqn:Eptr; try discriminate.
   - induction ty; intros; try discriminate; auto.
     destruct i; destruct s; discriminate.
-    destruct f eqn:Ef; try discriminate.
-    injection ha as contra.
-    unfold Mptr in contra.
-    destruct Archi.ptr64 eqn:Eptr; try discriminate.
+    destruct f eqn:Ef; discriminate.
 Qed.
 
 (* Complete me: Easy *)

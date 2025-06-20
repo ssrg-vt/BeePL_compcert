@@ -398,7 +398,7 @@ Inductive rel_type : BeeTypes.type -> Ctypes.type -> Prop :=
 | rel_ftype : forall ts cts ef t ct,
               rel_types ts cts ->
               rel_type t ct -> 
-              length ts = length (from_typelist cts) ->
+              length ts = length cts ->
               rel_type (Ftype ts ef t) (Tfunction cts ct 
                                         {| cc_vararg := Some (Z.of_nat (length ts)); cc_unproto := false; cc_structret := false |}) 
 | rel_atype : forall t z a ct,
@@ -421,7 +421,7 @@ with rel_ptr_type : BeeTypes.ptr_type -> Ctypes.type -> Prop :=
 | rel_fptype : forall ts cts ef t ct,
                rel_types ts cts ->
                rel_type t ct ->
-               length ts = length (from_typelist cts) ->
+               length ts = length cts ->
                rel_ptr_type (Fptype ts ef t) (Ctypes.Tpointer (Tfunction cts ct
                                               {| cc_vararg := None; cc_unproto := false; cc_structret := false |})
                                               noattr)
@@ -430,12 +430,12 @@ with rel_ptr_type : BeeTypes.ptr_type -> Ctypes.type -> Prop :=
 | rel_aptype : forall t z a ct,
                rel_type t ct ->
                rel_ptr_type (Aptype t z a) (Ctypes.Tpointer (Tarray ct z a) a)
-with rel_types : list BeeTypes.type -> Ctypes.typelist -> Prop :=
-| rel_tnil : rel_types nil Tnil
+with rel_types : list BeeTypes.type -> list Ctypes.type -> Prop :=
+| rel_tnil : rel_types nil nil
 | rel_tcons : forall bt bts ct cts,
               rel_type bt ct ->
               rel_types bts cts ->
-              rel_types (bt :: bts) (Tcons ct cts).
+              rel_types (bt :: bts) (ct :: cts).
 
 Scheme rel_type_ind_mut := Induction for rel_type Sort Prop
   with rel_ptrtype_ind_mut := Induction for rel_ptr_type Sort Prop
@@ -447,7 +447,7 @@ Context (Rpt : BeeTypes.primitive_type -> Ctypes.type -> Prop).
 Context (Rbt : BeeTypes.basic_type -> Ctypes.type -> Prop).
 Context (Rt : BeeTypes.type -> Ctypes.type -> Prop).
 Context (Rptr : BeeTypes.ptr_type -> Ctypes.type -> Prop).
-Context (Rts : list BeeTypes.type -> Ctypes.typelist -> Prop).
+Context (Rts : list BeeTypes.type -> list Ctypes.type -> Prop).
 Context (Htbool : Rpt Tbool (Ctypes.Tint I8 Unsigned noattr)).
 Context (Htint : forall sz s a, Rpt (Tint sz s a) (Ctypes.Tint sz s a)).
 Context (Htlong : forall s a, Rpt (Tlong s a) (Ctypes.Tlong s a)).
@@ -470,8 +470,8 @@ Context (Hfptype : forall ts cts ef t ct, Rts ts cts -> Rt t ct -> Rptr (Fptype 
                    {| cc_vararg := None; cc_unproto := false; cc_structret := false|}) noattr)).
 Context (Hsptype : forall s a, Rptr (Sptype s a) (Tpointer (Tstruct s a) a)).
 Context (Haptype : forall t z a ct, Rt t ct -> Rptr (Aptype t z a) (Ctypes.Tpointer (Tarray ct z a) a)).
-Context (Hnil : Rts nil Tnil).
-Context (Hcons : forall t ct ts cts, Rt t ct -> Rts ts cts -> Rts (t :: ts) (Tcons ct cts)).
+Context (Hnil : Rts nil nil).
+Context (Hcons : forall t ct ts cts, Rt t ct -> Rts ts cts -> Rts (t :: ts) (ct :: cts)).
 
 Lemma rel_type_indP : 
 (forall t ct, rel_type t ct -> Rt t ct) /\
@@ -915,10 +915,10 @@ Inductive match_function : BeePL.function -> Csyntax.function -> Prop :=
   BeePL.fn_callconv bf = Csyntax.fn_callconv cf ->
   BeePL_aux.unzip1 (BeePL.fn_args bf) = BeePL_aux.unzip1 (Csyntax.fn_params cf) ->
   transBeePL_types transBeePL_type (BeePL_aux.unzip2 (BeePL.fn_args bf)) = 
-  to_typelist (BeePL_aux.unzip2 (Csyntax.fn_params cf)) ->
+  BeePL_aux.unzip2 (Csyntax.fn_params cf) ->
   BeePL_aux.unzip1 (BeePL.fn_vars bf) = BeePL_aux.unzip1 (Csyntax.fn_vars cf) ->
   transBeePL_types transBeePL_type (BeePL_aux.unzip2 (BeePL.fn_vars bf)) = 
-  to_typelist (BeePL_aux.unzip2 (Csyntax.fn_vars cf)) ->
+  BeePL_aux.unzip2 (Csyntax.fn_vars cf) ->
   sim_bexpr_cstmt vm (BeePL.fn_body bf) ctx (Csyntax.fn_body cf) ctx' ->
   match_function bf cf.
 
@@ -1466,12 +1466,11 @@ Admitted.
 
 (* Complete Me *)
 (* Preservation of allocation of variables between BeePL and Csyntax *)
-Lemma alloc_variables_preserved: forall m m' benv' vrs cvrs cvrs' cvrs'' cts g g' i,
+Lemma alloc_variables_preserved: forall m m' benv' vrs cvrs cvrs' cts g g' i,
 BeePL.alloc_variables benv m vrs benv' m' ->
 unzip1 vrs = cvrs ->
 unzip2 vrs = cvrs' ->
-transBeePL_types transBeePL_type cvrs' g = Res cvrs'' g' i ->
-from_typelist cvrs'' = cts ->
+transBeePL_types transBeePL_type cvrs' g = Res cts g' i ->
 exists cenv', Csem.alloc_variables cge cenv m (zip cvrs cts) cenv' m'.
 Proof.
 Admitted.
@@ -1482,8 +1481,7 @@ Lemma bind_variables_preserved: forall m m' benv' vrs cvrs cvrs' cvrs'' cts g g'
 BeePL.bind_variables bge benv m vrs benv' m' ->
 unzip1 vrs = cvrs ->
 unzip2 vrs = cvrs' ->
-transBeePL_types transBeePL_type cvrs' g = Res cvrs'' g' i ->
-from_typelist cvrs'' = cts ->
+transBeePL_types transBeePL_type cvrs' g = Res cts g' i ->
 exists cenv', Csem.bind_parameters cge cenv m (zip cvrs cts) cenv' m'.
 Proof.
 Admitted.

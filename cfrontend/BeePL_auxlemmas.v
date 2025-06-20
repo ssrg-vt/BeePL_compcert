@@ -176,18 +176,3 @@ Proof.
     + simpl in *. f_equal. rewrite IHl1. auto.
 Qed.
 
-Lemma to_typelist_cancel : forall (l : typelist),
-  to_typelist (from_typelist l) = l.
-Proof.
-  induction l.
-  - auto.
-  - simpl. f_equal. auto.
-Qed.
-
-Lemma from_typelist_cancel : forall (l : list Ctypes.type),
-  from_typelist (to_typelist l) = l.
-Proof.
-  induction l.
-  - auto.
-  - simpl. f_equal. auto.
-Qed.

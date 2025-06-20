@@ -320,7 +320,7 @@ with transBeePL_ptr_type (pt : ptr_type) : Ctypes.type :=
 
 Lemma transBeePL_types_length : forall ts cts,
   transBeePL_types transBeePL_type ts = cts ->
-  length ts = length (from_typelist cts).
+  length ts = length cts.
 Proof.
   induction ts; intros.
   - inversion H. subst. reflexivity.
