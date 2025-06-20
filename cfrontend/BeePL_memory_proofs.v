@@ -83,6 +83,7 @@ Qed.
 (* Complete me: Easy *)
 Definition store_well_typed_ext : forall cenv Gamma Sigma bge vm m x l t,
 store_well_typed cenv Gamma Sigma bge vm m ->
+(* don't think this is actually necessary *)
 (*(Gamma ! x = None \/ (exists t', Gamma ! x = Some t' /\ t' = t)) ->*) (* we would need this *)
 store_well_typed cenv Gamma Sigma bge (PTree.set x (l, t) vm) m.
 Proof.
@@ -98,7 +99,7 @@ Proof.
       subst.
       rewrite PTree.gsspec.
       destruct (peq x0 x).
-      * admit.
+      * subst. admit.
       * exact Hvm.
     + constructor 2. intros. specialize (H x0 t0 H0).
       destruct H as [l'  [ofs [v H]]].
@@ -184,16 +185,17 @@ intros. destruct (Mem.alloc m lo hi) as [m' b]. eauto.
 Qed.
 
 Lemma chunk_fits_allocation : forall p t chunk,
+Archi.ptr64 = true ->
 chunk_of_type t = Some chunk ->
 size_chunk (transl_bchunk_cchunk chunk) <= sizeof_type (prog_comp_env p) t.
 Proof.
-move=> p t chunk. case: t=> [| | | | pt | ptr | bt] //=.
+move=> p t chunk harch. case: t=> [| | | | pt | ptr | bt] //=.
 + move=> pr. case: pr=> //=. 
   + by case: chunk=> //=.
   + move=> sz s a. by case: sz=> //=; case: s=> //=; case: chunk=> //=. 
   move=> s a. by case: chunk=> //=.
-move=> ptr. admit. (*by case: chunk=> //=. *)
-Admitted.
+move=> ptr. rewrite harch. by case: chunk=> //=.
+Qed.
 
 Lemma storev_succeeds_on_fresh_alloc : forall m chunk v sz,
 let (m1, b) := Mem.alloc m 0 sz in
@@ -253,11 +255,11 @@ Proof.
 Admitted.
 
 (* I think we can prove this and make the well formedness definition simpler *)
-Lemma safe_deref_valid_pointers : forall bge Sigma m x ofs pt chunk, 
+Lemma safe_deref_valid_pointers : forall Sigma m x ofs pt chunk, 
 PTree.get x Sigma = Some (Ptrtype pt) ->
 chunk_of_type (get_data_type pt) = Some chunk ->
 Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
-exists v, deref_addr bge (get_data_type pt) m x ofs Full v. 
+exists v, deref_addr (get_data_type pt) m x ofs Full v. 
 Proof.
 move=> Sigma m x ofs pt chunk hs htv hc hl. 
 (*Mem.valid_access_freeable_any*)
