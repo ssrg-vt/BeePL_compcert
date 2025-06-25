@@ -307,7 +307,7 @@ let process_h_file sourcename =
     fatal_error no_loc "input file %s ignored (not in -E mode)\n" sourcename
 
 let process_bpl_file sourcename =
-  let transformed = Beepl_transformer.parse_and_transform_bpl sourcename in
+  let transformed = Beepl_export.parse_and_transform_bpl sourcename in
   (* Save transformed string to .v file *)
   let output_name = output_filename sourcename ~suffix:".v" in
   let oc = open_out output_name in
@@ -568,6 +568,8 @@ let cmdline_actions =
 (* File arguments *)
   Suffix ".b", Self (fun s ->
     push_action process_b_file s; incr num_source_files; incr num_input_files);
+  Suffix ".bpl", Self (fun s ->
+  push_action process_bpl_file s; incr num_source_files; incr num_input_files; incr num_bpl_files);
   Suffix ".c", Self (fun s ->
       push_action process_c_file s; incr num_source_files; incr num_input_files);
   Suffix ".i", Self (fun s ->
