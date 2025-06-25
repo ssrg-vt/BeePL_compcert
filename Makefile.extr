@@ -127,6 +127,14 @@ bparser/beepl_ast_typechecker.cmi: bparser/beepl_ast_typechecker.mli
 	@echo "OCAMLC   $<"
 	@$(OCAMLC) $(WARNINGS) -c $<
 
+bparser/beepl_transformer.cmo: bparser/beepl_transformer.ml
+	@echo "OCAMLC   $< (with zarith)"
+	@ocamlfind c $(COMPFLAGS) $(WARNINGS) -package zarith -c $<
+
+bparser/beepl_transformer.cmx: bparser/beepl_transformer.ml
+	@echo "OCAMLOPT $< (with zarith)"
+	@ocamlfind opt $(COMPFLAGS) $(WARNINGS) -package zarith -c $<
+
 bparser/beepl_ast_typechecker.cmo: bparser/beepl_ast_typechecker.ml bparser/beepl_ast_typechecker.cmi
 	@echo "OCAMLC   $<"
 	@$(OCAMLC) $(WARNINGS) -c $<

@@ -5,7 +5,8 @@ struct Point {
 
 #ebpf
 #section foo 
-fun add () : int32, [] {
+fun main () : int32, [] {
   let x : int32 = 2 in 
   if true then x else 0
 }
+

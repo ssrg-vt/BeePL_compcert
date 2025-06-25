@@ -1,267 +1,251 @@
-open Beepl_ast
-open Beepl_parser
+(*open Beepl_parser*)
 open Beepl_lexer
 open Lexing
-open Beepl_ast_typechecker
+(*open Beepl_ast_typechecker*)
+open Ctypes
+open BeePL_values
+open BinNums
+open AST
 
-let coq_list (elems : string list) : string =
-  match elems with
-  | [] -> "nil"
-  | _ -> String.concat " :: " elems ^ " :: nil"
-
-  (* Extract all used identifiers from the program *)
-let collect_idents (prog : program) : string list =
-  let add_var acc (x, _) = if List.mem x acc then acc else x :: acc in
-  let rec from_expr acc e =
-    match e with
-    | Var x -> if List.mem x acc then acc else x :: acc
-    | Const _ -> acc
-    | Let (x, _, e1, e2) -> from_expr (from_expr (if List.mem x acc then acc else x :: acc) e1) e2
-    | If (e1, e2, e3) -> List.fold_left from_expr acc [e1; e2; e3]
+let string_to_char_list s =
+  let rec aux i acc =
+    if i < 0 then acc
+    else aux (i - 1) (s.[i] :: acc)
   in
-  List.fold_left (fun acc top ->
+  aux (String.length s - 1) []
+
+let rec int_to_positive = function
+  | 1 -> Coq_xH
+  | n when n mod 2 = 0 -> Coq_xO (int_to_positive (n / 2))
+  | n -> Coq_xI (int_to_positive (n / 2))
+
+let int_to_coq_z n =
+  if n = 0 then Z0
+  else if n > 0 then Zpos (int_to_positive n)
+  else Zneg (int_to_positive (-n))
+
+let collect_idents (prog : Beepl_ast.program) : string list =
+  let idents = ref [] in
+  let add_ident x = if not (List.mem x !idents) then idents := x :: !idents in
+  let add_var (x, _) = add_ident x in
+  let rec from_expr e =
+    match e with
+    | Beepl_ast.Var x -> add_ident x
+    | Beepl_ast.Const _ -> ()
+    | Beepl_ast.Let (x, _, e1, e2) -> add_ident x; from_expr e1; from_expr e2
+    | Beepl_ast.If (e1, e2, e3) -> from_expr e1; from_expr e2; from_expr e3
+  in
+  let from_effect = function
+    | Beepl_ast.Read s | Beepl_ast.Write s | Beepl_ast.Alloc s -> add_ident s
+    | Beepl_ast.Io | Beepl_ast.Divergence -> ()
+  in
+  List.iter (fun top ->
     match top with
-    | Internal (Tfundecl (name, _, _, args, _, body), _)
-    | EBPFInternal (Tfundecl (name, _, _, args, _, body), _) ->
-        let acc = if List.mem name acc then acc else name :: acc in
-        let acc = List.fold_left add_var acc args in
-        from_expr acc body
-    | StructDecl (sname, fields) ->
-        let acc = if List.mem sname acc then acc else sname :: acc in
-        List.fold_left add_var acc fields      
-  ) [] prog
+    | Beepl_ast.Internal (Beepl_ast.Tfundecl (name, _, effs, args, _, body), _)
+    | Beepl_ast.EBPFInternal (Beepl_ast.Tfundecl (name, _, effs, args, _, body), _) ->
+        add_ident name;
+        List.iter from_effect effs;
+        List.iter add_var args;
+        from_expr body
+    | Beepl_ast.StructDecl (sname, fields) ->
+        add_ident sname;
+        List.iter add_var fields
+  ) prog;
+  List.rev !idents
 
-(* Generate Coq identifier declarations *)
-let coq_idents (idents : string list) : string =
-  let defs =
-    List.map (fun id -> Printf.sprintf "Definition _%s : ident := $\"%s\"." id id) idents
-  in
-  let table =
-    let entries = List.map (fun id -> Printf.sprintf "(_%s, \"%s\")" id id) idents in
-    "Definition ident_to_string := " ^ "(" ^ String.concat " :: " entries ^ " :: nil)."
-  in
-  String.concat "\n" (defs @ [table])
+let create_ident_map (idents : string list) : (string -> positive) * (positive * string) list =
+  let counter = ref 1 in
+  let map = ref [] in
+  let get_ident s =
+    try List.assoc s !map
+    with Not_found ->
+      let pos =
+        if s = "main" then Camlcoq.intern_string "main" (* crucial! *)
+        else
+          let n = !counter in
+          counter := n + 1;
+          let rec int_to_pos = function
+            | 1 -> Coq_xH
+            | n when n mod 2 = 0 -> Coq_xO (int_to_pos (n / 2))
+            | n -> Coq_xI (int_to_pos (n / 2))
+          in
+          int_to_pos n
+      in
+      map := (s, pos) :: !map;
+      pos in 
+  List.iter (fun id -> ignore (get_ident id)) idents;
+  (get_ident, List.map (fun (s, p) -> (p, s)) !map)
 
-(* Check if any function is EBPF *)
-let contains_ebpf prog =
-  List.exists (function EBPFInternal _ -> true | _ -> false) prog
+let transform_primitive_type (pt : Beepl_ast.ptype) : BeeTypes.primitive_type =
+  match pt with
+  | Beepl_ast.Tbool -> BeeTypes.Tbool
+  | Beepl_ast.Tint8 -> BeeTypes.Tint (I8, Signed, noattr)
+  | Beepl_ast.Tint16 -> BeeTypes.Tint (I16, Signed, noattr)
+  | Beepl_ast.Tint32 -> BeeTypes.Tint (I32, Signed, noattr)
+  | Beepl_ast.Tuint8 -> BeeTypes.Tint (I8, Unsigned, noattr)
+  | Beepl_ast.Tuint16 -> BeeTypes.Tint (I16, Unsigned, noattr)
+  | Beepl_ast.Tuint32 -> BeeTypes.Tint (I32, Unsigned, noattr)
+  | Beepl_ast.Tulong -> BeeTypes.Tlong (Unsigned, noattr)
+  | Beepl_ast.Tlong -> BeeTypes.Tlong (Signed, noattr)
 
-(* Final Coq header + idents *)
-let generate_coq_prelude prog =
-  let header = {|
-Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values BeePL_typechecker.
-From Coq Require Import String ZArith Lists.List.
-From compcert Require Import Csyntaxdefs Errors Maps BeePL_aux.
-Import Csyntaxdefs.CsyntaxNotations.
-Local Open Scope string_scope.
-Local Open Scope csyntax_scope.
-|} in
-  let idents = collect_idents prog in
-  let defs = coq_idents idents in
-  let dattr_def =
-    if contains_ebpf prog then
-      "Definition dattr := {| attr_volatile := false; attr_alignas := None |}.\n"
-    else ""
-  in
-  header ^ "\n\n" ^ dattr_def ^ defs ^ "\n\n"
-
-let rec btype_to_coq (bt : btype) : string =
+let transform_basic_type (get_id : string -> positive) (bt : Beepl_ast.btype) : BeeTypes.basic_type =
   match bt with
-  | Bprim Tbool -> "BeeTypes.Tbool"
-  | Bprim Tuint8 -> "BeeTypes.Tuint8 Unsigned dattr"
-  | Bprim Tint8 -> "BeeTypes.Tint I8 Unsigned dattr"
-  | Bprim Tuint16 -> "BeeTypes.Tuint I16 Unsigned dattr"
-  | Bprim Tint16 -> "BeeTypes.Tint I16 Unsigned dattr"
-  | Bprim Tuint32 -> "BeeTypes.Tuint I32 Unsigned dattr"
-  | Bprim Tint32 -> "BeeTypes.Tint I32 Unsigned dattr"
-  | Bprim Tulong -> "BeeTypes.Tulong Unsigned dattr"
-  | Bprim Tlong -> "BeeTypes.Tlong"
-  | Bstruct name -> Printf.sprintf "(Bstruct _%s noattr)" name
-  | Barray (t, n) ->
-    Printf.sprintf "Barray (%s) %d" (btype_to_coq (Bprim t)) n
+  | Beepl_ast.Bprim pt -> BeeTypes.Bprim (transform_primitive_type pt)
+  | Beepl_ast.Bstruct name -> BeeTypes.Bstruct (get_id name, noattr)
+  | Beepl_ast.Barray (pt, n) -> BeeTypes.Barray (transform_primitive_type pt, int_to_coq_z n, noattr)
 
-let typ_to_coq (t : typ) : string =
+let transform_typ (get_id : string -> positive) (t : Beepl_ast.typ) : BeeTypes.coq_type =
   match t with
-  | Utype -> "Utype"
-  | Vtype Tuint8 -> "Vtype (BeeTypes.Tuint8 Unsigned dattr)"
-  | Vtype Tint8 -> "Vtype (BeeTypes.Tint I8 Unsigned dattr)"
-  | Vtype Tuint16 -> "Vtype (BeeTypes.Tuint I16 Unsigned dattr)"
-  | Vtype Tint16 -> "Vtype (BeeTypes.Tint I16 Unsigned dattr)"
-  | Vtype Tuint32 -> "Vtype (BeeTypes.Tuint I32 Unsigned dattr)"
-  | Vtype Tint32 -> "Vtype (BeeTypes.Tint I32 Unsigned dattr)"
-  | Vtype Tulong -> "Vtype (BeeTypes.Tulong Unsigned dattr)"
-  | Vtype Tbool -> "Vtype Tbool"
-  | Vtype Tlong -> "Vtype Tlong"
-  | Ptr (Reftype (name, btype)) ->
-    Printf.sprintf "Ptrtype (Reftype _%s (%s) noattr)" name (btype_to_coq btype)
+  | Beepl_ast.Utype -> BeeTypes.Utype
+  | Beepl_ast.Vtype pt -> BeeTypes.Vtype (transform_primitive_type pt)
+  | Beepl_ast.Ptr (Beepl_ast.Reftype (name, bt)) ->
+      BeeTypes.Ptrtype (BeeTypes.Reftype (get_id name, transform_basic_type get_id bt, noattr))
 
-  
-
-let effect_to_coq (eff : effect) : string =
+let transform_effect (get_id : string -> positive) (eff : Beepl_ast.effect) : BeeTypes.effect_label =
   match eff with
-  | Read s -> Printf.sprintf "Read \"%s\"" s
-  | Write s -> Printf.sprintf "Write \"%s\"" s
-  | Alloc s -> Printf.sprintf "Alloc \"%s\"" s
-  | Io -> "Io"
-  | Divergence -> "Divergence"
+  | Beepl_ast.Read s -> BeeTypes.Read (get_id s)
+  | Beepl_ast.Write s -> BeeTypes.Write (get_id s)
+  | Beepl_ast.Alloc s -> BeeTypes.Alloc (get_id s)
+  | Beepl_ast.Io -> BeeTypes.Io
+  | Beepl_ast.Divergence -> BeeTypes.Divergence
 
-let rec effect_to_coq_list (effs : effect list) : string =
-  match effs with
-  | [] -> "nil"
-  | eff :: rest ->
-    Printf.sprintf "%s :: %s" (effect_to_coq eff) (effect_to_coq_list rest)
+let transform_effect_list get_id effs = List.map (transform_effect get_id) effs
 
-let arg_to_coq (id, t) =
-  Printf.sprintf "(_%s, %s)" id (typ_to_coq t)
-
-let const_to_coq c =
+let transform_constant (c : Beepl_ast.const) : BeePL_values.constant =
   match c with
-  | Cunit -> "ConsUnit"
-  | Cbool b -> Printf.sprintf "(ConsBool %b)" b
-  | Cint32 i -> Printf.sprintf "(ConsInt (Int.repr %ld))" i
-  | Clong l -> Printf.sprintf "(ConsLong (Int64.repr %Ld))" l
+  | Beepl_ast.Cunit -> ConsUnit
+  | Beepl_ast.Cbool b -> ConsBool b
+  | Beepl_ast.Cint32 i -> ConsInt  (Integers.Int.repr  (int_to_coq_z (Stdlib.Int32.to_int i)))
+  | Beepl_ast.Clong  l -> ConsLong (Integers.Int64.repr (int_to_coq_z (Stdlib.Int64.to_int l)))
 
-  let rec expr_to_coq (env : (string * typ) list) (e : expr) : string =
-    match e with
-    | Var id ->
-        let ty = List.assoc id env in
-        Printf.sprintf "(Var _%s (%s))" id (typ_to_coq ty)
-    | Const c ->
-        let ty = typ_to_coq (infer_expr (list_to_env env) e) in
-        Printf.sprintf "(Const %s (%s))" (const_to_coq c) ty
-    | Let (id, t, e1, e2) ->
-        let e1_str = expr_to_coq env e1 in
-        let env' = (id, t) :: env in
-        let e2_str = expr_to_coq env' e2 in
-        let ty2 = typ_to_coq (infer_expr (list_to_env env') e2) in
-        Printf.sprintf 
-        "(Bind _%s (%s)\n                  %s\n                  %s\n             (%s))"
-          id (typ_to_coq t) e1_str e2_str ty2
-    | If (e1, e2, e3) ->
-        let ty2 = typ_to_coq (infer_expr (list_to_env env) e2) in
-        Printf.sprintf 
-        "(Cond (%s)\n                       (%s)\n                       (%s)\n                  (%s))"
-          (expr_to_coq env e1)
-          (expr_to_coq env e2)
-          (expr_to_coq env e3)
-          ty2
+let rec transform_expr (get_id : string -> positive) (env : (string * Beepl_ast.typ) list) (e : Beepl_ast.expr) : BeePL.expr =
+  let typ = Beepl_ast_typechecker.infer_expr (Beepl_ast_typechecker.list_to_env env) e in
+  let t' = transform_typ get_id typ in
+  match e with
+  | Beepl_ast.Var x -> BeePL.Var (get_id x, t')
+  | Beepl_ast.Const c -> BeePL.Const (transform_constant c, t')
+  | Beepl_ast.Let (x, t, e1, e2) ->
+      let e1' = transform_expr get_id env e1 in
+      let env' = (x, t) :: env in
+      let e2' = transform_expr get_id env' e2 in
+      BeePL.Bind (get_id x, transform_typ get_id t, e1', e2', t')
+  | Beepl_ast.If (e1, e2, e3) ->
+      let e1' = transform_expr get_id env e1 in
+      let e2' = transform_expr get_id env e2 in
+      let e3' = transform_expr get_id env e3 in
+      BeePL.Cond (e1', e2', e3', t')
 
-let transform_function (Tfundecl (name, ret, eff, args, vars, body)) is_ebpf =
-  let env = infer_fundecl (Tfundecl (name, ret, eff, args, vars, body)) in
-  let arg_strs = List.map arg_to_coq args in
-  let var_strs = List.map arg_to_coq (collect_vars body) in
-  let coq_name = "f_" ^ name in
-  let body_str = expr_to_coq env body in
-  Printf.sprintf
-    "Definition %s : BeePL.function := {| \n  fn_return := %s;\n  fn_effect := %s;\n  fn_callconv := cc_default;\n  fn_args := %s;\n  fn_vars := %s;\n  fn_body := %s;\n  is_ebpf := %s\n|}.\n"
-    coq_name
-    (typ_to_coq ret)
-    (effect_to_coq_list eff)
-    (coq_list arg_strs)
-    (coq_list var_strs)
-    body_str
-    (if is_ebpf then "true" else "false")
+let rec collect_vars (e : Beepl_ast.expr) : (string * Beepl_ast.typ) list =
+  let unique_vars vars =
+    List.fold_left (fun acc (x, t) ->
+      if List.exists (fun (y, _) -> x = y) acc then acc else (x, t) :: acc
+    ) [] vars
+  in
+  match e with
+  | Beepl_ast.Var _ | Beepl_ast.Const _ -> []
+  | Beepl_ast.Let (x, t, e1, e2) ->
+      unique_vars ((x, t) :: collect_vars e1 @ collect_vars e2)
+  | Beepl_ast.If (e1, e2, e3) ->
+      unique_vars (collect_vars e1 @ collect_vars e2 @ collect_vars e3)
 
-let transform_struct (name : string) (fields : (string * typ) list) : string =
-  let members = List.map (fun (id, t) -> Printf.sprintf "Member_plain _%s (%s)" id (typ_to_coq t)) fields in
-  Printf.sprintf
-    "Definition bcomposites : list bcomposite_definition :=\n(Bcomposite _%s Struct\n   (%s :: nil)\n   noattr :: nil)." name (String.concat " ::\n    " members)
+let transform_function (get_id : string -> positive) (Beepl_ast.Tfundecl (name, ret, eff, args, _, body) as fdecl) is_ebpf =
+  let env = Beepl_ast_typechecker.infer_fundecl fdecl in
+  let fn_args = List.map (fun (id, t) -> (get_id id, transform_typ get_id t)) args in
+  let fn_vars = List.map (fun (id, t) -> (get_id id, transform_typ get_id t)) (collect_vars body) in
+  let fn_body = transform_expr get_id env body in
+  {
+    BeePL.fn_return = transform_typ get_id ret;
+    BeePL.fn_effect = transform_effect_list get_id eff;
+    BeePL.fn_callconv = cc_default;
+    BeePL.fn_args = fn_args;
+    BeePL.fn_vars = fn_vars;
+    BeePL.fn_body = fn_body;
+    BeePL.is_ebpf = is_ebpf;
+  }
 
-let starts_with ~prefix s =
-  let plen = String.length prefix in
-  String.length s >= plen && String.sub s 0 plen = prefix
-    
-let coq_globals prog =
-      let clean_section s =
-        let prefix = "#section " in
-        if starts_with ~prefix s then String.sub s (String.length prefix) (String.length s - String.length prefix)
-        else s
-      in
-      let entries =
-        List.filter_map (function
-          | Internal (Tfundecl (name, _, _, _, _, _), section)
-          | EBPFInternal (Tfundecl (name, _, _, _, _, _), section) ->
-              let sec_str = match section with
-                | Some s -> Printf.sprintf "Some \"%s\"" (clean_section s)
-                | None -> "None"
-              in
-              Some (Printf.sprintf "(_%s, AST.Gfun (BeePL.Internal f_%s), %s)" name name sec_str)
-          | _ -> None
-        ) prog
-      in
-      if entries = [] then ""
-      else "Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) :=\n  " ^
-            String.concat " ::\n  " entries ^ " :: nil.\n"
-    
-    
-let collect_public_idents prog =
-  List.filter_map (function
-    | Internal (Tfundecl (name, _, _, _, _, _), _)
-    | EBPFInternal (Tfundecl (name, _, _, _, _, _), _) ->
-        Some ("_" ^ name)
-      | _ -> None
-  ) prog
+let transform_struct (get_id : string -> positive) (name : string) (fields : (string * Beepl_ast.typ) list) : BeeTypes.bcomposite_definition =
+  let members = List.map (fun (id, t) ->
+      BeeTypes.Member_plain (get_id id, transform_typ get_id t)
+    ) fields in
+  BeeTypes.Bcomposite (get_id name, Struct, members, noattr)
 
-  let coq_public_idents prog =
-    let idents = collect_public_idents prog in
-    match idents with
-    | [] -> ""
-    | _ ->
-      Printf.sprintf "Definition public_idents : list ident := (%s :: nil).\n"
-        (String.concat " :: " idents)
-  
+let transform_toplevel (get_id : string -> positive) top =
+  match top with
+  | Beepl_ast.Internal ((Beepl_ast.Tfundecl (name, _, _, _, _, _) as f), section) ->
+      `Fun (get_id name, BeePL.Internal (transform_function get_id f false), section)
+  | Beepl_ast.EBPFInternal ((Beepl_ast.Tfundecl (name, _, _, _, _, _) as f), section) ->
+      `Fun (get_id name, BeePL.Internal (transform_function get_id f true), section)
+  | Beepl_ast.StructDecl (name, fields) ->
+      `Struct (transform_struct get_id name fields)
+      
 let find_main_or_fallback prog : string =
-  let is_main name = name = "main" in
-  let extract_name = function
-    | Internal (Tfundecl (name, _, _, _, _, _), _)
-    | EBPFInternal (Tfundecl (name, _, _, _, _, _), _) -> Some name
-    | _ -> None in
-  let names = List.filter_map extract_name prog in
-  match List.find_opt is_main names with
-    | Some name -> name
-    | None ->
-  match names with
-    | fn :: _ -> fn
-    | [] -> failwith "No function declarations found"
-        
-let coq_program_wrapper ?(name="example1") (entry : string) : string =
-  Printf.sprintf
-    "Definition %s : BeePL.program := @mkbprogram bcomposites\n\
-         \                                        global_definitions\n\
-         \                                        public_idents\n\
-         \                                        _%s\n\
-         \                                        bcomposite_correct\n\
-         \                                        ident_to_string.\n"
-        name entry
-                      
+  let names =
+    List.fold_left (fun acc top ->
+    match top with
+      | Beepl_ast.Internal (Beepl_ast.Tfundecl (name, _, _, _, _, _), _)
+      | Beepl_ast.EBPFInternal (Beepl_ast.Tfundecl (name, _, _, _, _, _), _) ->
+          name :: acc
+        | _ -> acc
+          ) [] prog in
+      match List.find_opt (fun name -> name = "main") names with
+      | Some name -> name
+      | None ->
+    match List.rev names with
+      | fn :: _ -> fn
+      | [] -> failwith "No function declarations found in the program"
 
-let transform_toplevel = function
-  | Internal(f, sec) -> transform_function f false
-  | EBPFInternal(f, sec) -> transform_function f true
-  | StructDecl (name, fields) -> transform_struct name fields
+(*The reorder_program function ensures that the fun main declaration appears first in the AST. So:
+  "main" is the first identifier seen by create_ident_map.
+  Therefore, it’s guaranteed to get Coq_xH, the correct value required by the CompCert linker. *)   
+let reorder_program (prog : Beepl_ast.program) : Beepl_ast.program =
+  let is_main = function
+    | Beepl_ast.Internal (Beepl_ast.Tfundecl ("main", _, _, _, _, _), _)
+    | Beepl_ast.EBPFInternal (Beepl_ast.Tfundecl ("main", _, _, _, _, _), _) -> true
+    | _ -> false
+  in
+  let main_fun = List.filter is_main prog in
+  let rest = List.filter (fun d -> not (is_main d)) prog in
+  main_fun @ rest
+      
+let transform_program prog : BeePL.program =
+let prog = reorder_program prog in  
+let idents = collect_idents prog in
+let get_id, ident_to_string_list = create_ident_map idents in
+let prog_ident_to_string = List.map (fun (p, s) -> (p, string_to_char_list s)) ident_to_string_list in
 
-let coq_bcomposite_correct_lemma = {|
-Lemma bcomposite_correct : wf_bcomposites bcomposites.
-Proof.
-  unfold wf_bcomposites.
-  unfold build_bcomposite_env; simpl; reflexivity.
-Qed. |}
-  
-let transform_program prog =
-  let coq_header = generate_coq_prelude prog in
-  let defs = List.map transform_toplevel prog in
-  let globals = coq_globals prog in
-  let publics = coq_public_idents prog in
-  let entry = find_main_or_fallback prog in
-  let wrapper = coq_program_wrapper ~name:"bprogram" entry in
-  coq_header ^ String.concat "\n\n" defs ^ "\n\n" ^ globals ^ "\n" ^ publics ^ "\n" ^ coq_bcomposite_correct_lemma ^ "\n\n" ^ wrapper
-  
-  
-let parse_file (filename : string) : program =
+let transformed_decls = List.map (transform_toplevel get_id) prog in
+
+let prog_types =
+    List.filter_map (function `Struct s -> Some s | `Fun _ -> None) transformed_decls in
+
+let fun_defs =
+    List.filter_map (function `Fun (id, f, sec) -> Some (id, f, sec) | `Struct _ -> None) transformed_decls in
+
+let prog_defs =
+    List.map (fun (id, f, section) ->
+      ((id, Gfun f), Option.map string_to_char_list section)
+    ) fun_defs in
+
+let prog_comp_env = BeeTypes.build_bcomposite_env' prog_types in
+let prog_main = get_id (find_main_or_fallback prog) in
+let prog_public =
+let ids = List.map (fun (id, _, _) -> id) fun_defs in
+    if List.mem prog_main ids then ids else prog_main :: ids in 
+
+  {
+    BeePL.prog_defs = prog_defs;
+    BeePL.prog_public = prog_public;
+    BeePL.prog_main = prog_main;
+    BeePL.prog_types = prog_types;
+    BeePL.prog_comp_env = prog_comp_env;
+    BeePL.prog_ident_to_string = prog_ident_to_string;
+  }
+
+let parse_file (filename : string) : Beepl_ast.program =
   let ch = open_in filename in
   let lexbuf = from_channel ch in
   try
-    let result = prog read_token lexbuf in
+    let result = Beepl_parser.prog Beepl_lexer.read_token lexbuf in
     close_in ch;
     result
   with
@@ -277,6 +261,6 @@ let parse_file (filename : string) : program =
       (Lexing.lexeme lexbuf);
     exit (-1)
 
-let parse_and_transform_bpl (filename : string) : string =
+let parse_and_transform_bpl (filename : string) : BeePL.program =
   let program = parse_file filename in
   transform_program program
