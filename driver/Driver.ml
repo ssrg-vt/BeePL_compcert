@@ -152,7 +152,7 @@ let populate_decl_atom (section_info : (AST.ident * BeePL_Csyntax.csyntax_atom_i
   ) section_info
 
 (* TODO: remove duplicate code from compile_c_file and compile_b_file *)
-let compile_b_file sourcename ofile =
+let compile_b_file sourcename ofile beepl_program =
   (* Prepare to dump Clight, RTL, etc, if requested *)
   let set_dest dst opt ext =
     dst := if !opt then Some (output_filename sourcename ~suffix:ext)
@@ -171,7 +171,7 @@ let compile_b_file sourcename ofile =
   (* Typecheck BeePL program *)
   if !option_typecheck then
   begin
-  let typecheck_result = BeePL_typechecker.type_check_program BeePL_progs.example1 in
+  let typecheck_result = BeePL_typechecker.type_check_program beepl_program in
   match typecheck_result with
   | Errors.OK s -> let str = Camlcoq.camlstring_of_coqstring s in
                    Printf.printf "Typecheck result: %s\n" str
@@ -181,7 +181,7 @@ let compile_b_file sourcename ofile =
   end;
 
   (* Parse BeePL AST *)
-  let beepl = Compiler.transf_beepl_program_csyntax BeePL_progs.example1 in
+  let beepl = Compiler.transf_beepl_program_csyntax beepl_program in
   let (csyntax, ident_to_string, section_info) =
     match beepl with
     | Errors.OK ((csyntax, ident_to_string), section_info) -> (csyntax, ident_to_string, section_info)
@@ -316,31 +316,22 @@ let process_bpl_file sourcename =
   transformed
 
 let process_b_file sourcename =
+  let beepl_program = parse_and_transform_bpl sourcename in
+
   if !option_S then begin
     let asmname = output_filename ~final:true sourcename ~suffix:".s" in
-    compile_b_file sourcename asmname;
+    compile_b_file sourcename asmname beepl_program;
     ""
   end else begin
     let asmname =
       if !option_dasm
       then output_filename sourcename ~suffix:".s"
       else tmp_file ".s" in
-    compile_b_file sourcename asmname;
+    compile_b_file sourcename asmname beepl_program;
     let objname = object_filename sourcename in
     assemble asmname objname;
     objname
   end
-
-(*
-let process_b_file sourcename =
-  let asmname =
-    if !option_dasm
-    then output_filename sourcename ~suffix:".s"
-    else tmp_file ".s" in
-  compile_b_file sourcename asmname;
-  let objname = object_filename sourcename in
-  assemble asmname objname;
-  objname *)
 
 let target_help =
   if Configuration.arch = "arm" && Configuration.model <> "armv6" then
@@ -576,9 +567,7 @@ let cmdline_actions =
       fatal_error no_loc "Unknown option `%s'" s);
 (* File arguments *)
   Suffix ".b", Self (fun s ->
-  push_action process_b_file s; incr num_source_files; incr num_input_files);
-  Suffix ".bpl", Self (fun s ->
-  push_action process_bpl_file s; incr num_source_files; incr num_input_files; incr num_bpl_files);
+    push_action process_b_file s; incr num_source_files; incr num_input_files);
   Suffix ".c", Self (fun s ->
       push_action process_c_file s; incr num_source_files; incr num_input_files);
   Suffix ".i", Self (fun s ->
