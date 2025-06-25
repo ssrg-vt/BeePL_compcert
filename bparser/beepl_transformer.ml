@@ -223,8 +223,16 @@ let fun_defs =
 
 let prog_defs =
     List.map (fun (id, f, section) ->
-      ((id, Gfun f), Option.map string_to_char_list section)
-    ) fun_defs in
+    let sec =
+      match section with
+      | Some s when String.length s > 8 && String.sub s 0 8 = "#section" ->
+          (* extract and quote the name *)
+          let raw = String.trim (String.sub s 8 (String.length s - 8)) in
+          Some (string_to_char_list ("\"" ^ raw ^ "\""))
+      | Some s -> Some (string_to_char_list ("\"" ^ s ^ "\""))
+      | None -> None
+    in
+    ((id, Gfun f), sec)) fun_defs in
 
 let prog_comp_env = BeeTypes.build_bcomposite_env' prog_types in
 let prog_main = get_id (find_main_or_fallback prog) in
