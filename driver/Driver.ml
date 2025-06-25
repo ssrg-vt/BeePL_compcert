@@ -30,7 +30,7 @@ let sdump_suffix = ref ".json"
 let num_bpl_files = ref 0
 
 let nolink () =
-  !option_c || !option_S || !option_E || !option_interp || not Configuration.has_linking_step || !num_bpl_files > 0
+  !option_c || !option_S || !option_E || !option_interp || not Configuration.has_linking_step
 
 let object_filename sourcename =
   if nolink () then
@@ -205,9 +205,15 @@ let compile_bpl_file sourcename ofile beepl_program =
   
   (* The BeePL compiler does not add CompCert's helper functions so that must be done here *)
   let gl = C2C.add_helper_functions csyntax.Ctypes.prog_defs in 
+  (*let main_id =
+    try
+      Hashtbl.find Camlcoq.atom_of_string "main"
+    with Not_found ->
+      fatal_error no_loc "Function 'main' not found in atom_of_string table"
+  in*)
   let updated_csyntax = {csyntax with 
     Ctypes.prog_defs = gl; 
-    Ctypes.prog_public = C2C.public_globals gl} in
+    Ctypes.prog_public = (*main_id ::*) C2C.public_globals gl} in
   PrintCsyntax.print_if updated_csyntax;
   
   (* C2C.print_atom_info (); *)
@@ -393,20 +399,20 @@ let process_bpl_file sourcename =
     let oc = open_out output_name in
     output_string oc transformed;
     close_out oc;
-    transformed
+    exit 0
   end else
-    let beepl_program = beepl_transformer.parse_and_transform_bpl sourcename in
+    let beepl_program = Beepl_transformer.parse_and_transform_bpl sourcename in
 
     if !option_S then begin
       let asmname = output_filename ~final:true sourcename ~suffix:".s" in
-      compile_b_file sourcename asmname beepl_program;
+      compile_bpl_file sourcename asmname beepl_program;
       ""
     end else begin
       let asmname =
         if !option_dasm
         then output_filename sourcename ~suffix:".s"
         else tmp_file ".s" in
-      compile_b_file sourcename asmname beepl_program;
+      compile_bpl_file sourcename asmname beepl_program;
       let objname = object_filename sourcename in
       assemble asmname objname;
       objname
@@ -573,6 +579,7 @@ let cmdline_actions =
     @ DebugInit.debugging_actions @
 (* Code generation options -- more below *)
  [
+  Exact "-beepl", Set option_beepl;
   Exact "-typecheck", Set option_typecheck;
   Exact "-O0", Unit (unset_all optimization_options);
   Exact "-O", Unit (set_all optimization_options);

@@ -3,8 +3,8 @@ open Beepl_lexer
 open Lexing
 (*open Beepl_ast_typechecker*)
 open Ctypes
+open BeePL_values
 open BinNums
-open Integers
 open AST
 
 let string_to_char_list s =
@@ -59,18 +59,20 @@ let create_ident_map (idents : string list) : (string -> positive) * (positive *
   let get_ident s =
     try List.assoc s !map
     with Not_found ->
-      let n = !counter in
-      counter := n + 1;
-      let rec int_to_pos = function
-        | 1 -> Coq_xH
-        | n when n mod 2 = 0 -> Coq_xO (int_to_pos (n / 2))
-        | n -> Coq_xI (int_to_pos (n / 2))
-        (*| _ -> failwith "int_to_pos: positive integers only"*)
+      let pos =
+        if s = "main" then Camlcoq.intern_string "main" (* crucial! *)
+        else
+          let n = !counter in
+          counter := n + 1;
+          let rec int_to_pos = function
+            | 1 -> Coq_xH
+            | n when n mod 2 = 0 -> Coq_xO (int_to_pos (n / 2))
+            | n -> Coq_xI (int_to_pos (n / 2))
+          in
+          int_to_pos n
       in
-      let pos = int_to_pos n in
       map := (s, pos) :: !map;
-      pos
-  in
+      pos in 
   List.iter (fun id -> ignore (get_ident id)) idents;
   (get_ident, List.map (fun (s, p) -> (p, s)) !map)
 
@@ -113,8 +115,8 @@ let transform_constant (c : Beepl_ast.const) : BeePL_values.constant =
   match c with
   | Beepl_ast.Cunit -> ConsUnit
   | Beepl_ast.Cbool b -> ConsBool b
-  | Beepl_ast.Cint32 i -> ConsInt  (Int.repr  (int_to_coq_z (Stdlib.Int32.to_int i)))
-  | Beepl_ast.Clong  l -> ConsLong (Int64.repr (int_to_coq_z (Stdlib.Int64.to_int l)))
+  | Beepl_ast.Cint32 i -> ConsInt  (Integers.Int.repr  (int_to_coq_z (Stdlib.Int32.to_int i)))
+  | Beepl_ast.Clong  l -> ConsLong (Integers.Int64.repr (int_to_coq_z (Stdlib.Int64.to_int l)))
 
 let rec transform_expr (get_id : string -> positive) (env : (string * Beepl_ast.typ) list) (e : Beepl_ast.expr) : BeePL.expr =
   let typ = Beepl_ast_typechecker.infer_expr (Beepl_ast_typechecker.list_to_env env) e in
@@ -175,42 +177,60 @@ let transform_toplevel (get_id : string -> positive) top =
       `Fun (get_id name, BeePL.Internal (transform_function get_id f true), section)
   | Beepl_ast.StructDecl (name, fields) ->
       `Struct (transform_struct get_id name fields)
-
+      
 let find_main_or_fallback prog : string =
-  let is_main name = name = "main" in
-  let extract_name = function
-    | Beepl_ast.Internal (Beepl_ast.Tfundecl (name, _, _, _, _, _), _)
-    | Beepl_ast.EBPFInternal (Beepl_ast.Tfundecl (name, _, _, _, _, _), _) -> Some name
-    | _ -> None in
-  let names = List.filter_map extract_name prog in
-  match List.find_opt is_main names with
-    | Some name -> name
-    | None ->
-      (match names with
-        | fn :: _ -> fn
-        | [] -> failwith "No function declarations found in the program")
+  let names =
+    List.fold_left (fun acc top ->
+    match top with
+      | Beepl_ast.Internal (Beepl_ast.Tfundecl (name, _, _, _, _, _), _)
+      | Beepl_ast.EBPFInternal (Beepl_ast.Tfundecl (name, _, _, _, _, _), _) ->
+          name :: acc
+        | _ -> acc
+          ) [] prog in
+      match List.find_opt (fun name -> name = "main") names with
+      | Some name -> name
+      | None ->
+    match List.rev names with
+      | fn :: _ -> fn
+      | [] -> failwith "No function declarations found in the program"
 
+(*The reorder_program function ensures that the fun main declaration appears first in the AST. So:
+  "main" is the first identifier seen by create_ident_map.
+  Therefore, it’s guaranteed to get Coq_xH, the correct value required by the CompCert linker. *)   
+let reorder_program (prog : Beepl_ast.program) : Beepl_ast.program =
+  let is_main = function
+    | Beepl_ast.Internal (Beepl_ast.Tfundecl ("main", _, _, _, _, _), _)
+    | Beepl_ast.EBPFInternal (Beepl_ast.Tfundecl ("main", _, _, _, _, _), _) -> true
+    | _ -> false
+  in
+  let main_fun = List.filter is_main prog in
+  let rest = List.filter (fun d -> not (is_main d)) prog in
+  main_fun @ rest
+      
 let transform_program prog : BeePL.program =
-  let idents = collect_idents prog in
-  let get_id, ident_to_string_list = create_ident_map idents in
-  let prog_ident_to_string = List.map (fun (p, s) -> (p, string_to_char_list s)) ident_to_string_list in
+let prog = reorder_program prog in  
+let idents = collect_idents prog in
+let get_id, ident_to_string_list = create_ident_map idents in
+let prog_ident_to_string = List.map (fun (p, s) -> (p, string_to_char_list s)) ident_to_string_list in
 
-  let transformed_decls = List.map (transform_toplevel get_id) prog in
+let transformed_decls = List.map (transform_toplevel get_id) prog in
 
-  let prog_types =
+let prog_types =
     List.filter_map (function `Struct s -> Some s | `Fun _ -> None) transformed_decls in
 
-  let fun_defs =
+let fun_defs =
     List.filter_map (function `Fun (id, f, sec) -> Some (id, f, sec) | `Struct _ -> None) transformed_decls in
 
-  let prog_defs =
+let prog_defs =
     List.map (fun (id, f, section) ->
       ((id, Gfun f), Option.map string_to_char_list section)
     ) fun_defs in
 
-  let prog_public = List.map (fun (id, _, _) -> id) fun_defs in
-  let prog_comp_env = BeeTypes.build_bcomposite_env' prog_types in
-  let prog_main = get_id (find_main_or_fallback prog) in
+let prog_comp_env = BeeTypes.build_bcomposite_env' prog_types in
+let prog_main = get_id (find_main_or_fallback prog) in
+let prog_public =
+let ids = List.map (fun (id, _, _) -> id) fun_defs in
+    if List.mem prog_main ids then ids else prog_main :: ids in 
 
   {
     BeePL.prog_defs = prog_defs;

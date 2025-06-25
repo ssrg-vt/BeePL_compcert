@@ -1,2 +1,2 @@
-val parse_and_transform_bpl : string -> BeePL.program
+val export_parse_and_transform_bpl : string -> string
 
