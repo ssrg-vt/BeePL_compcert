@@ -205,12 +205,6 @@ let compile_bpl_file sourcename ofile beepl_program =
   
   (* The BeePL compiler does not add CompCert's helper functions so that must be done here *)
   let gl = C2C.add_helper_functions csyntax.Ctypes.prog_defs in 
-  (*let main_id =
-    try
-      Hashtbl.find Camlcoq.atom_of_string "main"
-    with Not_found ->
-      fatal_error no_loc "Function 'main' not found in atom_of_string table"
-  in*)
   let updated_csyntax = {csyntax with 
     Ctypes.prog_defs = gl; 
     Ctypes.prog_public = (*main_id ::*) C2C.public_globals gl} in
@@ -235,7 +229,6 @@ let compile_bpl_file sourcename ofile beepl_program =
   let oc = open_out ofile in
   PrintAsm.print_program oc asm;
   close_out oc
-
 
 let compile_b_file sourcename ofile =
   (* Prepare to dump Clight, RTL, etc, if requested *)

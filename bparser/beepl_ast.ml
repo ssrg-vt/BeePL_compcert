@@ -28,6 +28,7 @@ type typ =
   | Utype
   | Vtype of ptype 
   | Ptr of ptrtype
+  | Ftype of typ list * effect list * typ
 
 type const = 
   | Cunit 
@@ -39,6 +40,7 @@ type const =
 type expr =
   | Var of string
   | Const of const
+  | App of expr * expr list
   | Let of string * typ * expr * expr
   | If of expr * expr * expr
 
@@ -60,6 +62,9 @@ let rec collect_vars (e : expr) : (string * typ) list =
   | Let (id, ty, e1, e2) ->
       (* Collect variables from both subexpressions and prepend current binding *)
       (id, ty) :: (collect_vars e1 @ collect_vars e2)
+  | App (e1, args) ->
+      (* Collect variables from the function and its arguments *)
+      collect_vars e1 @ List.flatten (List.map collect_vars args)
   | If (e1, e2, e3) ->
       collect_vars e1 @ collect_vars e2 @ collect_vars e3
 

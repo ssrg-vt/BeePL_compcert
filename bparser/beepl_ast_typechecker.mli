@@ -8,6 +8,14 @@ type tyenv
 
 val list_to_env : (string * typ) list -> tyenv
 
+val string_of_ptype : ptype -> string
+
+val string_of_typ : typ -> string
+
+(** Check if two primitive types are equal. *)
+
+(** Convert a type to a string representation. *)
+
 (** Check that an expression is well-typed under the given environment.
     Returns the inferred type of the expression. Raises [TypeError] on failure. *)
 val infer_expr : tyenv -> expr -> typ

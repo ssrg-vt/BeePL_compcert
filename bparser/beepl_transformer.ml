@@ -32,6 +32,9 @@ let collect_idents (prog : Beepl_ast.program) : string list =
     match e with
     | Beepl_ast.Var x -> add_ident x
     | Beepl_ast.Const _ -> ()
+    | Beepl_ast.App (e1, args) ->
+        from_expr e1;
+        List.iter from_expr args
     | Beepl_ast.Let (x, _, e1, e2) -> add_ident x; from_expr e1; from_expr e2
     | Beepl_ast.If (e1, e2, e3) -> from_expr e1; from_expr e2; from_expr e3
   in
@@ -52,6 +55,7 @@ let collect_idents (prog : Beepl_ast.program) : string list =
         List.iter add_var fields
   ) prog;
   List.rev !idents
+
 
 let create_ident_map (idents : string list) : (string -> positive) * (positive * string) list =
   let counter = ref 1 in
@@ -94,36 +98,52 @@ let transform_basic_type (get_id : string -> positive) (bt : Beepl_ast.btype) : 
   | Beepl_ast.Bstruct name -> BeeTypes.Bstruct (get_id name, noattr)
   | Beepl_ast.Barray (pt, n) -> BeeTypes.Barray (transform_primitive_type pt, int_to_coq_z n, noattr)
 
-let transform_typ (get_id : string -> positive) (t : Beepl_ast.typ) : BeeTypes.coq_type =
+let transform_effect (get_id : string -> positive) (eff : Beepl_ast.effect) : BeeTypes.effect_label =
+    match eff with
+    | Beepl_ast.Read s -> BeeTypes.Read (get_id s)
+    | Beepl_ast.Write s -> BeeTypes.Write (get_id s)
+    | Beepl_ast.Alloc s -> BeeTypes.Alloc (get_id s)
+    | Beepl_ast.Io -> BeeTypes.Io
+    | Beepl_ast.Divergence -> BeeTypes.Divergence
+
+let transform_effect_list get_id effs = List.map (transform_effect get_id) effs
+
+let rec transform_typ (get_id : string -> positive) (t : Beepl_ast.typ) : BeeTypes.coq_type =
   match t with
   | Beepl_ast.Utype -> BeeTypes.Utype
   | Beepl_ast.Vtype pt -> BeeTypes.Vtype (transform_primitive_type pt)
   | Beepl_ast.Ptr (Beepl_ast.Reftype (name, bt)) ->
       BeeTypes.Ptrtype (BeeTypes.Reftype (get_id name, transform_basic_type get_id bt, noattr))
-
-let transform_effect (get_id : string -> positive) (eff : Beepl_ast.effect) : BeeTypes.effect_label =
-  match eff with
-  | Beepl_ast.Read s -> BeeTypes.Read (get_id s)
-  | Beepl_ast.Write s -> BeeTypes.Write (get_id s)
-  | Beepl_ast.Alloc s -> BeeTypes.Alloc (get_id s)
-  | Beepl_ast.Io -> BeeTypes.Io
-  | Beepl_ast.Divergence -> BeeTypes.Divergence
-
-let transform_effect_list get_id effs = List.map (transform_effect get_id) effs
-
-let transform_constant (c : Beepl_ast.const) : BeePL_values.constant =
-  match c with
-  | Beepl_ast.Cunit -> ConsUnit
-  | Beepl_ast.Cbool b -> ConsBool b
-  | Beepl_ast.Cint32 i -> ConsInt  (Integers.Int.repr  (int_to_coq_z (Stdlib.Int32.to_int i)))
-  | Beepl_ast.Clong  l -> ConsLong (Integers.Int64.repr (int_to_coq_z (Stdlib.Int64.to_int l)))
+  | Beepl_ast.Ftype (args, effs, ret) -> 
+      let args' = List.map (fun t -> (transform_typ get_id t)) args in
+      let effs' = transform_effect_list get_id effs in
+      let ret' = transform_typ get_id ret in
+      BeeTypes.Ftype (args', effs', ret')
+let transform_constant (c : Beepl_ast.const) (typ : Beepl_ast.typ) : BeePL_values.constant =
+  match typ, c with
+  | Beepl_ast.Vtype Beepl_ast.Tint32, Beepl_ast.Cint32 i ->
+      ConsInt (Integers.Int.repr (int_to_coq_z (Int32.to_int i)))
+  | Beepl_ast.Vtype Beepl_ast.Tlong, Beepl_ast.Clong l ->
+      ConsLong (Integers.Int64.repr (int_to_coq_z (Int64.to_int l)))
+  | Beepl_ast.Vtype Beepl_ast.Tbool, Beepl_ast.Cbool b ->
+      ConsBool b
+  | Beepl_ast.Utype, Beepl_ast.Cunit ->
+      ConsUnit
+  | _, _ ->
+      failwith "Constant type mismatch or unsupported constant"
+      
 
 let rec transform_expr (get_id : string -> positive) (env : (string * Beepl_ast.typ) list) (e : Beepl_ast.expr) : BeePL.expr =
   let typ = Beepl_ast_typechecker.infer_expr (Beepl_ast_typechecker.list_to_env env) e in
   let t' = transform_typ get_id typ in
   match e with
   | Beepl_ast.Var x -> BeePL.Var (get_id x, t')
-  | Beepl_ast.Const c -> BeePL.Const (transform_constant c, t')
+  | Beepl_ast.Const c -> 
+    BeePL.Const (transform_constant c typ, t')
+  | Beepl_ast.App (e1, args) ->
+      let e1' = transform_expr get_id env e1 in
+      let args' = List.map (transform_expr get_id env) args in
+      BeePL.App (e1', args', t')
   | Beepl_ast.Let (x, t, e1, e2) ->
       let e1' = transform_expr get_id env e1 in
       let env' = (x, t) :: env in
@@ -145,6 +165,8 @@ let rec collect_vars (e : Beepl_ast.expr) : (string * Beepl_ast.typ) list =
   | Beepl_ast.Var _ | Beepl_ast.Const _ -> []
   | Beepl_ast.Let (x, t, e1, e2) ->
       unique_vars ((x, t) :: collect_vars e1 @ collect_vars e2)
+  | Beepl_ast.App (e1, args) ->
+      unique_vars (collect_vars e1 @ List.flatten (List.map collect_vars args))
   | Beepl_ast.If (e1, e2, e3) ->
       unique_vars (collect_vars e1 @ collect_vars e2 @ collect_vars e3)
 

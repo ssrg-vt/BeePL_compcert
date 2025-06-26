@@ -14,7 +14,8 @@ open Beepl_ast
 %token RINT16TYPE RUINT16TYPE RINT32TYPE RUINT32TYPE
 %token RLONGTYPE RULONGTYPE RARRAY RSTRUCT
 %token RABOOL RAINT8 RAUINT8 RAUINT16 RAINT16 RAINT32 RAUINT32 RALONG RAULONG
-%token FUNC LET IN IF THEN ELSE
+%token FUNTYPE
+%token FUNC LET IN IF THEN ELSE APP
 %token LPAREN RPAREN COLON COMMA EQ
 %token LBRACE RBRACE
 %token IO DIVERGENCE READ WRITE ALLOC EMPTYBRACKETS
@@ -102,6 +103,8 @@ typ:
   | RAUINT32 LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tuint32, Int32.to_int n)))) }
   | RALONG LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tlong, Int32.to_int n)))) }
   | RAULONG LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tulong, Int32.to_int n)))) }
+  | FUNTYPE LPAREN args = separated_list(COMMA, typ) RPAREN
+    COLON eff = separated_list(COMMA, effect) COMMA ret = typ { Ftype(args, eff, ret) }
 
 (* --- END OF typ --- *)
 
@@ -114,6 +117,8 @@ const:
 expr:
   | id = IDENT { Var id }
   | c = const  { Const c }
+  | APP id = expr LPAREN args = separated_list(COMMA, expr) RPAREN
+    { App(id, args) }
   | LET id = IDENT COLON t = typ EQ e1 = expr IN e2 = expr
     { Let(id, t, e1, e2) }
   | IF e1 = expr THEN e2 = expr ELSE e3 = expr

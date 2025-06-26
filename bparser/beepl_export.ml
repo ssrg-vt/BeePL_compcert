@@ -16,6 +16,9 @@ let export_collect_idents (prog : program) : string list =
     match e with
     | Var x -> if List.mem x acc then acc else x :: acc
     | Const _ -> acc
+    | App (e1, args) ->
+        let acc = from_expr acc e1 in
+        List.fold_left from_expr acc args
     | Let (x, _, e1, e2) -> from_expr (from_expr (if List.mem x acc then acc else x :: acc) e1) e2
     | If (e1, e2, e3) -> List.fold_left from_expr acc [e1; e2; e3]
   in
@@ -80,22 +83,6 @@ let rec export_btype_to_coq (bt : btype) : string =
   | Barray (t, n) ->
     Printf.sprintf "Barray (%s) %d" (export_btype_to_coq (Bprim t)) n
 
-let export_typ_to_coq (t : typ) : string =
-  match t with
-  | Utype -> "Utype"
-  | Vtype Tuint8 -> "Vtype (BeeTypes.Tuint8 Unsigned dattr)"
-  | Vtype Tint8 -> "Vtype (BeeTypes.Tint I8 Unsigned dattr)"
-  | Vtype Tuint16 -> "Vtype (BeeTypes.Tuint I16 Unsigned dattr)"
-  | Vtype Tint16 -> "Vtype (BeeTypes.Tint I16 Unsigned dattr)"
-  | Vtype Tuint32 -> "Vtype (BeeTypes.Tuint I32 Unsigned dattr)"
-  | Vtype Tint32 -> "Vtype (BeeTypes.Tint I32 Unsigned dattr)"
-  | Vtype Tulong -> "Vtype (BeeTypes.Tulong Unsigned dattr)"
-  | Vtype Tbool -> "Vtype Tbool"
-  | Vtype Tlong -> "Vtype Tlong"
-  | Ptr (Reftype (name, btype)) ->
-    Printf.sprintf "Ptrtype (Reftype _%s (%s) noattr)" name (export_btype_to_coq btype)
-
-  
 
 let export_effect_to_coq (eff : effect) : string =
   match eff with
@@ -110,6 +97,27 @@ let rec export_effect_to_coq_list (effs : effect list) : string =
   | [] -> "nil"
   | eff :: rest ->
     Printf.sprintf "%s :: %s" (export_effect_to_coq eff) (export_effect_to_coq_list rest)
+let rec export_typ_to_coq (t : typ) : string =
+  match t with
+  | Utype -> "Utype"
+  | Vtype Tuint8 -> "Vtype (BeeTypes.Tuint8 Unsigned dattr)"
+  | Vtype Tint8 -> "Vtype (BeeTypes.Tint I8 Unsigned dattr)"
+  | Vtype Tuint16 -> "Vtype (BeeTypes.Tuint I16 Unsigned dattr)"
+  | Vtype Tint16 -> "Vtype (BeeTypes.Tint I16 Unsigned dattr)"
+  | Vtype Tuint32 -> "Vtype (BeeTypes.Tuint I32 Unsigned dattr)"
+  | Vtype Tint32 -> "Vtype (BeeTypes.Tint I32 Unsigned dattr)"
+  | Vtype Tulong -> "Vtype (BeeTypes.Tulong Unsigned dattr)"
+  | Vtype Tbool -> "Vtype Tbool"
+  | Vtype Tlong -> "Vtype Tlong"
+  | Ptr (Reftype (name, btype)) ->
+    Printf.sprintf "Ptrtype (Reftype _%s (%s) noattr)" name (export_btype_to_coq btype)
+  | Ftype (arg_types, effs, ret_type) ->
+    let arg_strs = List.map export_typ_to_coq arg_types in
+    let eff_strs = export_effect_to_coq_list effs in
+    Printf.sprintf "Ftype (%s) (%s) (%s)"
+      (export_coq_list arg_strs)
+      eff_strs
+      (export_typ_to_coq ret_type)
 
 let export_arg_to_coq (id, t) =
   Printf.sprintf "(_%s, %s)" id (export_typ_to_coq t)
@@ -129,6 +137,16 @@ let export_const_to_coq c =
     | Const c ->
         let ty = export_typ_to_coq (infer_expr (list_to_env env) e) in
         Printf.sprintf "(Const %s (%s))" (export_const_to_coq c) ty
+    | App (e1, args) ->
+        let e1_str = export_expr_to_coq env e1 in
+        let args_str = List.map (export_expr_to_coq env) args in
+        let ty1 = export_typ_to_coq (infer_expr (list_to_env env) e1) in
+        Printf.sprintf 
+        "(App (%s)\n                  (%s)\n                  (%s))"
+          e1_str
+          (export_coq_list args_str)
+          ty1
+    (* Note: The type of the function is inferred from the environment *)
     | Let (id, t, e1, e2) ->
         let e1_str = export_expr_to_coq env e1 in
         let env' = (id, t) :: env in
