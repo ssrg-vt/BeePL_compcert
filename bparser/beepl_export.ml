@@ -165,7 +165,7 @@ let export_const_to_coq c =
           ty2
 
 let export_transform_function (Tfundecl (name, ret, eff, args, vars, body)) is_ebpf =
-  let env = infer_fundecl (Tfundecl (name, ret, eff, args, vars, body)) in
+  let env = args @ vars in (* Build (string * typ) list environment *)
   let arg_strs = List.map export_arg_to_coq args in
   let var_strs = List.map export_arg_to_coq (collect_vars body) in
   let coq_name = "f_" ^ name in
@@ -179,6 +179,7 @@ let export_transform_function (Tfundecl (name, ret, eff, args, vars, body)) is_e
     (export_coq_list var_strs)
     body_str
     (if is_ebpf then "true" else "false")
+          
 
 let export_transform_struct (name : string) (fields : (string * typ) list) : string =
   let members = List.map (fun (id, t) -> Printf.sprintf "Member_plain _%s (%s)" id (export_typ_to_coq t)) fields in

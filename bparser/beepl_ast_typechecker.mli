@@ -4,7 +4,8 @@ open Beepl_ast
 exception TypeError of string
 
 (** Type environment mapping variable names to types. *)
-type tyenv
+module Env : Map.S with type key = string
+type tyenv = typ Env.t
 
 val list_to_env : (string * typ) list -> tyenv
 
@@ -21,7 +22,9 @@ val string_of_typ : typ -> string
 val infer_expr : tyenv -> expr -> typ
 
 (** Type check a function declaration. Raises [TypeError] if invalid. *)
-val infer_fundecl : fundecl -> (string * typ) list
+val infer_fundecl : fundecl -> tyenv -> unit
 
 (** Type check an entire program. Raises [TypeError] if any function is invalid. *)
 val infer_program : program -> unit
+
+

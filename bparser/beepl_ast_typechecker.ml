@@ -37,10 +37,15 @@ let ptype_eq p1 p2 =
   | Tlong, Tlong -> true
   | _ -> false
 
-let typ_eq t1 t2 =
+let rec typ_eq t1 t2 =
   match t1, t2 with
   | Utype, Utype -> true
   | Vtype p1, Vtype p2 -> ptype_eq p1 p2
+  | Ftype (args1, effs1, ret1), Ftype (args2, effs2, ret2) ->
+    List.length args1 = List.length args2 &&
+    List.for_all2 typ_eq args1 args2 &&
+    List.length effs1 = List.length effs2 && (* optional: more precise effect comparison *)
+    typ_eq ret1 ret2
   | _, _ -> false
 
 let rec infer_expr (env : tyenv) (e : expr) : typ =
@@ -83,20 +88,30 @@ let rec infer_expr (env : tyenv) (e : expr) : typ =
         raise (TypeError "If branches have mismatched types");
       t2
 
-let infer_fundecl (Tfundecl (_name, ret_type, _eff, args, _vars, body)) : (string * typ) list =
-  let env =
-    List.fold_left (fun acc (x, ty) -> Env.add x ty acc) Env.empty args
-  in
-  let inferred_type = infer_expr env body in
+let infer_fundecl (Tfundecl (_name, ret_type, _eff, args, _vars, body)) (global_env : tyenv) =
+  let env_with_args = List.fold_left (fun acc (x, ty) -> Env.add x ty acc) global_env args in
+  let inferred_type = infer_expr env_with_args body in
   if not (typ_eq inferred_type ret_type) then
     raise (TypeError "Return type mismatch");
-
-  Env.bindings env
+  ()
 
 let infer_program (prog : program) =
+  (* Step 1: collect all top-level function types into global env *)
+  let global_fun_types =
+    List.filter_map (function
+      | Internal (Tfundecl (name, ret, eff, args, _, _), _) ->
+          Some (name, Ftype (List.map snd args, eff, ret))
+      | EBPFInternal (Tfundecl (name, ret, eff, args, _, _), _) ->
+          Some (name, Ftype (List.map snd args, eff, ret))
+      | StructDecl _ -> None
+    ) prog
+  in
+  let global_env = list_to_env global_fun_types in
+
+  (* Step 2: typecheck each function body *)
   List.iter
     (function
-      | Internal (f, section) -> ignore (infer_fundecl f)
-      | EBPFInternal (f, section) -> ignore (infer_fundecl f)
-      | StructDecl (_id, _fields) -> ()
+      | Internal (f, _) | EBPFInternal (f, _) ->
+          infer_fundecl f global_env
+      | StructDecl _ -> ()
     ) prog
