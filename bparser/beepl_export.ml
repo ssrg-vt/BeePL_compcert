@@ -16,6 +16,11 @@ let export_collect_idents (prog : program) : string list =
     match e with
     | Var x -> if List.mem x acc then acc else x :: acc
     | Const _ -> acc
+    | Prim (Uop uop, args) ->
+        let acc = List.fold_left from_expr acc args in
+        (match uop with
+        | UOverloadTilde -> acc  (* Tilde is not a variable, so we don't add it *)
+        | _ -> acc  (* Other unary ops do not introduce new variables *))
     | App (e1, args) ->
         let acc = from_expr acc e1 in
         List.fold_left from_expr acc args
@@ -147,6 +152,20 @@ let export_const_to_coq c =
           (export_coq_list args_str)
           ty1
     (* Note: The type of the function is inferred from the environment *)
+    | Prim (Uop uop, args) ->
+        let args_str = List.map (export_expr_to_coq env) args in
+        let ty = export_typ_to_coq (infer_expr (list_to_env env) e) in
+        let uop_str = match uop with
+          | Onotbool -> "Onotbool"
+          | Onotint -> "Onotint"
+          | Oneg -> "Oneg"
+          | UOverloadTilde -> "UOverloadTilde"
+        in
+        Printf.sprintf 
+        "(Prim (Uop %s)\n                  (%s)\n                  (%s))"
+          uop_str
+          (export_coq_list args_str)
+          ty
     | Let (id, t, e1, e2) ->
         let e1_str = export_expr_to_coq env e1 in
         let env' = (id, t) :: env in

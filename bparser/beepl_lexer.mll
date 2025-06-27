@@ -63,6 +63,8 @@ rule read_token = parse
   | "[" "]"         { EMPTYBRACKETS }
   | "struct"        { STRUCT }
   | "*"             { STAR }
+  | '~'             { TILDE } (* Single token for overloaded use for notint and notbool *)
+  | "-"             { NEG }
   
 
   | '-'? digit+ as i32 { INT32 (Int32.of_string i32) }
@@ -76,3 +78,12 @@ rule read_token = parse
   | "#section" whitespace+ (letter identchar*) as id { SECTION id }
   | eof             { EOF }
   | _               { raise (SyntaxError ("Unrecognized character: " ^ Lexing.lexeme lexbuf)) }
+  | "(*"          { comment lexbuf }
+
+
+and comment = parse
+  | "*)"        { read_token lexbuf }  (* End of comment *)
+  | "(*"        { ignore (comment lexbuf); comment lexbuf }  (* Nested comment *)
+  | '\n'        { next_line lexbuf; comment lexbuf }
+  | eof         { raise (SyntaxError "Unterminated comment") }
+  | _           { comment lexbuf }

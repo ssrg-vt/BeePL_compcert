@@ -60,6 +60,34 @@ let rec infer_expr (env : tyenv) (e : expr) : typ =
        | Cbool _ -> Vtype Tbool
        | Cint32 _ -> Vtype Tint32
        | Clong _ -> Vtype Tlong)
+  | Prim (Uop uop, args) ->
+    (match args with 
+    | [arg] -> let arg_ty = infer_expr env arg in
+        begin match uop with
+        | Oneg ->
+            begin match arg_ty with
+            | Vtype Tint32 | Vtype Tlong -> arg_ty
+            | _ -> raise (TypeError "- can only be applied to int32 or long")
+            end
+        | Onotint ->
+            begin match arg_ty with
+            | Vtype Tint8 | Vtype Tint16 | Vtype Tint32
+            | Vtype Tuint8 | Vtype Tuint16 | Vtype Tuint32 -> arg_ty
+            | _ -> raise (TypeError "~ can only be applied to integer types")
+            end
+        | Onotbool ->
+            if arg_ty = Vtype Tbool then Vtype Tbool
+            else raise (TypeError "~ can only be applied to bool")
+        | UOverloadTilde ->
+            begin match arg_ty with
+            | Vtype Tbool -> Vtype Tbool
+            | Vtype Tint8 | Vtype Tint16 | Vtype Tint32
+            | Vtype Tuint8 | Vtype Tuint16 | Vtype Tuint32 -> arg_ty
+            | _ -> raise (TypeError "Overloaded `~` can only be applied to bool or integer types")
+            end
+          end
+      |  _ ->
+        raise (TypeError "Unary operator expects exactly one argument"))
   | App (e1, args) ->
       let ty1 = infer_expr env e1 in
       let arg_tys = List.map (infer_expr env) args in

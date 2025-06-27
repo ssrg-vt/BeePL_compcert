@@ -44,6 +44,7 @@ let collect_idents (prog : Beepl_ast.program) : string list =
     | Beepl_ast.App (e1, args) ->
         from_expr e1;
         List.iter from_expr args
+    | Beepl_ast.Prim (_, args) -> List.iter from_expr args
     | Beepl_ast.Let (x, _, e1, e2) -> add_ident x; from_expr e1; from_expr e2
     | Beepl_ast.If (e1, e2, e3) -> from_expr e1; from_expr e2; from_expr e3
   in
@@ -118,22 +119,53 @@ let transform_constant (c : Beepl_ast.const) (typ : Beepl_ast.typ) : BeePL_value
   | _, _ ->
       failwith "Constant type mismatch or unsupported constant"
       
+let transform_uop (uop : Beepl_ast.uop) : Cop.unary_operation =
+  match uop with
+  | Onotbool -> Cop.Onotbool
+  | Onotint -> Cop.Onotint
+  | Oneg -> Cop.Oneg
+  | UOverloadTilde -> failwith "UOverloadTilde should be resolved before transformation"
+
+let transform_builtin (b : Beepl_ast.builtin) : BeePL.builtin =
+  match b with
+  | Beepl_ast.Uop uop -> BeePL.Uop (transform_uop uop)
+
+let rec resolve_overloaded_uop (e : expr) (typ : typ) : expr =
+  match e with
+  | Prim (Uop UOverloadTilde, [arg]) ->
+      begin match typ with
+      | Vtype Tbool -> Prim (Uop Onotbool, [resolve_overloaded_uop arg (Vtype Tbool)])
+      | Vtype Tint8 | Vtype Tint16 | Vtype Tint32
+      | Vtype Tuint8 | Vtype Tuint16 | Vtype Tuint32 ->
+          Prim (Uop Onotint, [resolve_overloaded_uop arg typ])
+      | _ -> failwith "Unsupported type for overloaded tilde"
+      end
+  | Prim (op, args) ->
+      Prim (op, List.map (fun a -> resolve_overloaded_uop a typ) args)
+  | App (f, args) ->
+      App (resolve_overloaded_uop f typ, List.map (fun a -> resolve_overloaded_uop a typ) args)
+  | Let (x, ty, e1, e2) ->
+      Let (x, ty, resolve_overloaded_uop e1 ty, resolve_overloaded_uop e2 typ)
+  | If (e1, e2, e3) ->
+      If (resolve_overloaded_uop e1 (Vtype Tbool), resolve_overloaded_uop e2 typ, resolve_overloaded_uop e3 typ)
+  | _ -> e
 
 let rec transform_expr (env : Beepl_ast_typechecker.tyenv) (e : Beepl_ast.expr) : BeePL.expr =
   let typ = Beepl_ast_typechecker.infer_expr env e in
+  let e' = resolve_overloaded_uop e typ in
   let t' = transform_typ typ in
-  match e with
+  match e' with
   | Beepl_ast.Var x ->
       BeePL.Var (Camlcoq.intern_string x, t')
-
   | Beepl_ast.Const c ->
       BeePL.Const (transform_constant c typ, t')
-
   | Beepl_ast.App (e1, args) ->
       let e1' = transform_expr env e1 in
       let args' = List.map (transform_expr env) args in
       BeePL.App (e1', args', t')
-
+  | Beepl_ast.Prim (uop, args) ->
+    let args' = List.map (transform_expr env) args in
+    BeePL.Prim (transform_builtin uop, args', t')
   | Beepl_ast.Let (x, t, e1, e2) ->
       let e1' = transform_expr env e1 in
       let env' = Beepl_ast_typechecker.Env.add x t env in
@@ -155,6 +187,8 @@ let rec collect_vars (e : Beepl_ast.expr) : (string * Beepl_ast.typ) list =
   in
   match e with
   | Beepl_ast.Var _ | Beepl_ast.Const _ -> []
+  | Beepl_ast.Prim (_, args) ->
+      unique_vars (List.flatten (List.map collect_vars args))
   | Beepl_ast.Let (x, t, e1, e2) ->
       unique_vars ((x, t) :: collect_vars e1 @ collect_vars e2)
   | Beepl_ast.App (e1, args) ->
