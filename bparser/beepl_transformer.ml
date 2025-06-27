@@ -1,222 +1,335 @@
-open Lexing
+open Beepl_lexer
 open Beepl_ast
+open Lexing
+open BeePL_values
+open BinNums
 
-(* Function to parse input file *)
-let parse_file filename =
-  let ic = open_in filename in
-  let lexbuf = Lexing.from_channel ic in
-  lexbuf.lex_curr_p <- { lexbuf.lex_curr_p with pos_fname = filename };
+let string_to_char_list s =
+  let rec aux i acc =
+    if i < 0 then acc
+    else aux (i - 1) (s.[i] :: acc)
+  in
+  aux (String.length s - 1) []
+
+let rec int_to_positive = function
+  | 1 -> Coq_xH
+  | n when n mod 2 = 0 -> Coq_xO (int_to_positive (n / 2))
+  | n -> Coq_xI (int_to_positive (n / 2))
+
+let int_to_coq_z n =
+  if n = 0 then Z0
+  else if n > 0 then Zpos (int_to_positive n)
+  else Zneg (int_to_positive (-n))
+
+let collect_global_env (prog : Beepl_ast.program) : Beepl_ast_typechecker.tyenv =
+  let ftype_of_decl (Beepl_ast.Tfundecl (name, ret, eff, args, _, _)) =
+    (name, Ftype (List.map snd args, eff, ret))
+  in
+  let bindings =
+    List.filter_map (function
+      | Beepl_ast.Internal (f, _) | Beepl_ast.EBPFInternal (f, _) -> Some (ftype_of_decl f)
+      | Beepl_ast.StructDecl _ -> None
+    ) prog
+  in
+  Beepl_ast_typechecker.list_to_env bindings
+
+let collect_idents (prog : Beepl_ast.program) : string list =
+  let idents = ref [] in
+  let add_ident x = if not (List.mem x !idents) then idents := x :: !idents in
+  let add_var (x, _) = add_ident x in
+  let rec from_expr e =
+    match e with
+    | Beepl_ast.Var x -> add_ident x
+    | Beepl_ast.Const _ -> ()
+    | Beepl_ast.App (e1, args) ->
+        from_expr e1;
+        List.iter from_expr args
+    | Beepl_ast.Prim (_, args) -> List.iter from_expr args
+    | Beepl_ast.Let (x, _, e1, e2) -> add_ident x; from_expr e1; from_expr e2
+    | Beepl_ast.If (e1, e2, e3) -> from_expr e1; from_expr e2; from_expr e3
+  in
+  let from_effect = function
+    | Beepl_ast.Read s | Beepl_ast.Write s | Beepl_ast.Alloc s -> add_ident s
+    | Beepl_ast.Io | Beepl_ast.Divergence -> ()
+  in
+  List.iter (fun top ->
+    match top with
+    | Beepl_ast.Internal (Beepl_ast.Tfundecl (name, _, effs, args, _, body), _)
+    | Beepl_ast.EBPFInternal (Beepl_ast.Tfundecl (name, _, effs, args, _, body), _) ->
+        add_ident name;
+        List.iter from_effect effs;
+        List.iter add_var args;
+        from_expr body
+    | Beepl_ast.StructDecl (sname, fields) ->
+        add_ident sname;
+        List.iter add_var fields
+  ) prog;
+  List.rev !idents
+
+let transform_primitive_type (pt : Beepl_ast.ptype) : BeeTypes.primitive_type =
+  match pt with
+  | Beepl_ast.Tbool -> BeeTypes.Tbool
+  | Beepl_ast.Tint8 -> BeeTypes.Tint (Ctypes.I8, Ctypes.Signed, Ctypes.noattr)
+  | Beepl_ast.Tint16 -> BeeTypes.Tint (Ctypes.I16, Ctypes.Signed, Ctypes.noattr)
+  | Beepl_ast.Tint32 -> BeeTypes.Tint (Ctypes.I32, Ctypes.Signed, Ctypes.noattr)
+  | Beepl_ast.Tuint8 -> BeeTypes.Tint (Ctypes.I8, Ctypes.Unsigned, Ctypes.noattr)
+  | Beepl_ast.Tuint16 -> BeeTypes.Tint (Ctypes.I16, Ctypes.Unsigned, Ctypes.noattr)
+  | Beepl_ast.Tuint32 -> BeeTypes.Tint (Ctypes.I32, Ctypes.Unsigned, Ctypes.noattr)
+  | Beepl_ast.Tulong -> BeeTypes.Tlong (Ctypes.Unsigned, Ctypes.noattr)
+  | Beepl_ast.Tlong -> BeeTypes.Tlong (Ctypes.Signed, Ctypes.noattr)
+
+let transform_basic_type (bt : Beepl_ast.btype) : BeeTypes.basic_type =
+  match bt with
+  | Beepl_ast.Bprim pt -> BeeTypes.Bprim (transform_primitive_type pt)
+  | Beepl_ast.Bstruct name -> BeeTypes.Bstruct (Camlcoq.intern_string name, Ctypes.noattr)
+  | Beepl_ast.Barray (pt, n) -> BeeTypes.Barray (transform_primitive_type pt, int_to_coq_z n, Ctypes.noattr)
+
+let transform_effect (eff : Beepl_ast.effect) : BeeTypes.effect_label =
+    match eff with
+    | Beepl_ast.Read s -> BeeTypes.Read (Camlcoq.intern_string s)
+    | Beepl_ast.Write s -> BeeTypes.Write (Camlcoq.intern_string s)
+    | Beepl_ast.Alloc s -> BeeTypes.Alloc (Camlcoq.intern_string s)
+    | Beepl_ast.Io -> BeeTypes.Io
+    | Beepl_ast.Divergence -> BeeTypes.Divergence
+
+let transform_effect_list effs = List.map (transform_effect) effs
+
+let rec transform_typ (t : Beepl_ast.typ) : BeeTypes.coq_type =
+  match t with
+  | Beepl_ast.Utype -> BeeTypes.Utype
+  | Beepl_ast.Vtype pt -> BeeTypes.Vtype (transform_primitive_type pt)
+  | Beepl_ast.Ptr (Beepl_ast.Reftype (name, bt)) ->
+      BeeTypes.Ptrtype (BeeTypes.Reftype (Camlcoq.intern_string name, transform_basic_type bt, Ctypes.noattr))
+  | Beepl_ast.Ftype (args, effs, ret) -> 
+      let args' = List.map (fun t -> (transform_typ t)) args in
+      let effs' = transform_effect_list effs in
+      let ret' = transform_typ ret in
+      BeeTypes.Ftype (args', effs', ret')
+
+let transform_constant (c : Beepl_ast.const) (typ : Beepl_ast.typ) : BeePL_values.constant =
+  match typ, c with
+  | Beepl_ast.Vtype Beepl_ast.Tint32, Beepl_ast.Cint32 i ->
+      ConsInt (Integers.Int.repr (int_to_coq_z (Int32.to_int i)))
+  | Beepl_ast.Vtype Beepl_ast.Tlong, Beepl_ast.Clong l ->
+      ConsLong (Integers.Int64.repr (int_to_coq_z (Int64.to_int l)))
+  | Beepl_ast.Vtype Beepl_ast.Tbool, Beepl_ast.Cbool b ->
+      ConsBool b
+  | Beepl_ast.Utype, Beepl_ast.Cunit ->
+      ConsUnit
+  | _, _ ->
+      failwith "Constant type mismatch or unsupported constant"
+      
+let transform_uop (uop : Beepl_ast.uop) : Cop.unary_operation =
+  match uop with
+  | Onotbool -> Cop.Onotbool
+  | Onotint -> Cop.Onotint
+  | Oneg -> Cop.Oneg
+  | UOverloadTilde -> failwith "UOverloadTilde should be resolved before transformation"
+
+let transform_builtin (b : Beepl_ast.builtin) : BeePL.builtin =
+  match b with
+  | Beepl_ast.Uop uop -> BeePL.Uop (transform_uop uop)
+
+let rec resolve_overloaded_uop (e : expr) (typ : typ) : expr =
+  match e with
+  | Prim (Uop UOverloadTilde, [arg]) ->
+      begin match typ with
+      | Vtype Tbool -> Prim (Uop Onotbool, [resolve_overloaded_uop arg (Vtype Tbool)])
+      | Vtype Tint8 | Vtype Tint16 | Vtype Tint32
+      | Vtype Tuint8 | Vtype Tuint16 | Vtype Tuint32 ->
+          Prim (Uop Onotint, [resolve_overloaded_uop arg typ])
+      | _ -> failwith "Unsupported type for overloaded tilde"
+      end
+  | Prim (op, args) ->
+      Prim (op, List.map (fun a -> resolve_overloaded_uop a typ) args)
+  | App (f, args) ->
+      App (resolve_overloaded_uop f typ, List.map (fun a -> resolve_overloaded_uop a typ) args)
+  | Let (x, ty, e1, e2) ->
+      Let (x, ty, resolve_overloaded_uop e1 ty, resolve_overloaded_uop e2 typ)
+  | If (e1, e2, e3) ->
+      If (resolve_overloaded_uop e1 (Vtype Tbool), resolve_overloaded_uop e2 typ, resolve_overloaded_uop e3 typ)
+  | _ -> e
+
+let rec transform_expr (env : Beepl_ast_typechecker.tyenv) (e : Beepl_ast.expr) : BeePL.expr =
+  let typ = Beepl_ast_typechecker.infer_expr env e in
+  let e' = resolve_overloaded_uop e typ in
+  let t' = transform_typ typ in
+  match e' with
+  | Beepl_ast.Var x ->
+      BeePL.Var (Camlcoq.intern_string x, t')
+  | Beepl_ast.Const c ->
+      BeePL.Const (transform_constant c typ, t')
+  | Beepl_ast.App (e1, args) ->
+      let e1' = transform_expr env e1 in
+      let args' = List.map (transform_expr env) args in
+      BeePL.App (e1', args', t')
+  | Beepl_ast.Prim (uop, args) ->
+    let args' = List.map (transform_expr env) args in
+    BeePL.Prim (transform_builtin uop, args', t')
+  | Beepl_ast.Let (x, t, e1, e2) ->
+      let e1' = transform_expr env e1 in
+      let env' = Beepl_ast_typechecker.Env.add x t env in
+      let e2' = transform_expr env' e2 in
+      BeePL.Bind (Camlcoq.intern_string x, transform_typ t, e1', e2', t')
+
+  | Beepl_ast.If (e1, e2, e3) ->
+      let e1' = transform_expr env e1 in
+      let e2' = transform_expr env e2 in
+      let e3' = transform_expr env e3 in
+      BeePL.Cond (e1', e2', e3', t')
+      
+
+let rec collect_vars (e : Beepl_ast.expr) : (string * Beepl_ast.typ) list =
+  let unique_vars vars =
+    List.fold_left (fun acc (x, t) ->
+      if List.exists (fun (y, _) -> x = y) acc then acc else (x, t) :: acc
+    ) [] vars
+  in
+  match e with
+  | Beepl_ast.Var _ | Beepl_ast.Const _ -> []
+  | Beepl_ast.Prim (_, args) ->
+      unique_vars (List.flatten (List.map collect_vars args))
+  | Beepl_ast.Let (x, t, e1, e2) ->
+      unique_vars ((x, t) :: collect_vars e1 @ collect_vars e2)
+  | Beepl_ast.App (e1, args) ->
+      unique_vars (collect_vars e1 @ List.flatten (List.map collect_vars args))
+  | Beepl_ast.If (e1, e2, e3) ->
+      unique_vars (collect_vars e1 @ collect_vars e2 @ collect_vars e3)
+
+let transform_function fdecl is_ebpf global_env =
+  let Tfundecl (name, ret, eff, args, _, body) = fdecl in
+  let local_env = List.fold_left (fun acc (x, t) -> Beepl_ast_typechecker.Env.add x t acc) global_env args in
+  let fn_args = List.map (fun (id, t) -> (Camlcoq.intern_string id, transform_typ t)) args in
+  let fn_vars = List.map (fun (id, t) -> (Camlcoq.intern_string id, transform_typ t)) (collect_vars body) in
+  let fn_body = transform_expr local_env body in
+  {
+    BeePL.fn_return = transform_typ ret;
+    BeePL.fn_effect = transform_effect_list eff;
+    BeePL.fn_callconv = AST.cc_default;
+    BeePL.fn_args = fn_args;
+    BeePL.fn_vars = fn_vars;
+    BeePL.fn_body = fn_body;
+    BeePL.is_ebpf = is_ebpf;
+  }
+      
+
+let transform_struct (name : string) (fields : (string * Beepl_ast.typ) list) : BeeTypes.bcomposite_definition =
+  let members = List.map (fun (id, t) ->
+      BeeTypes.Member_plain (Camlcoq.intern_string id, transform_typ t)
+    ) fields in
+  BeeTypes.Bcomposite (Camlcoq.intern_string name, Ctypes.Struct, members, Ctypes.noattr)
+
+let get_fun_name (Tfundecl (name, _, _, _, _, _)) = name
+
+let transform_toplevel global_env = function
+| Internal(f, sec) ->
+    let id = Camlcoq.intern_string (get_fun_name f) in
+    `Fun (id, transform_function f false global_env, sec)
+| EBPFInternal(f, sec) ->
+    let id = Camlcoq.intern_string (get_fun_name f) in
+    `Fun (id, transform_function f true global_env, sec)
+| StructDecl (name, fields) ->
+    let id = Camlcoq.intern_string name in
+    `Struct (id, transform_struct name fields)
+      
+let find_main_or_fallback prog : string =
+  let names =
+    List.fold_left (fun acc top ->
+    match top with
+      | Beepl_ast.Internal (Beepl_ast.Tfundecl (name, _, _, _, _, _), _)
+      | Beepl_ast.EBPFInternal (Beepl_ast.Tfundecl (name, _, _, _, _, _), _) ->
+          name :: acc
+        | _ -> acc
+          ) [] prog in
+      match List.find_opt (fun name -> name = "main") names with
+      | Some name -> name
+      | None ->
+    match List.rev names with
+      | fn :: _ -> fn
+      | [] -> failwith "No function declarations found in the program"
+
+(*The reorder_program function ensures that the fun main declaration appears first in the AST. So:
+  "main" is the first identifier seen by create_ident_map.
+  Therefore, it’s guaranteed to get Coq_xH, the correct value required by the CompCert linker. *)   
+let reorder_program (prog : Beepl_ast.program) : Beepl_ast.program =
+  let is_main = function
+    | Beepl_ast.Internal (Beepl_ast.Tfundecl ("main", _, _, _, _, _), _)
+    | Beepl_ast.EBPFInternal (Beepl_ast.Tfundecl ("main", _, _, _, _, _), _) -> true
+    | _ -> false
+  in
+  let main_fun = List.filter is_main prog in
+  let rest = List.filter (fun d -> not (is_main d)) prog in
+  main_fun @ rest
+      
+let transform_program (prog : Beepl_ast.program) : BeePL.program =
+  let prog = reorder_program prog in  
+  let idents = collect_idents prog in
+
+  (* Use Camlcoq.intern_string directly *)
+  let get_id = Camlcoq.intern_string in
+
+  let prog_ident_to_string =
+    List.map (fun s -> (get_id s, string_to_char_list s)) idents in
+
+  let global_env = collect_global_env prog in
+  let transformed_decls =
+      List.map (transform_toplevel global_env) prog in
+
+      let prog_types =
+        List.filter_map (function `Struct (_, s) -> Some s | `Fun _ -> None) transformed_decls in
+
+  let fun_defs =
+    List.filter_map (function `Fun (id, f, sec) -> Some (id, f, sec) | `Struct _ -> None) transformed_decls in
+
+    let prog_defs =
+      List.map (fun (id, f, section) ->
+        let sec =
+          match section with
+          | Some s when String.length s > 8 && String.sub s 0 8 = "#section" ->
+              let raw = String.trim (String.sub s 8 (String.length s - 8)) in
+              Some (string_to_char_list ("\"" ^ raw ^ "\""))
+          | Some s -> Some (string_to_char_list ("\"" ^ s ^ "\""))
+          | None -> None
+        in
+        ((id, AST.Gfun (BeePL.Internal f)), sec)
+      ) fun_defs in       
+
+  let prog_comp_env = BeeTypes.build_bcomposite_env' prog_types in
+  let prog_main = get_id (find_main_or_fallback prog) in
+  let prog_public =
+    let ids = List.map (fun (id, _, _) -> id) fun_defs in
+    if List.mem prog_main ids then ids else prog_main :: ids in
+
+  {
+    BeePL.prog_defs = prog_defs;
+    BeePL.prog_public = prog_public;
+    BeePL.prog_main = prog_main;
+    BeePL.prog_types = prog_types;
+    BeePL.prog_comp_env = prog_comp_env;
+    BeePL.prog_ident_to_string = prog_ident_to_string;
+  }
+  
+
+let parse_file (filename : string) : Beepl_ast.program =
+  let ch = open_in filename in
+  let lexbuf = from_channel ch in
   try
-    let ast = Beepl_parser.program Beepl_lexer.read lexbuf in
-    close_in ic;
-    ast
+    let result = Beepl_parser.prog Beepl_lexer.read_token lexbuf in
+    close_in ch;
+    result
   with
-  | Beepl_lexer.SyntaxError msg ->
-    Printf.fprintf stderr "Syntax error: %s\n" msg;
-    close_in ic;
-    exit 1
+  | SyntaxError msg ->
+    let pos = lexbuf.lex_curr_p in
+    Printf.eprintf "%s:%d:%d: %s\n"
+      filename pos.pos_lnum (pos.pos_cnum - pos.pos_bol + 1) msg;
+    exit (-1)
   | Beepl_parser.Error ->
     let pos = lexbuf.lex_curr_p in
-    Printf.fprintf stderr "Parse error at line %d, column %d\n"
-      pos.pos_lnum (pos.pos_cnum - pos.pos_bol);
-    close_in ic;
-    exit 1
+    Printf.eprintf "%s:%d:%d: Parse error near token '%s'\n"
+      filename pos.pos_lnum (pos.pos_cnum - pos.pos_bol + 1)
+      (Lexing.lexeme lexbuf);
+    exit (-1)
 
-(* Create a hashtable to store variable declarations *)
-let var_table = Hashtbl.create 100
-
-(* Convert type to string for pretty printing
-let rec string_of_type = function
-  | TName s -> s
-  | TRef t -> string_of_type t ^ " ref"
-  | TArrow (args, ret) ->
-    let args_str = String.concat " -> " (List.map string_of_type args) in
-    args_str ^ " -> " ^ string_of_type ret
-*)
-
-(* Extract variable name and type from a pattern *)
-let rec extract_vars_from_pattern pattern typ_opt location =
-  match pattern with
-  | PWildcard -> ()
-  | PUnit -> ()
-  | PIdent id ->
-      if id <> "_" && id <> "" then
-        Hashtbl.replace var_table id (id, typ_opt, location)
-  | PAnnot (p, t) ->
-      (* Pattern annotation overrides any external type annotation *)
-      extract_vars_from_pattern p (Some t) location
-
-(* Process top-level declarations *)
-let rec process_toplevel tl =
-  match tl with
-  | TLLet (pattern, typ_opt, expr) ->
-      extract_vars_from_pattern pattern typ_opt "top-level let";
-      process_expr expr "top-level let"
-  | TLFunc (name, params, ret_type, body) ->
-      (* Create function type *)
-      let func_type =
-        match ret_type with
-        | Some ret ->
-            let param_types = List.map (fun (param_name, param_type) ->
-              match param_name with
-              | "" -> TName "unit"
-              | _ -> (match param_type with
-                      | Some t -> t
-                      | None -> TName "unknown")
-            ) params in
-            Some (TArrow (param_types, ret))
-        | None -> None
-      in
-
-      (* Add function to variable table *)
-      Hashtbl.replace var_table name (name, func_type, "function declaration");
-
-      (* Add function parameters *)
-      List.iter (fun (param_name, param_type) ->
-        if param_name <> "_" && param_name <> "" then
-          Hashtbl.replace var_table param_name (param_name, param_type, "function parameter of " ^ name)
-      ) params;
-
-      (* Process function body *)
-      process_expr body ("function " ^ name)
-  | TLExpr expr ->
-      process_expr expr "top-level expression"
-
-(* Recursively process expressions to find variable declarations *)
-and process_expr expr location =
-  match expr with
-  | EUnit | EInt32 _ | EVar _ -> ()
-  | EApply (func, args) ->
-      process_expr func location;
-      List.iter (fun arg -> process_expr arg location) args
-  | ELet (pattern, typ_opt, e1, e2) ->
-      extract_vars_from_pattern pattern typ_opt ("let binding in " ^ location);
-      process_expr e1 location;
-      process_expr e2 location
-  | ERef e | EDeref e ->
-      process_expr e location
-  | EAssign (e1, e2) ->
-      process_expr e1 location;
-      process_expr e2 location
-  | EBlock exprs ->
-      List.iter (fun e -> process_expr e location) exprs
-
-let rec transform_type = function
-  | TName "int32s" -> "tint32s"
-  | TName "int32u" -> "tint32u"
-  | TName "unit" -> "tunit"
-  | TRef t ->
-      (match t with
-       | TName s -> "tr" ^ s
-       | _ -> "tr" ^ transform_type t)
-  | TArrow (_, _) -> "tfunc"
-  | t -> transform_type t
-
-let rec transform_expr ?(expected_type=None) expr var_table =
-  match expr with
-  | EUnit -> "tunit"
-  | EInt32 n ->
-      (* Use expected type if available, otherwise default to tint32s *)
-      let typ = match expected_type with
-                | Some t -> t
-                | None -> "tint32s" in
-      Printf.sprintf "(cint (Int.repr %s) %s)" n typ
-  | EVar id ->
-      let typ = try
-        let (_, typ_opt, _) = Hashtbl.find var_table id in
-        match typ_opt with
-        | Some t -> transform_type t
-        | None -> "tint32s"
-      with Not_found -> "tint32s" in
-      Printf.sprintf "(Var %s %s)" id typ
-  | EApply (func, args) ->
-      let func_str = transform_expr func var_table in
-      let args_str = String.concat " :: " (List.map (fun arg -> transform_expr arg var_table) args) ^ " :: nil" in
-      let ret_type_str = match expected_type with Some t -> t | None -> "tint32s" in (* Use expected type if available *)
-      Printf.sprintf "(App %s (%s) %s)" func_str args_str ret_type_str
-  | ELet (pattern, typ_opt, e1, e2) ->
-      let var_name = match pattern with
-                    | PIdent id -> id
-                    | PAnnot (p, _) ->
-                        (match p with
-                          | PIdent id -> id
-                          | _ -> "_")
-                    | PWildcard -> "_"
-                    | _ -> "_" in
-      let var_type =
-        try
-          let (_, typ_opt_in_table, _) = Hashtbl.find var_table var_name in
-          match typ_opt_in_table with
-          | Some t -> transform_type t
-          | None -> "tint32s"
-        with Not_found -> "tint32s" in
-      (* Pass the variable's type as expected_type when transforming e1 *)
-      let val_expr = transform_expr ~expected_type:(Some var_type) e1 var_table in
-      let body_expr = transform_expr e2 var_table in
-      (* Use var_type instead of hardcoded tint32s *)
-      Printf.sprintf "(Bind %s %s\n%s\n%s %s)" var_name var_type val_expr body_expr var_type
-  | ERef e ->
-      let expr_str = transform_expr e var_table in
-      Printf.sprintf "(Prim Ref (%s :: nil) trint32s)" expr_str
-  | EDeref e ->
-      let expr_str = transform_expr e var_table in
-      Printf.sprintf "(Prim Deref (%s :: nil) tint32s)" expr_str
-  | EAssign (e1, e2) ->
-      let lhs = transform_expr e1 var_table in
-      let rhs = transform_expr e2 var_table in
-      Printf.sprintf "(Prim Massgn (%s :: %s :: nil) tunit)" lhs rhs
-  | EBlock exprs ->
-      let exprs_str = List.map (fun e -> transform_expr e var_table) exprs in
-      String.concat ";\n" exprs_str
-
-let transform_function name params ret_type body var_table =
-  (* Get the actual return type instead of hardcoding tint32s *)
-  let return_type = match ret_type with
-                    | Some t -> transform_type t
-                    | None -> "tint32s" in
-  let transformed_body = transform_expr body var_table in
-
-  Printf.sprintf "Definition %s : BeePL.function := {|\n" name ^
-  Printf.sprintf "                                   fn_return := %s;\n" return_type ^
-  "                                   fn_effect := (Alloc mem_ident :: Read mem_ident :: Write mem_ident :: Read mem_ident :: nil);\n" ^
-  "                                   fn_callconv := cc_default;\n" ^
-  "                                   fn_args := nil;\n" ^
-  "                                   fn_vars := ((_x, trint32s) :: nil);\n" ^
-  "                                   fn_body := " ^ transformed_body ^ ";\n" ^
-  "                                   is_ebpf := false|}."
-
-let transform_program ast var_table =
-  let result = ref [] in
-
-  List.iter (fun toplevel ->
-    match toplevel with
-    | TLFunc (name, params, ret_type, body) ->
-        (* Transform the function name by prepending "f_" *)
-        let transformed_name = "f_" ^ name in
-        let transformed = transform_function transformed_name params ret_type body var_table in
-        result := transformed :: !result
-    | _ -> () (* Skip other toplevel declarations *)
-  ) ast;
-
-  String.concat "\n\n" (List.rev !result)
-
-(* Print the contents of the variable table
-let print_var_table () =
-  Printf.printf "Variable Declarations:\n";
-  Printf.printf "=====================\n";
-  let entries = Hashtbl.fold (fun _ entry acc -> entry :: acc) var_table [] in
-  let sorted_entries = List.sort (fun (name1, _, _) (name2, _, _) -> String.compare name1 name2) entries in
-  List.iter (fun (name, typ_opt, location) ->
-    let type_str = match typ_opt with
-      | Some t -> string_of_type t
-      | None -> "unknown"
-    in
-    Printf.printf "Variable: %s\nType: %s\nDeclared in: %s\n\n"
-      name type_str location
-  ) sorted_entries
-*)
-
-let transform_input filename =
-  let ast = parse_file filename in
-  List.iter process_toplevel ast;
-  transform_program ast var_table
+let parse_and_transform_bpl (filename : string) : BeePL.program =
+  let program = parse_file filename in
+  transform_program program

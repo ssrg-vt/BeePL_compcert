@@ -1,0 +1,145 @@
+open Beepl_ast
+
+exception TypeError of string
+
+module Env = Map.Make(String)
+type tyenv = typ Env.t
+
+let string_of_ptype = function
+  | Tbool -> "bool"
+  | Tint8 -> "int8"
+  | Tuint8 -> "uint8"
+  | Tint16 -> "int16"
+  | Tuint16 -> "uint16"
+  | Tint32 -> "int32"
+  | Tuint32 -> "uint32"
+  | Tlong -> "long"
+  | Tulong -> "ulong"
+
+let string_of_typ = function
+  | Utype -> "unit"
+  | Vtype pt -> string_of_ptype pt
+  | Ptr (Reftype (s, _)) -> "ptr to " ^ s
+  | Ftype _ -> "function type"
+
+let list_to_env (xs : (string * typ) list) : tyenv =
+  List.fold_left (fun acc (x, ty) -> Env.add x ty acc) Env.empty xs
+let ptype_eq p1 p2 =
+  match p1, p2 with
+  | Tbool, Tbool -> true
+  | Tuint8, Tuint8 -> true
+  | Tint8, Tint8 -> true
+  | Tuint16, Tuint16 -> true
+  | Tint16, Tint16 -> true
+  | Tuint32, Tuint32 -> true
+  | Tint32, Tint32 -> true
+  | Tulong, Tulong -> true
+  | Tlong, Tlong -> true
+  | _ -> false
+
+let rec typ_eq t1 t2 =
+  match t1, t2 with
+  | Utype, Utype -> true
+  | Vtype p1, Vtype p2 -> ptype_eq p1 p2
+  | Ftype (args1, effs1, ret1), Ftype (args2, effs2, ret2) ->
+    List.length args1 = List.length args2 &&
+    List.for_all2 typ_eq args1 args2 &&
+    List.length effs1 = List.length effs2 && (* optional: more precise effect comparison *)
+    typ_eq ret1 ret2
+  | _, _ -> false
+
+let rec infer_expr (env : tyenv) (e : expr) : typ =
+  match e with
+  | Var x ->
+      (match Env.find_opt x env with
+       | Some ty -> ty
+       | None -> raise (TypeError ("Unbound variable: " ^ x)))
+  | Const c -> 
+      (match c with
+       | Cunit -> Utype
+       | Cbool _ -> Vtype Tbool
+       | Cint32 _ -> Vtype Tint32
+       | Clong _ -> Vtype Tlong)
+  | Prim (Uop uop, args) ->
+    (match args with 
+    | [arg] -> let arg_ty = infer_expr env arg in
+        begin match uop with
+        | Oneg ->
+            begin match arg_ty with
+            | Vtype Tint32 | Vtype Tlong -> arg_ty
+            | _ -> raise (TypeError "- can only be applied to int32 or long")
+            end
+        | Onotint ->
+            begin match arg_ty with
+            | Vtype Tint8 | Vtype Tint16 | Vtype Tint32
+            | Vtype Tuint8 | Vtype Tuint16 | Vtype Tuint32 -> arg_ty
+            | _ -> raise (TypeError "~ can only be applied to integer types")
+            end
+        | Onotbool ->
+            if arg_ty = Vtype Tbool then Vtype Tbool
+            else raise (TypeError "~ can only be applied to bool")
+        | UOverloadTilde ->
+            begin match arg_ty with
+            | Vtype Tbool -> Vtype Tbool
+            | Vtype Tint8 | Vtype Tint16 | Vtype Tint32
+            | Vtype Tuint8 | Vtype Tuint16 | Vtype Tuint32 -> arg_ty
+            | _ -> raise (TypeError "Overloaded `~` can only be applied to bool or integer types")
+            end
+          end
+      |  _ ->
+        raise (TypeError "Unary operator expects exactly one argument"))
+  | App (e1, args) ->
+      let ty1 = infer_expr env e1 in
+      let arg_tys = List.map (infer_expr env) args in
+      (match ty1 with
+      | Ftype (arg_types, _eff, ret_type) ->
+          if List.length arg_types <> List.length arg_tys then
+            raise (TypeError "Function application argument count mismatch");
+          List.iter2 (fun a b -> if not (typ_eq a b) then
+              raise (TypeError "Function application argument type mismatch")) arg_types arg_tys;
+          ret_type
+      | _ ->
+          raise (TypeError "Expected type is a function type for application"))
+  | Let (x, ty_ann, e1, e2) ->
+      let ty1 = infer_expr env e1 in
+      if not (typ_eq ty1 ty_ann) then
+        raise (TypeError ("Let-binding type mismatch for " ^ x));
+      let env' = Env.add x ty1 env in
+      infer_expr env' e2
+  | If (e1, e2, e3) ->
+      let t1 = infer_expr env e1 in
+      if not (typ_eq t1 (Vtype Tbool)) then
+        raise (TypeError "If condition must be bool");
+      let t2 = infer_expr env e2 in
+      let t3 = infer_expr env e3 in
+      if not (typ_eq t2 t3) then
+        raise (TypeError "If branches have mismatched types");
+      t2
+
+let infer_fundecl (Tfundecl (_name, ret_type, _eff, args, _vars, body)) (global_env : tyenv) =
+  let env_with_args = List.fold_left (fun acc (x, ty) -> Env.add x ty acc) global_env args in
+  let inferred_type = infer_expr env_with_args body in
+  if not (typ_eq inferred_type ret_type) then
+    raise (TypeError "Return type mismatch");
+  ()
+
+let infer_program (prog : program) =
+  (* Step 1: collect all top-level function types into global env *)
+  let global_fun_types =
+    List.filter_map (function
+      | Internal (Tfundecl (name, ret, eff, args, _, _), _) ->
+          Some (name, Ftype (List.map snd args, eff, ret))
+      | EBPFInternal (Tfundecl (name, ret, eff, args, _, _), _) ->
+          Some (name, Ftype (List.map snd args, eff, ret))
+      | StructDecl _ -> None
+    ) prog
+  in
+  let global_env = list_to_env global_fun_types in
+
+  (* Step 2: typecheck each function body *)
+  List.iter
+    (function
+      | Internal (f, _) | EBPFInternal (f, _) ->
+          infer_fundecl f global_env
+      | StructDecl _ -> ()
+    ) prog

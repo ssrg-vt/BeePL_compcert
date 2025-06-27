@@ -30,7 +30,7 @@ let sdump_suffix = ref ".json"
 let num_bpl_files = ref 0
 
 let nolink () =
-  !option_c || !option_S || !option_E || !option_interp || not Configuration.has_linking_step || !num_bpl_files > 0
+  !option_c || !option_S || !option_E || !option_interp || not Configuration.has_linking_step
 
 let object_filename sourcename =
   if nolink () then
@@ -152,7 +152,7 @@ let populate_decl_atom (section_info : (AST.ident * BeePL_Csyntax.csyntax_atom_i
   ) section_info
 
 (* TODO: remove duplicate code from compile_c_file and compile_b_file *)
-let compile_b_file sourcename ofile =
+let compile_bpl_file sourcename ofile beepl_program =
   (* Prepare to dump Clight, RTL, etc, if requested *)
   let set_dest dst opt ext =
     dst := if !opt then Some (output_filename sourcename ~suffix:ext)
@@ -171,7 +171,7 @@ let compile_b_file sourcename ofile =
   (* Typecheck BeePL program *)
   if !option_typecheck then
   begin
-  let typecheck_result = BeePL_typechecker.type_check_program BeePL_progs.example1 in
+  let typecheck_result = BeePL_typechecker.type_check_program beepl_program in
   match typecheck_result with
   | Errors.OK s -> let str = Camlcoq.camlstring_of_coqstring s in
                    Printf.printf "Typecheck result: %s\n" str
@@ -181,7 +181,7 @@ let compile_b_file sourcename ofile =
   end;
 
   (* Parse BeePL AST *)
-  let beepl = Compiler.transf_beepl_program_csyntax BeePL_progs.example1 in
+  let beepl = Compiler.transf_beepl_program_csyntax beepl_program in
   let (csyntax, ident_to_string, section_info) =
     match beepl with
     | Errors.OK ((csyntax, ident_to_string), section_info) -> (csyntax, ident_to_string, section_info)
@@ -207,12 +207,90 @@ let compile_b_file sourcename ofile =
   let gl = C2C.add_helper_functions csyntax.Ctypes.prog_defs in 
   let updated_csyntax = {csyntax with 
     Ctypes.prog_defs = gl; 
-    Ctypes.prog_public = C2C.public_globals gl} in
+    Ctypes.prog_public = (*main_id ::*) C2C.public_globals gl} in
   PrintCsyntax.print_if updated_csyntax;
   
   (* C2C.print_atom_info (); *)
   (* Camlcoq.print_atom_of_string (); *)
   
+  (* Convert to Asm *)
+  let asm =
+    match Compiler.apply_partial
+               (Compiler.transf_c_program updated_csyntax)
+               Asmexpand.expand_program with
+    | Errors.OK asm ->
+        asm
+    | Errors.Error msg ->
+        let loc = file_loc sourcename in
+        fatal_error loc "error during transf_c_program: %a"  print_error msg in
+  (* Dump Asm in binary and JSON format *)
+  AsmToJSON.print_if asm sourcename;
+  (* Print Asm in text form *)
+  let oc = open_out ofile in
+  PrintAsm.print_program oc asm;
+  close_out oc
+
+let compile_b_file sourcename ofile =
+  (* Prepare to dump Clight, RTL, etc, if requested *)
+  let set_dest dst opt ext =
+    dst := if !opt then Some (output_filename sourcename ~suffix:ext)
+      else None in
+  set_dest Cprint.destination option_dparse ".parsed.c";
+  set_dest PrintCsyntax.destination option_dcmedium ".compcert.c";
+  set_dest PrintClight.destination option_dclight ".light.c";
+  set_dest PrintCminor.destination option_dcminor ".cm";
+  set_dest PrintCminorSel.destination option_dcminorsel ".cms";
+  set_dest PrintRTL.destination option_drtl ".rtl";
+  set_dest Regalloc.destination_alloctrace option_dalloctrace ".alloctrace";
+  set_dest PrintLTL.destination option_dltl ".ltl";
+  set_dest PrintMach.destination option_dmach ".mach";
+  set_dest AsmToJSON.destination option_sdump !sdump_suffix;
+
+  (* Typecheck BeePL program *)
+  if !option_typecheck then
+  begin
+  let typecheck_result = BeePL_typechecker.type_check_program BeePL_progs.example1 in
+  match typecheck_result with
+  | Errors.OK s -> let str = Camlcoq.camlstring_of_coqstring s in
+                   Printf.printf "Typecheck result: %s\n" str
+  | Errors.Error msg ->
+        let loc = file_loc sourcename in
+        fatal_error loc "error during BeePL_typechecker.type_check_program: %a" print_error msg
+  end;
+
+  (* Parse BeePL AST *)
+  let beepl = Compiler.transf_beepl_program_csyntax BeePL_progs.example1 in
+  let (csyntax, ident_to_string, section_info) =
+    match beepl with
+    | Errors.OK ((csyntax, ident_to_string), section_info) -> (csyntax, ident_to_string, section_info)
+    | Errors.Error msg ->
+        let loc = file_loc sourcename in
+        fatal_error loc "error during transf_beepl_program_csyntax: %a" print_error msg
+  in
+
+  (* All references to variable and function names in Csyntax are a numeric
+   * identifier. CompCert looks up names in string_of_atom whenever it needs to.
+   * This is important for linking. For example, the compiler needs to know
+   * which function is "main" *)
+  List.iter (fun (id, charlist) ->
+    let s : string = String.concat "" (List.map (String.make 1) charlist) in
+    Hashtbl.add Camlcoq.string_of_atom id s;
+    Hashtbl.add Camlcoq.atom_of_string s id;
+  ) ident_to_string;
+
+  (* Give CompCert information on which identifiers should be placed in special ELF sections *)
+  populate_decl_atom section_info;
+
+  (* The BeePL compiler does not add CompCert's helper functions so that must be done here *)
+  let gl = C2C.add_helper_functions csyntax.Ctypes.prog_defs in
+  let updated_csyntax = {csyntax with
+    Ctypes.prog_defs = gl;
+    Ctypes.prog_public = C2C.public_globals gl} in
+  PrintCsyntax.print_if updated_csyntax;
+
+  (* C2C.print_atom_info (); *)
+  (* Camlcoq.print_atom_of_string (); *)
+
   (* Convert to Asm *)
   let asm =
     match Compiler.apply_partial
@@ -307,13 +385,31 @@ let process_h_file sourcename =
     fatal_error no_loc "input file %s ignored (not in -E mode)\n" sourcename
 
 let process_bpl_file sourcename =
-  let transformed = Beepl_transformer.transform_input sourcename in
-  (* Save transformed string to .beepl file *)
-  let output_name = output_filename sourcename ~suffix:".beepl" in
-  let oc = open_out output_name in
-  output_string oc transformed;
-  close_out oc;
-  transformed
+  if !option_beepl then begin
+    let transformed = Beepl_export.export_parse_and_transform_bpl sourcename in
+    (* Save transformed string to .v file *)
+    let output_name = output_filename sourcename ~suffix:".v" in
+    let oc = open_out output_name in
+    output_string oc transformed;
+    close_out oc;
+    exit 0
+  end else
+    let beepl_program = Beepl_transformer.parse_and_transform_bpl sourcename in
+
+    if !option_S then begin
+      let asmname = output_filename ~final:true sourcename ~suffix:".s" in
+      compile_bpl_file sourcename asmname beepl_program;
+      ""
+    end else begin
+      let asmname =
+        if !option_dasm
+        then output_filename sourcename ~suffix:".s"
+        else tmp_file ".s" in
+      compile_bpl_file sourcename asmname beepl_program;
+      let objname = object_filename sourcename in
+      assemble asmname objname;
+      objname
+    end
 
 let process_b_file sourcename =
   if !option_S then begin
@@ -330,17 +426,6 @@ let process_b_file sourcename =
     assemble asmname objname;
     objname
   end
-
-(*
-let process_b_file sourcename =
-  let asmname =
-    if !option_dasm
-    then output_filename sourcename ~suffix:".s"
-    else tmp_file ".s" in
-  compile_b_file sourcename asmname;
-  let objname = object_filename sourcename in
-  assemble asmname objname;
-  objname *)
 
 let target_help =
   if Configuration.arch = "arm" && Configuration.model <> "armv6" then
@@ -487,6 +572,7 @@ let cmdline_actions =
     @ DebugInit.debugging_actions @
 (* Code generation options -- more below *)
  [
+  Exact "-beepl", Set option_beepl;
   Exact "-typecheck", Set option_typecheck;
   Exact "-O0", Unit (unset_all optimization_options);
   Exact "-O", Unit (set_all optimization_options);
@@ -575,11 +661,10 @@ let cmdline_actions =
   Prefix "-", Self (fun s ->
       fatal_error no_loc "Unknown option `%s'" s);
 (* File arguments *)
-  Suffix ".bpl", Self (fun s ->
-      push_action process_bpl_file s; incr num_source_files; incr num_input_files; incr num_bpl_files;
-      );
   Suffix ".b", Self (fun s ->
-      push_action process_b_file s; incr num_source_files; incr num_input_files);
+    push_action process_b_file s; incr num_source_files; incr num_input_files);
+  Suffix ".bpl", Self (fun s ->
+    push_action process_bpl_file s; incr num_source_files; incr num_input_files; incr num_bpl_files);
   Suffix ".c", Self (fun s ->
       push_action process_c_file s; incr num_source_files; incr num_input_files);
   Suffix ".i", Self (fun s ->
