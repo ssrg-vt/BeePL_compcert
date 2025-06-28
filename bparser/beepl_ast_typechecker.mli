@@ -7,6 +7,8 @@ exception TypeError of string
 module Env : Map.S with type key = string
 type tyenv = typ Env.t
 
+val predefined_externals : (string * Beepl_ast.typ) list
+
 val list_to_env : (string * typ) list -> tyenv
 
 val string_of_ptype : ptype -> string

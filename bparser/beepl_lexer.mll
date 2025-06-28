@@ -65,6 +65,8 @@ rule read_token = parse
   | "*"             { STAR }
   | '~'             { TILDE } (* Single token for overloaded use for notint and notbool *)
   | "-"             { NEG }
+  | '"' ([^ '"' '\n']* as s) '"' { STRING s }
+
   
 
   | '-'? digit+ as i32 { INT32 (Int32.of_string i32) }

@@ -5,6 +5,13 @@ exception TypeError of string
 module Env = Map.Make(String)
 type tyenv = typ Env.t
 
+let predefined_externals : (string * typ) list = [
+  ("printf", Ftype (
+  [Ptr (Reftype ("h", Barray (Tuint8, 32))); Vtype Tint32],
+  [Io],
+  Vtype Tint32));
+  (* Add more as needed *)
+]
 let string_of_ptype = function
   | Tbool -> "bool"
   | Tint8 -> "int8"
@@ -59,7 +66,8 @@ let rec infer_expr (env : tyenv) (e : expr) : typ =
        | Cunit -> Utype
        | Cbool _ -> Vtype Tbool
        | Cint32 _ -> Vtype Tint32
-       | Clong _ -> Vtype Tlong)
+       | Clong _ -> Vtype Tlong
+       | Cstring s -> Ptr (Reftype ("h", Barray (Tuint8, String.length s + 1)))) (* Assuming string is a byte array *)
   | Prim (Uop uop, args) ->
     (match args with 
     | [arg] -> let arg_ty = infer_expr env arg in
@@ -132,6 +140,7 @@ let infer_program (prog : program) =
       | EBPFInternal (Tfundecl (name, ret, eff, args, _, _), _) ->
           Some (name, Ftype (List.map snd args, eff, ret))
       | StructDecl _ -> None
+      | GlobalLet (name, ty, _) -> Some (name, ty)
     ) prog
   in
   let global_env = list_to_env global_fun_types in
@@ -142,4 +151,8 @@ let infer_program (prog : program) =
       | Internal (f, _) | EBPFInternal (f, _) ->
           infer_fundecl f global_env
       | StructDecl _ -> ()
+      | GlobalLet (name, ty, e) ->
+          let inferred_ty = infer_expr global_env e in
+          if not (typ_eq inferred_ty ty) then
+            raise (TypeError ("Global let binding type mismatch for " ^ name))
     ) prog

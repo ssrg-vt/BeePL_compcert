@@ -36,7 +36,10 @@ let export_collect_idents (prog : program) : string list =
         from_expr acc body
     | StructDecl (sname, fields) ->
         let acc = if List.mem sname acc then acc else sname :: acc in
-        List.fold_left add_var acc fields      
+        List.fold_left add_var acc fields 
+    | GlobalLet (name, _, body) ->
+        let acc = if List.mem name acc then acc else name :: acc in
+        from_expr acc body     
   ) [] prog
 
 (* Generate Coq identifier declarations *)
@@ -133,6 +136,7 @@ let export_const_to_coq c =
   | Cbool b -> Printf.sprintf "(ConsBool %b)" b
   | Cint32 i -> Printf.sprintf "(ConsInt (Int.repr %ld))" i
   | Clong l -> Printf.sprintf "(ConsLong (Int64.repr %Ld))" l
+  | Cstring s -> Printf.sprintf "(ConsString \"%s\")" (String.escaped s)
 
   let rec export_expr_to_coq (env : (string * typ) list) (e : expr) : string =
     match e with
@@ -277,6 +281,12 @@ let export_transform_toplevel = function
   | Internal(f, sec) -> export_transform_function f false
   | EBPFInternal(f, sec) -> export_transform_function f true
   | StructDecl (name, fields) -> export_transform_struct name fields
+  | GlobalLet (name, t, e) ->
+      let env = [(name, t)] in
+      let body_str = export_expr_to_coq env e in
+      Printf.sprintf
+        "Definition _%s : BeePL.global := {| gtype := %s; gvalue := %s; gattr := noattr |}.\n"
+        name (export_typ_to_coq t) body_str
 
 let coq_bcomposite_correct_lemma = {|
 Lemma bcomposite_correct : wf_bcomposites bcomposites.

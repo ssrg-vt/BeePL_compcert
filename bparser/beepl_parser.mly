@@ -22,6 +22,7 @@ open Beepl_ast
 %token IO DIVERGENCE READ WRITE ALLOC EMPTYBRACKETS
 %token STRUCT
 %token HASHEBPF
+%token <string> STRING
 %token <string> SECTION
 %token STAR    
 %token EOF
@@ -53,6 +54,8 @@ toplevel:
     }
   | STRUCT id = IDENT LBRACE fields = separated_list(COMMA, field_decl) RBRACE
     { StructDecl(id, fields) }
+  | LET id = IDENT COLON t = typ EQ e = expr
+    { GlobalLet(id, t, e) }
 
 annotations:
   | anns = annotation_list { anns }
@@ -89,6 +92,7 @@ typ:
   | INT32TYPE { Vtype Tint32 }
   | ULONGTYPE { Vtype Tulong }
   | LONGTYPE  { Vtype Tlong }
+  | LPAREN RPAREN { Utype }   (* Allow () to mean unit *)
   | UNIT      { Utype }
   | RBOOLTYPE  { Ptr (Reftype ("h", (Bprim Tbool))) }
   | RINT8TYPE  { Ptr (Reftype ("h", (Bprim Tint8))) }
@@ -119,6 +123,7 @@ const:
   | UNIT     { Cunit }
   | i = INT32 { Cint32 i }
   | l = INT64 { Clong l }
+  | s = STRING { Cstring s }
 
 expr:
   | id = IDENT { Var id }

@@ -35,6 +35,7 @@ type const =
   | Cbool of bool
   | Cint32 of int32
   | Clong of int64
+  | Cstring of string
 
 type uop = 
   | Onotbool 
@@ -61,6 +62,7 @@ type toplevel =
   | Internal of fundecl * string option  (* section *)
   | EBPFInternal of fundecl * string option
   | StructDecl of string * (string * typ) list
+  | GlobalLet of string * typ * expr
 
 
 type program = toplevel list
