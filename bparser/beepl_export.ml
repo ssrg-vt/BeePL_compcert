@@ -141,7 +141,11 @@ let export_const_to_coq c =
   let rec export_expr_to_coq (env : (string * typ) list) (e : expr) : string =
     match e with
     | Var id ->
-        let ty = List.assoc id env in
+        let ty =
+          try List.assoc id env
+          with Not_found ->
+            failwith ("Identifier not found in environment: " ^ id)
+        in 
         Printf.sprintf "(Var _%s (%s))" id (export_typ_to_coq ty)
     | Const c ->
         let ty = export_typ_to_coq (infer_expr (list_to_env env) e) in
@@ -187,8 +191,8 @@ let export_const_to_coq c =
           (export_expr_to_coq env e3)
           ty2
 
-let export_transform_function (Tfundecl (name, ret, eff, args, vars, body)) is_ebpf =
-  let env = args @ vars in (* Build (string * typ) list environment *)
+let export_transform_function ~globals (Tfundecl (name, ret, eff, args, vars, body)) is_ebpf =
+  let env = args @ vars @ globals in (* Build (string * typ) list environment *)
   let arg_strs = List.map export_arg_to_coq args in
   let var_strs = List.map export_arg_to_coq (collect_vars body) in
   let coq_name = "f_" ^ name in
@@ -214,26 +218,30 @@ let export_starts_with ~prefix s =
   String.length s >= plen && String.sub s 0 plen = prefix
     
 let export_coq_globals prog =
-      let clean_section s =
-        let prefix = "#section " in
-        if export_starts_with ~prefix s then String.sub s (String.length prefix) (String.length s - String.length prefix)
-        else s
-      in
-      let entries =
-        List.filter_map (function
-          | Internal (Tfundecl (name, _, _, _, _, _), section)
-          | EBPFInternal (Tfundecl (name, _, _, _, _, _), section) ->
-              let sec_str = match section with
-                | Some s -> Printf.sprintf "Some \"%s\"" (clean_section s)
-                | None -> "None"
-              in
-              Some (Printf.sprintf "(_%s, AST.Gfun (BeePL.Internal f_%s), %s)" name name sec_str)
-          | _ -> None
-        ) prog
-      in
-      if entries = [] then ""
-      else "Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) :=\n  " ^
-            String.concat " ::\n  " entries ^ " :: nil.\n"
+  let clean_section s =
+    let prefix = "#section " in
+    if export_starts_with ~prefix s then
+      String.sub s (String.length prefix) (String.length s - String.length prefix)
+    else s
+  in
+  let entries =
+    List.filter_map (function
+      | Internal (Tfundecl (name, _, _, _, _, _), section)
+      | EBPFInternal (Tfundecl (name, _, _, _, _, _), section) ->
+          let sec_str = match section with
+            | Some s -> Printf.sprintf "Some \"%s\"" (clean_section s)
+            | None -> "None"
+          in
+          Some (Printf.sprintf "(_%s, AST.Gfun (BeePL.Internal f_%s), %s)" name name sec_str)
+      | GlobalLet (name, _, _) ->
+          Some (Printf.sprintf "(_%s, AST.Gvar v_%s, None)" name name)
+      | _ -> None
+    ) prog
+  in
+  if entries = [] then ""
+  else "Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) :=\n  " ^
+        String.concat " ::\n  " entries ^ " :: nil.\n"
+  
     
     
 let export_collect_public_idents prog =
@@ -244,13 +252,13 @@ let export_collect_public_idents prog =
       | _ -> None
   ) prog
 
-  let export_coq_public_idents prog =
-    let idents = export_collect_public_idents prog in
-    match idents with
-    | [] -> ""
-    | _ ->
-      Printf.sprintf "Definition public_idents : list ident := (%s :: nil).\n"
-        (String.concat " :: " idents)
+let export_coq_public_idents prog =
+  let idents = export_collect_public_idents prog in
+  match idents with
+  | [] -> ""
+  | _ ->
+    Printf.sprintf "Definition public_idents : list ident := (%s :: nil).\n"
+      (String.concat " :: " idents)
   
 let export_find_main_or_fallback prog : string =
   let is_main name = name = "main" in
@@ -277,16 +285,16 @@ let export_coq_program_wrapper ?(name="example1") (entry : string) : string =
         name entry
                       
 
-let export_transform_toplevel = function
-  | Internal(f, sec) -> export_transform_function f false
-  | EBPFInternal(f, sec) -> export_transform_function f true
-  | StructDecl (name, fields) -> export_transform_struct name fields
-  | GlobalLet (name, t, e) ->
-      let env = [(name, t)] in
-      let body_str = export_expr_to_coq env e in
-      Printf.sprintf
-        "Definition _%s : BeePL.global := {| gtype := %s; gvalue := %s; gattr := noattr |}.\n"
-        name (export_typ_to_coq t) body_str
+let export_transform_toplevel ~globals = function
+| Internal(f, _) -> export_transform_function globals f false
+| EBPFInternal(f, _) -> export_transform_function globals f true
+| StructDecl (name, fields) -> export_transform_struct name fields
+| GlobalLet (name, t, e) ->
+    let env = globals in
+    let body_str = export_expr_to_coq env e in
+    Printf.sprintf
+      "Definition v_%s :=\n {| gtype := %s\n; gvalue := %s\n; gattr := noattr |}.\n"
+      name (export_typ_to_coq t) body_str
 
 let coq_bcomposite_correct_lemma = {|
 Lemma bcomposite_correct : wf_bcomposites bcomposites.
@@ -295,15 +303,21 @@ Proof.
   unfold build_bcomposite_env; simpl; reflexivity.
 Qed. |}
   
+let export_collect_globals (prog : program) : (string * typ) list =
+  List.filter_map (function
+    | GlobalLet (name, t, _) -> Some (name, t)
+    | _ -> None
+  ) prog
 let export_transform_program prog =
   let coq_header = generate_coq_prelude prog in
-  let defs = List.map export_transform_toplevel prog in
+  let global_env = export_collect_globals prog in
+  let defs = List.map (export_transform_toplevel ~globals:global_env) prog in
   let globals = export_coq_globals prog in
   let publics = export_coq_public_idents prog in
   let entry = export_find_main_or_fallback prog in
   let wrapper = export_coq_program_wrapper ~name:"bprogram" entry in
   coq_header ^ String.concat "\n\n" defs ^ "\n\n" ^ globals ^ "\n" ^ publics ^ "\n" ^ coq_bcomposite_correct_lemma ^ "\n\n" ^ wrapper
-  
+
   
 let export_parse_file (filename : string) : program =
   let ch = open_in filename in
