@@ -7,11 +7,11 @@ type tyenv = typ Env.t
 
 let predefined_externals : (string * typ) list = [
   ("printf", Ftype (
-  [Ptr (Reftype ("h", Barray (Tuint8, 32))); Vtype Tint32],
-  [Io],
-  Vtype Tint32));
-  (* Add more as needed *)
+    [Ptr (Reftype ("h", Bprim Tint8)); Vtype Tint32],
+    [Io],
+    Vtype Tint32));
 ]
+
 let string_of_ptype = function
   | Tbool -> "bool"
   | Tint8 -> "int8"
@@ -53,6 +53,14 @@ let rec typ_eq t1 t2 =
     List.for_all2 typ_eq args1 args2 &&
     List.length effs1 = List.length effs2 && (* optional: more precise effect comparison *)
     typ_eq ret1 ret2
+  | Ptr (Reftype (s1, b1)), Ptr (Reftype (s2, b2)) ->
+    s1 = s2 && 
+    (match b1, b2 with
+    | Bprim p1, Bprim p2 -> ptype_eq p1 p2
+    | Bstruct s1, Bstruct s2 -> s1 = s2
+    | Barray (pt1, _), Barray (pt2, _) -> 
+        ptype_eq pt1 pt2
+    | _ -> false)
   | _, _ -> false
 
 let rec infer_expr (env : tyenv) (e : expr) : typ =
@@ -67,7 +75,7 @@ let rec infer_expr (env : tyenv) (e : expr) : typ =
        | Cbool _ -> Vtype Tbool
        | Cint32 _ -> Vtype Tint32
        | Clong _ -> Vtype Tlong
-       | Cstring s -> Ptr (Reftype ("h", Barray (Tuint8, String.length s + 1)))) (* Assuming string is a byte array *)
+       | Cstring s -> Ptr (Reftype ("h", Bprim (Tint8)))) (* Assuming string is a byte array and max length *)
   | Prim (Uop uop, args) ->
     (match args with 
     | [arg] -> let arg_ty = infer_expr env arg in

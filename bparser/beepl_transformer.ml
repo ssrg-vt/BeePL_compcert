@@ -3,6 +3,12 @@ open Beepl_ast
 open Lexing
 open BeePL_values
 open BinNums
+
+let string_globals : (string, string) Hashtbl.t = Hashtbl.create 17
+
+let gensym_string_literal s =
+  let id = "__stringlit_" ^ string_of_int (Hashtbl.length string_globals) in
+  id
 let string_to_char_list s =
   let rec aux i acc =
     if i < 0 then acc
@@ -126,8 +132,7 @@ let transform_constant (c : Beepl_ast.const) (typ : Beepl_ast.typ) : BeePL_value
       ConsLong (Integers.Int64.repr (int_to_coq_z (Int64.to_int l)))
   | Beepl_ast.Vtype Beepl_ast.Tbool, Beepl_ast.Cbool b ->
       ConsBool b
-  | Beepl_ast.Utype, Beepl_ast.Cunit ->
-      ConsUnit
+  | Beepl_ast.Utype, Beepl_ast.Cunit -> ConsUnit
   | _, _ ->
       failwith "Constant type mismatch or unsupported constant"
       
@@ -168,8 +173,26 @@ let rec transform_expr (env : Beepl_ast_typechecker.tyenv) (e : Beepl_ast.expr) 
   match e' with
   | Beepl_ast.Var x ->
       BeePL.Var (Camlcoq.intern_string x, t')
-  | Beepl_ast.Const c ->
-      BeePL.Const (transform_constant c typ, t')
+      | Beepl_ast.Const c ->
+        (match c with
+         | Cstring s ->
+            let id_str = gensym_string_literal s in
+            Hashtbl.replace string_globals id_str s;
+            let id = Camlcoq.intern_string id_str in
+            let h_id = Camlcoq.intern_string "h" in
+            BeePL.Var (
+              id,
+              BeeTypes.Ptrtype (
+                BeeTypes.Reftype (
+                  h_id,
+                  BeeTypes.Bprim (BeeTypes.Tint (Ctypes.I8, Ctypes.Signed, Ctypes.noattr)),  (* Must match global var type *)
+                  Ctypes.noattr
+                )
+              )
+            )
+         | _ -> BeePL.Const (transform_constant c typ, t'))
+    
+    
   | Beepl_ast.App (e1, args) ->
       let e1' = transform_expr env e1 in
       let args' = List.map (transform_expr env) args in
@@ -292,7 +315,16 @@ let eval_const_expr (e : Beepl_ast.expr) : AST.init_data list =
     ) in
     chars
   | _ -> []
-  
+ 
+let init_data_of_string (s : string) : AST.init_data list =
+  let chars = List.init (String.length s) (String.get s) in
+  let char_init = List.map (fun c ->
+    AST.Init_int8 (Integers.Int.repr (int_to_coq_z (Char.code c)))
+  ) chars in
+  let null_term = AST.Init_int8 (Integers.Int.repr Z0) in
+  char_init @ [null_term]
+   
+
 let transform_program (prog : Beepl_ast.program) : BeePL.program =
   let prog = reorder_program prog in  
   let idents = collect_idents prog in
@@ -338,7 +370,23 @@ let transform_program (prog : Beepl_ast.program) : BeePL.program =
       | _ -> failwith ("Expected function type for external: " ^ id)
     ) Beepl_ast_typechecker.predefined_externals in 
   
-  
+    let globals_from_strings =
+      Hashtbl.fold (fun id s acc ->
+        let id' = Camlcoq.intern_string id in
+        let gvar = AST.Gvar {
+          AST.gvar_info = BeeTypes.Atype (
+            BeeTypes.Vtype (BeeTypes.Tint (Ctypes.I8, Ctypes.Signed, Ctypes.noattr)),
+            int_to_coq_z (String.length s + 1),
+            Ctypes.noattr
+          );
+          AST.gvar_init = init_data_of_string s;
+          AST.gvar_readonly = true;
+          AST.gvar_volatile = false;
+        } in
+        ((id', gvar), None) :: acc
+      ) string_globals [] in         
+    
+
     let prog_defs =
       let defs =
         List.filter_map (function
@@ -364,7 +412,7 @@ let transform_program (prog : Beepl_ast.program) : BeePL.program =
           | _ -> None
         ) transformed_decls
       in
-      external_globals @ defs in 
+      external_globals @ defs @ globals_from_strings in 
     
     
     (* Extract function identifiers for prog_public separately *)

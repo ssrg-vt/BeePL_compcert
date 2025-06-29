@@ -3,30 +3,48 @@ open Beepl_parser
 open Beepl_lexer
 open Lexing
 open Beepl_ast_typechecker
+[@@@ocaml.warning "-32"]
+
+let external_functions = predefined_externals
 
 let export_coq_list (elems : string list) : string =
   match elems with
   | [] -> "nil"
   | _ -> String.concat " :: " elems ^ " :: nil"
 
-  (* Extract all used identifiers from the program *)
-let export_collect_idents (prog : program) : string list =
-  let add_var acc (x, _) = if List.mem x acc then acc else x :: acc in
-  let rec from_expr acc e =
-    match e with
-    | Var x -> if List.mem x acc then acc else x :: acc
-    | Const _ -> acc
-    | Prim (Uop uop, args) ->
-        let acc = List.fold_left from_expr acc args in
-        (match uop with
-        | UOverloadTilde -> acc  (* Tilde is not a variable, so we don't add it *)
-        | _ -> acc  (* Other unary ops do not introduce new variables *))
-    | App (e1, args) ->
-        let acc = from_expr acc e1 in
-        List.fold_left from_expr acc args
-    | Let (x, _, e1, e2) -> from_expr (from_expr (if List.mem x acc then acc else x :: acc) e1) e2
-    | If (e1, e2, e3) -> List.fold_left from_expr acc [e1; e2; e3]
-  in
+let string_constant_counter = ref 0
+let string_global_table = Beepl_transformer.string_globals
+
+
+let lift_string_constant (s : string) : string =
+  match Hashtbl.find_opt string_global_table s with
+  | Some id -> id
+  | None ->
+      let id = "___stringlit_" ^ string_of_int !string_constant_counter in
+      incr string_constant_counter;
+      Hashtbl.add string_global_table id s;
+      id
+    
+let export_collect_idents (prog : program) : string list  =
+let add_var acc (x, _) = if List.mem x acc then acc else x :: acc in
+let rec from_expr acc e =
+  match e with
+  | Var x -> if List.mem x acc then acc else x :: acc
+  | Const (Cstring s) ->
+      let id = lift_string_constant s in
+      if List.mem id acc then acc else id :: acc
+  | Const _ -> acc
+  | Prim (Uop _, args) ->
+      List.fold_left from_expr acc args
+  | App (e1, args) ->
+      let acc = from_expr acc e1 in
+      List.fold_left from_expr acc args
+  | Let (x, _, e1, e2) ->
+      from_expr (from_expr (if List.mem x acc then acc else x :: acc) e1) e2
+  | If (e1, e2, e3) ->
+      List.fold_left from_expr acc [e1; e2; e3]
+in
+let idents_from_prog =
   List.fold_left (fun acc top ->
     match top with
     | Internal (Tfundecl (name, _, _, args, _, body), _)
@@ -41,6 +59,17 @@ let export_collect_idents (prog : program) : string list =
         let acc = if List.mem name acc then acc else name :: acc in
         from_expr acc body     
   ) [] prog
+in
+
+(* Add all string global keys *)
+let string_idents =
+  Hashtbl.fold (fun _ id acc ->
+  if List.mem id acc then acc else id :: acc
+) Beepl_transformer.string_globals []
+in
+
+idents_from_prog @ string_idents
+    
 
 (* Generate Coq identifier declarations *)
 let export_coq_idents (idents : string list) : string =
@@ -130,66 +159,96 @@ let rec export_typ_to_coq (t : typ) : string =
 let export_arg_to_coq (id, t) =
   Printf.sprintf "(_%s, %s)" id (export_typ_to_coq t)
 
+(* Helper to export string literal global definitions *)
+let export_stringlit_def (id : string) (s : string) : string =
+  let bytes = List.init (String.length s) (String.get s) @ ['\000'] in
+  let init_values =
+    bytes
+    |> List.map (fun c -> Printf.sprintf "Init_int8 (Int.repr %d)" (Char.code c))
+    |> String.concat " :: " in
+  let length = List.length bytes in
+  Printf.sprintf
+    "Definition v_%s := {|\n  gvar_info := tbarray tint8s %d noattr;\n  gvar_init := %s :: nil;\n  gvar_readonly := true;\n  gvar_volatile := false\n|}." id length init_values
+
 let export_const_to_coq c =
   match c with
   | Cunit -> "ConsUnit"
   | Cbool b -> Printf.sprintf "(ConsBool %b)" b
   | Cint32 i -> Printf.sprintf "(ConsInt (Int.repr %ld))" i
   | Clong l -> Printf.sprintf "(ConsLong (Int64.repr %Ld))" l
-  | Cstring s -> Printf.sprintf "(ConsString \"%s\")" (String.escaped s)
+  | Cstring s ->
+    let id = lift_string_constant s in
+    Printf.sprintf "(ConsPtr _%s)" id
 
-  let rec export_expr_to_coq (env : (string * typ) list) (e : expr) : string =
-    match e with
-    | Var id ->
-        let ty =
-          try List.assoc id env
-          with Not_found ->
-            failwith ("Identifier not found in environment: " ^ id)
-        in 
-        Printf.sprintf "(Var _%s (%s))" id (export_typ_to_coq ty)
-    | Const c ->
+let export_stringlit_def (id : string) (s : string) : string =
+  let bytes = List.init (String.length s) (String.get s) @ ['\000'] in
+  let init_values =
+    bytes
+    |> List.map (fun c -> Printf.sprintf "Init_int8 (Int.repr %d)" (Char.code c))
+    |> String.concat " :: " in
+  let length = List.length bytes in
+  Printf.sprintf
+    "Definition v_%s := {|\n  gvar_info := tbarray tint8s %d noattr;\n  gvar_init := %s :: nil;\n  gvar_readonly := true;\n  gvar_volatile := false\n|}." id length init_values
+
+
+let rec export_expr_to_coq (env : (string * typ) list) (e : expr) : string =
+  match e with
+  | Var id ->
+      let ty =
+        try List.assoc id env
+        with Not_found ->
+          failwith ("Identifier not found in environment: " ^ id)
+      in 
+      Printf.sprintf "(Var _%s (%s))" id (export_typ_to_coq ty)
+  | Const c ->
+    (match c with
+    | Cstring s ->
+        let id = lift_string_constant s in
+        let ty = Printf.sprintf "Ptrtype (Reftype _%s (Barray (Tint I8 Signed noattr) %d) noattr)" id (String.length s + 1) in
+        Printf.sprintf "(Var _%s (%s))" id ty
+    | _ ->
         let ty = export_typ_to_coq (infer_expr (list_to_env env) e) in
-        Printf.sprintf "(Const %s (%s))" (export_const_to_coq c) ty
-    | App (e1, args) ->
-        let e1_str = export_expr_to_coq env e1 in
-        let args_str = List.map (export_expr_to_coq env) args in
-        let ty1 = export_typ_to_coq (infer_expr (list_to_env env) e1) in
-        Printf.sprintf 
-        "(App (%s)\n                  (%s)\n                  (%s))"
-          e1_str
-          (export_coq_list args_str)
-          ty1
-    (* Note: The type of the function is inferred from the environment *)
-    | Prim (Uop uop, args) ->
-        let args_str = List.map (export_expr_to_coq env) args in
-        let ty = export_typ_to_coq (infer_expr (list_to_env env) e) in
-        let uop_str = match uop with
-          | Onotbool -> "Onotbool"
-          | Onotint -> "Onotint"
-          | Oneg -> "Oneg"
-          | UOverloadTilde -> "UOverloadTilde"
-        in
-        Printf.sprintf 
-        "(Prim (Uop %s)\n                  (%s)\n                  (%s))"
-          uop_str
-          (export_coq_list args_str)
-          ty
-    | Let (id, t, e1, e2) ->
-        let e1_str = export_expr_to_coq env e1 in
-        let env' = (id, t) :: env in
-        let e2_str = export_expr_to_coq env' e2 in
-        let ty2 = export_typ_to_coq (infer_expr (list_to_env env') e2) in
-        Printf.sprintf 
-        "(Bind _%s (%s)\n                  %s\n                  %s\n             (%s))"
-          id (export_typ_to_coq t) e1_str e2_str ty2
-    | If (e1, e2, e3) ->
-        let ty2 = export_typ_to_coq (infer_expr (list_to_env env) e2) in
-        Printf.sprintf 
-        "(Cond (%s)\n                       (%s)\n                       (%s)\n                  (%s))"
-          (export_expr_to_coq env e1)
-          (export_expr_to_coq env e2)
-          (export_expr_to_coq env e3)
-          ty2
+        Printf.sprintf "(Const %s (%s))" (export_const_to_coq c) ty)
+  | App (e1, args) ->
+      let e1_str = export_expr_to_coq env e1 in
+      let args_str = List.map (export_expr_to_coq env) args in
+      let ty1 = export_typ_to_coq (infer_expr (list_to_env env) e1) in
+      Printf.sprintf 
+      "(App (%s)\n                  (%s)\n                  (%s))"
+        e1_str
+        (export_coq_list args_str)
+        ty1
+  (* Note: The type of the function is inferred from the environment *)
+  | Prim (Uop uop, args) ->
+      let args_str = List.map (export_expr_to_coq env) args in
+      let ty = export_typ_to_coq (infer_expr (list_to_env env) e) in
+      let uop_str = match uop with
+        | Onotbool -> "Onotbool"
+        | Onotint -> "Onotint"
+        | Oneg -> "Oneg"
+        | UOverloadTilde -> "UOverloadTilde"
+      in
+      Printf.sprintf 
+      "(Prim (Uop %s)\n                  (%s)\n                  (%s))"
+        uop_str
+        (export_coq_list args_str)
+        ty
+  | Let (id, t, e1, e2) ->
+      let e1_str = export_expr_to_coq env e1 in
+      let env' = (id, t) :: env in
+      let e2_str = export_expr_to_coq env' e2 in
+      let ty2 = export_typ_to_coq (infer_expr (list_to_env env') e2) in
+      Printf.sprintf 
+      "(Bind _%s (%s)\n                  %s\n                  %s\n             (%s))"
+        id (export_typ_to_coq t) e1_str e2_str ty2
+  | If (e1, e2, e3) ->
+      let ty2 = export_typ_to_coq (infer_expr (list_to_env env) e2) in
+      Printf.sprintf 
+      "(Cond (%s)\n                       (%s)\n                       (%s)\n                  (%s))"
+        (export_expr_to_coq env e1)
+        (export_expr_to_coq env e2)
+        (export_expr_to_coq env e3)
+        ty2
 
 let export_transform_function ~globals (Tfundecl (name, ret, eff, args, vars, body)) is_ebpf =
   let env = args @ vars @ globals in (* Build (string * typ) list environment *)
@@ -238,9 +297,17 @@ let export_coq_globals prog =
       | _ -> None
     ) prog
   in
+  let string_entries =
+    Hashtbl.fold (fun id _ acc ->
+      let def = Printf.sprintf "(_%s, AST.Gvar v_%s, None)" id id in
+      def :: acc
+    ) Beepl_transformer.string_globals []
+  in
+  let entries = string_entries @ entries in
   if entries = [] then ""
   else "Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) :=\n  " ^
         String.concat " ::\n  " entries ^ " :: nil.\n"
+  
   
     
     
@@ -284,7 +351,6 @@ let export_coq_program_wrapper ?(name="example1") (entry : string) : string =
          \                                        ident_to_string.\n"
         name entry
                       
-
 let export_transform_toplevel ~globals = function
 | Internal(f, _) -> export_transform_function globals f false
 | EBPFInternal(f, _) -> export_transform_function globals f true
@@ -295,6 +361,7 @@ let export_transform_toplevel ~globals = function
     Printf.sprintf
       "Definition v_%s :=\n {| gtype := %s\n; gvalue := %s\n; gattr := noattr |}.\n"
       name (export_typ_to_coq t) body_str
+      
 
 let coq_bcomposite_correct_lemma = {|
 Lemma bcomposite_correct : wf_bcomposites bcomposites.
@@ -308,17 +375,21 @@ let export_collect_globals (prog : program) : (string * typ) list =
     | GlobalLet (name, t, _) -> Some (name, t)
     | _ -> None
   ) prog
+
 let export_transform_program prog =
   let coq_header = generate_coq_prelude prog in
-  let global_env = export_collect_globals prog in
+  let global_env = external_functions @ export_collect_globals prog in
   let defs = List.map (export_transform_toplevel ~globals:global_env) prog in
+  let stringlit_defs =
+    Hashtbl.fold (fun id s acc -> export_stringlit_def id s :: acc) 
+      string_global_table [] in 
+  let defs = stringlit_defs @ defs  in
   let globals = export_coq_globals prog in
   let publics = export_coq_public_idents prog in
   let entry = export_find_main_or_fallback prog in
   let wrapper = export_coq_program_wrapper ~name:"bprogram" entry in
   coq_header ^ String.concat "\n\n" defs ^ "\n\n" ^ globals ^ "\n" ^ publics ^ "\n" ^ coq_bcomposite_correct_lemma ^ "\n\n" ^ wrapper
 
-  
 let export_parse_file (filename : string) : program =
   let ch = open_in filename in
   let lexbuf = from_channel ch in
@@ -342,3 +413,4 @@ let export_parse_file (filename : string) : program =
 let export_parse_and_transform_bpl (filename : string) : string =
   let program = export_parse_file filename in
   export_transform_program program
+
