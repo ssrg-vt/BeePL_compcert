@@ -7,10 +7,15 @@ type tyenv = typ Env.t
 
 let predefined_externals : (string * typ) list = [
   ("printf", Ftype (
-    [Ptr (Reftype ("h", Bprim Tint8)); Vtype Tint32],
+    [Ptr (Reftype ("h", Bprim Tint8))],
     [Io],
     Vtype Tint32));
 ]
+
+let rec take n xs =
+  match n, xs with
+  | 0, _ | _, [] -> []
+  | n, x :: xs -> x :: take (n - 1) xs
 
 let string_of_ptype = function
   | Tbool -> "bool"
@@ -104,18 +109,29 @@ let rec infer_expr (env : tyenv) (e : expr) : typ =
           end
       |  _ ->
         raise (TypeError "Unary operator expects exactly one argument"))
-  | App (e1, args) ->
-      let ty1 = infer_expr env e1 in
-      let arg_tys = List.map (infer_expr env) args in
-      (match ty1 with
-      | Ftype (arg_types, _eff, ret_type) ->
-          if List.length arg_types <> List.length arg_tys then
-            raise (TypeError "Function application argument count mismatch");
-          List.iter2 (fun a b -> if not (typ_eq a b) then
-              raise (TypeError "Function application argument type mismatch")) arg_types arg_tys;
-          ret_type
-      | _ ->
-          raise (TypeError "Expected type is a function type for application"))
+      | App (e1, args) ->
+        let ty1 = infer_expr env e1 in
+        let arg_tys = List.map (infer_expr env) args in
+        (match ty1 with
+        | Ftype (arg_types, _eff, ret_type) ->
+            begin match List.compare_lengths arg_types arg_tys with
+            | 0 ->
+                List.iter2 (fun a b -> if not (typ_eq a b) then
+                  raise (TypeError "Function application argument type mismatch"))
+                  arg_types arg_tys;
+                ret_type
+            | -1 ->
+                (match e1 with
+                | Var fname when fname = "printf" ->
+                    List.iter2 (fun a b -> if not (typ_eq a b) then
+                      raise (TypeError "Function application argument type mismatch"))
+                      arg_types (take (List.length arg_types) arg_tys);
+                    ret_type
+                | _ -> raise (TypeError "Function application argument count mismatch"))
+            | _ -> raise (TypeError "Function application argument count mismatch")
+            end
+        | _ ->
+            raise (TypeError "Expected type is a function type for application"))
   | Let (x, ty_ann, e1, e2) ->
       let ty1 = infer_expr env e1 in
       if not (typ_eq ty1 ty_ann) then

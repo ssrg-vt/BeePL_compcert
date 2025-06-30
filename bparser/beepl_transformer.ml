@@ -51,7 +51,11 @@ let int_to_coq_z n =
 
 let collect_idents (prog : Beepl_ast.program) : string list =
   let idents = ref [] in
-  let add_ident x = if not (List.mem x !idents) then idents := x :: !idents in
+  let add_ident x =
+    if not (String.length x >= 13 && String.sub x 0 13 = "___stringlit_") &&
+       not (List.mem x !idents)
+    then idents := x :: !idents
+  in
   let add_var (x, _) = add_ident x in
   let rec from_expr e =
     match e with
@@ -325,50 +329,48 @@ let init_data_of_string (s : string) : AST.init_data list =
   char_init @ [null_term]
    
 
-let transform_program (prog : Beepl_ast.program) : BeePL.program =
-  let prog = reorder_program prog in  
-  let idents = collect_idents prog in
-
-  (* Use Camlcoq.intern_string directly *)
-  let get_id = Camlcoq.intern_string in
-
-  let prog_ident_to_string =
-    List.map (fun s -> (get_id s, string_to_char_list s)) idents in
-
-  let global_env = collect_global_env prog in
-  let transformed_decls =
-      List.map (transform_toplevel global_env) prog in
-
-  let prog_types =
-    List.filter_map (function `Struct (_, s) -> Some s | `Fun _ -> None | _ -> None) transformed_decls in
-
-  let fun_defs =
-    List.filter_map (function `Fun (id, f, sec) -> Some (id, f, sec) | `Struct _ -> None | _ -> None) transformed_decls in
+  let transform_program (prog : Beepl_ast.program) : BeePL.program =
+    let prog = reorder_program prog in  
+    let idents = collect_idents prog in
   
-  (* Add external functions as external globals *)
-  let external_globals =
-    List.map (fun (id, typ) ->
-      let coq_id = Camlcoq.intern_string id in
-      match typ with
-      | Ftype (args, effs, ret) ->
-          let coq_args = List.map transform_typ args in
-          let coq_ret = transform_typ ret in
-          let coq_eff = transform_effect_list effs in
-          let signature = {
-            BeePL.bsig_args = coq_args;
-            BeePL.bsig_ef = coq_eff;
-            BeePL.bsig_res = coq_ret;
-            bsig_cc = AST.cc_default;
-          } in
-          let ef = AST.Gfun (BeePL.External (
-            BeePL.EF_external (string_to_char_list id, signature),
-            coq_args,
-            coq_ret,
-            AST.cc_default
-          )) in
-          ((coq_id, ef), None)
-      | _ -> failwith ("Expected function type for external: " ^ id)
-    ) Beepl_ast_typechecker.predefined_externals in 
+    let get_id = Camlcoq.intern_string in
+  
+    let prog_ident_to_string =
+      List.map (fun s -> (get_id s, string_to_char_list s)) idents in
+  
+    let global_env = collect_global_env prog in
+    let transformed_decls =
+        List.map (transform_toplevel global_env) prog in
+  
+    let prog_types =
+      List.filter_map (function `Struct (_, s) -> Some s | _ -> None) transformed_decls in
+  
+    let fun_defs =
+      List.filter_map (function `Fun (id, f, sec) -> Some (id, f, sec) | _ -> None) transformed_decls in
+    
+    let external_globals =
+      List.map (fun (id, typ) ->
+        let coq_id = Camlcoq.intern_string id in
+        match typ with
+        | Ftype (args, effs, ret) ->
+            let coq_args = List.map transform_typ args in
+            let coq_ret = transform_typ ret in
+            let coq_eff = transform_effect_list effs in
+            let signature = {
+              BeePL.bsig_args = coq_args;
+              BeePL.bsig_ef = coq_eff;
+              BeePL.bsig_res = coq_ret;
+              bsig_cc = { AST.cc_vararg = Some (coqint_of_camlint32 1l); cc_unproto = false; cc_structret = false };
+            } in
+            let ef = AST.Gfun (BeePL.External (
+              BeePL.EF_external (string_to_char_list id, signature),
+              coq_args,
+              coq_ret,
+              { AST.cc_vararg = Some (coqint_of_camlint32 1l); cc_unproto = false; cc_structret = false }
+            )) in
+            ((coq_id, ef), None)
+        | _ -> failwith ("Expected function type for external: " ^ id)
+      ) Beepl_ast_typechecker.predefined_externals in 
   
     let globals_from_strings =
       Hashtbl.fold (fun id s acc ->
@@ -385,8 +387,7 @@ let transform_program (prog : Beepl_ast.program) : BeePL.program =
         } in
         ((id', gvar), None) :: acc
       ) string_globals [] in         
-    
-
+  
     let prog_defs =
       let defs =
         List.filter_map (function
@@ -400,7 +401,7 @@ let transform_program (prog : Beepl_ast.program) : BeePL.program =
                 | None -> None
               in
               Some ((id, AST.Gfun (BeePL.Internal f)), sec)
-    
+  
           | `Global (id, t, v) ->
               Some ((id, AST.Gvar {
                 AST.gvar_info = t;
@@ -408,26 +409,38 @@ let transform_program (prog : Beepl_ast.program) : BeePL.program =
                 AST.gvar_readonly = false;
                 AST.gvar_volatile = false;
               }), None)
-    
+  
           | _ -> None
         ) transformed_decls
       in
       external_globals @ defs @ globals_from_strings in 
-    
-    
-    (* Extract function identifiers for prog_public separately *)
-    let fun_ids = List.map (fun (id, _, _) -> id) fun_defs in
-    
+    let is_not_stringlit id =
+      let name = Camlcoq.extern_atom id in
+      not (String.length name >= 13 && String.sub name 0 13 = "___stringlit_")
+    in
+      
+    let fun_ids = List.filter is_not_stringlit (List.map (fun (id, _, _) -> id) fun_defs) in
+  
     let prog_comp_env = BeeTypes.build_bcomposite_env' prog_types in
     let prog_main = get_id (find_main_or_fallback prog) in
     let external_ids = List.map (fun (name, _) -> Camlcoq.intern_string name) Beepl_ast_typechecker.predefined_externals in
-    let prog_public =
-      if List.mem prog_main fun_ids then
-        List.append fun_ids external_ids
-      else
-        List.append (prog_main :: fun_ids) external_ids
+  
+    (* Remove __stringlit_* from prog_public but keep in prog_ident_to_string *)
+    (* Exclude any ident that corresponds to a string literal *)
+    let is_stringlit_id id =
+      let name = Camlcoq.extern_atom id in
+      String.length name >= 13 && String.sub name 0 13 = "__stringlit_"
     in
-    
+
+    let filtered_fun_ids = List.filter (fun id -> not (is_stringlit_id id)) fun_ids in
+
+    let prog_public =
+      if List.mem prog_main filtered_fun_ids then
+        filtered_fun_ids @ external_ids
+      else
+        prog_main :: filtered_fun_ids @ external_ids
+    in
+
     {
       BeePL.prog_defs = prog_defs;
       BeePL.prog_public = prog_public;
@@ -436,7 +449,6 @@ let transform_program (prog : Beepl_ast.program) : BeePL.program =
       BeePL.prog_comp_env = prog_comp_env;
       BeePL.prog_ident_to_string = prog_ident_to_string;
     }
-    
   
 
 let parse_file (filename : string) : Beepl_ast.program =
