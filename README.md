@@ -40,8 +40,12 @@ info@absint.com
 
 
 ## BeePL
+To compile a BeePL program run CompCert with a file that ends in `.bpl`.
+```
+./ccomp test.bpl
+```
 
-To run a BeePL program run CompCert with a file that ends in `.b`. 
+To compile a BeePL (AST) program run CompCert with a file that ends in `.b`. 
 ```
 ./ccomp ~/test.b
 ```
