@@ -176,7 +176,8 @@ Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> e
              type_expr cenv Gamma Sigma (Sinit x ids es (Ptrtype (Reftype h (Bstruct id a) a'))) efs (Ptrtype (Reftype h (Bstruct id a) a'))
 | ty_sfield : forall cenv Gamma Sigma e x id a te ef co ct bt,
               type_expr cenv Gamma Sigma e ef te ->
-              (eq_type te (Stype id a)) \/ (eq_type te (Ptrtype (Sptype id a))) ->
+              (eq_type te (Stype id a)) \/ (eq_type te (Ptrtype (Reftype mem_ident (Bstruct id a) noattr))) 
+              \/ (eq_type te (Ptrtype (Otype (Reftype mem_ident (Bstruct id a) noattr)))) ->
               PTree.get id cenv = Some co ->
               Ctyping.type_of_member a x (bmembers_cmembers co.(co_members)) = OK ct ->
               trans_ctype_btype ct = OK bt ->
@@ -843,7 +844,7 @@ Qed.
 Lemma type_infer_sfield : forall cenv Gamma Sigma e x t ef t',
 type_expr cenv Gamma Sigma (Sfield e x t) ef t' ->
 exists id a co ct ef te, 
-t = (Stype id a) /\ t' = (Ptrtype (Sptype id a)) /\
+t = (Stype id a) /\ t' = (Ptrtype (Reftype mem_ident (Bstruct id a) noattr)) /\
 type_expr cenv Gamma Sigma e ef te ->
 PTree.get id cenv = Some co /\ 
 Ctyping.type_of_member a x (bmembers_cmembers co.(co_members)) = OK ct /\

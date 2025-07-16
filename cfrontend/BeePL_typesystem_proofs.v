@@ -462,13 +462,13 @@ apply type_exprs_type_expr_ind_mut=> //=.
 (* Sfield *)
 + admit.
 (* For *)
-+ move=> cenv Gamma Sigma e1 e2 d e ef1 t1 ef2 t2 fv1 fv2 fv ef t hte1 hin1 hte2 hin2 hte hin hteq hteq' hf1 hf2 hf3 hd1 hd2.
++ (*move=> cenv Gamma Sigma e1 e2 d e ef1 t1 ef2 t2 fv1 fv2 fv ef t hte1 hin1 hte2 hin2 hte hin hteq hteq' hf1 hf2 hf3 hd1 hd2.
   move=> bge p vm m hw. right. move: (hin1 bge p vm m hw)=> [].
   (* e1 is a value *)
   + move=> hv1. case: e1 hte1 hin1 hf1 hv1=> //= v tv hte1 hin1 hf1 _; subst. 
     move: (hin2 bge p vm m hw)=> [].
     (* e2 is a value *)
-    + move=> hv2. case: e2 hte2 hin2 hd2 hv2=> //= v' tv' hte2 hin2 hd2 _; subst.
+    + move=> hv2. case: e2 hte2 hin2 hd2 hv2=> //= v' tv' hte2 hin2 hd2 _; subst.*)
       
   admit.
 (* Enone *)

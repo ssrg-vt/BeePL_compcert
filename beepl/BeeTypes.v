@@ -48,11 +48,8 @@ Inductive basic_type : Type :=
 
 Inductive ptr_type : Type :=
 | Reftype : ident -> basic_type -> attr -> ptr_type       (* Pointer to primitive types and struct : box - introduced in prog *)
-| Vptype : primitive_type -> ptr_type                     (* Pointer to primitve types coming from outside *)
 | Otype : ptr_type -> ptr_type                            (* Option type *)          
 | Fptype : list type -> effect -> type -> ptr_type        (* function/arrow pointer type *)
-| Sptype : ident -> attr -> ptr_type                      (* struct pointer - often used when it comes from helper functions *)
-| Aptype : type -> Z -> attr -> ptr_type                  (* array pointer - often used in ebpf structs *)
 with type : Type :=
 | Utype : type                                            (* Unit type *)
 | Vtype : primitive_type -> type                          (* Value types *)
@@ -79,11 +76,8 @@ match pt with
                     | Bstruct s a => Stype s a 
                     | Barray p z a => Atype (Vtype p) z a
                     end
-| Vptype pt => Vtype pt
 | Otype pt => get_data_type pt
 | Fptype ts ef t => Ftype ts ef t
-| Sptype s a => Stype s a
-| Aptype t z a => Atype t z a
 end.
 
 Definition construct_type_btype (bt : basic_type) : type :=
@@ -123,11 +117,8 @@ end.
 Fixpoint attr_of_ptr_type (t : ptr_type) : attr :=
 match t with 
 | Reftype h bt a => a
-| Vptype pt => attr_of_primitive_type pt
 | Otype t => attr_of_ptr_type t
 | Fptype ts ef t => noattr
-| Sptype h a => a
-| Aptype t z a => a
 end.
 
 Definition attr_of_type (t : type) : attr :=
@@ -222,11 +213,6 @@ with transBeePL_ptr_type (pt : ptr_type) : Ctypes.type :=
                            | Tlong s al => Ctypes.Tpointer (Tarray (Ctypes.Tlong s al) z a') a
                            end
       end
-  | Vptype pt => match pt with 
-                 | Tbool => Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr
-                 | (Tint sz s a') => Ctypes.Tpointer (Ctypes.Tint sz s a') a'
-                 | (Tlong s a') => Ctypes.Tpointer (Ctypes.Tlong s a') a' (*tptr tvoid*)
-                 end
   | Otype t => (transBeePL_ptr_type t)
   | Fptype ts ef t =>
       let cts := transBeePL_types transBeePL_type ts in 
@@ -237,8 +223,6 @@ with transBeePL_ptr_type (pt : ptr_type) : Ctypes.type :=
              cc_unproto := false;
              cc_structret := false |})
         noattr)
-  | Sptype s a => (Ctypes.Tpointer (Tstruct s a) a)
-  | Aptype t' z a => (Ctypes.Tpointer (Tarray (transBeePL_type t') z a) a)
   end.
 
 (*** Composite Definitions related to BeePL ***)
@@ -390,12 +374,6 @@ match t with
 | Bytes => false
 end. 
 
-Definition is_ptrtype_stype (t : type) : bool :=
-match t with 
-| Ptrtype (Sptype x a) => true
-| _ => false
-end. 
-
 Definition is_ref_ptr_type (pt : ptr_type) : bool :=
 match pt with 
 | Reftype _ _ _ => true 
@@ -543,11 +521,8 @@ Definition signedness_of_basic (bt : basic_type) : option signedness :=
 Fixpoint signedness_of_ptr_type (pt : ptr_type) : option signedness :=
   match pt with
   | Reftype _ bt _ => signedness_of_basic bt
-  | Vptype pt => signedness_of_primitive pt
   | Otype pt' => signedness_of_ptr_type pt'
   | Fptype _ _ _=> None
-  | Sptype _ _ => None
-  | Aptype _ _ _ => None
   end.
 
 Definition signedness_of_type (t : type) : option signedness :=
@@ -576,11 +551,8 @@ Definition wtype_of_ptr_type (pt : ptr_type) : wtype :=
       | Bstruct _ _ => Twpst
       | Barray _ _ _ => Twpa
       end
-  | Vptype _ => Twpv
   | Otype _ => Twot
   | Fptype _ _ _ => Twfunptr
-  | Sptype _ _ => Twptr
-  | Aptype _ _ _ => Twpa
   end.
 
 Definition wtype_of_type (t : type) : wtype :=
@@ -811,14 +783,11 @@ with eq_ptr_type (p1 p2 : ptr_type) : bool :=
   match p1, p2 with
   | Reftype h1 b1 a1, Reftype h2 b2 a2 =>
       (h1 =? h2)%positive && eq_basic_type b1 b2 && attr_eq a1 a2
-  | Vptype pt1, Vptype pt2 => eq_primitive_type pt1 pt2
   | Otype t1, Otype t2 => eq_ptr_type t1 t2
   | Fptype ts1 ef1 t1, Fptype ts2 ef2 t2 =>
       eq_types eq_type ts1 ts2 && eq_effect ef1 ef2 && eq_type t1 t2
-  | Sptype id1 a1, Sptype id2 a2 => (id1 =? id2)%positive && attr_eq a1 a2
   | Otype t1, _ => true   (* we need this special case: all pointer type can be void * *)
   | _, Otype t1 => true   (* we need this special case: all pointer type can be void * *)
-  | Aptype t1 z1 a1, Aptype t2 z2 a2 => eq_type t1 t2 && (z1 =? z2)%Z && attr_eq a1 a2
   | _, _ => false
   end.
 

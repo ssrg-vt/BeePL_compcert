@@ -31,12 +31,12 @@ Definition f_for : BeePL.function := {|
                                    fn_effect := (Alloc mem_ident :: Read mem_ident :: Write mem_ident :: Read mem_ident :: nil);
                                    fn_callconv := cc_default;
                                    fn_args := nil;
-                                   fn_vars := ((_x, trint32s) :: 
+                                   fn_vars := ((_x, trint32s) ::
                                                (_t, tint32s) :: nil);
                                    fn_body := (Bind _x trint32s
                                                        (Prim Ref (cint (Int.repr 0) tint32s :: nil) trint32s)
                                                        (Bind _t tunit
-                                                          (For 
+                                                          (For
                                                              (cint (Int.repr 1) tint32s)
                                                              (cint (Int.repr 5) tint32s)
                                                              Up

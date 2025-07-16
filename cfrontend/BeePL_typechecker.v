@@ -319,7 +319,7 @@ match e with
                                                else Error (msg "TYPE ERROR: Wrong type inferred for the struct field")
                                   | None => Error (msg "TYPE ERROR: The field accessed from the struct is not found in composite env")
                                   end
-                  | Ptrtype (Sptype id a) => match cenv!id with 
+                  | Ptrtype (Reftype mem_ident (Bstruct id a) _) => match cenv!id with 
                                              | Some co => do ct <- type_of_member a x (bmembers_cmembers co.(co_members));
                                                do bt <- trans_ctype_btype ct;
                                                if eq_type t bt 

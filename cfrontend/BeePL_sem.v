@@ -254,7 +254,7 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                  bsem_expr p vm1 m1 (Sinit x ids es t) m2 vm2 (Vloc loc ofs) 
 | bsem_sfield : forall p b ofs id co delta bf f vm m vm' m' e t sid sa, (* bitfield is lost *)
                 bsem_expr p vm m e m' vm' (Vloc b ofs) ->
-                typeof_expr e = (Ptrtype (Sptype sid sa)) ->
+                typeof_expr e = (Ptrtype (Reftype mem_ident (Bstruct sid sa) noattr)) ->
                 ge.(genv_cenv)!id = Some co ->
                 field_offset (bcomposite_composite_env ge.(genv_cenv)) f (bmembers_cmembers (co_members co)) = OK (delta, bf) ->
                 bsem_expr p vm m (Sfield e f t)  
@@ -290,7 +290,6 @@ with bsem_exprs : program -> vmap -> Memory.mem -> list BeePL.expr -> Memory.mem
               bsem_expr p vm m e m' vm' v ->
               bsem_exprs p vm' m' es m'' vm'' vs ->
               bsem_exprs p vm m (e :: es) m'' vm'' (v :: vs)
-
 with bsem_bfor : program -> Z -> vmap -> Memory.mem -> expr -> Memory.mem -> vmap -> value -> Prop :=
 | bsem_for_nil : forall p vm m e,
                  bsem_bfor p (Z.of_nat O) vm m e m vm Vunit
@@ -478,7 +477,7 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
 | ssem_sfield2 : forall p b ofs co delta bf f vm m t sid sa, (* bitfield is lost *)
                  ge.(genv_cenv)!sid = Some co ->
                  field_offset (bcomposite_composite_env ge.(genv_cenv)) f (bmembers_cmembers (co_members co)) = OK (delta, bf) ->
-                 ssem_expr p vm m (Sfield (Val (Vloc b ofs) (Ptrtype (Sptype sid sa))) f t)  
+                 ssem_expr p vm m (Sfield (Val (Vloc b ofs) (Ptrtype (Reftype mem_ident (Bstruct sid sa) noattr))) f t)  
                                m vm (Val (Vloc b (Ptrofs.add ofs (Ptrofs.repr delta))) t) 
 | ssem_for1 : forall p vm m e1 e1' e2 vm' m' d e3 t,
               ssem_expr p vm m e1 m' vm' e1' ->
@@ -518,7 +517,6 @@ with ssem_exprs : program -> vmap -> Memory.mem -> list BeePL.expr -> Memory.mem
 | ssem_cons2 : forall p vm m es m' vm' v t vs,
                ssem_exprs p vm m es m' vm' vs ->
                ssem_exprs p vm m (Val v t :: es) m' vm' (Val v t :: vs)
-
 with ssem_bfor : program -> Z -> vmap -> Memory.mem -> expr -> Memory.mem -> vmap -> expr -> Prop :=
 | ssem_for_nil : forall p vm m e,
                  ssem_bfor p (Z.of_nat O) vm m e m vm (Val Vunit Utype)

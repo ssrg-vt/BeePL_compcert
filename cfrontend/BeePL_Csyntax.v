@@ -665,11 +665,11 @@ match e with
                                     do (ce1, bctx1) <- transBeePL_expr_st cenv e1 (snd ce) bctx';
                                     do (ce2, bctx2) <- transBeePL_expr_st cenv e2 (snd ce1) bctx1;
                                     match bctx.(arg_ctx) with 
-                                    | (argi, (Ptrtype (Sptype istruct noattr))) :: nil =>
+                                    | (argi, (Ptrtype (Otype (Reftype mem_ident (Bstruct istruct _) _)))) :: nil =>
                                         do (i, str) <- (fresh_ident (List.map unzip_ident (snd ce)) max_fresh);
                                         let ctx'' := (i, Stype istruct noattr, str) :: snd ce in
                                         do (i', str') <- (fresh_ident (List.map unzip_ident ctx'') max_fresh);
-                                        let ctx''' := (i', Ptrtype (Sptype s noattr), str') :: ctx'' in
+                                        let ctx''' := (i', (Ptrtype (Otype (Reftype mem_ident (Bstruct s noattr) noattr))), str') :: ctx'' in
                                         match transform_ctx_ebpf_ctx bctx.(arg_ctx) with 
                                         | OK narg =>
                                         match narg with 
