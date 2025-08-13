@@ -7,10 +7,11 @@ Local Open Scope csyntax_scope.
 
 (* int main() {
      unsigned int arr[2] = {1;2};
-     return 0;
+     return arr[2];
   }
 *)
 
+(* This program in BeePL should through a compile time error as the accessed index is greater than array length *)
 Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
 Definition _arr : ident := $"arr".
 Definition _r : ident := $"r".
@@ -32,7 +33,7 @@ Definition f_array : BeePL.function := {|
                                                            (Const (ConsInt (Int.repr 1)) (Vtype (BeeTypes.Tint I32 Unsigned dattr)) ::
                                                             Const (ConsInt (Int.repr 2)) (Vtype (BeeTypes.Tint I32 Unsigned dattr)) :: nil)
                                                       (BeeTypes.Atype (Vtype (BeeTypes.Tint I32 Unsigned dattr)) 2 dattr))
-                                                (Const (ConsInt (Int.repr 0)) (Vtype (BeeTypes.Tint I32 Unsigned dattr)))
+                                                (Aaccess _arr (BeeTypes.Atype (Vtype (BeeTypes.Tint I32 Unsigned dattr)) 2 dattr) 2 (Vtype (BeeTypes.Tint I32 Unsigned dattr)))
                                                 (Vtype (BeeTypes.Tint I32 Signed dattr));
                                    is_ebpf := false |}.
 

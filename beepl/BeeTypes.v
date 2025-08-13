@@ -65,6 +65,12 @@ match t with
 | _ => Error (msg "Not an array type")
 end.
 
+Definition get_array_len (t : type) : mon Z :=
+match t with 
+| Atype t n a => ret n
+| _ => error (msg "Not an array type")
+end.
+
 Definition allowed_cast (t1 t2 : primitive_type) : res primitive_type :=
 match t1, t2 with 
 | Tbool, _ => OK t2

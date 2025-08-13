@@ -7,7 +7,7 @@ Local Open Scope csyntax_scope.
 
 (* int main() {
      unsigned int arr[2] = {1;2};
-     return 0;
+     return arr[0];
   }
 *)
 
@@ -32,7 +32,7 @@ Definition f_array : BeePL.function := {|
                                                            (Const (ConsInt (Int.repr 1)) (Vtype (BeeTypes.Tint I32 Unsigned dattr)) ::
                                                             Const (ConsInt (Int.repr 2)) (Vtype (BeeTypes.Tint I32 Unsigned dattr)) :: nil)
                                                       (BeeTypes.Atype (Vtype (BeeTypes.Tint I32 Unsigned dattr)) 2 dattr))
-                                                (Const (ConsInt (Int.repr 0)) (Vtype (BeeTypes.Tint I32 Unsigned dattr)))
+                                                (Aaccess _arr (BeeTypes.Atype (Vtype (BeeTypes.Tint I32 Unsigned dattr)) 2 dattr) 0 (Vtype (BeeTypes.Tint I32 Unsigned dattr)))
                                                 (Vtype (BeeTypes.Tint I32 Signed dattr));
                                    is_ebpf := false |}.
 

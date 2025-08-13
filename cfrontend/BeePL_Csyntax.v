@@ -392,7 +392,12 @@ end
 | Ebytes es t => do (ces, bctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx bctx); 
                  error (msg "COMPILER ERROR: Bitstring translation is not supported yet")
 | Ainit a t es t' => error (msg "COMPILER ERROR: Array initialization cannot be treated as expression in C")
-| Aaccess a t n t' => error (msg "COMPILER ERROR: Array access compilation not supported yet")                    
+| Aaccess a t n t' => do al <- get_array_len t;
+                      if (n <? Z.to_nat al)%nat 
+                      then ret (Evalof (Ederef (Ebinop Cop.Oadd (Evalof (Evar a (transBeePL_type t)) (transBeePL_type t))
+                                                           (Eval (Values.Vint (Int.repr (Z.of_nat n))) tint) (tptr (transBeePL_type t')))
+                                          (transBeePL_type t')) (transBeePL_type t'), fn_ctx, bctx)
+                      else error (msg "The accessed index should be within array length")
 end.
 
 Definition check_var_const (e : BeePL.expr) : bool :=
@@ -743,7 +748,12 @@ match e with
                      let ct := (transBeePL_type t) in
                      do ai <- array_init a ct (exprlist_list_expr (fst ces)); 
                      ret (ai, snd ces, bctx')
-| Aaccess a t n t' => error (msg "COMPILER ERROR: Array access compilation not supported yet")    
+| Aaccess a t n t' => do al <- get_array_len t;
+                      if (n <? Z.to_nat al)%nat 
+                      then ret (Sreturn (Some (Evalof (Ederef (Ebinop Cop.Oadd (Evalof (Evar a (transBeePL_type t)) (transBeePL_type t))
+                                                           (Eval (Values.Vint (Int.repr (Z.of_nat n))) tint) (tptr (transBeePL_type t')))
+                                          (transBeePL_type t')) (transBeePL_type t'))), ctx, bctx)
+                      else error (msg "The accessed index should be within array length")
      
                                 
 end.
