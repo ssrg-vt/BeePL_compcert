@@ -391,6 +391,8 @@ end
                      end
 | Ebytes es t => do (ces, bctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx bctx); 
                  error (msg "COMPILER ERROR: Bitstring translation is not supported yet")
+| Ainit a t es t' => error (msg "COMPILER ERROR: Array initialization cannot be treated as expression in C")
+| Aaccess a t n t' => error (msg "COMPILER ERROR: Array access compilation not supported yet")                    
 end.
 
 Definition check_var_const (e : BeePL.expr) : bool :=
@@ -473,6 +475,41 @@ Definition incr_data_ptr (wv : ident) (s : ident) (bv : ident) : Csyntax.stateme
                        (Esizeof (Tstruct bv noattr) tulong)
                        (tptr tuchar)) (tptr tuchar))).
 
+Definition get_carray_elm_ty (t : Ctypes.type) : mon Ctypes.type :=
+match t with 
+| Tarray t n a => ret t 
+| _ => error (msg "Not an array type")
+end.
+
+(* write [es] starting at index [i] *) 
+Fixpoint array_init_from (a : ident) (t : Ctypes.type) (i : Z) (es : list Csyntax.expr) : mon Csyntax.statement :=
+match es with
+| nil => ret Sskip
+| e :: es' => do aty <- get_carray_elm_ty t;
+              do r <- array_init_from a t (i + 1) es';
+              ret (Ssequence (Sdo (Eassign (Ederef (Ebinop Cop.Oadd
+                                                      (Evalof (Evar a t) t)
+                                                      (Eval (Values.Vint (Int.repr i)) tint)
+                                                      (tptr aty)) aty)
+                                           (Evalof e (typeof e))
+                                  (typeof e))) 
+                             r)
+end.
+
+(* Public: write [ai] at 0, then [ais] at 1.. *)
+Definition array_init (a : ident) (t : Ctypes.type) (es : list Csyntax.expr) : mon Csyntax.statement :=
+match es with
+| nil => error (msg "COMPILER ERROR: Array should be always initialized")
+| ai :: ais => do aty <- get_carray_elm_ty t;
+               do r <- array_init_from a t 1 ais;
+               ret (Ssequence (Sdo (Eassign (Ederef  (Ebinop Cop.Oadd
+                                                        (Evalof (Evar a t) t)
+                                                        (Eval (Values.Vint (Int.repr 0)) tint)
+                                                        (tptr aty)) aty)
+                                            (Evalof ai (typeof ai))
+                                   (typeof ai)))
+                               r)
+end.
 
 Fixpoint transBeePL_expr_st (cenv : bcomposite_env) (e : BeePL.expr ) (ctx : list (ident * BeeTypes.type * string)) (bctx : bcompiler_ctx) : 
 mon (Csyntax.statement * list (ident * BeeTypes.type * string) * bcompiler_ctx) :=
@@ -552,7 +589,8 @@ match e with
                       do (ce', ctx') <- (transBeePL_expr_st cenv e' ctx bctx);
                       match e with 
                       | Prim Massgn es t => do (ce, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst ce) (fst ce'), snd ce, ctx'') 
-                      | For e1 e2 d e3 t => do (cs, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst cs) (fst ce'), snd cs, ctx'')  
+                      | For e1 e2 d e3 t => do (cs, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst cs) (fst ce'), snd cs, ctx'') 
+                      | Ainit a t es t' => do (ce, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst ce) (fst ce'), snd ce, ctx'') 
                       | Sinit sx ids es t =>  do (cs, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst cs) (fst ce'), snd cs, ctx'') 
                       | Bind x1 t1 e1 e1' t1' =>  do (cs, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst cs) (fst ce'), snd cs, ctx'') 
                       | _ => do (ce, ctx'') <- (transBeePL_expr_expr e (snd ce') ctx');
@@ -701,6 +739,11 @@ match e with
                  ret (Ssequence (Sdo (Evar i (tarray tschar sz)))
                                  rs, ctx'')*)
                  (*ret (Sdo (Ecast (hd default_expr (exprlist_list_expr ces)) (Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr)), ctx')*)
+| Ainit a t es t' => do (ces, bctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx bctx); 
+                     let ct := (transBeePL_type t) in
+                     do ai <- array_init a ct (exprlist_list_expr (fst ces)); 
+                     ret (ai, snd ces, bctx')
+| Aaccess a t n t' => error (msg "COMPILER ERROR: Array access compilation not supported yet")    
      
                                 
 end.

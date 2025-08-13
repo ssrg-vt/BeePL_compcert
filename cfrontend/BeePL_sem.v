@@ -41,6 +41,8 @@ match e with
 | Esome e t => is_stateful_expr e
 | Match e ps es t => is_stateful_expr e || has is_stateful_expr es
 | Ebytes es t => has is_stateful_expr es
+| Ainit a t es t' => has is_stateful_expr es
+| Aaccess a t n t' => true
 end.
 
 Fixpoint is_stateful_exprs (es : list BeePL.expr) : bool :=

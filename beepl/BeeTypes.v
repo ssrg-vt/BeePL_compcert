@@ -59,6 +59,11 @@ with type : Type :=
 | Ftype : list type -> effect -> type -> type             (* function type *)
 | Bytes : type                                            (* bytes type of size n *).
 
+Definition get_array_elm_ty (t : type) : res type :=
+match t with 
+| Atype t n a => OK t
+| _ => Error (msg "Not an array type")
+end.
 
 Definition allowed_cast (t1 t2 : primitive_type) : res primitive_type :=
 match t1, t2 with 

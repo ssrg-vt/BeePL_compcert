@@ -372,7 +372,9 @@ match e with
                                 else Error (msg "TYPE ERROR: Type of Match expr should be an option to ref type and all its elements should be of same type")
                      | _ => Error (msg "TYPE ERROR: Type of Match expr should be an option or bytes type")
                      end
-| Ebytes es t => Error (msg "TYPE ERROR: Type of Bitstrings are not supported yet")
+| Ebytes es t => Error (msg "TYPE ERROR: Type checking of Bitstrings are not supported yet")
+| Ainit a t es t' => Error (msg "TYPE ERROR: Type checking of array init is not supported yet")
+| Aaccess a t n t' => Error (msg "TYPE ERROR: Type checking of array access is not supported yet")
                      
 end.
 

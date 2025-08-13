@@ -116,7 +116,9 @@ Inductive expr : Type :=
 | Enone : type -> expr                                                  (* none: option *)
 | Esome : expr -> type -> expr                                          (* some: option *)
 | Match : expr -> list pattern -> list expr -> type -> expr             (* pattern matching *)
-| Ebytes : list expr -> type -> expr                                    (* bitstrings *).
+| Ebytes : list expr -> type -> expr                                    (* bitstrings *)
+| Ainit : ident -> type -> list expr -> type -> expr                    (* array initialization *)
+| Aaccess : ident -> type -> nat -> type -> expr.                               (* array access *)
 
 
 (* Free variables *) 
@@ -142,6 +144,8 @@ match e with
 | Esome e t => free_variables e 
 | Match e ps es t => free_variables e ++ flatten (map free_variables es) 
 | Ebytes es t => flatten (map free_variables es)
+| Ainit a t es t' => flatten (map free_variables es)
+| Aaccess a t n t' => nil
 end.
  
 Fixpoint in_vars (x : ident) (xs : list ident) : bool :=
@@ -187,6 +191,8 @@ match e with
 | Esome e t => t
 | Match e ps es t => t
 | Ebytes es t => t
+| Ainit _ _ _ t => t
+| Aaccess _ _ _ t => t
 end.
 
 Fixpoint typeof_exprs (e : list expr) : list BeeTypes.type :=
@@ -565,6 +571,8 @@ Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
   | Match e ps es t => (*Match (subst x se e) ps (subst_match_branches subst x se ps es) t : correct *)
     Match (subst x se e) ps (map (subst x se) es) t (* replace this with above *)
   | Ebytes es t => Ebytes (map (subst x se) es) t
+  | Ainit a t es t' => Ainit a t (map (subst x se) es) t'
+  | Aaccess a t n t' => Aaccess a t n t'
   end.
 
 
