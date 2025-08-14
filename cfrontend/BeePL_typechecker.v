@@ -373,8 +373,21 @@ match e with
                      | _ => Error (msg "TYPE ERROR: Type of Match expr should be an option or bytes type")
                      end
 | Ebytes es t => Error (msg "TYPE ERROR: Type checking of Bitstrings are not supported yet")
-| Ainit a t es t' => Error (msg "TYPE ERROR: Type checking of array init is not supported yet")
-| Aaccess a t n t' => Error (msg "TYPE ERROR: Type checking of array access is not supported yet")
+| Ainit a t es t' => do (ts, efs) <- type_check_exprs type_check_expr cenv Gamma Sigma es;
+                     do aty <- get_array_elm_ty t;
+                     if is_atype t 
+                     then if is_atype t'
+                          then if all_eq_type aty ts 
+                               then OK (t', nil)   (* Should we consider write effect in array initialization? *)
+                               else Error (msg "TYPE ERROR: Elements assigned to an array must match the array’s element type")
+                          else Error (msg "TYPE ERROR: The return type of array initialization should be array type")
+                     else Error (msg "TYPE ERROR: The type of array should be an array type")
+| Aaccess a t n t' => do aty <- get_array_elm_ty t;   (* Index n is within the array bound is checked by the BeePL compiler *)
+                      if is_atype t 
+                      then if eq_type aty t' 
+                           then OK (t', nil) (* Shoule we consider read effect in array access? *)
+                           else Error (msg "TYPE ERROR: The type of array access should be the type of array element")
+                      else Error (msg "TYPE ERROR: The type of array accessed should be an array type")
                      
 end.
 

@@ -826,6 +826,12 @@ Definition eq_wtype (w1 w2 : wtype) : bool :=
   | _, _ => false
   end.
 
+Fixpoint all_eq_type (t : type) (ts : list type) : bool :=
+match ts with 
+| nil => true 
+| t' :: ts' => eq_type t t' && all_eq_type t ts'
+end.
+
 Definition sizeof_ptype (t : primitive_type) : Z :=
 match t with 
 | Tbool => 1
