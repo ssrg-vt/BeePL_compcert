@@ -209,6 +209,17 @@ Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> e
               is_option_type te \/ is_bytes te ->
               all_eq_types ts ->
               type_expr cenv Gamma Sigma (Match e ps es (hd tunit ts)) (ef ++ efs) (hd tunit ts)
+| ty_ainit : forall cenv Gamma Sigma a t es t' aty efs ts,
+             type_exprs cenv Gamma Sigma es efs ts -> 
+             get_array_elm_ty t = OK aty -> 
+             is_atype t && is_atype t' ->
+             all_eq_type aty ts ->
+             type_expr cenv Gamma Sigma (Ainit a t es t') efs t' (* Should we also include write effects for array initialization? *)
+| ty_aaccess : forall cenv Gamma Sigma a t n t' aty, 
+               get_array_elm_ty t = OK aty ->
+               is_atype t ->
+               eq_type aty t' ->
+               type_expr cenv Gamma Sigma (Aaccess a t n t') nil t'
 (*| ty_subt : forall cenv Gamma Sigma e ef t ef', 
             type_expr cenv Gamma Sigma e ef t ->
             sub_effect ef ef' ->

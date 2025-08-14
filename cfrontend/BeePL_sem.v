@@ -133,6 +133,22 @@ Inductive sem_allocate_fields : positive -> ptrofs -> ident -> list ident -> lis
                         sem_allocate_fields loc ofs sid fs vs ts m2 m3 ->
                         sem_allocate_fields loc ofs sid (f :: fs) (v :: vs) (t :: ts) m1 m3.
 
+Inductive sem_array_init_helper : Memory.mem -> Values.block -> ptrofs -> list value -> type -> Memory.mem -> Prop :=
+| sem_allocate_array_elm_nil : forall m loc ofs t,
+                               sem_array_init_helper m loc ofs nil t m
+| sem_allocate_array_elm : forall ge m loc ofs v vs t m' m'',
+                           assign_addr ge t m loc ofs Full v m' v ->
+                           sem_array_init_helper m' loc (Ptrofs.add ofs (Ptrofs.repr 1)) vs t m'' ->
+                           sem_array_init_helper m loc ofs vs t m''.
+
+Inductive sem_array_init : ident -> type -> list value -> vmap -> Memory.mem -> vmap -> Memory.mem -> Prop :=
+| sem_allocate_array : forall ge vm arr t aty vs loc m vm' m' m'',
+                       alloc_variables ge vm m ((arr, t) :: nil) vm' m' ->
+                       vm ! arr = Some (loc, t) ->
+                       get_array_elm_ty t = OK aty ->
+                       sem_array_init_helper m' loc (Ptrofs.repr 0) vs aty m'' ->
+                       sem_array_init arr t vs vm m vm' m''.
+                        
 Section Big_Step_Semantics.
 
 Variable (ge : genv).
@@ -283,7 +299,17 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                     bsem_expr p vm' m' e1 m'' vm'' v1 ->
                     bsem_expr p vm'' m'' e2 m''' vm''' v2 ->
                     bsem_expr p vm m (Match e (p1 :: p2 :: nil) (e1 :: e2 :: nil) t) m'' vm'' 
-                       (if eq_pattern p1 Pnone then v2 else v1)        
+                       (if eq_pattern p1 Pnone then v2 else v1)  
+| bsem_ainit : forall p vm m m' vm' vs arr t es loc vm'' m'', 
+               bsem_exprs p vm m es m' vm' vs ->
+               sem_array_init arr t vs vm' m' vm'' m'' ->
+               vm'' ! arr = Some (loc, t) ->
+               bsem_expr p vm m (Ainit arr t es t) m'' vm'' (Vloc loc (Ptrofs.repr 0)) 
+| bsem_aaccess : forall p vm m arr t n t' loc aty v,
+                 vm ! arr = Some (loc, t) ->
+                 get_array_elm_ty t = OK aty ->
+                 deref_addr ge aty m loc (Ptrofs.repr (Z.of_nat n)) Full v ->
+                 bsem_expr p vm m (Aaccess arr t n t') m vm v
 (* fix me : add semantics for hexpr *)
 with bsem_exprs : program -> vmap -> Memory.mem -> list BeePL.expr -> Memory.mem -> vmap -> list value -> Prop :=
 | bsem_nil : forall p vm m,
@@ -510,6 +536,21 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                        (if eq_pattern p1 Pnone then e2 else e1)
 | ssem_match_bytes : forall p vm m e p1 e1 t, (* fix me *)
                      ssem_expr p vm m (Match e (p1 :: nil) (e1 :: nil) t) m vm e1
+| ssem_array_init1 : forall p vm m e es vm' m' e' arr t,
+                     ssem_expr p vm m e m' vm' e' ->
+                     ssem_expr p vm m (Ainit arr t (e :: es) t) m' vm' (Ainit arr t (e' :: es) t)
+| ssem_array_init2 : forall p vm m v es vm' m' es' arr t aty,
+                     get_array_elm_ty t = OK aty ->
+                     ssem_exprs p vm m es m' vm' es' ->
+                     ssem_expr p vm m (Ainit arr t (Val v aty :: es) t) m' vm' (Ainit arr t (Val v aty :: es') t)
+| ssem_array_init3 : forall p vm m vs vm' m' arr t,
+                     sem_array_init arr t (extract_values_exprs vs) vm m vm' m' ->
+                     ssem_expr p vm m (Ainit arr t vs t) m' vm' (Ainit arr t vs t)
+| ssem_array_access : forall p vm m arr t n t' loc aty v,
+                      vm ! arr = Some (loc, t) ->
+                      get_array_elm_ty t = OK aty ->
+                      deref_addr ge aty m loc (Ptrofs.repr (Z.of_nat n)) Full v ->
+                      ssem_expr p vm m (Aaccess arr t n t') m vm (Val v aty)
 with ssem_exprs : program -> vmap -> Memory.mem -> list BeePL.expr -> Memory.mem -> vmap -> list BeePL.expr -> Prop :=
 | ssem_nil : forall p vm m,
              ssem_exprs p vm m nil m vm nil

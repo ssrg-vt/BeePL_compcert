@@ -378,7 +378,7 @@ match e with
                      if is_atype t 
                      then if is_atype t'
                           then if all_eq_type aty ts 
-                               then OK (t', nil)   (* Should we consider write effect in array initialization? *)
+                               then OK (t', efs)   (* Should we consider write effect in array initialization? *)
                                else Error (msg "TYPE ERROR: Elements assigned to an array must match the array’s element type")
                           else Error (msg "TYPE ERROR: The return type of array initialization should be array type")
                      else Error (msg "TYPE ERROR: The type of array should be an array type")
