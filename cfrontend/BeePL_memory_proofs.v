@@ -77,7 +77,7 @@ Proof.
     + constructor. inv Hloc.
       destruct H as [H1 H2].
       split.
-      * intros. 
+      * intros.
         specialize (H1 x0 ofs t0 H).
         destruct H1 as [chunk [h1 h2]].
         exists chunk.
@@ -91,7 +91,70 @@ Proof.
       exists fd.
       destruct H as [h1 [h2 [h3 [h4 h5]]]].
       auto.
-Admitted.   
+Admitted.
+
+Definition store_well_typed_ext_weaker : forall cenv Gamma Sigma bge vm m x l t,
+store_well_typed cenv Gamma Sigma bge vm m ->
+vm ! x = None \/ (exists l' t', vm ! x = Some (l' , t') /\ l = l' /\ t = t') ->
+store_well_typed cenv Gamma Sigma bge (PTree.set x (l, t) vm) m.
+Proof.
+(* With the following as an assumption*)
+  intros.
+  destruct H as [Hvar [Hloc Hfunc]].
+  constructor.
+  - inv Hvar.
+    + constructor 1. intros. specialize (H x0 t0 H1).
+      destruct H as [l'  [t' [v [ofs H]]]].
+      exists l', t', v, ofs.
+      destruct H as [Hvm [h1 [h2 h3]]].
+      split; auto.
+      subst.
+      rewrite PTree.gsspec.
+      destruct (peq x0 x).
+      * destruct H0.
+        +  subst. congruence.
+        + subst. destruct H. destruct H. destruct H.  destruct H0.
+          subst. congruence.
+      * exact Hvm.
+    + constructor 2. intros. specialize (H x0 t0 H1).
+      destruct H as [l'  [ofs [v H]]].
+      exists l', ofs, v.
+      destruct H as [Hvm [h1 [h2 h3]]].
+      split; auto.
+      assert ((PTree.set x (l, t) vm) ! x = Some (l, t)).
+      apply PTree.gss.
+      rewrite PTree.gsspec.
+      destruct (peq x0 x).
+      *  destruct H0.
+         -- subst. apply PTree.gsident in H1.
+            Search Genv.find_symbol. Search bsem_expr.
+            Locate bsem_expr.
+            (* Not sure if you can prove this considering the conclusion necessarily
+               puts the variable into a local context  *)
+
+             admit.
+         -- destruct H0. destruct H0.  destruct H0. congruence.
+      * exact Hvm.
+  - split.
+    + constructor. inv Hloc.
+      destruct H as [H1 H2].
+      split.
+      * intros.
+        specialize (H1 x0 ofs t0 H).
+        destruct H1 as [chunk [h1 h2]].
+        exists chunk.
+        auto.
+      * intros.
+        specialize (H2 chunk x0 ofs t0 H).
+        exact H2.
+    + constructor. inv Hfunc.
+      intros. specialize (H l0 o ef te ts efs rt vs efs' H1 H2 H3).
+      destruct H as [fd H].
+      exists fd.
+      destruct H as [h1 [h2 [h3 [h4 h5]]]].
+      auto.
+Admitted.
+
 
 (* Complete me : Easy *)
 Definition store_well_typed_mem_alloc : forall cenv Gamma Sigma bge vm m lo hi m' b,
@@ -113,9 +176,17 @@ Proof.
       split; [exact HSigma|].
       inv Hderef.
       * eapply deref_addr_value; eauto.
-        admit.
+       inv H2.
+       apply Mem.load_alloc_other with (chunk:= (transl_bchunk_cchunk chunk)) (b' :=l') (ofs:= (Ptrofs.unsigned ofs)) (v:=v0) in Halloc.
+       rewrite <- H5 in Halloc. apply Halloc. apply H5.
       * eapply deref_loc_volatile; eauto.
-        admit.
+        Locate Events.volatile_load. Search Events.volatile_load.
+        (* Does this make sense? Shouldn't vm ! x be None? *)
+        assert(Values.Val.lessdef (trans_bvalue_cvalue (Vloc l' ofs)) (trans_bvalue_cvalue (Vloc l' ofs))).
+        Search Values.Val.lessdef. apply Values.Val.lessdef_refl.
+        Search Mem.alloc. inv H2.
+        + admit.
+        + admit.
       * eapply deref_addr_reference; eauto.
       * eapply deref_addr_copy; eauto.
     + constructor 2.
@@ -158,7 +229,7 @@ Proof.
     split; [exact Hargs|].
     exact Hrt.
 Admitted.
- 
+
 Lemma mem_alloc_total :
 forall m lo hi, exists m' b, Mem.alloc m lo hi = (m', b).
 Proof.
@@ -171,9 +242,9 @@ chunk_of_type t = Some chunk ->
 size_chunk (transl_bchunk_cchunk chunk) <= sizeof_type (prog_comp_env p) t.
 Proof.
 move=> p t chunk harch. case: t=> [| | | | pt | ptr | bt] //=.
-+ move=> pr. case: pr=> //=. 
++ move=> pr. case: pr=> //=.
   + by case: chunk=> //=.
-  + move=> sz s a. by case: sz=> //=; case: s=> //=; case: chunk=> //=. 
+  + move=> sz s a. by case: sz=> //=; case: s=> //=; case: chunk=> //=.
   move=> s a. by case: chunk=> //=.
 move=> ptr. rewrite harch. by case: chunk=> //=.
 Qed.
@@ -203,7 +274,7 @@ Proof.
   destruct Hwt as [Hvar [Hloc Hfunc]].
   split; [| split].
   - inv Hvar.
-    + constructor 1. 
+    + constructor 1.
       intros x t0 HGamma.
       specialize (H x t0 HGamma).
       destruct H as [l' [t' [v0 [ofs [Hvm [Heq [HSigma Hderef]]]]]]].
@@ -242,46 +313,46 @@ Proof.
     constructor.
     intros l o ef te ts efs rt vs efs' Htype Heqtype Htypes.
     specialize (H l o ef te ts efs rt vs efs' Htype Heqtype Htypes).
-    exact H.      
+    exact H.
 Admitted.
 
 (* I think we can prove this and make the well formedness definition simpler *)
-Lemma safe_deref_valid_pointers : forall bge Sigma m x ofs pt chunk, 
+Lemma safe_deref_valid_pointers : forall bge Sigma m x ofs pt chunk,
 PTree.get x Sigma = Some (Ptrtype pt) ->
 chunk_of_type (get_data_type pt) = Some chunk ->
 Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
-exists v, deref_addr bge (get_data_type pt) m x ofs Full v. 
+exists v, deref_addr bge (get_data_type pt) m x ofs Full v.
 Proof.
-move=> Sigma m x ofs pt chunk hs htv hc hl. 
+move=> Sigma m x ofs pt chunk hs htv hc hl.
 (*Mem.valid_access_freeable_any*)
-(*have [v hload] := Mem.valid_access_load m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) hl. 
+(*have [v hload] := Mem.valid_access_load m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) hl.
 eexists. apply deref_addr_value with chunk v.*)
 Admitted.
 
 
 (* I think we can prove this and make the well formedness definition simpler *)
-Lemma safe_assgn_valid_pointers : forall cenv Gamma Sigma bge vm m x ofs pt v chunk, 
+Lemma safe_assgn_valid_pointers : forall cenv Gamma Sigma bge vm m x ofs pt v chunk,
 store_well_typed cenv Gamma Sigma bge vm m ->
 PTree.get x Sigma = Some (Ptrtype pt) ->
 chunk_of_type (get_data_type pt) = Some chunk ->
 Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
 exists bf m', assign_addr bge (get_data_type pt) m x ofs bf v m' v /\ store_well_typed cenv Gamma Sigma bge vm m'.
 Proof.
-move=> cenv Sigma bge vm m x ofs h bt a hs hv. 
+move=> cenv Sigma bge vm m x ofs h bt a hs hv.
 Admitted.
 
 (* Allocation through ref should be successful in getting space in memory and storing value v to it *)
 (* Not true, if t = Utype and v = Vunit then typeof_value v t holds but chunk_of_type t = None *)
-Lemma ref_allocation_succeeds : forall cenv Gamma Sigma (p : BeePL.program) (bge : BeePL.genv) (vm : vmap) 
+Lemma ref_allocation_succeeds : forall cenv Gamma Sigma (p : BeePL.program) (bge : BeePL.genv) (vm : vmap)
 (m : Memory.mem) (v : BeePL_values.value) (t : type) ml,
 store_well_typed cenv Gamma Sigma bge vm m ->
 typeof_value v t ->
 Mem.alloc m 0 (sizeof_type p.(prog_comp_env) t) = ml ->
-exists m' chunk v', 
+exists m' chunk v',
 trans_bvalue_cvalue v = v' /\
 chunk_of_type t = Some chunk /\
 Mem.storev (transl_bchunk_cchunk chunk) ml.1 (trans_bvalue_cvalue (Vloc ml.2 Ptrofs.zero)) v' = Some m' /\
-store_well_typed cenv Gamma Sigma bge vm m'. 
+store_well_typed cenv Gamma Sigma bge vm m'.
 Proof.
 move=> cenv Gamma Sigma p bge vm m v t [m1 b] he ht ha.
 case hc: (chunk_of_type t)=> [chunk | ] //=.
