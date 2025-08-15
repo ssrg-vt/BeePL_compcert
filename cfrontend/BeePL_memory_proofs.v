@@ -43,6 +43,7 @@ Proof.
     destruct f eqn:Ef; discriminate.
 Qed.
 
+(* Local Weakening Lemma *)
 (* Complete me: Easy *)
 Definition store_well_typed_ext : forall cenv Gamma Sigma bge vm m x l t,
 store_well_typed cenv Gamma Sigma bge vm m ->
@@ -93,9 +94,19 @@ Proof.
       auto.
 Admitted.
 
+Lemma gsnone :
+  forall (vm : vmap) (x x0 l : positive)  (t : type),
+    (PTree.set x (l,t) vm) ! x0 = None
+    <-> (x0 <> x /\ vm ! x0 = None).
+Proof.
+  intros. rewrite PTree.gsspec.
+  destruct (peq x0 x); split; simpl; try (intuition congruence).
+Qed.
+
 Definition store_well_typed_ext_weaker : forall cenv Gamma Sigma bge vm m x l t,
 store_well_typed cenv Gamma Sigma bge vm m ->
 vm ! x = None \/ (exists l' t', vm ! x = Some (l' , t') /\ l = l' /\ t = t') ->
+Genv.find_symbol bge x = None -> (*Makes sure x is fresh*)
 store_well_typed cenv Gamma Sigma bge (PTree.set x (l, t) vm) m.
 Proof.
 (* With the following as an assumption*)
@@ -103,7 +114,7 @@ Proof.
   destruct H as [Hvar [Hloc Hfunc]].
   constructor.
   - inv Hvar.
-    + constructor 1. intros. specialize (H x0 t0 H1).
+    + constructor 1. intros. specialize (H x0 t0 H2).
       destruct H as [l'  [t' [v [ofs H]]]].
       exists l', t', v, ofs.
       destruct H as [Hvm [h1 [h2 h3]]].
@@ -116,45 +127,44 @@ Proof.
         + subst. destruct H. destruct H. destruct H.  destruct H0.
           subst. congruence.
       * exact Hvm.
-    + constructor 2. intros. specialize (H x0 t0 H1).
+    + constructor 2. intros. specialize (H x0 t0 H2).
       destruct H as [l'  [ofs [v H]]].
       exists l', ofs, v.
       destruct H as [Hvm [h1 [h2 h3]]].
       split; auto.
-      assert ((PTree.set x (l, t) vm) ! x = Some (l, t)).
-      apply PTree.gss.
       rewrite PTree.gsspec.
       destruct (peq x0 x).
       *  destruct H0.
-         -- subst. apply PTree.gsident in H1.
-            Search Genv.find_symbol. Search bsem_expr.
-            Locate bsem_expr.
-            (* Not sure if you can prove this considering the conclusion necessarily
-               puts the variable into a local context  *)
-
-             admit.
-         -- destruct H0. destruct H0.  destruct H0. congruence.
+         -- subst. congruence.
+         -- destruct H. destruct H.  destruct H. congruence.
       * exact Hvm.
   - split.
     + constructor. inv Hloc.
-      destruct H as [H1 H2].
+      destruct H as [H2 H3].
       split.
       * intros.
-        specialize (H1 x0 ofs t0 H).
-        destruct H1 as [chunk [h1 h2]].
+        specialize (H2 x0 ofs t0 H).
+        destruct H2 as [chunk [h1 h2]].
         exists chunk.
         auto.
       * intros.
-        specialize (H2 chunk x0 ofs t0 H).
-        exact H2.
+        specialize (H3 chunk x0 ofs t0 H).
+        exact H3.
     + constructor. inv Hfunc.
-      intros. specialize (H l0 o ef te ts efs rt vs efs' H1 H2 H3).
+      intros. specialize (H l0 o ef te ts efs rt vs efs' H2 H3 H4).
       destruct H as [fd H].
       exists fd.
       destruct H as [h1 [h2 [h3 [h4 h5]]]].
       auto.
-Admitted.
+Qed.
 
+(*
+Lemma eventval_id_update_tr_v0 :
+  forall r tr' v0',
+    eventval_id (r <| tr := tr'; v0 := v0' |>) = eventval_id r.
+Proof.
+  intros. reflexivity.
+Qed. *)
 
 (* Complete me : Easy *)
 Definition store_well_typed_mem_alloc : forall cenv Gamma Sigma bge vm m lo hi m' b,
@@ -177,16 +187,14 @@ Proof.
       inv Hderef.
       * eapply deref_addr_value; eauto.
        inv H2.
-       apply Mem.load_alloc_other with (chunk:= (transl_bchunk_cchunk chunk)) (b' :=l') (ofs:= (Ptrofs.unsigned ofs)) (v:=v0) in Halloc.
+       eapply Mem.load_alloc_other with (chunk:= (transl_bchunk_cchunk chunk)) (b' :=l') (ofs:= (Ptrofs.unsigned ofs)) (v:=v0) in Halloc.
        rewrite <- H5 in Halloc. apply Halloc. apply H5.
       * eapply deref_loc_volatile; eauto.
         Locate Events.volatile_load. Search Events.volatile_load.
         (* Does this make sense? Shouldn't vm ! x be None? *)
         assert(Values.Val.lessdef (trans_bvalue_cvalue (Vloc l' ofs)) (trans_bvalue_cvalue (Vloc l' ofs))).
         Search Values.Val.lessdef. apply Values.Val.lessdef_refl.
-        Search Mem.alloc. inv H2.
-        + admit.
-        + admit.
+        Search Mem.alloc. admit.
       * eapply deref_addr_reference; eauto.
       * eapply deref_addr_copy; eauto.
     + constructor 2.
@@ -198,8 +206,13 @@ Proof.
       split; [exact HSigma|].
       inv Hderef.
       * eapply deref_addr_value; eauto.
-        admit.
+        inv H2.
+        eapply Mem.load_alloc_other with (chunk:= (transl_bchunk_cchunk chunk)) (b' :=l') (ofs:= (Ptrofs.unsigned ofs)) (v:=v0) in Halloc.
+        rewrite <- H5 in Halloc. apply Halloc. apply H5.
       * eapply deref_loc_volatile; eauto.
+        assert(Values.Val.lessdef (trans_bvalue_cvalue (Vloc l' ofs)) (trans_bvalue_cvalue (Vloc l' ofs))).
+        Search Values.Val.lessdef. apply Values.Val.lessdef_refl.
+        Search Events.volatile_load. Search Events.Event_vload.
         admit.
       * eapply deref_addr_reference; eauto.
       * eapply deref_addr_copy; eauto.
