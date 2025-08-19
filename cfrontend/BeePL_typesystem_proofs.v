@@ -60,15 +60,15 @@ apply type_exprs_type_expr_ind_mut=> //=.
 + move=> cenv Gamma Sigma v t hteq bge p vm m hw; subst. right. 
   rewrite /store_well_typed in hw. case: hw=> [] hw1 [] hw2 hw3.
   inversion hw1.
-  + move: (H v t hteq)=> [] l' [] t' [] v' [] ofs.
+  + move: (H v t hteq)=> [] l' [] t' [] v'.
     move=> [] hvm [] hteq' [] hs hd; subst.
     exists m. exists vm. exists (Val v' t'). split=> //=.
     eapply ssem_lvar. + by apply hvm. + by apply hd.
   (* gvar *)
   move: (H v t hteq).
-  move=> [] l' [] ofs [] v' [] hs [] hg [] hs' hd. 
+  move=> [] l' [] v' [] hs [] hg [] hs' hd. 
   exists m. exists vm. exists (Val v' t). split=> //=. 
-  apply ssem_gbvar with l' ofs. + by apply hs. + by apply hg.
+  apply ssem_gbvar with l'. + by apply hs. + by apply hg.
   by apply hd.
 (* const int *) (* complete *)
 + move=> cenv Gamma Sigma t sz a i bge p vm m hw. right.

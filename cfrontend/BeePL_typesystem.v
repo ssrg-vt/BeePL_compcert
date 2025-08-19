@@ -305,15 +305,15 @@ Inductive type_program : BeePL.program -> Prop :=
 Inductive well_formed_var (Gamma : ty_context) (Sigma : store_context) (bge : BeePL.genv) (vm : vmap) (m : Memory.mem) : Prop :=
 | store_well_typed_lvar : (forall x t,
                            Gamma ! x = Some t ->
-                           (exists l' t' v ofs, vm ! x = Some (l', t') /\
+                           (exists l' t' v, vm ! x = Some (l', t') /\
                            t = t' /\ PTree.get l' Sigma = Some t /\ 
-                                                  deref_addr bge t m l' ofs Full v)) ->
+                                                  deref_addr bge t m l' Ptrofs.zero Full v)) ->
                           well_formed_var Gamma Sigma bge vm m
 | store_well_typed_gvar : (forall x t,
                           Gamma ! x = Some t ->
-                          (exists l' ofs v, vm ! x = None /\ Genv.find_symbol bge x = Some l' /\ 
+                          (exists l' v, vm ! x = None /\ Genv.find_symbol bge x = Some l' /\ 
                                             PTree.get l' Sigma = Some t /\ 
-                                            deref_addr bge t m l' ofs Full v)) ->
+                                            deref_addr bge t m l' Ptrofs.zero Full v)) ->
                          well_formed_var Gamma Sigma bge vm m.
 
 (*** Well formed loc (coming from ref, not variables) ***)
