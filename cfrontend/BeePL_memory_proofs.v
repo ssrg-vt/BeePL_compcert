@@ -225,17 +225,24 @@ Proof.
       apply H2.
       split; [|exact Hchunk].
       assert (Haccess: Mem.alloc m lo hi = (m', b)). apply Halloc.
-      Search Mem.valid_access.
       apply Mem.valid_access_alloc_inv with (chunk:= (transl_bchunk_cchunk chunk)) (b' := x) (ofs := (Ptrofs.unsigned ofs)) (p:= Freeable) in Haccess.
       destruct (Values.eq_block x b) eqn:Eqxb. (* I become stuck here *)
       * destruct Haccess as [Hlo [Hhi Halign]]. (*Proof goal is contradictory, but can't find conflicting assumptions *)
         assert (Hvalid: Mem.valid_block m' b). apply Mem.valid_new_block with m lo hi; assumption.
         assert (Hinvalid: ~ Mem.valid_block m b). apply Mem.fresh_block_alloc with lo hi m'; assumption.
-        subst. unfold Mem.valid_access. split.
-        -- unfold Mem.range_perm. intros. admit. exact Halign.
-(*
+        assert (~ Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable).
+        intro. apply Mem.valid_access_freeable_any with (p := Nonempty) in H. apply Mem.valid_access_valid_block in H.
+        subst. congruence.
+        Search Mem.valid_block.
+        Search align_chunk. Locate Mem.valid_access_alloc_inv.
+        admit.
+ (*
+        (*apply Mem.valid_access_alloc_other with (chunk := (transl_bchunk_cchunk chunk)) (b' := x) (ofs := (Ptrofs.unsigned ofs)) (p := Freeable) in Halloc. Doesn't do much; essentially restates Hmem*)
+        subst. unfold Mem.valid_access. Locate Mem.valid_access. split.
+        -- unfold Mem.range_perm. intros.  apply Mem.valid_access_perm with (k := Cur) in Hmem. admit. exact Halign.
 
-Mem.valid_access_perm:
+
+Mem.valid_access_perm: Nothing changes with this option
   forall (m : Memory.mem) (chunk : memory_chunk) (b : Values.block) (ofs : Z) (k : perm_kind) (p : permission),
   Mem.valid_access m chunk b ofs p -> Mem.perm m b ofs k p
 
@@ -255,21 +262,7 @@ PG :Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Free
 There doesn't seem to be any new information from the above commands
 *)
 (*
-Mem.valid_access_free_2:
-  forall (m1 : Memory.mem) (bf : Values.block) (lo hi : Z) (m2 : Memory.mem),
-  Mem.free m1 bf lo hi = Some m2 ->
-  forall (chunk : memory_chunk) (ofs : Z) (p : permission),
-  lo < hi ->
-  ofs + size_chunk chunk > lo -> ofs < hi -> ~ Mem.valid_access m2 chunk bf ofs p
-Mem.valid_access_free_inv_2:
- *)
-(*
-Mem.valid_access_compat:
-  forall (m : Memory.mem) (chunk1 chunk2 : memory_chunk) (b : Values.block)
-    (ofs : Z) (p : permission),
-  size_chunk chunk1 = size_chunk chunk2 ->
-  align_chunk chunk2 <= align_chunk chunk1 ->
-  Mem.valid_access m chunk1 b ofs p -> Mem.valid_access m chunk2 b ofs p
+Mem.valid_access_compat: This wouldn't help, the chunks aren't different
  *)
         (* admit This is the same separation invariant problem that I see in the other proof.
         + apply Hlo.
@@ -318,11 +311,13 @@ Proof.
   intros Hsize.
   assert (Hvalid: Mem.valid_access m1 (transl_bchunk_cchunk chunk) b 0 Writable).
   {
-    admit.
+    apply Mem.valid_access_alloc_same with (chunk := (transl_bchunk_cchunk chunk)) (ofs := 0) in Ealloc.
+    apply Mem.valid_access_freeable_any with (p := Writable) in Ealloc. eauto. lia. lia.
+    apply Z.divide_0_r.
   }
-Admitted.
-
-(*Lemma iff_storev_store*)
+simpl. eapply Mem.valid_access_store with (v := v) in Hvalid.
+destruct Hvalid. exists x. apply e.
+Qed.
 
 Lemma chunk_fits_allocation2:
   forall (p : BeePL.program) (t : type) (chunk : bmemory_chunk),
