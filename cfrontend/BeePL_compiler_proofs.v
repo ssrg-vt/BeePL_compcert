@@ -629,6 +629,35 @@ type_is_volatile t = false.
 Proof.
 Admitted.
 
+Lemma access_mode_of_volatile_chunk ty c :
+chunk_for_volatile_type ty Full = Some c ->
+access_mode ty = By_value c.
+Proof.
+case: ty=> //=.
++ move=> [] //=.
+  + move=> [] //=.
+    + move=> a /=. rewrite /chunk_for_volatile_type.
+      case: ifP=> //=. by move=> ht [] h; subst.
+    move=> a /=. rewrite /chunk_for_volatile_type.
+    case: ifP=> //=. by move=> ht [] h; subst.
+  + move=> s a. rewrite /chunk_for_volatile_type /=.
+    case: ifP=> //= ht. case: s ht=> //=.
+    + by move=>  ht [] h; subst. 
+    by move=> ht [] h; subst.
+  + rewrite /chunk_for_volatile_type /=. move=> s a.
+    case: ifP=> //=. by move=> ht [] h; subst.
+  rewrite /chunk_for_volatile_type /=. move=> s a.
+  case: ifP=> //=. by move=> ht [] h; subst.
++ rewrite /chunk_for_volatile_type /=. move=> s a.
+  case: ifP=> //=. by move=> ht [] h; subst.
++ rewrite /chunk_for_volatile_type /=. move=> s a.
+  case: ifP=> //=. case: s=> //=. 
+  + by move=> ht [] h; subst. 
+  by move=> ht [] h; subst.
+rewrite /chunk_for_volatile_type /=. move=> t a. case: ifP=> //=.
+by move=> ht [] h; subst.
+Qed.
+
 (***** Comparing BeePL big-step semantics with Csyntax big-step semantics *****)
 Lemma bsem_csem_expr_equiv : forall bge cp,
 (forall bp bvm m es m' bvm' bv cge fctx bctx ce cvm fctx' bctx' g g' i',
@@ -687,7 +716,7 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
         + by apply eval_var.
         + apply esl_var_local. by have := equiv_local_benv_cenv vm' cvm x l t (transBeePL_type t) hm erefl hvm.
         + apply deref_loc_volatile with c.
-          + admit.
+          + by have := access_mode_of_volatile_chunk (transBeePL_type t) c hc.
           + by apply hvt.
           by apply h2.
         by simpl.
@@ -722,7 +751,7 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
         + apply esl_var_global. by have := equiv_global_benv_cenv vm' cvm x hm hvm.
         + have hg' := symbols_preserved bge cge x. by rewrite hg in hg'.
         + apply deref_loc_volatile with c.
-          + admit.
+          + by have := access_mode_of_volatile_chunk (transBeePL_type t) c hc.
           + by apply hvt.
           by apply h2.
         by simpl.
@@ -776,15 +805,44 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
 (* ref *)
 + admit.
 (* deref *)
-+ move=> p vm m e m' vm' l ofs bf v he hin hvt hd cp cge fctx bctx ce cvm fctx' bctx' g g' i' hp H hm.
++ move=> p vm m e m' vm' l ofs v he hin hd cp cge fctx bctx ce cvm fctx' bctx' g g' i' hp H hm.
   have [htr1 htr2] := trans_expr_expr_ind.
   move: (htr1 (Prim Deref [:: e] (typeof_expr e)) fctx bctx ce fctx' bctx' g g' i' H)=> [] ces [] g1 [] i1 [] htes hceq; subst.
   have [ce [g2 [i2 [he' heq]]]] := trans_exprs_to_trans_expr e fctx bctx g ces fctx' bctx' g1 i1 htes.
   move: (hin cp cge fctx bctx ce cvm fctx' bctx' g g2 i2 hp he' hm)=> [] tr hce. rewrite -heq.
-  (*exists tr. apply eval_expression_intro with (Evalof (Csyntax.Ederef ce (transBeePL_type (typeof_expr e))) (transBeePL_type (typeof_expr e))).
+  rewrite /convert_to_rval /=. case hvt : (type_is_volatile (transBeePL_type (typeof_expr e)))=> //=.
+  + inversion hce; subst. have := deref_addr_translated bge cge (typeof_expr e) m' l ofs Full v (transBeePL_type (typeof_expr e)) (trans_bvalue_cvalue v) hd erefl erefl. 
+    case hc: (chunk_for_volatile_type (transBeePL_type (typeof_expr e)) Full)=> [c | ] //=.
+    + move=> [] tr' [] h1 h2. 
+      exists (tr ++ tr'). apply eval_expression_intro with (Eval (trans_bvalue_cvalue v) (transBeePL_type (typeof_expr e))).
+      + apply eval_valof_volatile with (Csyntax.Ederef a' (transBeePL_type (typeof_expr e))) l ofs Full.
+        + by apply hvt.
+        + by apply eval_deref.
+        + apply esl_deref. by apply H1.
+        + apply deref_loc_volatile with c.
+          + by have := access_mode_of_volatile_chunk (transBeePL_type (typeof_expr e)) c hc.
+          + by apply hvt.
+          + by apply h2.
+        by simpl.
+      by apply esr_val.
+    move=> hd'. have hvt' := deref_loc_no_trace_nonvolatile cge (transBeePL_type (typeof_expr e)) m' l ofs Full (trans_bvalue_cvalue v) hd'.
+    by rewrite hvt' in hvt.
+  exists tr. inversion hce; subst. 
+  apply eval_expression_intro with (Evalof (Csyntax.Ederef a' (transBeePL_type (typeof_expr e))) (transBeePL_type (typeof_expr e))).
   + apply eval_valof.
     + by apply hvt.
-    + apply eval_deref. *)
+    + apply eval_deref.
+    subst. apply H0. apply esr_rvalof with l ofs Full.
+    + apply esl_deref. by apply H1.
+    + by auto.
+    by apply hvt.
+  have := deref_addr_translated bge cge (typeof_expr e) m' l ofs Full v (transBeePL_type (typeof_expr e)) (trans_bvalue_cvalue v) hd erefl erefl. 
+  case hc: (chunk_for_volatile_type (transBeePL_type (typeof_expr e)) Full)=> [c | ] //=.
+  move=> [] tr' [] _ hvo. by rewrite /chunk_for_volatile_type hvt /= in hc.
+(* massgn *)
++ move=> p vm m e1 m' vm' l ofs bf e2 vm'' m'' v v' ct1 ct2 he1 hin1 he2 hin2 ht1 ht2 hcast ha cp cge fctx bctx ce cvm fctx' bctx' g g' i' hp hte hm.
+  have [htr1 htr2] := trans_expr_expr_ind.
+  move: (htr1 (Prim Massgn [:: e1; e2] Utype) fctx bctx ce fctx' bctx' g g' i' hte).
 Admitted.
 
 (***** Comparing BeePL big-step semantics with Csyntax big-step semantics *****)

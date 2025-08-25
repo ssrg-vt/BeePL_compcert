@@ -198,10 +198,9 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
              Mem.alloc m 0 (sizeof_type p.(prog_comp_env) (Vtype t)) = ml ->
              assign_addr bge (Vtype t) ml.1 ml.2 Ptrofs.zero Full v m'' v -> 
              bsem_expr p vm m (Prim Ref [:: e] (Ptrtype (Reftype h (Bprim t) a))) m'' vm'' (Vloc l Ptrofs.zero)
-| bsem_deref : forall p vm m e m' vm' l ofs bf v,
+| bsem_deref : forall p vm m e m' vm' l ofs v,
                bsem_expr p vm m e m' vm' (Vloc l ofs) ->
-               type_is_volatile (transBeePL_type (typeof_expr e)) = false ->
-               deref_addr ge (typeof_expr e) m l ofs bf v ->
+               deref_addr ge (typeof_expr e) m' l ofs Full v ->
                bsem_expr p vm m (Prim Deref (e :: nil) (typeof_expr e)) m' vm' v
 | bsem_massgn : forall p vm m e1 m' vm' l ofs bf e2 vm'' m'' v v' ct1 ct2,  
                 bsem_expr p vm m e1 m' vm' (Vloc l ofs) ->
@@ -412,8 +411,8 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                 ssem_expr p vm m e m' vm' e' ->
                 ssem_expr p vm m (Prim Deref (e :: nil) t) m' vm' 
                                  (Prim Deref (e' :: nil) t)
-| ssem_deref2 : forall p vm m l ofs bf v t,
-                deref_addr ge (get_data_type t) m l ofs bf v ->
+| ssem_deref2 : forall p vm m l ofs v t,
+                deref_addr ge (get_data_type t) m l ofs Full v ->
                 ssem_expr p vm m (Prim Deref [:: Val (Vloc l ofs) (Ptrtype t)] (get_data_type t)) m vm 
                                (Val v (get_data_type t))
 | ssem_massgn1 : forall p vm m e1 e2 m' vm' e1',  

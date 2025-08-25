@@ -160,7 +160,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
       case: H=> H1 H2. move: (H1 l ofs (Reftype h' bt a) hl)=> [] chunk [] hvl hc.
       have [v hd] := safe_deref_valid_pointers bge Sigma m l ofs (Reftype h' bt a) chunk hl hc hvl.
       exists m. exists vm. exists (Val v (get_data_type (Reftype h' bt a))). split.
-      by apply ssem_deref2 with Full. by apply hsw.
+      by apply ssem_deref2. by apply hsw.
     (* option *) (* deref does not allow pointer coming from option type until it is gone through match *)
     + move=> o hte hin.
       have [pt' [h1 h2]] := type_infer_option cenv Gamma Sigma ef o t (Ptrtype pt) hte.
