@@ -158,13 +158,6 @@ Proof.
       auto.
 Qed.
 
-(*
-Lemma eventval_id_update_tr_v0 :
-  forall r tr' v0',
-    eventval_id (r <| tr := tr'; v0 := v0' |>) = eventval_id r.
-Proof.
-  intros. reflexivity.
-Qed. *)
 
 (* Complete me : Easy *)
 Definition store_well_typed_mem_alloc : forall cenv Gamma Sigma bge vm m lo hi m' b,
@@ -189,12 +182,12 @@ Proof.
        inv H2.
        eapply Mem.load_alloc_other with (chunk:= (transl_bchunk_cchunk chunk)) (b' :=l') (ofs:= (Ptrofs.unsigned ofs)) (v:=v0) in Halloc.
        rewrite <- H5 in Halloc. apply Halloc. apply H5.
-      * eapply deref_loc_volatile; eauto.
-        Locate Events.volatile_load. Search Events.volatile_load.
-        (* Does this make sense? Shouldn't vm ! x be None? *)
-        assert(Values.Val.lessdef (trans_bvalue_cvalue (Vloc l' ofs)) (trans_bvalue_cvalue (Vloc l' ofs))).
-        Search Values.Val.lessdef. apply Values.Val.lessdef_refl.
-        Search Mem.alloc. admit.
+      * apply deref_loc_volatile with chunk tr v0; auto.
+        inv H2.
+          -- apply Events.volatile_load_vol; auto.
+          -- eapply Mem.load_alloc_other with (chunk:= (transl_bchunk_cchunk chunk)) (b' :=l') (ofs:= (Ptrofs.unsigned ofs)) (v:=v0) in Halloc.
+             eapply Events.volatile_load_nonvol with (m := m') (chunk := (transl_bchunk_cchunk chunk)) (ofs:= ofs) (v := v0) in H4.  (* Needs to specify ofs *)
+             auto. eapply Halloc. apply H5.
       * eapply deref_addr_reference; eauto.
       * eapply deref_addr_copy; eauto.
     + constructor 2.
@@ -209,15 +202,16 @@ Proof.
         inv H2.
         eapply Mem.load_alloc_other with (chunk:= (transl_bchunk_cchunk chunk)) (b' :=l') (ofs:= (Ptrofs.unsigned ofs)) (v:=v0) in Halloc.
         rewrite <- H5 in Halloc. apply Halloc. apply H5.
-      * eapply deref_loc_volatile; eauto.
-        assert(Values.Val.lessdef (trans_bvalue_cvalue (Vloc l' ofs)) (trans_bvalue_cvalue (Vloc l' ofs))).
-        Search Values.Val.lessdef. apply Values.Val.lessdef_refl.
-        Search Events.volatile_load. Search Events.Event_vload.
-        admit.
+      * apply deref_loc_volatile with chunk tr v0; auto.
+        inv H2.
+          -- apply Events.volatile_load_vol; auto.
+          -- eapply Mem.load_alloc_other with (chunk:= (transl_bchunk_cchunk chunk)) (b' :=l') (ofs:= (Ptrofs.unsigned ofs)) (v:=v0) in Halloc.
+             eapply Events.volatile_load_nonvol with (m := m') (chunk := (transl_bchunk_cchunk chunk)) (ofs:= ofs) (v := v0) in H4.
+             auto. eapply Halloc. apply H5.
       * eapply deref_addr_reference; eauto.
       * eapply deref_addr_copy; eauto.
   - inv Hloc.
-    destruct H as [H1 H2].
+    destruct H as [H1 H2]. Locate well_formed_loc.
     constructor.
     split.
     + intros x ofs t Hsigma.
@@ -230,7 +224,59 @@ Proof.
       destruct Hvalid as [Hmem Hchunk].
       apply H2.
       split; [|exact Hchunk].
-      admit.
+      assert (Haccess: Mem.alloc m lo hi = (m', b)). apply Halloc.
+      Search Mem.valid_access.
+      apply Mem.valid_access_alloc_inv with (chunk:= (transl_bchunk_cchunk chunk)) (b' := x) (ofs := (Ptrofs.unsigned ofs)) (p:= Freeable) in Haccess.
+      destruct (Values.eq_block x b) eqn:Eqxb. (* I become stuck here *)
+      * destruct Haccess as [Hlo [Hhi Halign]]. (*Proof goal is contradictory, but can't find conflicting assumptions *)
+        assert (Hvalid: Mem.valid_block m' b). apply Mem.valid_new_block with m lo hi; assumption.
+        assert (Hinvalid: ~ Mem.valid_block m b). apply Mem.fresh_block_alloc with lo hi m'; assumption.
+        subst. unfold Mem.valid_access. split.
+        -- unfold Mem.range_perm. intros. admit. exact Halign.
+(*
+
+Mem.valid_access_perm:
+  forall (m : Memory.mem) (chunk : memory_chunk) (b : Values.block) (ofs : Z) (k : perm_kind) (p : permission),
+  Mem.valid_access m chunk b ofs p -> Mem.perm m b ofs k p
+
+           Mem.perm_valid_block:
+  forall (m : Memory.mem) (b : Values.block) (ofs : Z) (k : perm_kind) (p : permission), Mem.perm m b ofs k p -> Mem.valid_block m b
+*)
+
+(*           Search Mem.valid_access.
+        assert (Hacess: Mem.valid_access m' (transl_bchunk_cchunk chunk) b (Ptrofs.unsigned ofs) Freeable).
+        eapply Mem.valid_access_alloc_same with (chunk := (transl_bchunk_cchunk chunk)) (ofs := (Ptrofs.unsigned ofs)) in Halloc; repeat try eauto.
+        assert (Hload: Mem.load (transl_bchunk_cchunk chunk) m' b (Ptrofs.unsigned ofs) = Some Values.Vundef).
+        eapply Mem.load_alloc_same'; eauto.
+
+Hmem : Mem.valid_access m' (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable
+Hacess : Mem.valid_access m' (transl_bchunk_cchunk chunk) b (Ptrofs.unsigned ofs) Freeable
+PG :Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable
+There doesn't seem to be any new information from the above commands
+*)
+(*
+Mem.valid_access_free_2:
+  forall (m1 : Memory.mem) (bf : Values.block) (lo hi : Z) (m2 : Memory.mem),
+  Mem.free m1 bf lo hi = Some m2 ->
+  forall (chunk : memory_chunk) (ofs : Z) (p : permission),
+  lo < hi ->
+  ofs + size_chunk chunk > lo -> ofs < hi -> ~ Mem.valid_access m2 chunk bf ofs p
+Mem.valid_access_free_inv_2:
+ *)
+(*
+Mem.valid_access_compat:
+  forall (m : Memory.mem) (chunk1 chunk2 : memory_chunk) (b : Values.block)
+    (ofs : Z) (p : permission),
+  size_chunk chunk1 = size_chunk chunk2 ->
+  align_chunk chunk2 <= align_chunk chunk1 ->
+  Mem.valid_access m chunk1 b ofs p -> Mem.valid_access m chunk2 b ofs p
+ *)
+        (* admit This is the same separation invariant problem that I see in the other proof.
+        + apply Hlo.
+        + apply Hhi
+        + apply Halign*)
+      * apply Haccess.
+      * apply Hmem.
   - inv Hfun.
     constructor.
     intros l o ef te ts efs rt vs efs' Hte Heq_type Htes.
@@ -276,6 +322,19 @@ Proof.
   }
 Admitted.
 
+(*Lemma iff_storev_store*)
+
+Lemma chunk_fits_allocation2:
+  forall (p : BeePL.program) (t : type) (chunk : bmemory_chunk),
+  let b := prog_comp_env p in
+  Archi.ptr64 = true -> chunk_of_type t = Some chunk -> size_chunk (transl_bchunk_cchunk chunk) <= sizeof_type b t.
+Proof.
+  intros. apply chunk_fits_allocation with p t chunk in H; eauto.
+Qed.
+
+(*perform a write in memory state [m].
+  Value [v] is stored at address [b + ofs=zero]. (idk what chunk is doing here really)
+*)
 Lemma store_well_typed_preserve : forall cenv Gamma Sigma bge vm m chunk b v t m',
 store_well_typed cenv Gamma Sigma bge vm m ->
 typeof_value v t ->
@@ -294,10 +353,86 @@ Proof.
       exists l', t', v0, ofs.
       split; [exact Hvm | split; [exact Heq | split; [exact HSigma |]]].
       inv Hderef.
-      * eapply deref_addr_value; eauto.
-        admit.
-      * eapply deref_loc_volatile; eauto.
-        admit.
+      * apply deref_addr_value with chunk0 v1; eauto.
+        apply Mem.load_store_other with  (chunk' := (transl_bchunk_cchunk chunk0)) (b' := l') (ofs' := Ptrofs.intval ofs) in Hstore.
+        simpl in *. rewrite Hstore. exact H1.
+        (*left. intro. subst.
+
+        admit.*)
+        right. right.
+
+        (*assert (Archi.ptr64 = true).
+        auto. eapply Mem.store_unchanged_on in Hstore.
+        Search Mem.unchanged_on.
+
+
+        apply chunk_fits_allocation2 with (chunk:= chunk) (t:= t)  in H3.
+        Search . (* Issue: have nothing to feed for BeePL.program. *))**)
+(*
+We know that virtually all the assumptions presume living in the
+pre-stored memory environment m. As in, not m' which is what is the Proof Goal
+We lose all of that at this point.
+
+Although recall both Htyv and Hchunk are not associated with m.
+Hstore is the creation of the modified environment m'
+
+Every assumption from Hvm post is with respect to m.
+
+so
+vm ! x = Some(b, t') at first
+
+I think if we're going to find a contradiction it will be the case that
+chunk_of_type t = Some chunk for the modified space
+while
+Sigma ! l' = Some t' i.e. a different(?) type with chunk.
+
+potential contradiction:
+Mem.store_unchanged_on:
+  forall (P : Values.block -> Z -> Prop) (chunk : memory_chunk)
+    (m : Memory.mem) (b : Values.block) (ofs : Z)
+    (v : Values.val) (m' : Memory.mem),
+  Mem.store chunk m b ofs v = Some m' ->
+  (forall i : Z, ofs <= i < ofs + size_chunk chunk -> ~ P b i) ->
+  Mem.unchanged_on P m m'
+
+chunk_fits_allocation:
+  forall (p : BeePL.program) (t : type) (chunk : bmemory_chunk),
+  Archi.ptr64 = true ->
+  chunk_of_type t = Some chunk ->
+  size_chunk (transl_bchunk_cchunk chunk) <=
+  sizeof_type (prog_comp_env p) t
+
+If we
+ *)
+(*should be obvious, we are saying that memory block l'
+and memory block b are the same i.e.
+that the place that we are storing some value v
+and the place we loading a value v1 are the same.
+(Hvm also implies that at addr b is instead a value x which is separate from v1)
+
+We have two discrepancies: chunk0 and chunk
+ofs and Ptrofs.zero.
+
+We know that vm ! x = Some (b, t')
+We can potentially argue that vm ! v = Some (b, t)
+this would then allow us to conclude that v = x and t = t'
+
+
+My immediate thought is to do case analysis on the equality of these things
+to show that
+         *)
+(*l' originally appears  in Hvm, HSignma, H1
+b originally appears in Hstore
+ **) admit.
+      * apply deref_loc_volatile with chunk0 tr v1; eauto.
+        inv H1.
+        -- apply Events.volatile_load_vol; auto.
+        -- eapply Events.volatile_load_nonvol; eauto.
+           apply Mem.load_store_other with (chunk' := (transl_bchunk_cchunk chunk0)) (b' := l') (ofs' := (Ptrofs.unsigned ofs)) in Hstore.
+           rewrite Hstore. exact H4.
+           constructor. intro. admit.
+           (* Looks to be the same issue as deref_addr_value
+            if we solve one we solve both*)
       * eapply deref_addr_reference; eauto.
       * eapply deref_addr_copy; eauto.
     + constructor 2. intros x t0 HGamma.
@@ -305,7 +440,22 @@ Proof.
       destruct H as [l' [ofs [v0 [Hvm [Hfind [HSigma Hderef]]]]]].
       exists l', ofs, v0.
       split; [exact Hvm | split; [exact Hfind | split; [exact HSigma |]]].
-      admit.
+      inv Hderef.
+      * apply deref_addr_value with chunk0 v1; eauto.
+        apply Mem.load_store_other with  (chunk' := (transl_bchunk_cchunk chunk0)) (b' := l') (ofs' := Ptrofs.intval ofs) in Hstore.
+        simpl in *. rewrite Hstore. exact H1.
+        left. intro. subst. admit.
+      * apply deref_loc_volatile with chunk0 tr v1; eauto.
+        inv H1.
+        -- apply Events.volatile_load_vol; auto.
+        -- eapply Events.volatile_load_nonvol; eauto.
+           apply Mem.load_store_other with (chunk' := (transl_bchunk_cchunk chunk0)) (b' := l') (ofs' := (Ptrofs.unsigned ofs)) in Hstore.
+           rewrite Hstore. exact H4.
+           constructor. intro. admit.
+           (* Looks to be the same issue as deref_addr_value
+            if we solve one we solve both*)
+      * eapply deref_addr_reference; eauto.
+      * eapply deref_addr_copy; eauto.
   - inv Hloc.
     destruct H as [H1 H2].
     constructor.
@@ -321,7 +471,8 @@ Proof.
       destruct Hvalid as [Hmem Hchunk'].
       apply H2.
       split; [|exact Hchunk'].
-      admit.
+      simpl in Hstore.
+      apply Mem.store_valid_access_2 with (chunk':= (transl_bchunk_cchunk chunk')) (b' := x) (ofs':= (Ptrofs.unsigned ofs)) (p:= Freeable) in Hstore; assumption.
   - inv Hfunc.
     constructor.
     intros l o ef te ts efs rt vs efs' Htype Heqtype Htypes.
@@ -428,6 +579,7 @@ case hc: (chunk_of_type t)=> [chunk | ] //=.
     }
     rewrite <- H in hms.
     exact hms.
+
 admit.
 Admitted.
 
@@ -452,4 +604,12 @@ length args = length vs ->
 exists m', bind_variables bge vm m args vs m' /\ store_well_typed cenv Gamma Sigma bge vm m'.
 Proof.
   intros.
+  exists m. split.
+  - inv H. inv H1.
+    + simpl. induction args. induction vs.
+      * constructor 1.
+      * inv H0. Search bind_variables.
+      *   admit.
+    + admit.
+  - admit.
 Admitted.
