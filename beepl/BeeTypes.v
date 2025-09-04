@@ -785,8 +785,8 @@ Fixpoint eq_type (t1 t2 : type) : bool :=
   | Ftype ts1 ef1 t1', Ftype ts2 ef2 t2' =>
       eq_types eq_type ts1 ts2 && eq_effect ef1 ef2 && eq_type t1' t2'
   | Bytes, Bytes => true
-  | Atype t1 z1 a1, trint8s => true (* special case because of bpf_printk *)
-  | trint8s, Atype t2 z2 a2 => true (* special case because of bpf_printk *)
+  (*| Atype t1 z1 a1, trint8s => true (* special case because of bpf_printk *)
+  | trint8s, Atype t2 z2 a2 => true (* special case because of bpf_printk *)*)
   | _, _ => false
   end
 
@@ -797,8 +797,8 @@ with eq_ptr_type (p1 p2 : ptr_type) : bool :=
   | Otype t1, Otype t2 => eq_ptr_type t1 t2
   | Fptype ts1 ef1 t1, Fptype ts2 ef2 t2 =>
       eq_types eq_type ts1 ts2 && eq_effect ef1 ef2 && eq_type t1 t2
-  | Otype t1, _ => true   (* we need this special case: all pointer type can be void * *)
-  | _, Otype t1 => true   (* we need this special case: all pointer type can be void * *)
+  (*| Otype t1, _ => true   (* we need this special case: all pointer type can be void * *)
+  | _, Otype t1 => true   (* we need this special case: all pointer type can be void * *)*)
   | _, _ => false
   end.
 

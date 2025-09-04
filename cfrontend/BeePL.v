@@ -20,10 +20,10 @@ Inductive builtin : Type :=
                                                assigns the evaluation of e to the reference cell l *)
 | Uop : Cop.unary_operation -> builtin      (* unary operator *) (* rvalue *)
 | Bop : Cop.binary_operation -> builtin     (* binary operator *) (* rvalue *)
-| Cast : type -> builtin                            (* casting operator *)
-| Run : Memory.mem -> builtin               (* eliminate heap effect : [r1-> v1, ..., ern->vn] e 
+| Cast : type -> builtin                     (* casting operator *).
+(*| Run : Memory.mem -> builtin               (* eliminate heap effect : [r1-> v1, ..., ern->vn] e 
                                                reduces to e captures the essence of state isolation 
-                                               and reduces to a value discarding the heap *).
+                                               and reduces to a value discarding the heap *).*)
 
 (* Patterns *)
 (* Used in pattern matching in the match constructor *) 
@@ -108,7 +108,6 @@ Inductive expr : Type :=
 | Cond : expr -> expr -> expr -> type -> expr                           (* if e then e else e *) 
 | Unit : type -> expr                                                   (* unit *)
 | Addr : linfo -> ptrofs -> type -> expr                                (* address: Addr: not intended to be written by programmers: *)
-| Hexpr : Memory.mem -> expr -> type -> expr                            (* heap effect *)
 | Eapp : external_function -> list type -> list expr -> type -> expr    (* external function *)
 | Sinit : ident -> list ident -> list expr -> type -> expr                (* struct creation *)
 | Sfield : expr -> ident -> type -> expr                                (* access to a member of struct *)
@@ -135,7 +134,6 @@ match e with
 | Cond e1 e2 e3 t => free_variables e1 ++ free_variables e2 ++ free_variables e3
 | Unit t => nil
 | Addr l o t => nil
-| Hexpr m e t => nil
 | Eapp ef ts es t => flatten (map free_variables es)
 | Sinit x ids es t => flatten (map free_variables es)
 | Sfield e x t => free_variables e 
@@ -177,12 +175,14 @@ match e with
 | Var x t => t
 | Const x t => t
 | App e ts t => t
-| Prim b es t => t
+| Prim b es t => match b with 
+                 | Cast t' => t'
+                 | _ => t
+                 end
 | Bind x t e e' t' => t'
 | Cond e e' e'' t => t
 | Unit t => t
 | Addr l p t => t
-| Hexpr h e t => t
 | Eapp ef ts es t => t
 | Sinit _ _ _ t => t
 | Sfield e x t => t
@@ -560,7 +560,6 @@ Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
   | Cond e1 e2 e3 t => Cond (subst x se e1) (subst x se e2) (subst x se e3) t
   | Unit t => Unit t 
   | Addr l p t => Addr l p t
-  | Hexpr h e t => Hexpr h (subst x se e) t
   | Eapp ef ts es t => Eapp ef ts (map (subst x se) es) t
   | Sinit y ids es t => if (x =? y)%positive then Sinit y ids es t
                         else Sinit y ids (map (subst x se) es) t

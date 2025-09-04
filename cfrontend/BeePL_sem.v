@@ -26,13 +26,11 @@ match e with
                  | Uop o => true 
                  | Bop o => true
                  | Cast t => true
-                 | Run _ => false (* fix me *)
                  end
 | Bind x tx e e' t => is_stateful_expr e || is_stateful_expr e' 
 | Cond e1 e2 e3 t => is_stateful_expr e1 || is_stateful_expr e2 || is_stateful_expr e3   
 | Unit t => false
 | Addr l ofs t => false
-| Hexpr m e t => false (* fix me *)
 | BeePL.Eapp ef ts es t => true (* fix me *)
 | Sinit _ _ _ _ => true
 | Sfield _ _ _ => true
@@ -202,14 +200,16 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                bsem_expr p vm m e m' vm' (Vloc l ofs) ->
                deref_addr ge (typeof_expr e) m' l ofs Full v ->
                bsem_expr p vm m (Prim Deref (e :: nil) (typeof_expr e)) m' vm' v
-| bsem_massgn : forall p vm m e1 m' vm' l ofs bf e2 vm'' m'' v v' ct1 ct2,  
-                bsem_expr p vm m e1 m' vm' (Vloc l ofs) ->
-                bsem_expr p vm' m' e2 vm'' m'' v ->
+| bsem_massgn : forall p vm m e1 m' vm' l ofs bf e2 m'' v v' pt ct1 ct2,  
+                bsem_expr p vm m e1 m' vm (Vloc l ofs) ->
+                bsem_expr p vm m' e2 vm' m'' v ->
                 transBeePL_type (typeof_expr e1) = ct1  ->
                 transBeePL_type (typeof_expr e2) = ct2  ->
+                typeof_expr e1 = Ptrtype pt ->
+                typeof_expr e2 = get_data_type pt ->
                 sem_cast (trans_bvalue_cvalue v) ct2 ct1 m = Some (trans_bvalue_cvalue v') ->
                 assign_addr ge (typeof_expr e1) m l ofs bf v' m' v' -> 
-                bsem_expr p vm m (Prim Massgn (e1 :: e2 :: nil) Utype) vm'' m'' Vunit
+                bsem_expr p vm m (Prim Massgn (e1 :: e2 :: nil) Utype) vm' m'' Vunit
 | bsem_uop : forall p vm m e v uop m' vm' v' ct v'',
              bsem_expr p vm m e m' vm' v ->
              transBeePL_type (typeof_expr e) = ct ->
@@ -484,9 +484,6 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
             ssem_expr p vm m (Unit Utype) m vm (Val Vunit Utype)
 | ssem_adr : forall p vm m l ofs h t a,
              ssem_expr p vm m (Addr l ofs (Ptrtype (Reftype h t a))) m vm (Val (Vloc l.(lname) ofs) (Ptrtype (Reftype h t a)))
-| ssem_hexpr1 : forall p vm m e m' vm' e' t,
-                ssem_expr p vm m e m' vm' e' ->
-                ssem_expr p vm m (Hexpr m e t) m' vm' (Hexpr m e' t)
 | ssem_eapp : forall p vm m es vm' m' m'' vs ef cef vres bv ts ty t,
               ssem_exprs p vm m es m' vm' vs ->
               befunction_to_cefunction ef = cef ->

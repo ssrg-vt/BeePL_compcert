@@ -484,13 +484,11 @@ match e with
                  | Uop o => forallb is_simple es 
                  | Bop o => forallb is_simple es
                  | Cast _ => true 
-                 | Run _ => false (* need to fix later *)
                  end
 | Bind x t e e' t' => is_simple e && is_simple e'
 | Cond e1 e2 e3 t => is_simple e1 && is_simple e2 && is_simple e3 
 | Unit t => true 
 | Addr l ofs t => true 
-| Hexpr m e t => false (* need to fix later *)
 | Eapp ef ts es t => false
 | Sinit a xs es t => false
 | Sfield e x t => false 
@@ -539,6 +537,15 @@ match e with
 | Prim Deref es t => exists ces g1 i1, 
                      transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g = Res (ces, f, b) g1 i1 /\
                      ce = Csyntax.Ederef (hd default_expr (exprlist_list_expr ces)) (transBeePL_type t)
+| Prim Massgn es t => exists ces g1 i1, 
+                      transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g = Res (ces, f, b) g1 i1 /\
+                      ce = (Csyntax.Eassign (Csyntax.Ederef (hd default_expr (exprlist_list_expr ces)) 
+                                                         (Csyntax.typeof (hd default_expr (exprlist_list_expr ces))))
+                                            (hd default_expr (tl (exprlist_list_expr ces)))
+                                 (transBeePL_type t))
+| Prim (Uop o) es t => exists ces g1 i1, 
+                       transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g = Res (ces, f, b) g1 i1 /\
+                       ce = (Csyntax.Eunop o (hd default_expr (exprlist_list_expr ces)) (transBeePL_type t)) 
 | _ => True
 end) /\
 (forall es fctx bctx ces f b g g' i',
@@ -585,16 +592,33 @@ split.
      case hes: (transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g) H0=> [errs | ces g1 i1] //=.
      move=> [] h1 h2 h3 h4; subst. exists ces.1.1, g', i1. by case: (ces)=> [[a b] c]; split=> //=.
    (* massgn *)       
+   + move=> es t h. inversion h. rewrite /SimplExpr.bind2 /SimplExpr.bind in H0.
+     case hes: (transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g) H0=> [errs | ces g1 i1] //=.
+     move=> [] h1 h2 h3 h4; subst. exists ces.1.1, g', i1. split=> //=.
+     by case: (ces)=> [[a b] c] //=.
+   (* uop *)
+   + move=> uop es t h. inversion h. rewrite /SimplExpr.bind2 /SimplExpr.bind in H0.
+     case hes: (transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g) H0=> [errs | ces g1 i1] //=.
+     move=> [] h1 h2 h3 h4; subst. exists ces.1.1, g', i1. split=> //=.
+     by case: (ces)=> [[a b] c] //=.
 Admitted.
+
+Definition is_lvalue (e : Csyntax.expr) : bool :=
+match e with
+| Csyntax.Evar _ _ | Csyntax.Ederef _ _ | Csyntax.Efield _ _ _ => true
+| _ => false
+end.
 
 (* Insights about Cstrategy: 
    In Cstrategy, a bare variable (Evar) is never evaluated as a value; 
    we always need Evalof (Evar …) to turn it into an r-value and then load its contents. 
-   A big-step semantics produces a value, only by treating l-value as r-value using Evalof *) Print Csyntax.expr.
+   A big-step semantics produces a value, only by treating l-value as r-value using Evalof *)
 Fixpoint convert_to_rval (e : Csyntax.expr) : Csyntax.expr :=
 match e with 
 | Csyntax.Evar x t => Evalof (Csyntax.Evar x t) t
 | Csyntax.Ederef e t => Evalof (Csyntax.Ederef (convert_to_rval e) t) t
+| Csyntax.Efield a f t => Csyntax.Evalof (Csyntax.Efield (convert_to_rval a) f t) t
+| Csyntax.Eunop op e t => Csyntax.Eunop op (convert_to_rval e) t
 | _ => e
 end.
 
@@ -657,6 +681,325 @@ case: ty=> //=.
 rewrite /chunk_for_volatile_type /=. move=> t a. case: ifP=> //=.
 by move=> ht [] h; subst.
 Qed.
+
+Lemma ptr_eq_trans : forall p p0, 
+eq_ptr_type p p0 -> 
+transBeePL_ptr_type p0 = transBeePL_ptr_type p.
+Proof.
+move=> [].
++ move=> h b a [] //=.
+  + move=> h' [] //=.
+    + move=> [] //=.
+      + move=> a' /=. case: b=> //=.
+        + move=> [] //=.
+          + by move=> i s a1 /andP [] /andP [] h1 //=.
+          by move=> s a1 /andP [] /andP [] h1 //=.
+        by move=> i a1 /andP [] /andP [] h1 //=.
+      move=> [] //=.
+      + by move=> z a1 /andP [] /andP [] h1 //=.
+      + by move=> i s a1 z a2 /andP [] /andP [] h1 //=.
+      by move=> s a1 z a2 /andP [] /andP [] h1 //=.
+    case: b=> //=.
+    + move=> [] //=.
+      + by move=> i s a1 a2 /andP [] /andP [] h1 //=.
+      + move=> sz s a1 sz' s' a2 a3 /andP. case: ifP=> //=.
+        + case: ifP=> //=.
+          + case: ifP=> //=.
+            + move=> ha hs hsz [] hh ha'. admit. (* provable *)
+            by move=> ha hs hsz [] /andP [] h1 //=.
+          by move=> hs hsz [] /andP [] hh //=. 
+        by move=> hsz [] /andP [] hh //=.
+      by move=> s a1 i s' a2 a3 /andP [] /andP [] hh //=.
+    by move=> h1 a1 i1 s a3 a4 /andP [] /andP [] hh //=.
+  move=> [].
+  + by move=> z a1 i s a2 a3 /andP [] /andP [] hh //=.
+  + by move=> sz s a' z a1 i'' s' a2 a3 /andP [] /andP [] hh //=.
+  + by move=> s a1 z a2 i s' a3 a4 /andP [] /andP [] hh //=.
+  + case: b=> //=.
+    + move=> [] //=.
+      + by move=> s a1 a2 /andP [] /andP [] hh //=.
+      by move=> sz s a1 s' a2 a3 /andP [] /andP [] hh //=.
+    move=> s a1 s' a2 a3 /andP. case: ifP=> //=.
+    + case: ifP=> //=.
+      + move=> ha hs [] hh ha'. admit. (* provable *)
+      by move=> ha hs [] /andP [] h1 //=.
+    by move=> hs [] /andP [] hh //=. 
+  by move=> h1 a1 s a3 a4 /andP [] /andP [] hh //=.
+ + by move=> p z a1 s a2 a3 /andP [] /andP [] hh //=. 
+ + case: b=> //=.
+   + move=> [].
+     + by move=> h1 a1 a2 /andP [] /andP [] hh //=.
+     + by move=> sz a' a1 i1 a2 a3 /andP [] /andP [] hh //=.
+     by move=> s a1 i a2 a3 /andP [] /andP [] hh //=.
+   move=> i a1 i1 a2 a3 /andP [] /andP [] hh /andP [] h1 h2 h3. admit. (* provable *)
+ + move=> [] //=.
+   + by move=> z a1 i a2 a3 /andP [] /andP [] hh //=.
+   + by move=> sz a1 a1' z a2 a3 a4 a5 /andP [] /andP [] hh //=.
+   by move=> s a1 z a2 i a3 a4 /andP [] /andP [] hh //=.
+ + move=> [] //=.
+   + case: b=> //=.
+     + by move=> p z a1 a2 /andP [] /andP [] hh //=.
+     + by move=> i a1 z a2 a3 /andP [] /andP [] hh //=.
+     move=> [] //=.
+     + move=> z a1 z2 a2 a3 /andP [] /andP [] hh /andP [] hz ha1 ha2. admit. (* provable *)
+     + by move=> sz s a1 z a2 z' a3 a4 /andP [] /andP [] hh //=.
+     by move=> s a1 z a2 z' a3 a4 /andP [] /andP [] hh //=.
+   + case: b=> //=.
+     + by move=> p i s a1 z a2 a3 /andP [] /andP [] hh //=.
+     by move=> i a' i'' s a1 z a2 a3 /andP [] /andP [] hh //=.
+   + move=> [] //=.
+     + by move=> z a1 sz s a1' z' a2 a3 /andP [] /andP [] hh //=.
+     move=> sz a1 a2 z a3 sz' a4 a5 z'' a6 a7. case: ifP=> //=.
+     + case: ifP=> //=.
+       + case: ifP=> //=.
+         + move=> ha hs hsz /andP [] /andP [] hh /andP [] hz ha1 ha2. admit. (* provable *)
+         by move=> ha hs hsz /andP [] /andP [] hh //=.
+       by move=> hs hsz /andP [] /andP [] hh //=.
+     by move=> hsz /andP [] /andP [] hh //=.
+   by move=> s a1 z a2 i s' a3 z' a4 a5 /andP [] /andP [] hh //=.
+  + case: b=> //=.
+    + by move=> p s a1 z a2 a3 /andP [] /andP [] hh //=.
+    + by move=> h1 a1 s a2 z a3 a4 /andP [] /andP [] hh //=.
+    move=> [] //=.
+    + by move=> z a1 s a2 z' a3 a4 /andP [] /andP [] hh //=.
+    + by move=> sz a' a1 z a2 s' a3 z' a4 a5 /andP [] /andP [] hh //=.
+  move=> s a1 z a2 s' a3 z1 a4 a5. case: ifP=> //=.
+  + case: ifP=> /=.
+    + move=> ha hs /andP [] /andP [] hh /andP [] hz ha1 ha2. admit. (* provable *)
+    by move=> ha hs /andP [] /andP [] hh //=.
+  by move=> hs /andP [] /andP [] hh //=.
++ move=> [] //=.
+  + move=> h [] //=.
+    + move=> p a [] //= p0. case: p0=> //=.
+      move=> h' [] //=.
+      + move=> [] //=.
+        + case: p=> //=.
+          + by move=> sz a' a1 a2 /andP [] /andP [] hh //=.
+          by move=> s a1 a2 /andP [] /andP [] hh //=.
+        case: p=> //=.
+        + by move=> sz s a1 a2 /andP [] /andP [] hh //=.
+        move=> sz a' a1 sz' s' a2 a3. case: ifP=> //=.
+        + case: ifP=> //=.
+          + case: ifP=> //=.
+            + move=> ha hs hsz /andP [] /andP [] hh _ ha1. admit. (* provable *)
+          by move=> ha1 hs1 hsz1 /andP [] /andP [] hh //=.
+        by move=> hs hsz /andP [] /andP [] hh //=.
+      by move=> hsz /andP [] /andP [] hh //=.
+    by move=> s a1 i a' a2 a3 /andP [] /andP [] hh //=.
+  + case: p=> //=.
+    + by move=> s a1 a2 /andP [] /andP [] hh //=.
+    + by move=> sz a'' a1 a' a2 a3 /andP [] /andP [] hh //=.
+    + move=> s a1 a' a2 a3. case: ifP=> //=.
+      + case: ifP=> //=.
+        + admit. (* provable *)
+        by move=> ha hs /andP [] /andP [] hh //=.
+      by move=> hs /andP [] /andP [] hh //=.
+    + by move=> h1 a1 a2 /andP [] /andP [] hh //=.
+    + by move=> p1 z a1 a2 /andP [] /andP [] hh //=.
+    + move=> h1 a1 a2 [].
+      + by move=> h2 b a //=.
+      + move=> [] //= h3 [] //=. 
+        + by move=> p a /andP [] /andP [] hh //=.
+        + move=> h4 a3 a4 /andP [] /andP [] hh1 hh2 ha. admit. (* provable *)
+        by move=> p z a3 a4 /andP [] /andP [] hh //=.
+      by move=> es e t //=.
+    + move=> p z a1 a2 p0. case: p0=> //=. move=> [] //=.
+      move=> h1 [] //=.  
+      + by move=> p' a /andP [] /andP [] hh //=.
+      + by move=> h2 a3 a4 /andP [] /andP [] hh //=.
+      case: p=> //=.
+      + move=> [] //=.
+        + admit. (* provable *)
+        + by move=> sz a a' z' a3 a4 /andP [] /andP [] hh //=.
+        by move=> s a z1 a4 a5 /andP [] /andP [] hh //=.
+      move=> sz s a [] //=.
+      + by move=> z1 a4 a5 /andP [] /andP [] hh //=.
+      + move=> sz1 s1 a3 z1 a4 a5. case: ifP=> //=.
+        + case: ifP=> //=.
+          + case: ifP=> //=.
+            + admit. (* provable *)
+            by move=> ha1 hs1 hsz1 /andP [] /andP [] hh1 //=.
+          by move=> hs hsz /andP  [] /andP [] hh1 //=.
+        by move=> hsz /andP [] /andP [] hh //=.
+      by move=> s1 a3 z1 a4 a5 /andP [] /andP [] hh //=.
+Admitted.
+
+Lemma ptr_t_eq_trans : forall t p,
+eq_type t (Ptrtype p) ->
+transBeePL_ptr_type p = transBeePL_type t.
+Proof.
+move=> [].
++ move=> [].
+  + by move=> h b a //=.
+  + by move=> [] h b //=.
+  by move=> es e t //=.
++ by move=> [] //=.
++ move=> p1 p2 hp /=. by have hp' := ptr_eq_trans p1 p2 hp.
++ by move=> h a p //=.
++ by move=> t z a p /= //=.
++ by move=> es e t p /=.
+by move=> p /=.     
+Qed.
+
+(***** Type preservation in compilation *****)
+Lemma compilation_preserve_type : forall e fctx bctx ce fctx' bctx' g g' i',
+transBeePL_expr_expr e fctx bctx g = Res (ce, fctx', bctx') g' i' ->
+transBeePL_type (typeof_expr e) = Csyntax.typeof ce.
+Proof.
+move=> e. elim: e=> //=.
+(* Val *)
++ move=> v t fctx bctx ce fctx' bctx' g g' i'.
+  move=> [] h1 h2 h3 h4 /=; subst. by rewrite /Csyntax.typeof.
+(* Var *)
++ by move=> v t fctx bctx ce fctx' bctx' g g' i' [] h1 h2 h3 h4; subst.
+(* Const *)
++ move=> [].
+  (* bool *)
+  + move=> b t fctx bctx ce fctx' bctx' g g' i' [] h1 h2; subst.  
+    move: h1. case: ifP=> //=.
+    + by move=> hb [] h; subst.
+    by move=> hb [] h; subst.
+  (* int *)
+  + by move=> i t fctx bctx ce fctx' bctx' g g' i' [] h1 h2 h3 h4; subst.
+  (* long *)
+  + by move=> i t fctx bctx ce fctx' bctx' g g' i' [] h1 h2 h3 h4; subst.
+  by move=> t fctx bctx ce fctx' bctx' g g' i' [] h1 h2 h3 h4; subst.
+(* Call *)
++ move=> e hin es t fctx bctx ce fctx' bctx' g g' i'.
+  rewrite /SimplExpr.bind2 /SimplExpr.bind.
+  case he: (transBeePL_expr_expr e fctx bctx g) => [err | [[ce' fe] be] g1 i1] //=.
+  case hes: (transBeePL_expr_exprs transBeePL_expr_expr es fe be) => [err' | [[ces' fes] bes] g2 i2] //=.
+  by move=> [] h1 h2 h3 h4; subst. 
+(* builtin *)
++ move=> [].
+  (* ref *)
+  + move=> es t fctx bctx ce fctx' bctx' g g' i'.
+    rewrite /SimplExpr.bind2 /SimplExpr.bind.
+    case hes: (transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g)=> [err' | [[ces' fes] bes] g2 i2] //=.
+    case hf: (fresh_ident (List.map unzip_ident fes) max_fresh g2)=> [ferr | fi gi ii] //=.
+    case: es hes=> [ | e es'] //=. case: es'=> //=. rewrite /SimplExpr.bind2 /SimplExpr.bind.
+    case he: (transBeePL_expr_expr e fctx bctx g) => [err | [[ce' fe] be] g1 i1] //=.
+    move=> [] h1 h2 h3 h4; subst. case h: (ref_to_prim t gi)=> [err | tr gr ir] //=.
+    by move=> [] h1 h2 h3 h4 /=; subst. 
+  (* deref *)
+  + move=> es t fctx bctx ce fctx' bctx' g g' i'.
+    rewrite /SimplExpr.bind2 /SimplExpr.bind /=.
+    case hes: (transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g)=> [errs | [[ces' fes] bes] g2 i2] //=.
+    by move=> [] h1 h2 h3 h4; subst.
+  (* massgn *)
+  + move=> es t fctx bctx ce fctx' bctx' g g' i'. rewrite /SimplExpr.bind2 /SimplExpr.bind.
+    case hes: (transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g)=> [errs | [[ces' fes] bes] g2 i2] //=.
+    by move=> [] h1 h2 h3 h4 /=; subst.
+  (* uop *)
+  + move=> u es t fctx bctx ce fctx' bctx' g g' i'. rewrite /SimplExpr.bind2 /SimplExpr.bind.
+    case hes: (transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g)=> [errs | [[ces' fes] bes] g2 i2] //=.
+    by move=> [] h1 h2 h3 h4; subst.
+  (* bop *)
+  + move=> u es t fctx bctx ce fctx' bctx' g g' i'. rewrite /SimplExpr.bind2 /SimplExpr.bind.
+    case hz: (return_czero (transBeePL_type t) g)=> [errz | zr g2 i2] //=.
+    case hes: (transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g2)=> [errs | [[ces' fes] bes] g3 i3] //=.
+    case hu: u=> //=. 
+    + by move=> [] h1 h2 h3 h4 /=; subst. 
+    + by move=> [] h1 h2 h3 h4 /=; subst.
+    + by move=> [] h1 h2 h3 h4 /=; subst.
+    + case hd: (check_div ces' zr (transBeePL_type t) g3) => [errd | rd g4 i4] //=. 
+      move=> [] h1 h2 h3 h4 /=; subst. rewrite /check_div in hd.
+      case: (transBeePL_type t) hd=> //=.
+      + move=> [] //= [] //= a.
+        + by move=> [] h1 h2; subst.
+        by move=> [] h1 h2; subst.
+      move=> [] //= a.
+      + by move=> [] h1 h2; subst.
+      by move=> [] h1 h2; subst.
+    + case hd: (check_mod ces' zr (transBeePL_type t) g3) => [errd | rd g4 i4] //=. 
+      move=> [] h1 h2 h3 h4 /=; subst. rewrite /check_div in hd.
+      case: (transBeePL_type t) hd=> //=.
+      + move=> [] //= [] //= a.
+        + by move=> [] h1 h2; subst.
+        by move=> [] h1 h2; subst.
+      move=> [] //= a.
+      + by move=> [] h1 h2; subst.
+      by move=> [] h1 h2; subst.
+    + by move=> [] h1 h2 h3 h4 /=; subst.
+    + by move=> [] h1 h2 h3 h4 /=; subst.
+    + by move=> [] h1 h2 h3 h4 /=; subst.
+    + case hd: (check_shl ces' zr (transBeePL_type t) g3) => [errd | rd g4 i4] //=. 
+      move=> [] h1 h2 h3 h4 /=; subst. rewrite /check_shl in hd.
+      case: (transBeePL_type t) hd=> //=.
+      + by move=> i s a [] h1 h2; subst.
+      by move=> s a [] h1 h2; subst.
+    + case hd: (check_shr ces' zr (transBeePL_type t) g3) => [errd | rd g4 i4] //=. 
+      move=> [] h1 h2 h3 h4 /=; subst. rewrite /check_shr in hd.
+      case: (transBeePL_type t) hd=> //=.
+      + by move=> i s a [] h1 h2; subst.
+      by move=> s a [] h1 h2; subst.
+    + by move=> [] h1 h2 h3 h4 /=; subst.
+    + by move=> [] h1 h2 h3 h4 /=; subst.
+    + by move=> [] h1 h2 h3 h4 /=; subst.
+    + by move=> [] h1 h2 h3 h4 /=; subst.
+    + by move=> [] h1 h2 h3 h4 /=; subst.
+    by move=> [] h1 h2 h3 h4 /=; subst.
+  (* Cast *)
+  move=> t es t' fctx bctx ce fctx' bctx' g g' i'. rewrite /SimplExpr.bind2 /SimplExpr.bind /=.
+  case hes: (transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g)=> [errs | [[ces' fes] bes] g3 i3] //=. by move=> [] h1 h2 h3 h4 /=; subst.
+(* Bind *)
++ move=> x t e hin e' hin' t' fctx bctx ce fctx' bctx' g g' i'. 
+  rewrite /SimplExpr.bind2 /SimplExpr.bind.
+  case he : (transBeePL_expr_expr e fctx bctx g)=> [err | ce1 g1 i1] //=.
+  case he': (transBeePL_expr_expr e' ce1.1.2 ce1.2 g1) => [err1 | ce2 g2 i2] //=.
+  by move=> [] h1 h2 h3 h4 /=; subst.
+(* Cond *)
++ move=> e1 hin1 e2 hin2 e3 hin3 t fctx bctx ce fctx' bctx' g g' i'.
+  rewrite /SimplExpr.bind2 /SimplExpr.bind.
+  case he1: (transBeePL_expr_expr e1 fctx bctx g)=> [err1 | ce1 g1 i1] //=.
+  case he2: (transBeePL_expr_expr e2 ce1.1.2 ce1.2 g1) => [err2 | ce2 g2 i2] //=.
+  case he3: (transBeePL_expr_expr e3 ce2.1.2 ce2.2 g2) => [err3 | ce3 g3 i3] //=.
+  by move=> [] h1 h2 h3 h4; subst.
+(* Unit *)
++ move=> t fctx bctx ce fctx' bctx' g g' i'. by move=> [] h1 h2 h3 h4; subst.
+(* Addr *)
++ move=> l i t fctx bctx ce fctx' bctx' g g' i'. by move=> [] h1 h2 h3 h4; subst.
+(* Eapp *)
++ move=> e ts es t fctx bctx ce fctx' bctx' g g' i'. rewrite /SimplExpr.bind2 /SimplExpr.bind.
+  case he: (transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g)=> [err | ce1 g1 i1] //=.
+  by move=> [] h1 h2 h3 h4; subst.
+(* Sfield *)
++ move=> e hin i t fctx bctx ce fctx' bctx' g g' i'.
+  rewrite /SimplExpr.bind2 /SimplExpr.bind /=.
+  case he: (transBeePL_expr_expr e fctx bctx g)=> [err1 | ce1 g1 i1] //=.
+  by move=> [] h1 h2 h3 h4; subst.
+(* None *)
++ move=> t fctx bctx ce fctx' bctx' g g' i'. case: t=> //= p.
+  case: ifP=> //= hot. move=> [] h1 h2 h3 h4 /=; subst.
+  by rewrite /Csyntax.typeof /=. 
+(* Some *)
++ move=> e hin t fctx bctx ce fctx' bctx' g g' i'.
+  case: t=> //= p. case: ifP=> /andP //=. move=> [] h1 h2 he.
+  move: (hin fctx bctx ce fctx' bctx' g g' i' he) => <- /=.
+  by have := ptr_t_eq_trans (typeof_expr e) p h2.
+(* Match *)
++ move=> e hin ps es t fctx bctx ce fctx' bctx' g g' i'. rewrite /SimplExpr.bind2 /SimplExpr.bind /=.
+  case he : (transBeePL_expr_expr e fctx bctx) => [err | ce1 g1 i1] //=.
+  case hte: (typeof_expr e)=> [ | | p | | | | ] //=. 
+  case: ifP=> //= ho. case: ps=> //=.
+  + by case: es=> //=.
+  move=> [] //=.
+  + move=> [] //=. move=> [] //=. move=> h [] //=. case: es=> //= e' es'. case: es'=> //=.
+    move=> e'' [] //=. case he': (transBeePL_expr_expr e' fctx ce1.2 g1)=> [err1 | ce2 g3 i3] //=.
+    case he'': (transBeePL_expr_expr e'' ce2.1.2 ce2.2 g3)=> [err2 | ce3 g4 i4] //=.
+    by move=> [] h1 h2 h3 h4; subst.
+  move=> h [] //=. move=> [] //= [] //=. case: es=> //= e' es'. case: es'=> //= e'' es''.
+  case: es''=> //=. case he': (transBeePL_expr_expr e' fctx ce1.2 g1)=> [err1 | ce2 g3 i3] //=.
+  case he'': (transBeePL_expr_expr e'' ce2.1.2 ce2.2 g3)=> [err2 | ce3 g4 i4] //=.
+  by move=> [] h1 h2 h3 h4; subst.
+(* Bytes *)
++ move=> es t fctx bctx ce fctx' bctx' g g' i'. rewrite /SimplExpr.bind2 /SimplExpr.bind.
+  by case he: (transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g)=> [err | ce' g1 i1] //=.
+move=> h t n t' fctx bctx ce fctx' bctx' g g' i'. rewrite /SimplExpr.bind /=.
+case ha: (get_array_len t g)=> [err | an g1 i1] //=. case: ifP=> //= hn.
+by move=> [] h1 h2 h3 h4; subst.
+Qed.
+    
 
 (***** Comparing BeePL big-step semantics with Csyntax big-step semantics *****)
 Lemma bsem_csem_expr_equiv : forall bge cp,
@@ -840,9 +1183,42 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
   case hc: (chunk_for_volatile_type (transBeePL_type (typeof_expr e)) Full)=> [c | ] //=.
   move=> [] tr' [] _ hvo. by rewrite /chunk_for_volatile_type hvt /= in hc.
 (* massgn *)
-+ move=> p vm m e1 m' vm' l ofs bf e2 vm'' m'' v v' ct1 ct2 he1 hin1 he2 hin2 ht1 ht2 hcast ha cp cge fctx bctx ce cvm fctx' bctx' g g' i' hp hte hm.
++ move=> p vm m e1 m' vm' l ofs bf e2 m'' v v' pt ct1 ct2 he1 hin1 he2 hin2 ht1 ht2 hpt hpvt hcast ha cp cge fctx bctx ce cvm fctx' bctx' g g' i' hp hte hm.
   have [htr1 htr2] := trans_expr_expr_ind.
-  move: (htr1 (Prim Massgn [:: e1; e2] Utype) fctx bctx ce fctx' bctx' g g' i' hte).
+  move: (htr1 (Prim Massgn [:: e1; e2] Utype) fctx bctx ce fctx' bctx' g g' i' hte)=> [] ces [] g1 [] i1 [] htes hce; subst.
+  rewrite /=. move: (htr2 [:: e1; e2] fctx bctx ces fctx' bctx' g g1 i1 htes)=> [] ce1 [] fctx1 [] bctx1 [] g2 [] i2 
+                    [] i3 [] ce2 [] fctx2 [] bctx2 [] hce1 [] hce2 [] h1 [] h2 h3; subst.
+  have [ce2' [g3 [i4 [hce2' /= heq']]]] := trans_exprs_to_trans_expr e2 fctx1 bctx1 g2 ce2 fctx2 bctx2 g1 i3 hce2; subst.
+  move: (hin1 cp cge fctx bctx ce1 cvm fctx1 bctx1 g g2 i2 hp hce1 hm)=> [] tr1 hice1.
+  move: (hin2 cp cge fctx1 bctx1 (hd default_expr (exprlist_list_expr ce2)) cvm fctx2 bctx2 g2 g3 i4 hp hce2' hm)=> [] tr2 hice2.
+  case hvt : (type_is_volatile (transBeePL_type (typeof_expr e1)))=> //=.
+  (*(* type is volatile *)
+  + have := assign_addr_translated bge cge (typeof_expr e1) m l ofs bf v' m' (transBeePL_type (typeof_expr e1)) (trans_bvalue_cvalue v')
+            v' (trans_bvalue_cvalue v') ha erefl erefl erefl.
+    case hc : (chunk_for_volatile_type (transBeePL_type (typeof_expr e1)) bf)=>[c | ] //=.
+    + move=> [] tr3 [] hbf hv; subst. inversion hice1; subst. inversion hice2; subst.
+      exists (tr1++tr2++tr3). apply eval_expression_intro with (Eval (trans_bvalue_cvalue v) (transBeePL_type Utype)).
+      + apply eval_assign with m' (Csyntax.Ederef a' (Csyntax.typeof ce1)) m'  a'0
+                                l ofs Full (trans_bvalue_cvalue v') (trans_bvalue_cvalue v').
+        + apply eval_deref. admit.
+        + admit.
+        + apply esl_deref. by apply H0. 
+        + admit.
+        + admit.*)
+   + admit. (* volatile case *)
+   admit. (* non-volatile case *)
+(* Uop *)
++ move=> p vm m e v uop m' vm' v' ct v'' hse hin he huop hv cp cge fctx bctx ce cvm fctx' bctx' g g' i' hp hte hm.
+  have [htr1 htr2] := trans_expr_expr_ind.
+  move: (htr1 (Prim (Uop uop) [:: e] (typeof_expr e)) fctx bctx ce fctx' bctx' g g' i' hte)=> [] ces [] g1 [] i1 [] htes h1; subst.
+  have [ce [g2 [i2 [hce h]]]] := trans_exprs_to_trans_expr e fctx bctx g ces fctx' bctx' g1 i1 htes; subst.
+  move: (hin cp cge fctx bctx (hd default_expr (exprlist_list_expr ces)) cvm fctx' bctx' g g2 i2 hp hce hm)=> [] tr he.
+  inversion he; subst.
+  exists tr. apply eval_expression_intro with 
+             (Csyntax.Eunop uop a' (transBeePL_type (typeof_expr e))).
+  + rewrite /=. apply eval_unop. by apply H.
+  apply esr_unop with (trans_bvalue_cvalue v). + by apply H0.
+  
 Admitted.
 
 (***** Comparing BeePL big-step semantics with Csyntax big-step semantics *****)

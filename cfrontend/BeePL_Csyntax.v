@@ -294,7 +294,6 @@ match e with
                                                          (typeof (hd default_expr (exprlist_list_expr (fst ces)))))
                                                 (hd default_expr (tl (exprlist_list_expr (fst ces))))
                                                 ct), snd ces, bctx')
-                 | Run h => ret ((Eval (Values.Vundef) Tvoid), fn_ctx, bctx)
                  | Uop o => do (ces, bctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx bctx);
                             let ct := (transBeePL_type t) in
                             ret ((Eunop o
@@ -318,9 +317,9 @@ match e with
                                         (transBeePL_type t), snd ces, bctx')
 
                            end
-               | Cast t => do (ces, bctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx bctx);
-                            let ct := (transBeePL_type t) in
-                            ret (Ecast (hd default_expr (exprlist_list_expr (fst ces))) ct, snd ces, bctx')
+               | Cast t' => do (ces, bctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx bctx);
+                           let ct := (transBeePL_type t') in
+                           ret (Ecast (hd default_expr (exprlist_list_expr (fst ces))) ct, snd ces, bctx')
 end
 | Bind x t e e' t' => let ct := (transBeePL_type t) in
                       do (ce, bctx') <- (transBeePL_expr_expr e fn_ctx bctx);
@@ -336,7 +335,6 @@ end
            ret (Eval (trans_bvalue_cvalue Vunit) ct, fn_ctx, bctx) (* Fix me *)
 | Addr l ofs t => let ct := transBeePL_type t in
                   ret (Eloc l.(lname) ofs l.(lbitfield) ct, fn_ctx, bctx)
-| Hexpr h e t => ret (Eval (Values.Vundef) Tvoid, fn_ctx, bctx) (* FIX ME *)
 | Eapp ef ts es t => let cef := befunction_to_cefunction ef in
                      let cts := (transBeePL_types transBeePL_type ts) in
                      let ct := (transBeePL_type t) in
@@ -349,12 +347,12 @@ end
 | For e1 e2 d e t => error (msg "COMPILER ERROR: For loop cannot be translated to another C expr")
 | Enone t => match t with 
              | Ptrtype t' => if is_option_ptr_type t' 
-                             then ret ((Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t))), fn_ctx, bctx)
+                             then ret ((Ecast (Eval (Values.Vint (Int.repr 0)) tint) (transBeePL_ptr_type t')), fn_ctx, bctx)
                              else error (msg "COMPILER ERROR: Expression none should be a pointer option type")
              | _ => error (msg "COMPILER ERROR: Expression none should be a pointer type")
              end
 | Esome e t => match t with 
-             | Ptrtype t' => if is_option_ptr_type t' 
+             | Ptrtype t' => if is_option_ptr_type t' && eq_type (typeof_expr e) t
                              then transBeePL_expr_expr e fn_ctx bctx
                              else error (msg "COMPILER ERROR: Expression some should be a pointer option type")
              | _ => error (msg "COMPILER ERROR: Expression some should be a pointer type")
@@ -386,7 +384,7 @@ end
                               | _, _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
                               end
                           else error (msg "COMPILER ERROR: Match can be only performed on option type")
-                     | Bytes => ret (fst ce, snd ce, bctx')
+                     | Bytes => error (msg "COMPILER ERROR: Match can be only performed on ptr type ") (* fix me *)
                      | _ => error (msg "COMPILER ERROR: Match can be only performed on ptr type or bytes type")
                      end
 | Ebytes es t => do (ces, bctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx bctx); 
@@ -562,7 +560,6 @@ match e with
                                                              (typeof (hd default_expr (exprlist_list_expr (fst ces))))) 
                                                 (hd default_expr (tl (exprlist_list_expr (fst ces))))
                                                 ct), snd ces, fn_ctx')
-                 | Run h => ret (Sdo (Eval (Values.Vundef) Tvoid), ctx, bctx)
                  | Uop o => do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx bctx);
                             let ct := (transBeePL_type t) in 
                             ret (Sreturn (Some (Eunop o 
@@ -586,8 +583,8 @@ match e with
                                         (transBeePL_type t))), snd ces, fn_ctx')
 
                            end
-                 | Cast t => do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx bctx);
-                            ret (Sreturn (Some (Ecast (hd default_expr (exprlist_list_expr (fst ces))) (transBeePL_type t))),
+                 | Cast t' => do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx bctx);
+                              ret (Sreturn (Some (Ecast (hd default_expr (exprlist_list_expr (fst ces))) (transBeePL_type t'))),
                                 snd ces, fn_ctx')
                  end  
 | Bind x t e e' t' => let ct := (transBeePL_type t) in
@@ -617,7 +614,6 @@ match e with
 | Unit t=> ret (Sskip, ctx, bctx) (*Sreturn (Some (Eval (Values.Vint (Int.repr 0)) (Ctypes.Tint I32 Unsigned noattr)))*) (* In case of unit, we return 0 *)
 | Addr l ofs t => let ct := (transBeePL_type t) in
                   ret (Sdo (Eloc l.(lname) ofs l.(lbitfield) ct), ctx, bctx)                    
-| Hexpr h e t => ret (Sdo (Eval (Values.Vundef) Tvoid), ctx, bctx) (* FIX ME *)
 | Eapp ef ts es t => let cef := befunction_to_cefunction ef in
                      let cts := (transBeePL_types transBeePL_type ts) in
                      let ct := (transBeePL_type t) in
@@ -665,7 +661,7 @@ match e with
                      end
 | Enone t => match t with 
              | Ptrtype t' => if is_option_ptr_type t' 
-                           then ret (Sdo ((Ecast (Eval (Values.Vint (Int.repr 0)) tint) (tptr (transBeePL_type t)))), ctx, bctx)
+                           then ret (Sdo ((Ecast (Eval (Values.Vint (Int.repr 0)) tint) (transBeePL_ptr_type t'))), ctx, bctx)
                            else error (msg "COMPILER ERROR: Option type of None should contain a pointer in BeePL")
              | _ => error (msg "COMPILER ERROR: None should be of Option type")
              end

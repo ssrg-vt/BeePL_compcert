@@ -272,7 +272,6 @@ match e with
                                            end 
                              | _ => Error (msg "TYPE ERROR: Casting is only allowed from one value type to another")
                              end
-                 | Run h => Error (msg "TYPE ERROR: Run is not yet supported")
                  end
 | Bind x t e1 e2 t' => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
                        do (te2, ef2) <- type_check_expr cenv (extend_context Gamma x t) Sigma e2;
@@ -293,7 +292,6 @@ match e with
                    | Some _ => Error (msg "TYPE ERROR: Wrong type inferred for location")
                    | None => Error (msg "TYPE ERROR: Location not found")
                    end
-| Hexpr h e t =>  Error (msg "TYPE ERROR: Hexpr is not yet supported")
 | Eapp ef ts es t => Error (msg "TYPE ERROR: We have no use case of builtin function as of now")
 | Sinit x ids es t => do (tes, efs) <- type_check_exprs type_check_expr cenv Gamma Sigma es;
                         match t with 
