@@ -235,6 +235,8 @@ Proof.
         subst. congruence.
         Search Mem.valid_block.
         Search align_chunk. Locate Mem.valid_access_alloc_inv.
+        eapply Mem.valid_access_alloc_same  with (chunk := (transl_bchunk_cchunk chunk)) (ofs := (Ptrofs.unsigned ofs)) in Halloc; try assumption.
+        unfold not in *.
         admit.
  (*
         (*apply Mem.valid_access_alloc_other with (chunk := (transl_bchunk_cchunk chunk)) (b' := x) (ofs := (Ptrofs.unsigned ofs)) (p := Freeable) in Halloc. Doesn't do much; essentially restates Hmem*)
@@ -347,14 +349,61 @@ Proof.
       destruct H as [l' [t' [v0 [ofs [Hvm [Heq [HSigma Hderef]]]]]]].
       exists l', t', v0, ofs.
       split; [exact Hvm | split; [exact Heq | split; [exact HSigma |]]].
+      simpl in Hstore.
       inv Hderef.
       * apply deref_addr_value with chunk0 v1; eauto.
         apply Mem.load_store_other with  (chunk' := (transl_bchunk_cchunk chunk0)) (b' := l') (ofs' := Ptrofs.intval ofs) in Hstore.
         simpl in *. rewrite Hstore. exact H1.
-        (*left. intro. subst.
+        left. intro. Search Mem.store. subst.
+        assert(Hload2: Mem.load (transl_bchunk_cchunk chunk) m' b (Ptrofs.unsigned Ptrofs.zero) =
+           Some (Values.Val.load_result (transl_bchunk_cchunk chunk) (trans_bvalue_cvalue v))).
+        apply Mem.load_store_same with (m1 := m). auto. simpl in H1.
+        assert(Hva1: Mem.valid_access m (transl_bchunk_cchunk chunk0) b (Ptrofs.unsigned ofs) Readable).
+        apply Mem.load_valid_access with (v := v1); auto.
+        assert (Hva2: Mem.valid_access m' (transl_bchunk_cchunk chunk) b (Ptrofs.unsigned Ptrofs.zero) Readable).
+        eapply Mem.load_valid_access . apply Hload2.
+        apply Mem.store_valid_access_1 with (chunk' := (transl_bchunk_cchunk chunk0))  (b' := b) (ofs' := (Ptrofs.unsigned ofs)) (p := Readable) in Hstore; auto.
+        destruct Hva1 as [rp1 ac1]. destruct Hva2 as [rp2 ac2].
+        Search Mem.range_perm. specialize rp1 . destruct rp2 with (ofs := (Ptrofs.unsigned Ptrofs.zero)).
+with (Ptrofs.unsigned ofs)
 
-        admit.*)
-        right. right.
+POSSIBLE AVENUES
+Mem.range_perm_loadbytes:
+  forall (m : Memory.mem) (b : Values.block)
+    (ofs len : Z),
+  Mem.range_perm m b ofs (ofs + len) Cur Readable ->
+  exists bytes : seq memval,
+    Mem.loadbytes m b ofs len = Some bytes
+Mem.getN_inj:
+  forall (f : Values.Val.meminj) (m1 m2 : Memory.mem)
+    (b1 b2 : Values.block) (delta : Z),
+  Mem.mem_inj f m1 m2 ->
+  f b1 = Some (b2, delta) ->
+  forall (n : nat) (ofs : Z),
+  Mem.range_perm m1 b1 ofs (ofs + Z.of_nat n) Cur
+    Readable ->
+  list_forall2 (memval_inject f)
+    (Mem.getN n ofs (Mem.mem_contents m1) !! b1)
+    (Mem.getN n (ofs + delta) (Mem.mem_contents m2) !! b2)
+Mem.range_perm_dec:
+  forall (m : Memory.mem) (b : Values.block)
+    (lo hi : Z) (k : perm_kind) (p : permission),
+  {Mem.range_perm m b lo hi k p} +
+  {~ Mem.range_perm m b lo hi k p}
+HYPOTHESES:
+  rp1 : Mem.range_perm m b (Ptrofs.unsigned ofs)
+          (Ptrofs.unsigned ofs +
+           size_chunk (transl_bchunk_cchunk chunk0)) Cur
+          Readable
+  ac1 : (align_chunk (transl_bchunk_cchunk chunk0)
+        | Ptrofs.unsigned ofs)
+  rp2 : Mem.range_perm m' b (Ptrofs.unsigned Ptrofs.zero)
+          (Ptrofs.unsigned Ptrofs.zero +
+           size_chunk (transl_bchunk_cchunk chunk)) Cur
+          Readable
+  ac2 : (align_chunk (transl_bchunk_cchunk chunk)
+        | Ptrofs.unsigned Ptrofs.zero)
+
 
         (*assert (Archi.ptr64 = true).
         auto. eapply Mem.store_unchanged_on in Hstore.
@@ -480,13 +529,23 @@ Lemma safe_deref_valid_pointers : forall bge Sigma m x ofs pt chunk,
 PTree.get x Sigma = Some (Ptrtype pt) ->
 chunk_of_type (get_data_type pt) = Some chunk ->
 Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
-exists v, deref_addr bge (get_data_type pt) m x ofs Full v.
+exists (v : value), deref_addr bge (get_data_type pt) m x ofs Full v.
 Proof.
-move=> Sigma m x ofs pt chunk hs htv hc hl.
+intros.
+apply Mem.valid_access_freeable_any with (p:= Readable) in H1.
+have [v hload] := Mem.valid_access_load m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) H1.
+destruct (trans_cvalue_bvalue (v : Values.val)) eqn:resbv.
+exists v0. apply deref_addr_value with chunk v; auto.
+-  inv H1. Search access_mode_type. admit.
+- Search type_is_volatile. admit.
+Admitted.
 (*Mem.valid_access_freeable_any*)
 (*have [v hload] := Mem.valid_access_load m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) hl.
 eexists. apply deref_addr_value with chunk v.*)
-Admitted.
+
+
+(* [assign_addr ty m addr ofs v] returns the updated memory after storing the value v at address [addr] and offset
+   [ofs] *)
 
 
 (* I think we can prove this and make the well formedness definition simpler *)
@@ -497,7 +556,71 @@ chunk_of_type (get_data_type pt) = Some chunk ->
 Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
 exists bf m', assign_addr bge (get_data_type pt) m x ofs bf v m' v /\ store_well_typed cenv Gamma Sigma bge vm m'.
 Proof.
-move=> cenv Sigma bge vm m x ofs h bt a hs hv.
+  intros. exists Full.
+  assert(exists v : value, deref_addr bge (get_data_type pt) m x ofs Full v).
+  apply safe_deref_valid_pointers with (Sigma := Sigma) (chunk := chunk); auto.
+  apply Mem.valid_access_freeable_any with (p:= Writable) in H2.
+  eapply Mem.valid_access_store with (v := trans_bvalue_cvalue v) in H2.
+  destruct H2 as [m' Hstore]. exists m'.
+  split.
+  - set (v' := trans_bvalue_cvalue v).
+    apply assign_addr_value with (v := v') (chunk := chunk); auto.
+    + admit.
+    + admit.
+    + unfold v'. apply bc_cv_comp. Search ofs. Search (ptrofs -> Z). Locate Ptrofs.intval. Search (positive -> Z).
+      Search (Z -> positive).
+      assert (Mem.storev (transl_bchunk_cchunk chunk) m (Values.Vptr x ofs) (trans_bvalue_cvalue v) = Some m').
+      auto.
+      simpl.
+    eapply store_well_typed_preserve with (m := m) (chunk := chunk) (b:= Z.to_pos(((Zpos x) + (Ptrofs.intval ofs)))) (v:= v) (t:= (Ptrtype pt)); simpl; auto.
+    + admit.
+    + admit.
+    +  auto.
+
+
+  (*
+  Search store_well_typed. Search well_formed_loc.
+  assert (Sigma ! x = Some (Ptrtype pt) ->
+   exists chunk : bmemory_chunk,
+     Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable /\
+     chunk_of_type (get_data_type pt) = Some chunk).
+  intros. destruct H4. exists chunk. split; auto.
+  assert (Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable /\
+   chunk_of_type (get_data_type pt) = Some chunk -> Sigma ! x = Some (Ptrtype pt)).
+  intros. apply H0.
+  assert ((Sigma ! x = Some (Ptrtype pt) ->
+       exists chunk : bmemory_chunk,
+         Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable /\
+         chunk_of_type (get_data_type pt) = Some chunk) /\
+            (Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable /\
+       chunk_of_type (get_data_type pt) = Some chunk -> Sigma ! x = Some (Ptrtype pt))).
+  auto.  assert (well_formed_loc Sigma bge vm m). apply store_well_typed_loc.
+*)
+
+(*store_well_typed_loc
+  forall (Sigma : store_context) (bge : BeePL.genv) (vm : vmap) (m : Memory.mem),
+
+  (forall (x : positive) (ofs : ptrofs) (t : ptr_type),
+   Sigma ! x = Some (Ptrtype t) ->
+   exists chunk : bmemory_chunk,
+     Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable /\
+     chunk_of_type (get_data_type t) = Some chunk)
+
+ /\
+  (forall (chunk : bmemory_chunk) (x : Values.block) (ofs : ptrofs) (t : ptr_type),
+   Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable /\
+   chunk_of_type (get_data_type t) = Some chunk -> Sigma ! x = Some (Ptrtype t))
+
+ ->
+  well_formed_loc Sigma bge vm m
+ *)
+
+(*move=> cenv Sigma bge vm m x ofs h bt a hs hv. intros.*)
+Mem.valid_access_load:
+  forall (m : Memory.mem) (chunk : memory_chunk) (b : Values.block) (ofs : Z),
+  Mem.valid_access m chunk b ofs Readable ->
+  exists v : Values.val, Mem.load chunk m b ofs = Some v
+
 Admitted.
 
 (* Allocation through ref should be successful in getting space in memory and storing value v to it *)
@@ -574,7 +697,7 @@ case hc: (chunk_of_type t)=> [chunk | ] //=.
     }
     rewrite <- H in hms.
     exact hms.
-
++
 admit.
 Admitted.
 
@@ -603,8 +726,10 @@ Proof.
   - inv H. inv H1.
     + simpl. induction args. induction vs.
       * constructor 1.
-      * inv H0. Search bind_variables.
-      *   admit.
+      * inv H0.
+      * induction vs.
+        -- inv H0.
+        -- admit.
     + admit.
   - admit.
 Admitted.
