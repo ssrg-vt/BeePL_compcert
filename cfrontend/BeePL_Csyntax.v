@@ -299,17 +299,20 @@ match e with
                             ret ((Eunop o
                                 (hd default_expr (exprlist_list_expr (fst ces))) 
                                 ct), snd ces, bctx')
-                 | Bop o => do v <- return_czero (transBeePL_type t);
-                            do (ces, bctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx bctx);
+                 | Bop o => do (ces, bctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx bctx);
                             match o with 
-                            | Cop.Odiv => do rs <- (check_div (fst ces) v (transBeePL_type t));
+                            | Cop.Odiv => do v <- return_czero (transBeePL_type t);
+                                          do rs <- (check_div (fst ces) v (transBeePL_type t));
                                           ret (rs, snd ces, bctx')
                                                                       
-                            | Cop.Omod => do rs <- (check_mod (fst ces) v (transBeePL_type t));
+                            | Cop.Omod => do v <- return_czero (transBeePL_type t);
+                                          do rs <- (check_mod (fst ces) v (transBeePL_type t));
                                           ret (rs, snd ces, bctx')
-                            | Cop.Oshl => do rs <- check_shl (fst ces) v (transBeePL_type t);
+                            | Cop.Oshl => do v <- return_czero (transBeePL_type t);
+                                          do rs <- check_shl (fst ces) v (transBeePL_type t);
                                           ret (rs, snd ces, bctx')
-                             | Cop.Oshr => do rs <- check_shr (fst ces) v (transBeePL_type t);
+                             | Cop.Oshr => do v <- return_czero (transBeePL_type t);
+                                           do rs <- check_shr (fst ces) v (transBeePL_type t);
                                            ret (rs, snd ces, bctx')
                             | _ => ret (Ebinop o
                                         (hd default_expr (exprlist_list_expr (fst ces))) 
@@ -565,17 +568,20 @@ match e with
                             ret (Sreturn (Some (Eunop o 
                                      (hd default_expr (exprlist_list_expr (fst ces))) 
                                      ct)), snd ces, ctx') 
-                 | Bop o => do v <- return_czero (transBeePL_type t);
-                            do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx bctx);
+                 | Bop o => do (ces, fn_ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx bctx);
                             match o with 
-                            | Cop.Odiv => do rs <- (check_div (fst ces) v (transBeePL_type t));
+                            | Cop.Odiv => do v <- return_czero (transBeePL_type t);
+                                          do rs <- (check_div (fst ces) v (transBeePL_type t));
                                           ret (Sreturn (Some rs), snd ces, fn_ctx')
                                                                       
-                            | Cop.Omod => do rs <- (check_div (fst ces) v (transBeePL_type t));
+                            | Cop.Omod => do v <- return_czero (transBeePL_type t);
+                                          do rs <- (check_div (fst ces) v (transBeePL_type t));
                                           ret (Sreturn (Some rs), snd ces, fn_ctx')
-                            | Cop.Oshl => do rs <- check_shl (fst ces) v (transBeePL_type t);
+                            | Cop.Oshl => do v <- return_czero (transBeePL_type t);
+                                          do rs <- check_shl (fst ces) v (transBeePL_type t);
                                           ret (Sreturn (Some rs), snd ces, fn_ctx')
-                             | Cop.Oshr => do rs <- check_shr (fst ces) v (transBeePL_type t);
+                             | Cop.Oshr => do v <- return_czero (transBeePL_type t);
+                                           do rs <- check_shr (fst ces) v (transBeePL_type t);
                                            ret (Sreturn (Some rs), snd ces, fn_ctx')
                             | _ => ret (Sreturn (Some (Ebinop o
                                         (hd default_expr (exprlist_list_expr (fst ces))) 

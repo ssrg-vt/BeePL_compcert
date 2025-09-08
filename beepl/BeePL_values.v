@@ -254,12 +254,12 @@ if (v1.(vname) =? v2.(vname))%positive && (eq_basic_type (vtype v1) (vtype v2)) 
 Definition eq_linfo (v1 : linfo) (v2 : linfo) : bool :=
 if (v1.(lname) =? v2.(lname))%positive then true else false.
 
-Definition return_bzero (t : type) : mon value :=
+Definition return_bzero (t : type) : res value :=
 match t with 
 | Vtype p => match p with   
-             | Tbool => error (msg "Tbool not allowed")
-             | Tint i s a => ret (Vint (Int.repr 0))
-             | Tlong s a => ret (Vint64 (Int64.repr 0))
+             | Tbool => Error (msg "Tbool not allowed")
+             | Tint i s a => OK (Vint (Int.repr 0))
+             | Tlong s a => OK (Vint64 (Int64.repr 0))
              end
-| _ => error (msg "rest of the types are not needed to produce 0")
+| _ => Error (msg "rest of the types are not needed to produce 0")
 end.

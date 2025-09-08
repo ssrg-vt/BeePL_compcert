@@ -1,8 +1,8 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx FunInd.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Linking.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Linking Ctypes Smallstep SimplExpr.
-Require Import BeePL_aux BeePL_mem BeeTypes BeePL Csyntax Csem Clight Globalenvs BeePL_Csyntax SimplExpr.
-Require Import Initializersproof Cstrategy BeePL_auxlemmas Coqlib Errors BeePL_values BeePL_sem.
+Require Import BeePL_aux BeePL_mem BeeTypes BeePL Csyntax Csem Clight Globalenvs BeePL_Csyntax SimplExpr Csyntaxdefs.
+Require Import Initializersproof Cstrategy BeePL_auxlemmas Coqlib Errors BeePL_values BeePL_sem Type_proof_C.
 
 From mathcomp Require Import all_ssreflect. 
 
@@ -546,6 +546,32 @@ match e with
 | Prim (Uop o) es t => exists ces g1 i1, 
                        transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g = Res (ces, f, b) g1 i1 /\
                        ce = (Csyntax.Eunop o (hd default_expr (exprlist_list_expr ces)) (transBeePL_type t)) 
+| Prim (Bop o) es t => exists ces g1 i1, 
+                       transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g = Res (ces, f, b) g1 i1 /\
+                       match o with 
+                       | Cop.Odiv => exists zv g2 i2 rs g3 i3, 
+                                     return_czero (transBeePL_type t) g1 = Res zv g2 i2 /\
+                                     check_div ces zv (transBeePL_type t) g2 = Res rs g3 i3 /\
+                                     ce = rs
+                       | Cop.Omod => exists zv g2 i2 rs g3 i3, 
+                                     return_czero (transBeePL_type t) g1 = Res zv g2 i2 /\
+                                     check_mod ces zv (transBeePL_type t) g2 = Res rs g3 i3 /\
+                                     ce = rs
+                       | Cop.Oshl => exists zv g2 i2 rs g3 i3, 
+                                     return_czero (transBeePL_type t) g1 = Res zv g2 i2 /\
+                                     check_shl ces zv (transBeePL_type t) g2 = Res rs g3 i3 /\
+                                     ce = rs
+                       | Cop.Oshr => exists zv g2 i2 rs g3 i3, 
+                                     return_czero (transBeePL_type t) g1 = Res zv g2 i2 /\
+                                     check_shr ces zv (transBeePL_type t) g2 = Res rs g3 i3 /\
+                                     ce = rs
+                       | _ => ce = Csyntax.Ebinop o (hd default_expr (exprlist_list_expr ces))
+                                            (hd default_expr (tl (exprlist_list_expr ces)))
+                                            (transBeePL_type t)
+                       end
+| Prim (Cast t) es t' => exists ces g1 i1,
+                        transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g = Res (ces, f, b) g1 i1 /\
+                        ce = Csyntax.Ecast (hd default_expr (exprlist_list_expr ces)) (transBeePL_type t)
 | _ => True
 end) /\
 (forall es fctx bctx ces f b g g' i',
@@ -601,6 +627,59 @@ split.
      case hes: (transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g) H0=> [errs | ces g1 i1] //=.
      move=> [] h1 h2 h3 h4; subst. exists ces.1.1, g', i1. split=> //=.
      by case: (ces)=> [[a b] c] //=.
+   (* bop *)
+   + move=> bop es t h. inversion h. rewrite /SimplExpr.bind2 /SimplExpr.bind in H0.
+     case hes: (transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g) H0=> [errs | ces g1 i1] //=.
+     case: bop h=> //=.
+     + move=> h [] h1 h2 h3 h4; subst. 
+       exists ces.1.1, g', i1; split=> //=. by case: (ces) => [[a b] c].
+     + move=> h [] h1 h2 h3 h4; subst. 
+       exists ces.1.1, g', i1; split=> //=. by case: (ces) => [[a b] c].
+     + move=> h [] h1 h2 h3 h4; subst. 
+       exists ces.1.1, g', i1; split=> //=. by case: (ces) => [[a b] c].
+     + case hz: (return_czero (transBeePL_type t) g1)=> [errz | zv g2 i2] //=.
+       case hc: (check_div ces.1.1 zv (transBeePL_type t) g2)=> [errc | zc g3 i3] //=. 
+       move=> h [] h1 h2 h3 h4; subst. exists ces.1.1, g1, i1;split=> //=. 
+       + by case: (ces) => [[a b] c].
+       by exists zv, g2, i2, ce, g', i3; split=> //=.
+     + case hz: (return_czero (transBeePL_type t) g1)=> [errz | zv g2 i2] //=.
+       case hc: (check_mod ces.1.1 zv (transBeePL_type t) g2)=> [errc | zc g3 i3] //=. 
+       move=> h [] h1 h2 h3 h4; subst. exists ces.1.1, g1, i1;split=> //=. 
+       + by case: (ces) => [[a b] c].
+       by exists zv, g2, i2, ce, g', i3; split=> //=.
+    + move=> h [] h1 h2 h3 h4; subst. 
+       exists ces.1.1, g', i1; split=> //=. by case: (ces) => [[a b] c]. 
+    + move=> h [] h1 h2 h3 h4; subst. 
+       exists ces.1.1, g', i1; split=> //=. by case: (ces) => [[a b] c].
+    + move=> h [] h1 h2 h3 h4; subst. 
+       exists ces.1.1, g', i1; split=> //=. by case: (ces) => [[a b] c].
+    + case hz: (return_czero (transBeePL_type t) g1)=> [errz | zv g2 i2] //=.
+      case hc: (check_shl ces.1.1 zv (transBeePL_type t) g2)=> [errc | zc g3 i3] //=. 
+      move=> h [] h1 h2 h3 h4; subst. exists ces.1.1, g1, i1;split=> //=. 
+      + by case: (ces) => [[a b] c].
+      by exists zv, g2, i2, ce, g', i3; split=> //=.
+    + case hz: (return_czero (transBeePL_type t) g1)=> [errz | zv g2 i2] //=.
+      case hc: (check_shr ces.1.1 zv (transBeePL_type t) g2)=> [errc | zc g3 i3] //=. 
+      move=> h [] h1 h2 h3 h4; subst. exists ces.1.1, g1, i1;split=> //=. 
+      + by case: (ces) => [[a b] c].
+      by exists zv, g2, i2, ce, g', i3; split=> //=.
+    + move=> h [] h1 h2 h3 h4; subst. 
+       exists ces.1.1, g', i1; split=> //=. by case: (ces) => [[a b] c].
+    + move=> h [] h1 h2 h3 h4; subst. 
+       exists ces.1.1, g', i1; split=> //=. by case: (ces) => [[a b] c].
+    + move=> h [] h1 h2 h3 h4; subst. 
+       exists ces.1.1, g', i1; split=> //=. by case: (ces) => [[a b] c].
+    + move=> h [] h1 h2 h3 h4; subst. 
+       exists ces.1.1, g', i1; split=> //=. by case: (ces) => [[a b] c].
+    + move=> h [] h1 h2 h3 h4; subst. 
+       exists ces.1.1, g', i1; split=> //=. by case: (ces) => [[a b] c].
+    move=> h [] h1 h2 h3 h4; subst. 
+    exists ces.1.1, g', i1; split=> //=. by case: (ces) => [[a b] c].
+  (* cast *)
+  move=> t es t' hte. inversion hte; subst.
+  rewrite /SimplExpr.bind2 /SimplExpr.bind in H0.
+  case hes: (transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g) H0=> [errs | ces g1 i1] //=.
+  move=> [] h1 h2 h3 h4; subst. exists ces.1.1, g', i1; split=> //=. by case: (ces)=> [[a b] c].
 Admitted.
 
 Definition is_lvalue (e : Csyntax.expr) : bool :=
@@ -619,6 +698,7 @@ match e with
 | Csyntax.Ederef e t => Evalof (Csyntax.Ederef (convert_to_rval e) t) t
 | Csyntax.Efield a f t => Csyntax.Evalof (Csyntax.Efield (convert_to_rval a) f t) t
 | Csyntax.Eunop op e t => Csyntax.Eunop op (convert_to_rval e) t
+| Csyntax.Ecast e t => Csyntax.Ecast (convert_to_rval e) t
 | _ => e
 end.
 
@@ -896,13 +976,13 @@ move=> e. elim: e=> //=.
     by move=> [] h1 h2 h3 h4; subst.
   (* bop *)
   + move=> u es t fctx bctx ce fctx' bctx' g g' i'. rewrite /SimplExpr.bind2 /SimplExpr.bind.
-    case hz: (return_czero (transBeePL_type t) g)=> [errz | zr g2 i2] //=.
-    case hes: (transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g2)=> [errs | [[ces' fes] bes] g3 i3] //=.
+    case hes: (transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g)=> [errs | [[ces' fes] bes] g1 i1] //=.
     case hu: u=> //=. 
     + by move=> [] h1 h2 h3 h4 /=; subst. 
     + by move=> [] h1 h2 h3 h4 /=; subst.
     + by move=> [] h1 h2 h3 h4 /=; subst.
-    + case hd: (check_div ces' zr (transBeePL_type t) g3) => [errd | rd g4 i4] //=. 
+    + case hz: (return_czero (transBeePL_type t) g1)=> [errz | zr g2 i2] //=.
+      case hd: (check_div ces' zr (transBeePL_type t) g2) => [errd | rd g3 i3] //=. 
       move=> [] h1 h2 h3 h4 /=; subst. rewrite /check_div in hd.
       case: (transBeePL_type t) hd=> //=.
       + move=> [] //= [] //= a.
@@ -911,7 +991,8 @@ move=> e. elim: e=> //=.
       move=> [] //= a.
       + by move=> [] h1 h2; subst.
       by move=> [] h1 h2; subst.
-    + case hd: (check_mod ces' zr (transBeePL_type t) g3) => [errd | rd g4 i4] //=. 
+    + case hz: (return_czero (transBeePL_type t) g1)=> [errz | zr g2 i2] //=.
+      case hd: (check_mod ces' zr (transBeePL_type t) g2) => [errd | rd g3 i3] //=. 
       move=> [] h1 h2 h3 h4 /=; subst. rewrite /check_div in hd.
       case: (transBeePL_type t) hd=> //=.
       + move=> [] //= [] //= a.
@@ -923,12 +1004,14 @@ move=> e. elim: e=> //=.
     + by move=> [] h1 h2 h3 h4 /=; subst.
     + by move=> [] h1 h2 h3 h4 /=; subst.
     + by move=> [] h1 h2 h3 h4 /=; subst.
-    + case hd: (check_shl ces' zr (transBeePL_type t) g3) => [errd | rd g4 i4] //=. 
+    + case hz: (return_czero (transBeePL_type t) g1)=> [errz | zr g2 i2] //=.
+      case hd: (check_shl ces' zr (transBeePL_type t) g2) => [errd | rd g3 i3] //=.
       move=> [] h1 h2 h3 h4 /=; subst. rewrite /check_shl in hd.
       case: (transBeePL_type t) hd=> //=.
       + by move=> i s a [] h1 h2; subst.
       by move=> s a [] h1 h2; subst.
-    + case hd: (check_shr ces' zr (transBeePL_type t) g3) => [errd | rd g4 i4] //=. 
+    + case hz: (return_czero (transBeePL_type t) g1)=> [errz | zr g2 i2] //=.
+      case hd: (check_shr ces' zr (transBeePL_type t) g2) => [errd | rd g3 i3] //=.
       move=> [] h1 h2 h3 h4 /=; subst. rewrite /check_shr in hd.
       case: (transBeePL_type t) hd=> //=.
       + by move=> i s a [] h1 h2; subst.
@@ -999,7 +1082,98 @@ move=> h t n t' fctx bctx ce fctx' bctx' g g' i'. rewrite /SimplExpr.bind /=.
 case ha: (get_array_len t g)=> [err | an g1 i1] //=. case: ifP=> //= hn.
 by move=> [] h1 h2 h3 h4; subst.
 Qed.
-    
+
+Lemma convert_rval_type_eq : forall e,
+Csyntax.typeof (convert_to_rval e) = Csyntax.typeof e.  
+Proof.
+move=> e. elim: e=> //=.
+Qed. 
+
+Lemma check_div_inv : forall ces v t g r g' i',
+check_div ces v t g = Res r g' i' ->
+match t with 
+| Ctypes.Tint I32 Signed a => r = (Econdition (Csyntax.Ebinop Cop.Oor (Csyntax.Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                     (Eval (Values.Vint Int.zero) t) t)
+                                                      (Csyntax.Ebinop Cop.Oand (Csyntax.Ebinop Cop.Oeq (hd default_expr (exprlist_list_expr ces))
+                                                                                        (Eval (Values.Vint (Int.repr Int.min_signed)) t) t)
+                                                                       (Csyntax.Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                                        (Eval (Values.Vint Int.mone) t) t) t) tint)
+                                     (Eval v t)
+                                     (Csyntax.Ebinop (Cop.Odiv) (hd default_expr (exprlist_list_expr ces)) 
+                                                        (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| Ctypes.Tint I32 Unsigned a => r = (Econdition (Csyntax.Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                     (Eval (Values.Vint Int.zero) t) tint)
+                                            (Eval v t)
+                                            (Csyntax.Ebinop (Cop.Odiv) (hd default_expr (exprlist_list_expr ces)) 
+                                                        (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| Ctypes.Tlong Signed a => r = (Econdition (Csyntax.Ebinop Cop.Oor (Csyntax.Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                     (Eval (Values.Vlong Int64.zero) t) t)
+                                                      (Csyntax.Ebinop Cop.Oand (Csyntax.Ebinop Cop.Oeq (hd default_expr (exprlist_list_expr ces))
+                                                                                        (Eval (Values.Vlong (Int64.repr Int64.min_signed)) t) t)
+                                                                       (Csyntax.Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                                        (Eval (Values.Vlong Int64.mone) t) t) t) tint)
+                                     (Eval v t)
+                                     (Csyntax.Ebinop (Cop.Odiv) (hd default_expr (exprlist_list_expr ces)) 
+                                                        (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| Ctypes.Tlong Unsigned a => r = (Econdition (Csyntax.Ebinop Cop.Oeq (hd default_expr (tl (exprlist_list_expr ces)))
+                                                                     (Eval (Values.Vlong Int64.zero) t) tint)
+                                            (Eval v t)
+                                            (Csyntax.Ebinop (Cop.Odiv) (hd default_expr (exprlist_list_expr ces)) 
+                                                        (hd default_expr (tl (exprlist_list_expr ces))) t) t)
+| _ => False
+
+end.
+Proof.
+move=> ces v t g r g' i' hc. case: t hc=> //=.
++ move=> [] //=. move=> [] //=.
+  + by move=> a [] h1 h2; subst. 
+  + by move=> a [] h1 h2; subst.
++ move=> [] //=.
+  by move=> a [] h1 h2; subst.
+by move=> a [] h1 h2; subst.
+Qed.
+
+(***** Semantic equivalence of unary operators between BeePL and C *****)
+Lemma sem_equiv_uop : forall uop v e m v' v'' fctx bctx ce fctx' bctx' g g' i',
+Cop.sem_unary_operation uop (trans_bvalue_cvalue v) (transBeePL_type (typeof_expr e)) m = Some v' ->
+transBeePL_expr_expr e fctx bctx g = Res (ce, fctx', bctx') g' i' -> 
+trans_cvalue_bvalue v' = OK v'' ->
+Cop.sem_unary_operation uop (trans_bvalue_cvalue v) (Csyntax.typeof ce) m = Some (trans_bvalue_cvalue v'').
+Proof.
+Admitted.
+
+(***** Semantic equivalence of casting operator between BeePL and C *****)
+Lemma sem_equiv_cast: forall v e t m v' fctx bctx g ce fctx' bctx' g' i' v'',
+Cop.sem_cast (trans_bvalue_cvalue v) (transBeePL_type (typeof_expr e)) t m = Some v' ->
+transBeePL_expr_expr e fctx bctx g = Res (ce, fctx', bctx') g' i' -> 
+trans_cvalue_bvalue v' = OK v'' ->
+Cop.sem_cast (trans_bvalue_cvalue v) (Csyntax.typeof ce) t m = Some (trans_bvalue_cvalue v'').
+Proof.
+Admitted.
+
+Lemma return_zero_beepl_c : forall t zv zv' g g' i', 
+return_bzero t = OK zv ->
+return_czero (transBeePL_type t) g = Res zv' g' i' ->
+zv' = trans_bvalue_cvalue zv.
+Proof.
+move=> t zv zv' g g' i' hr hr'. case ht: t hr hr'=> [ | p| | | | | ] //=.
+case: p ht=> //=.
++ by move=> sz s a ht [] h1 [] h2 h3 ; subst.
+by move=> s a ht [] h1 [] h2 h3; subst.
+Qed. 
+
+Lemma signedness_of_usigned_int: forall t a,
+transBeePL_type t = Ctypes.Tint I32 Unsigned a ->
+signedness_of_type t = Some Unsigned. 
+Proof. 
+move=> t. elim t=> //=.
++ move=> [] //=. by move=> sz s a a' [] h1 h2 h3; subst.
+ Print transBeePL_type.
+move=> p a. elim p=> //=.
+move=> h [] //=. 
++ by move=> [] //=.
+by move=> [] //=.
+Qed.
 
 (***** Comparing BeePL big-step semantics with Csyntax big-step semantics *****)
 Lemma bsem_csem_expr_equiv : forall bge cp,
@@ -1207,8 +1381,8 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
         + admit.*)
    + admit. (* volatile case *)
    admit. (* non-volatile case *)
-(* Uop *)
-+ move=> p vm m e v uop m' vm' v' ct v'' hse hin he huop hv cp cge fctx bctx ce cvm fctx' bctx' g g' i' hp hte hm.
+(* uop *)
++ move=> p vm m e v uop m' v' ct v'' hse hin he huop hv cp cge fctx bctx ce cvm fctx' bctx' g g' i' hp hte hm.
   have [htr1 htr2] := trans_expr_expr_ind.
   move: (htr1 (Prim (Uop uop) [:: e] (typeof_expr e)) fctx bctx ce fctx' bctx' g g' i' hte)=> [] ces [] g1 [] i1 [] htes h1; subst.
   have [ce [g2 [i2 [hce h]]]] := trans_exprs_to_trans_expr e fctx bctx g ces fctx' bctx' g1 i1 htes; subst.
@@ -1218,6 +1392,57 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
              (Csyntax.Eunop uop a' (transBeePL_type (typeof_expr e))).
   + rewrite /=. apply eval_unop. by apply H.
   apply esr_unop with (trans_bvalue_cvalue v). + by apply H0.
+  have htce := compilation_preserve_type e fctx bctx (hd default_expr (exprlist_list_expr ces)) fctx' bctx' g g2 i2 hce.
+  have := c_eval_expr_type_preservation (convert_to_rval (hd default_expr (exprlist_list_expr ces))) cge cvm m a' tr m' H=> hteq.
+  have hteq' := convert_rval_type_eq (hd default_expr (exprlist_list_expr ces)); subst.
+  rewrite hteq' in hteq. have := sem_equiv_uop uop v e m' v' v'' fctx bctx 
+                                  (hd default_expr (exprlist_list_expr ces)) fctx' bctx' g g2 i2 huop hce hv.
+  by rewrite hteq.
+(* bop *)
++ move=> p vm m e1 e2 v1 v2 bop s m' m'' zv he1 hin1 he2 hin2 hs hc hz cp cge fctx bctx ce cvm fctx' bctx' g g' i' hp hte hm.
+  have [htr1 htr2] := trans_expr_expr_ind.
+  move: (htr1 (Prim (Bop bop) [:: e1; e2] (typeof_expr e1)) fctx bctx ce fctx' bctx' g g' i' hte)=> [] ces [] g1 [] i1 [] htes h1; subst.
+  move: (htr2 [::e1; e2] fctx bctx ces fctx' bctx' g g1 i1 htes)=> [] ce1 [] fctx1 [] bctx1 [] g2 [] i2 [] i3 [] ce' [] f'' [] b'' [] hte1 [] hte2. 
+  have [ce2 [g3 [i4 [hte2' h]]]] := trans_exprs_to_trans_expr e2 fctx1 bctx1 g2 ce' f'' b'' g1 i3 hte2; subst. move=> [] h11 [] h2 h3; subst.
+  move: (hin1 cp cge fctx bctx ce1 cvm fctx1 bctx1 g g2 i2 hp hte1 hm)=> [] tr1 hce1.
+  move: (hin2 cp cge fctx1 bctx1 (hd default_expr (exprlist_list_expr ce')) cvm f'' b'' g2 g3 i4 hp hte2' hm)=> [] tr2 hce2.
+  inversion hce1; subst. inversion hce2; subst. 
+  move: h1. (*case: bop hc hte=> //=.
+  (* Odiv *)
+  + case: s hs=> //=.
+    (* signed div: overflow/zero *)
+    + move=> hs. case: ifP=> //= hzc _ hte. move=> [] zv' [] g4 [] i5 [] rs [] g5 [] i6 [] hr [] hcz heq; subst.
+      have hc := check_div_inv (Econs ce1 ce') zv' (transBeePL_type (typeof_expr e1)) g4 rs g5 i6 hcz.
+      case ht : (transBeePL_type (typeof_expr e1)) hc=> [ | sz s a | s a |  |  | |  |  | ] //=.
+      (* int *)
+      + case: sz ht=> //= ht. case: s ht=> //=.
+        (* signed *)
+        + move=> ht h /=; subst. rewrite ht /= in hcz. exists (tr1 ++ tr2).
+          apply eval_expression_intro with (Eval zv' (Ctypes.Tint I32 Signed a)).
+          + admit.
+          have <- := return_zero_beepl_c (typeof_expr e1) zv zv' g1 g4 i5 hz hr. by apply esr_val.
+        (* unsigned *)
+        move=> ht h; subst. exists (tr1 ++ tr2). admit.
+      (* long *)
+      + admit.
+    admit.*) admit. admit.
+(* cast *)
++ move=> p vm m e m' v t2 v' v'' he hin hc hv cp cge fctx bctx ce cvm fctx' bctx' g g' i' hp hte hm.
+  have [htr1 htr2] := trans_expr_expr_ind.
+  move: (htr1 (Prim (Cast t2) [:: e] t2) fctx bctx ce fctx' bctx' g g' i' hte)=> [] ces [] g1 [] i1 [] htes heq; subst.
+  have [ce [g2 [i2 [hce h]]]] := trans_exprs_to_trans_expr e fctx bctx g ces fctx' bctx' g1 i1 htes; subst.
+  move: (hin cp cge fctx bctx (hd default_expr (exprlist_list_expr ces)) cvm fctx' bctx' g g2 i2 hp hce hm)=> [] tr hces.
+  inversion hces; subst.
+  exists tr. apply eval_expression_intro with (Csyntax.Ecast a' (transBeePL_type t2)).
+  + apply eval_cast. by apply H.
+  apply esr_cast with (trans_bvalue_cvalue v).
+  + by apply H0. have htce := compilation_preserve_type e fctx bctx (hd default_expr (exprlist_list_expr ces)) fctx' bctx' g g2 i2 hce; subst.
+  have hteq := c_eval_expr_type_preservation (convert_to_rval (hd default_expr (exprlist_list_expr ces))) cge cvm m a' tr m' H; subst.
+  have hteq' := convert_rval_type_eq (hd default_expr (exprlist_list_expr ces)); subst. rewrite hteq' in hteq.
+  rewrite -htce in hteq. rewrite -hteq.
+  have := sem_equiv_cast v e (transBeePL_type t2) m' v' fctx bctx g (hd default_expr (exprlist_list_expr ces)) fctx' bctx' g2 i2 v'' hc hce hv.
+  by rewrite htce.
+(* bind *)
   
 Admitted.
 
