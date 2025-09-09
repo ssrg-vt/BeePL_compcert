@@ -109,6 +109,24 @@ let rec infer_expr (env : tyenv) (e : expr) : typ =
           end
       |  _ ->
         raise (TypeError "Unary operator expects exactly one argument"))
+      | Prim (Bop bop, args) ->
+        begin match args with 
+          | [a1; a2] ->
+            let t1 = infer_expr env a1 in
+            let t2 = infer_expr env a2 in
+            begin match bop with
+            | Oadd ->
+                if (typ_eq t1 t2) && (match t1 with
+                  | Vtype Tint8 | Vtype Tint16 | Vtype Tint32
+                  | Vtype Tuint8 | Vtype Tuint16 | Vtype Tuint32
+                  | Vtype Tlong | Vtype Tulong -> true
+                  | _ -> false)
+                then t1
+                else raise (TypeError "+ can only be applied to matching integer types")
+            (* Add other binary operators here as needed *)
+            end
+          | _ -> raise (TypeError "Binary operator expects exactly two arguments")
+          end
       | App (e1, args) ->
         let ty1 = infer_expr env e1 in
         let arg_tys = List.map (infer_expr env) args in

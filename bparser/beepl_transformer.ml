@@ -147,9 +147,15 @@ let transform_uop (uop : Beepl_ast.uop) : Cop.unary_operation =
   | Oneg -> Cop.Oneg
   | UOverloadTilde -> failwith "UOverloadTilde should be resolved before transformation"
 
+let transform_bop (bop : Beepl_ast.bop) : Cop.binary_operation =
+  match bop with
+  | Oadd -> Cop.Oadd
+  (* Add other binary operations as needed *)
+
 let transform_builtin (b : Beepl_ast.builtin) : BeePL.builtin =
   match b with
   | Beepl_ast.Uop uop -> BeePL.Uop (transform_uop uop)
+  | Beepl_ast.Bop bop -> BeePL.Bop (transform_bop bop)
 
 let rec resolve_overloaded_op (e : expr) (typ : typ) : expr =
   match e with
@@ -201,9 +207,12 @@ let rec transform_expr (env : Beepl_ast_typechecker.tyenv) (e : Beepl_ast.expr) 
       let e1' = transform_expr env e1 in
       let args' = List.map (transform_expr env) args in
       BeePL.App (e1', args', t')
-  | Beepl_ast.Prim (uop, args) ->
+  | Beepl_ast.Prim (Uop uop, args) ->
     let args' = List.map (transform_expr env) args in
-    BeePL.Prim (transform_builtin uop, args', t')
+    BeePL.Prim (transform_builtin (Beepl_ast.Uop uop), args', t')
+  | Beepl_ast.Prim (Bop bop, args) ->
+    let args' = List.map (transform_expr env) args in
+    BeePL.Prim (transform_builtin (Beepl_ast.Bop bop), args', t')
   | Beepl_ast.Let (x, t, e1, e2) ->
       let e1' = transform_expr env e1 in
       let env' = Beepl_ast_typechecker.Env.add x t env in

@@ -36,6 +36,8 @@ let rec from_expr acc e =
   | Const _ -> acc
   | Prim (Uop _, args) ->
       List.fold_left from_expr acc args
+  | Prim (Bop _, args) ->
+      List.fold_left from_expr acc args
   | App (e1, args) ->
       let acc = from_expr acc e1 in
       List.fold_left from_expr acc args
@@ -231,6 +233,18 @@ let rec export_expr_to_coq (env : (string * typ) list) (e : expr) : string =
       Printf.sprintf 
       "(Prim (Uop %s)\n                  (%s)\n                  (%s))"
         uop_str
+        (export_coq_list args_str)
+        ty
+  | Prim (Bop bop, args) ->
+      let args_str = List.map (export_expr_to_coq env) args in
+      let ty = export_typ_to_coq (infer_expr (list_to_env env) e) in
+      let bop_str = match bop with
+        | Oadd -> "Oadd"
+        (* Add other binary operators here as needed *)
+      in
+      Printf.sprintf 
+      "(Prim (Bop %s)\n                  (%s)\n                  (%s))"
+        bop_str
         (export_coq_list args_str)
         ty
   | Let (id, t, e1, e2) ->

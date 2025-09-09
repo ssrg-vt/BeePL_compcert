@@ -1,3 +1,4 @@
+(* printf does not work properly *)
 fun main() : int32, [] {
     let r : int32 = 
         let x : int32 = 2 in 

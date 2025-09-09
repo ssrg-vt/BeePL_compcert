@@ -43,8 +43,26 @@ type uop =
   | Oneg 
   | UOverloadTilde  (* internal temporary form from parser *)
 
+type bop =
+  | Oadd
+  (*| Osub
+  | Omul
+  | Odiv
+  | Oand
+  | Oor
+  | Oxor
+  | Oshl
+  | Oshr
+  | Oeq
+  | One
+  | Olt
+  | Ogt
+  | Ole
+  | Oge*)
+
 type builtin = 
   | Uop of uop 
+  | Bop of bop
 
 (** The type of the abstract syntax tree (AST). *)
 type expr =

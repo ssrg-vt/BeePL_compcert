@@ -65,6 +65,7 @@ rule read_token = parse
   | "*"             { STAR }
   | '~'             { TILDE } (* Single token for overloaded use for notint and notbool *)
   | "-"             { NEG }
+  | "+"             { PLUS }
   | '"' ([^ '"' '\n']* as s) '"' { STRING s }
 
   

@@ -16,7 +16,7 @@ open Beepl_ast
 %token RABOOL RAINT8 RAUINT8 RAUINT16 RAINT16 RAINT32 RAUINT32 RALONG RAULONG
 %token FUNTYPE
 %token FUNC LET IN IF THEN ELSE 
-%token TILDE NEG
+%token TILDE NEG PLUS
 %token LPAREN RPAREN COLON COMMA EQ
 %token LBRACE RBRACE
 %token IO DIVERGENCE READ WRITE ALLOC EMPTYBRACKETS
@@ -27,7 +27,7 @@ open Beepl_ast
 %token STAR    
 %token EOF
 
-%right TILDE MINUS   /* prefix operators: ~ and - */
+%right TILDE MINUS PLUS   /* prefix operators: ~ and - */
 %nonassoc UOP        /* to disambiguate unary vs binary ops */
 
 %start <Beepl_ast.program> prog
@@ -133,6 +133,10 @@ expr:
     { Prim (Uop UOverloadTilde, [e]) }
   | NEG e = expr
     { Prim (Uop Oneg, [e]) }
+    (* Binary operators *)
+  | e1 = expr PLUS e2= expr 
+    { Prim (Bop Oadd, [e1; e2]) }
+  (* Function application *)
   | fn = expr LPAREN args = separated_nonempty_list(COMMA, expr) RPAREN
     { App(fn, args) }
   | fn = expr LPAREN RPAREN

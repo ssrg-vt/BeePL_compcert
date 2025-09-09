@@ -37,6 +37,7 @@ type token =
   | RAINT32
   | RAINT16
   | RABOOL
+  | PLUS
   | NEG
   | LPAREN
   | LONGTYPE
