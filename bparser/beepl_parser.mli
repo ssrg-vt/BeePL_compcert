@@ -2,6 +2,7 @@
 (* The type of tokens. *)
 
 type token = 
+  | XOR
   | WRITE
   | UNIT
   | ULONGTYPE
@@ -13,6 +14,8 @@ type token =
   | STRUCT
   | STRING of (string)
   | STAR
+  | SHR
+  | SHL
   | SECTION of (string)
   | RULONGTYPE
   | RUINT8TYPE
@@ -38,10 +41,18 @@ type token =
   | RAINT16
   | RABOOL
   | PLUS
+  | OR
+  | OEQ
+  | NEQ
   | NEG
+  | MUL
+  | MOD
+  | MINUS
+  | LT
   | LPAREN
   | LONGTYPE
   | LET
+  | LE
   | LBRACE
   | IO
   | INT8TYPE
@@ -53,6 +64,8 @@ type token =
   | IF
   | IDENT of (string)
   | HASHEBPF
+  | GT
+  | GE
   | FUNTYPE
   | FUNC
   | EQ
@@ -60,10 +73,12 @@ type token =
   | EMPTYBRACKETS
   | ELSE
   | DIVERGENCE
+  | DIV
   | COMMA
   | COLON
   | BOOLTYPE
   | BOOL of (bool)
+  | AND
   | ALLOC
 
 (* This exception is raised by the monolithic API functions. *)

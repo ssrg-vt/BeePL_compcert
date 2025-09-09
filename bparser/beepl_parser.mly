@@ -16,7 +16,7 @@ open Beepl_ast
 %token RABOOL RAINT8 RAUINT8 RAUINT16 RAINT16 RAINT32 RAUINT32 RALONG RAULONG
 %token FUNTYPE
 %token FUNC LET IN IF THEN ELSE 
-%token TILDE NEG PLUS
+%token TILDE NEG PLUS MINUS MUL DIV MOD AND OR XOR SHL SHR OEQ NEQ LT GT LE GE
 %token LPAREN RPAREN COLON COMMA EQ
 %token LBRACE RBRACE
 %token IO DIVERGENCE READ WRITE ALLOC EMPTYBRACKETS
@@ -27,8 +27,17 @@ open Beepl_ast
 %token STAR    
 %token EOF
 
-%right TILDE MINUS PLUS   /* prefix operators: ~ and - */
-%nonassoc UOP        /* to disambiguate unary vs binary ops */
+%left PLUS MINUS       /* operators are left associative (a - b) - c */
+%left MUL DIV MOD 
+%left AND 
+%left OR 
+%left XOR
+%left SHL
+%left SHR
+%nonassoc OEQ               /* comparison is non-associative a == b == c is not allowed */
+%nonassoc NEQ              /* comparison is non-associative a != b != c is not allowed */
+%nonassoc LT GT LE
+%nonassoc UMINUS TILDE  /* unary operators are non-associative */
 
 %start <Beepl_ast.program> prog
 
@@ -126,16 +135,47 @@ const:
   | s = STRING { Cstring s }
 
 expr:
+  | LPAREN expr RPAREN          { $2 }
   | id = IDENT { Var id }
   | c = const  { Const c }
    (* Unary operators *)
   | TILDE e = expr
     { Prim (Uop UOverloadTilde, [e]) }
-  | NEG e = expr
-    { Prim (Uop Oneg, [e]) }
+  | MINUS e = expr %prec UMINUS
+    { Prim (Uop Oneg, [e]) } 
     (* Binary operators *)
   | e1 = expr PLUS e2= expr 
     { Prim (Bop Oadd, [e1; e2]) }
+  | e1 = expr MINUS e2= expr 
+    { Prim (Bop Osub, [e1; e2]) }
+  | e1 = expr MUL e2= expr 
+    { Prim (Bop Omul, [e1; e2]) }
+  | e1 = expr DIV e2= expr 
+    { Prim (Bop Odiv, [e1; e2]) }
+  | e1 = expr MOD e2= expr 
+    { Prim (Bop Omod, [e1; e2]) }
+  | e1 = expr AND e2= expr 
+    { Prim (Bop Oand, [e1; e2]) }
+  | e1 = expr OR e2= expr 
+    { Prim (Bop Oor, [e1; e2]) }
+  | e1 = expr XOR e2 = expr
+    { Prim (Bop Oxor, [e1; e2]) }
+  | e1 = expr SHL e2 = expr
+    { Prim (Bop Oshl, [e1; e2]) }
+  | e1 = expr SHR e2 = expr
+    { Prim (Bop Oshr, [e1; e2]) }
+  | e1 = expr OEQ e2 = expr
+    { Prim (Bop Oeq, [e1; e2]) }
+  | e1 = expr NEQ e2 = expr
+    { Prim (Bop One, [e1; e2]) } 
+  | e1 = expr LT e2 = expr
+    { Prim (Bop Olt, [e1; e2]) }
+  | e1 = expr GT e2 = expr
+    { Prim (Bop Ogt, [e1; e2]) }  
+  | e1 = expr LE e2 = expr
+    { Prim (Bop Ole, [e1; e2]) } 
+  | e1 = expr GE e2 = expr
+    { Prim (Bop Oge, [e1; e2]) }
   (* Function application *)
   | fn = expr LPAREN args = separated_nonempty_list(COMMA, expr) RPAREN
     { App(fn, args) }

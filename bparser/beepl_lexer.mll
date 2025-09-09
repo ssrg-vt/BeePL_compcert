@@ -62,10 +62,23 @@ rule read_token = parse
   | "}"             { RBRACE }
   | "[" "]"         { EMPTYBRACKETS }
   | "struct"        { STRUCT }
-  | "*"             { STAR }
   | '~'             { TILDE } (* Single token for overloaded use for notint and notbool *)
-  | "-"             { NEG }
   | "+"             { PLUS }
+  | "-"             { MINUS }
+  | "*"             { MUL }
+  | "/"             { DIV }
+  | "%"             { MOD }
+  | "&"             { AND }
+  | "|"             { OR } 
+  | "^"             { XOR }
+  | "<<"            { SHL }
+  | ">>"            { SHR }
+  | "=="            { OEQ }
+  | "!="            { NEQ }
+  | "<"             { LT }
+  | ">"             { GT }  
+  | "<="            { LE }
+  | ">="            { GE }
   | '"' ([^ '"' '\n']* as s) '"' { STRING s }
 
   

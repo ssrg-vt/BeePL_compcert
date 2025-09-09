@@ -240,6 +240,21 @@ let rec export_expr_to_coq (env : (string * typ) list) (e : expr) : string =
       let ty = export_typ_to_coq (infer_expr (list_to_env env) e) in
       let bop_str = match bop with
         | Oadd -> "Oadd"
+        | Osub -> "Osub"
+        | Omul -> "Omul"
+        | Odiv -> "Odiv"
+        | Omod -> "Omod"
+        | Oand -> "Oand"
+        | Oor -> "Oor"
+        | Oxor -> "Oxor"
+        | Oshl -> "Oshl"
+        | Oshr -> "Oshr"
+        | Oeq -> "Oeq"
+        | One -> "One"
+        | Olt -> "Olt"
+        | Ogt -> "Ogt"
+        | Ole -> "Ole"
+        | Oge -> "Oge"
         (* Add other binary operators here as needed *)
       in
       Printf.sprintf 

@@ -115,14 +115,30 @@ let rec infer_expr (env : tyenv) (e : expr) : typ =
             let t1 = infer_expr env a1 in
             let t2 = infer_expr env a2 in
             begin match bop with
-            | Oadd ->
+            | Oadd | Osub | Omul | Odiv | Omod | Oand | Oor | Oxor | Oshl | Oshr  ->
                 if (typ_eq t1 t2) && (match t1 with
                   | Vtype Tint8 | Vtype Tint16 | Vtype Tint32
                   | Vtype Tuint8 | Vtype Tuint16 | Vtype Tuint32
                   | Vtype Tlong | Vtype Tulong -> true
                   | _ -> false)
                 then t1
-                else raise (TypeError "+ can only be applied to matching integer types")
+                else raise (TypeError "+, -, *, /, mod, and, or, xor, <<, >> can only be applied to matching integer/long types")
+            | Oeq | One ->
+                  if (typ_eq t1 t2) && (match t1 with
+                    | Vtype Tbool | Vtype Tint8 | Vtype Tint16 | Vtype Tint32
+                    | Vtype Tuint8 | Vtype Tuint16 | Vtype Tuint32
+                    | Vtype Tlong | Vtype Tulong -> true
+                    | _ -> false)
+                  then Vtype Tbool
+                  else raise (TypeError "==, != can only be applied to matching integer/long/bool types")
+            | Olt | Ogt | Ole | Oge ->
+                  if (typ_eq t1 t2) && (match t1 with
+                    | Vtype Tint8 | Vtype Tint16 | Vtype Tint32
+                    | Vtype Tuint8 | Vtype Tuint16 | Vtype Tuint32
+                    | Vtype Tlong | Vtype Tulong -> true
+                    | _ -> false)
+                    then Vtype Tbool
+                    else raise (TypeError "<,>,<=,>= can only be applied to matching integer/long types")
             (* Add other binary operators here as needed *)
             end
           | _ -> raise (TypeError "Binary operator expects exactly two arguments")

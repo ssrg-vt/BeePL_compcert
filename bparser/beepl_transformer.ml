@@ -150,6 +150,21 @@ let transform_uop (uop : Beepl_ast.uop) : Cop.unary_operation =
 let transform_bop (bop : Beepl_ast.bop) : Cop.binary_operation =
   match bop with
   | Oadd -> Cop.Oadd
+  | Osub -> Cop.Osub
+  | Omul -> Cop.Omul
+  | Odiv -> Cop.Odiv
+  | Omod -> Cop.Omod
+  | Oand -> Cop.Oand
+  | Oor -> Cop.Oor
+  | Oxor -> Cop.Oxor
+  | Oshl -> Cop.Oshl
+  | Oshr -> Cop.Oshr
+  | Oeq -> Cop.Oeq
+  | One -> Cop.One
+  | Olt -> Cop.Olt
+  | Ogt -> Cop.Ogt
+  | Ole -> Cop.Ole
+  | Oge -> Cop.Oge
   (* Add other binary operations as needed *)
 
 let transform_builtin (b : Beepl_ast.builtin) : BeePL.builtin =

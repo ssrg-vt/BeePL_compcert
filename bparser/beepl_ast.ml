@@ -45,20 +45,22 @@ type uop =
 
 type bop =
   | Oadd
-  (*| Osub
+  | Osub
   | Omul
   | Odiv
+  | Omod
   | Oand
   | Oor
   | Oxor
   | Oshl
   | Oshr
-  | Oeq
+  | Oeq 
   | One
   | Olt
-  | Ogt
+  | Ogt 
   | Ole
-  | Oge*)
+  | Oge
+  
 
 type builtin = 
   | Uop of uop 
