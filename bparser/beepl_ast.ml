@@ -23,11 +23,14 @@ type btype =
 
 type ptrtype =
   | Reftype of string * btype
+  | Otype of ptrtype
 
 type typ = 
   | Utype
   | Vtype of ptype 
   | Ptr of ptrtype
+  | Stype of string  (* struct type name *)
+  | Atype of typ * int  (* array type with fixed size *)
   | Ftype of typ list * effect list * typ
 
 type const = 
@@ -65,6 +68,10 @@ type bop =
 type builtin = 
   | Uop of uop 
   | Bop of bop
+  | Cast of typ
+  | Ref
+  | Deref 
+  | Massgn
 
 (** The type of the abstract syntax tree (AST). *)
 type expr =

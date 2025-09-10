@@ -26,6 +26,9 @@ rule read_token = parse
   | "if"            { IF }
   | "then"          { THEN }
   | "else"          { ELSE }
+  | "ref"           { REF }
+  | "!"             { DEREF }
+  | ":="           { MASSGN }
   | "true"          { BOOL true }
   | "false"         { BOOL false }
   | "unit"          { UNIT }
@@ -48,6 +51,15 @@ rule read_token = parse
   | "long*"        { RLONGTYPE }
   | "ulong*"       { RULONGTYPE }
   | "struct*"      { RSTRUCT }
+  | "oint8*"        { ORINT8TYPE }
+  | "ouint8*"       { ORUINT8TYPE }
+  | "oint16*"       { ORINT16TYPE }
+  | "ouint16*"      { ORUINT16TYPE }
+  | "oint32*"       { ORINT32TYPE }
+  | "ouint32*"      { ORUINT32TYPE }
+  | "olong*"        { ORLONGTYPE }
+  | "oulong*"       { ORULONGTYPE }
+  | "ostruct*"      { ORSTRUCT }
   | "io"            { IO }
   | "divergence"    { DIVERGENCE }
   | "read"          { READ }
@@ -82,12 +94,20 @@ rule read_token = parse
   | '"' ([^ '"' '\n']* as s) '"' { STRING s }
 
   
+(* INT64 literals with L/l suffix *)
+| digit+ ['l' 'L'] as l64 {
+    let n = String.sub l64 0 (String.length l64 - 1) in
+    try INT64 (Int64.of_string n) with
+    | Failure _ -> raise (SyntaxError ("int64 literal out of range: " ^ n))
+  }
 
-  | '-'? digit+ as i32 { INT32 (Int32.of_string i32) }
-  | '-'? digit+ ['l' 'L'] as l64 {
-      let n = String.sub l64 0 (String.length l64 - 1) in
-      INT64 (Int64.of_string n)
-    }
+(* plain digits: try int32, else fall back to int64 *)
+| digit+ as n {
+    try INT32 (Int32.of_string n) with
+    | Failure _ ->
+        try INT64 (Int64.of_string n) with
+        | Failure _ -> raise (SyntaxError ("integer literal out of range: " ^ n))
+  }
 
   | ident as id     { IDENT id }
   | "#ebpf"         { HASHEBPF }

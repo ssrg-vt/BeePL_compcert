@@ -28,10 +28,22 @@ let string_of_ptype = function
   | Tlong -> "long"
   | Tulong -> "ulong"
 
-let string_of_typ = function
+let rec string_of_ptr_typ = function 
+  | Reftype (s, btype) -> 
+    let bstr = match btype with
+      | Bprim pt -> string_of_ptype pt
+      | Bstruct s -> "struct " ^ s
+      | Barray (pt, n) -> Printf.sprintf "array[%d] of %s" n (string_of_ptype pt)
+    in
+    Printf.sprintf "ref(%s, %s)" s bstr
+  | Otype pt -> "opaque(" ^ string_of_ptr_typ pt ^ ")"
+
+let rec string_of_typ = function
   | Utype -> "unit"
   | Vtype pt -> string_of_ptype pt
-  | Ptr (Reftype (s, _)) -> "ptr to " ^ s
+  | Ptr pt -> "ptr to " ^ (string_of_ptr_typ pt)
+  | Stype s -> "struct " ^ s
+  | Atype (t, n) -> Printf.sprintf "array[%d] of %s" n (string_of_typ t)
   | Ftype _ -> "function type"
 
 let list_to_env (xs : (string * typ) list) : tyenv =
@@ -143,6 +155,62 @@ let rec infer_expr (env : tyenv) (e : expr) : typ =
             end
           | _ -> raise (TypeError "Binary operator expects exactly two arguments")
           end
+      | Prim (Cast t, args) ->
+        begin match args with
+        | [arg] ->
+            let arg_ty = infer_expr env arg in
+            begin match arg_ty, t with
+            | Vtype ta, Vtype _ -> t
+            | _ -> raise (TypeError "Cast can only be applied between primitive types")
+            end
+        | _ -> raise (TypeError "Cast expects exactly one argument")
+        end
+      | Prim (Ref, args) ->
+        begin match args with
+        | [arg] ->
+            let arg_ty = infer_expr env arg in
+            Ptr (Reftype ("h", match arg_ty with
+              | Vtype pt -> Bprim pt
+              | _ -> raise (TypeError "Can only take reference of primitive types")))
+        | _ -> raise (TypeError "Ref expects exactly one argument")
+        end 
+      | Prim (Deref, args) ->
+        begin match args with
+        | [arg] ->
+            let arg_ty = infer_expr env arg in
+            begin match arg_ty with
+            | Ptr (Reftype (_, btype)) ->
+                begin match btype with
+                | Bprim pt -> Vtype pt
+                | Bstruct s -> Stype s
+                | Barray (pt, n) -> Atype (Vtype pt, n)  (* Array type with known size *)
+                end
+            | Ptr (Otype _) ->
+                raise (TypeError "Deref cannot be applied to option type, it should be wrapped inside match")
+            | _ -> raise (TypeError "Deref can only be applied to pointer types")
+            end
+        | _ -> raise (TypeError "Deref expects exactly one argument")
+        end
+      | Prim (Massgn, args) ->
+        begin match args with
+        | [arg1; arg2] ->
+            let t1 = infer_expr env arg1 in
+            let t2 = infer_expr env arg2 in
+            begin match t1 with
+            | Ptr (Reftype (_, btype)) ->
+                let expected_ty = match btype with
+                  | Bprim pt -> Vtype pt
+                  | Bstruct s -> Stype s
+                  | Barray (pt, n) -> Atype (Vtype pt, n)  (* Array type with known size *)
+                in
+                if typ_eq expected_ty t2 then Utype
+                else raise (TypeError "Massgn type mismatch")
+            | Ptr (Otype _) ->
+                raise (TypeError "Massgn cannot be applied to option type, it should be wrapped inside match")
+            | _ -> raise (TypeError "Massgn can only be applied to pointer types")
+            end
+        | _ -> raise (TypeError "Massgn expects exactly two arguments")
+        end
       | App (e1, args) ->
         let ty1 = infer_expr env e1 in
         let arg_tys = List.map (infer_expr env) args in

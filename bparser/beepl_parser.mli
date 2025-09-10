@@ -27,6 +27,7 @@ type token =
   | RINT8TYPE
   | RINT32TYPE
   | RINT16TYPE
+  | REF
   | READ
   | RBRACE
   | RBOOLTYPE
@@ -41,6 +42,27 @@ type token =
   | RAINT16
   | RABOOL
   | PLUS
+  | OSTRUCT
+  | ORULONGTYPE
+  | ORUINT8TYPE
+  | ORUINT32TYPE
+  | ORUINT16TYPE
+  | ORSTRUCT
+  | ORLONGTYPE
+  | ORINT8TYPE
+  | ORINT32TYPE
+  | ORINT16TYPE
+  | ORBOOLTYPE
+  | ORAULONG
+  | ORAUINT8
+  | ORAUINT32
+  | ORAUINT16
+  | ORARRAY
+  | ORALONG
+  | ORAINT8
+  | ORAINT32
+  | ORAINT16
+  | ORABOOL
   | OR
   | OEQ
   | NEQ
@@ -48,6 +70,7 @@ type token =
   | MUL
   | MOD
   | MINUS
+  | MASSGN
   | LT
   | LPAREN
   | LONGTYPE
@@ -74,8 +97,10 @@ type token =
   | ELSE
   | DIVERGENCE
   | DIV
+  | DEREF
   | COMMA
   | COLON
+  | CAST
   | BOOLTYPE
   | BOOL of (bool)
   | AND

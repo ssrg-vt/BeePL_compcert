@@ -14,9 +14,15 @@ open Beepl_ast
 %token RINT16TYPE RUINT16TYPE RINT32TYPE RUINT32TYPE
 %token RLONGTYPE RULONGTYPE RARRAY RSTRUCT
 %token RABOOL RAINT8 RAUINT8 RAUINT16 RAINT16 RAINT32 RAUINT32 RALONG RAULONG
+%token ORBOOLTYPE ORINT8TYPE ORUINT8TYPE  
+%token ORINT16TYPE ORUINT16TYPE ORINT32TYPE ORUINT32TYPE
+%token ORLONGTYPE ORULONGTYPE ORARRAY ORSTRUCT OSTRUCT
+%token ORABOOL ORAINT8 ORAUINT8 ORAUINT16 ORAINT16 ORAINT32 ORAUINT32 ORALONG ORAULONG
 %token FUNTYPE
 %token FUNC LET IN IF THEN ELSE 
+%token REF DEREF MASSGN
 %token TILDE NEG PLUS MINUS MUL DIV MOD AND OR XOR SHL SHR OEQ NEQ LT GT LE GE
+%token CAST
 %token LPAREN RPAREN COLON COMMA EQ
 %token LBRACE RBRACE
 %token IO DIVERGENCE READ WRITE ALLOC EMPTYBRACKETS
@@ -37,7 +43,8 @@ open Beepl_ast
 %nonassoc OEQ               /* comparison is non-associative a == b == c is not allowed */
 %nonassoc NEQ              /* comparison is non-associative a != b != c is not allowed */
 %nonassoc LT GT LE
-%nonassoc UMINUS TILDE  /* unary operators are non-associative */
+%nonassoc DEREF REF UMINUS TILDE  /* unary operators are non-associative */
+%right MASSGN
 
 %start <Beepl_ast.program> prog
 
@@ -122,6 +129,25 @@ typ:
   | RAUINT32 LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tuint32, Int32.to_int n)))) }
   | RALONG LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tlong, Int32.to_int n)))) }
   | RAULONG LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tulong, Int32.to_int n)))) }
+  | ORBOOLTYPE  { Ptr (Otype (Reftype ("h", (Bprim Tbool)))) }
+  | ORINT8TYPE  { Ptr (Otype (Reftype ("h", (Bprim Tint8)))) }
+  | ORUINT8TYPE { Ptr (Otype (Reftype ("h", (Bprim Tuint8)))) }
+  | ORINT16TYPE { Ptr (Otype (Reftype ("h", (Bprim Tint16)))) }
+  | ORUINT16TYPE { Ptr (Otype (Reftype ("h", (Bprim Tuint16)))) }
+  | ORINT32TYPE { Ptr (Otype (Reftype ("h", (Bprim Tint32)))) }
+  | ORUINT32TYPE { Ptr (Otype (Reftype ("h", (Bprim Tuint32)))) }
+  | ORLONGTYPE { Ptr (Otype (Reftype ("h", (Bprim Tlong)))) }
+  | ORULONGTYPE { Ptr (Otype (Reftype ("h", (Bprim Tulong)))) }
+  | OSTRUCT IDENT STAR { Ptr (Otype (Reftype ("h", (Bstruct $2)))) }
+  | ORABOOL LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ("h", (Barray (Tbool, Int32.to_int n))))) }
+  | ORAINT8 LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ("h", (Barray (Tint8, Int32.to_int n))))) }
+  | ORAUINT8 LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ("h", (Barray (Tuint8, Int32.to_int n))))) }
+  | ORAINT16 LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ("h", (Barray (Tint16, Int32.to_int n))))) }
+  | ORAUINT16 LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ("h", (Barray (Tuint16, Int32.to_int n))))) }
+  | ORAINT32 LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ("h", (Barray (Tint32, Int32.to_int n))))) }
+  | ORAUINT32 LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ("h", (Barray (Tuint32, Int32.to_int n))))) }
+  | ORALONG LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ("h", (Barray (Tlong, Int32.to_int n))))) }
+  | ORAULONG LBRACE n = INT32 RBRACE { Ptr (Otype ((Reftype ("h", (Barray (Tulong, Int32.to_int n)))))) }
   | FUNTYPE LPAREN args = separated_list(COMMA, typ) RPAREN
     COLON eff = separated_list(COMMA, effect) COMMA ret = typ { Ftype(args, eff, ret) }
 
@@ -176,6 +202,14 @@ expr:
     { Prim (Bop Ole, [e1; e2]) } 
   | e1 = expr GE e2 = expr
     { Prim (Bop Oge, [e1; e2]) }
+  | LPAREN t = typ RPAREN e = expr 
+    {Prim (Cast t, [e]) }
+  | REF e = expr 
+    {Prim (Ref, [e])}
+  | DEREF e = expr 
+    {Prim (Deref, [e])}
+  | e1 = expr MASSGN e2 = expr
+    { Prim (Massgn, [e1; e2]) }
   (* Function application *)
   | fn = expr LPAREN args = separated_nonempty_list(COMMA, expr) RPAREN
     { App(fn, args) }

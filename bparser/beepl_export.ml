@@ -38,6 +38,14 @@ let rec from_expr acc e =
       List.fold_left from_expr acc args
   | Prim (Bop _, args) ->
       List.fold_left from_expr acc args
+  | Prim (Cast _, args) ->
+      List.fold_left from_expr acc args
+  | Prim (Ref, args) ->
+      List.fold_left from_expr acc args
+  | Prim (Deref, args) ->
+      List.fold_left from_expr acc args
+  | Prim (Massgn, args) ->
+      List.fold_left from_expr acc args
   | App (e1, args) ->
       let acc = from_expr acc e1 in
       List.fold_left from_expr acc args
@@ -150,6 +158,11 @@ let rec export_typ_to_coq (t : typ) : string =
   | Vtype Tlong -> "Vtype Tlong"
   | Ptr (Reftype (name, btype)) ->
     Printf.sprintf "Ptrtype (Reftype _%s (%s) noattr)" name (export_btype_to_coq btype)
+  | Ptr (Otype pt) ->
+    Printf.sprintf "Ptrtype (Otype (%s))" (export_typ_to_coq (Ptr pt))
+  | Stype name -> Printf.sprintf "Stype _%s" name
+  | Atype (elem_type, size) ->
+    Printf.sprintf "Atype (%s) %d" (export_typ_to_coq elem_type) size
   | Ftype (arg_types, effs, ret_type) ->
     let arg_strs = List.map export_typ_to_coq arg_types in
     let eff_strs = export_effect_to_coq_list effs in
@@ -260,6 +273,35 @@ let rec export_expr_to_coq (env : (string * typ) list) (e : expr) : string =
       Printf.sprintf 
       "(Prim (Bop %s)\n                  (%s)\n                  (%s))"
         bop_str
+        (export_coq_list args_str)
+        ty
+  | Prim (Cast t, args) ->
+      let args_str = List.map (export_expr_to_coq env) args in
+      let ty = export_typ_to_coq (infer_expr (list_to_env env) e) in
+      Printf.sprintf 
+      "(Prim (Cast %s)\n                  (%s)\n                  (%s))"
+        (export_typ_to_coq t)
+        (export_coq_list args_str)
+        ty
+  | Prim (Ref, args) ->
+      let args_str = List.map (export_expr_to_coq env) args in
+      let ty = export_typ_to_coq (infer_expr (list_to_env env) e) in
+      Printf.sprintf 
+      "(Prim (Ref)\n                  (%s)\n                  (%s))"
+        (export_coq_list args_str)
+        ty
+  | Prim (Deref, args) ->
+      let args_str = List.map (export_expr_to_coq env) args in
+      let ty = export_typ_to_coq (infer_expr (list_to_env env) e) in
+      Printf.sprintf 
+      "(Prim (Deref)\n                  (%s)\n                  (%s))"
+        (export_coq_list args_str)
+        ty
+  | Prim (Massgn, args) ->
+      let args_str = List.map (export_expr_to_coq env) args in
+      let ty = export_typ_to_coq (infer_expr (list_to_env env) e) in
+      Printf.sprintf 
+      "(Prim (Massgn)\n                  (%s)\n                  (%s))"
         (export_coq_list args_str)
         ty
   | Let (id, t, e1, e2) ->

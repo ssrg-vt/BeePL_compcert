@@ -1027,8 +1027,13 @@ move=> e. elim: e=> //=.
   case hes: (transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g)=> [errs | [[ces' fes] bes] g3 i3] //=. by move=> [] h1 h2 h3 h4 /=; subst.
 (* Bind *)
 + move=> x t e hin e' hin' t' fctx bctx ce fctx' bctx' g g' i'. 
-  rewrite /SimplExpr.bind2 /SimplExpr.bind.
-  case he : (transBeePL_expr_expr e fctx bctx g)=> [err | ce1 g1 i1] //=.
+  rewrite /SimplExpr.bind2 /SimplExpr.bind. case: ifP=> //=. 
+  + move=> hx.
+    case he : (transBeePL_expr_expr e fctx bctx g)=> [err | ce1 g1 i1] //=. 
+    case he': (transBeePL_expr_expr e' ce1.1.2 ce1.2 g1) => [err1 | ce2 g2 i2] //=.
+    by move=> [] h1 h2 h3 h4 /=; subst.
+  move=> hx.
+  case he : (transBeePL_expr_expr e fctx bctx g)=> [err | ce1 g1 i1] //=. 
   case he': (transBeePL_expr_expr e' ce1.1.2 ce1.2 g1) => [err1 | ce2 g2 i2] //=.
   by move=> [] h1 h2 h3 h4 /=; subst.
 (* Cond *)

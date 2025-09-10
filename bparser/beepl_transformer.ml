@@ -1,3 +1,4 @@
+(* Transforms the BeePL (pretty language) to BeePL ast*)
 open Beepl_lexer
 open Beepl_ast
 open Lexing
@@ -117,12 +118,24 @@ let transform_effect (eff : Beepl_ast.effect) : BeeTypes.effect_label =
 
 let transform_effect_list effs = List.map (transform_effect) effs
 
+let rec transform_ptr_type (pt : Beepl_ast.ptrtype) : BeeTypes.ptr_type =
+  match pt with
+  | Beepl_ast.Reftype (name, bt) ->
+      BeeTypes.Reftype (Camlcoq.intern_string name, transform_basic_type bt, Ctypes.noattr)
+  | Beepl_ast.Otype inner_pt ->
+      BeeTypes.Otype (transform_ptr_type inner_pt)
+
 let rec transform_typ (t : Beepl_ast.typ) : BeeTypes.coq_type =
   match t with
   | Beepl_ast.Utype -> BeeTypes.Utype
   | Beepl_ast.Vtype pt -> BeeTypes.Vtype (transform_primitive_type pt)
-  | Beepl_ast.Ptr (Beepl_ast.Reftype (name, bt)) ->
-      BeeTypes.Ptrtype (BeeTypes.Reftype (Camlcoq.intern_string name, transform_basic_type bt, Ctypes.noattr))
+  | Beepl_ast.Ptr pt ->
+      BeeTypes.Ptrtype (transform_ptr_type pt)
+  | Beepl_ast.Stype name ->
+      BeeTypes.Stype (Camlcoq.intern_string name, Ctypes.noattr)
+  | Beepl_ast.Atype (elem_t, size) ->
+      let elem_t' = transform_typ elem_t in
+      BeeTypes.Atype (elem_t', int_to_coq_z size, Ctypes.noattr)
   | Beepl_ast.Ftype (args, effs, ret) -> 
       let args' = List.map (fun t -> (transform_typ t)) args in
       let effs' = transform_effect_list effs in
@@ -171,6 +184,12 @@ let transform_builtin (b : Beepl_ast.builtin) : BeePL.builtin =
   match b with
   | Beepl_ast.Uop uop -> BeePL.Uop (transform_uop uop)
   | Beepl_ast.Bop bop -> BeePL.Bop (transform_bop bop)
+  | Beepl_ast.Cast t ->
+      let t' = transform_typ t in
+      BeePL.Cast t'
+  | Beepl_ast.Ref -> BeePL.Ref
+  | Beepl_ast.Deref -> BeePL.Deref
+  | Beepl_ast.Massgn -> BeePL.Massgn
 
 let rec resolve_overloaded_op (e : expr) (typ : typ) : expr =
   match e with
@@ -181,6 +200,8 @@ let rec resolve_overloaded_op (e : expr) (typ : typ) : expr =
       | Vtype Tlong -> Prim (Uop Onotint, [resolve_overloaded_op arg (Vtype Tlong)])
       | _ -> failwith "Unsupported type for overloaded tilde"
       end
+  | Prim (Cast t, args) ->
+        Prim (Cast t, List.map (fun a -> resolve_overloaded_op a typ) args)
   | Prim (op, args) ->
       Prim (op, List.map (fun a -> resolve_overloaded_op a typ) args)
   | App (f, args) ->
@@ -228,12 +249,24 @@ let rec transform_expr (env : Beepl_ast_typechecker.tyenv) (e : Beepl_ast.expr) 
   | Beepl_ast.Prim (Bop bop, args) ->
     let args' = List.map (transform_expr env) args in
     BeePL.Prim (transform_builtin (Beepl_ast.Bop bop), args', t')
+  | Beepl_ast.Prim (Cast t, args) ->
+      let args' = List.map (transform_expr env) args in
+      let t'' = transform_typ t in
+      BeePL.Prim (BeePL.Cast t'', args', t')
+  | Beepl_ast.Prim (Ref, args) ->
+      let args' = List.map (transform_expr env) args in
+      BeePL.Prim (BeePL.Ref, args', t')
+  | Beepl_ast.Prim (Deref, args) ->
+      let args' = List.map (transform_expr env) args in
+      BeePL.Prim (BeePL.Deref, args', t')
+  | Beepl_ast.Prim (Massgn, args) ->
+      let args' = List.map (transform_expr env) args in
+      BeePL.Prim (BeePL.Massgn, args', t')
   | Beepl_ast.Let (x, t, e1, e2) ->
       let e1' = transform_expr env e1 in
       let env' = Beepl_ast_typechecker.Env.add x t env in
       let e2' = transform_expr env' e2 in
       BeePL.Bind (Camlcoq.intern_string x, transform_typ t, e1', e2', t')
-
   | Beepl_ast.If (e1, e2, e3) ->
       let e1' = transform_expr env e1 in
       let e2' = transform_expr env e2 in
@@ -252,7 +285,11 @@ let rec collect_vars (e : Beepl_ast.expr) : (string * Beepl_ast.typ) list =
   | Beepl_ast.Prim (_, args) ->
       unique_vars (List.flatten (List.map collect_vars args))
   | Beepl_ast.Let (x, t, e1, e2) ->
-      unique_vars ((x, t) :: collect_vars e1 @ collect_vars e2)
+    let rest = collect_vars e1 @ collect_vars e2 in
+    if String.equal x "_" || t = Beepl_ast.Utype then
+      unique_vars rest
+    else
+      unique_vars ((x, t) :: rest)
   | Beepl_ast.App (e1, args) ->
       unique_vars (collect_vars e1 @ List.flatten (List.map collect_vars args))
   | Beepl_ast.If (e1, e2, e3) ->

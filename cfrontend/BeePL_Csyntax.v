@@ -324,11 +324,18 @@ match e with
                            let ct := (transBeePL_type t') in
                            ret (Ecast (hd default_expr (exprlist_list_expr (fst ces))) ct, snd ces, bctx')
 end
-| Bind x t e e' t' => let ct := (transBeePL_type t) in
-                      do (ce, bctx') <- (transBeePL_expr_expr e fn_ctx bctx);
-                      do (ce', bctx'') <- (transBeePL_expr_expr e' (snd ce) bctx');
-                      let ct' := (transBeePL_type t') in
-                      ret (Ecomma (Eassign (Evar x ct) (fst ce) ct) (fst ce') ct', snd ce', bctx'') 
+| Bind x t e e' t' => if (x =? Ctypesdefs.ident_of_string "_")%positive 
+                      then let ct := (transBeePL_type t) in
+                           do (ce, bctx') <- (transBeePL_expr_expr e fn_ctx bctx);
+                           do (ce', bctx'') <- (transBeePL_expr_expr e' (snd ce) bctx');
+                           let ct' := (transBeePL_type t') in
+                           ret (Ecomma (fst ce) (fst ce') ct', snd ce', bctx'')
+                      else let ct := (transBeePL_type t) in
+                           do (ce, bctx') <- (transBeePL_expr_expr e fn_ctx bctx);
+                           do (ce', bctx'') <- (transBeePL_expr_expr e' (snd ce) bctx');
+                           let ct' := (transBeePL_type t') in
+                           ret (Ecomma (Eassign (Evar x ct) (fst ce) ct) (fst ce') ct', snd ce', bctx'') 
+                      
 | Cond e e' e'' t => do (ce, bctx') <- (transBeePL_expr_expr e fn_ctx bctx);
                      do (ce', bctx'') <- (transBeePL_expr_expr e' (snd ce) bctx');
                      do (ce'', bctx''') <- (transBeePL_expr_expr e'' (snd ce') bctx'');
@@ -601,7 +608,11 @@ match e with
                       | Ainit a t es t' => do (ce, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst ce) (fst ce'), snd ce, ctx'') 
                       | Sinit sx ids es t =>  do (cs, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst cs) (fst ce'), snd cs, ctx'') 
                       | Bind x1 t1 e1 e1' t1' =>  do (cs, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst cs) (fst ce'), snd cs, ctx'') 
-                      | _ => do (ce, ctx'') <- (transBeePL_expr_expr e (snd ce') ctx');
+                      | _ => if (x =? Ctypesdefs.ident_of_string "_")%positive 
+                             then do (ce, ctx'') <- (transBeePL_expr_expr e (snd ce') ctx');
+                                    ret (Ssequence (Sdo (fst ce)) 
+                                           (fst ce'), snd ce, ctx'')
+                             else do (ce, ctx'') <- (transBeePL_expr_expr e (snd ce') ctx');
                                     ret (Ssequence (Sdo (Eassign (Evar x ct) (fst ce) Tvoid)) 
                                            (fst ce'), snd ce, ctx'')
 
