@@ -295,16 +295,16 @@ match e with
 | Eapp ef ts es t => Error (msg "TYPE ERROR: We have no use case of builtin function as of now")
 | Sinit x ids es t => do (tes, efs) <- type_check_exprs type_check_expr cenv Gamma Sigma es;
                         match t with 
-                        | Ptrtype (Reftype mem_ident (Bstruct id a) a') => match cenv!id with 
-                                                                 | Some co => do cts <- type_of_members 
-                                                                                        (combine (map Ctypes.attr_of_type (transBeePL_types transBeePL_type tes)) ids) 
-                                                                                        (bmembers_cmembers co.(co_members));
-                                                                              do bts <- trans_ctypes_btypes trans_ctype_btype cts;
-                                                                              if eq_types eq_type tes bts 
-                                                                              then OK(t, efs)
-                                                                              else Error (msg "TYPE ERROR: Wrong type inferred for the struct initialization")
-                                                                 | None => Error (msg "TYPE ERROR: Struct fields not found in composite env")
-                                                                 end
+                        | Stype id a => match cenv!id with 
+                                        | Some co => do cts <- type_of_members 
+                                                               (combine (map Ctypes.attr_of_type (transBeePL_types transBeePL_type tes)) ids) 
+                                                                            (bmembers_cmembers co.(co_members));
+                                                     do bts <- trans_ctypes_btypes trans_ctype_btype cts;
+                                                     if eq_types eq_type tes bts 
+                                                     then OK(t, efs)
+                                                     else Error (msg "TYPE ERROR: Wrong type inferred for the struct initialization")
+                                       | None => Error (msg "TYPE ERROR: Struct fields not found in composite env")
+                        end
                      | _ => Error (msg "TYPE ERROR: Struct created in BeePL should always be reftype")
                     end
 | Sfield e x t => do (te, ef) <- type_check_expr cenv Gamma Sigma e;

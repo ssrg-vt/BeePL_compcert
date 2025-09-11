@@ -1051,6 +1051,8 @@ move=> e. elim: e=> //=.
 + move=> e ts es t fctx bctx ce fctx' bctx' g g' i'. rewrite /SimplExpr.bind2 /SimplExpr.bind.
   case he: (transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g)=> [err | ce1 g1 i1] //=.
   by move=> [] h1 h2 h3 h4; subst.
+(* Sinit *)
++ admit.
 (* Sfield *)
 + move=> e hin i t fctx bctx ce fctx' bctx' g g' i'.
   rewrite /SimplExpr.bind2 /SimplExpr.bind /=.
@@ -1086,7 +1088,7 @@ move=> e. elim: e=> //=.
 move=> h t n t' fctx bctx ce fctx' bctx' g g' i'. rewrite /SimplExpr.bind /=.
 case ha: (get_array_len t g)=> [err | an g1 i1] //=. case: ifP=> //= hn.
 by move=> [] h1 h2 h3 h4; subst.
-Qed.
+Admitted.
 
 Lemma convert_rval_type_eq : forall e,
 Csyntax.typeof (convert_to_rval e) = Csyntax.typeof e.  

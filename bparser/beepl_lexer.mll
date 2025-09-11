@@ -27,11 +27,12 @@ rule read_token = parse
   | "then"          { THEN }
   | "else"          { ELSE }
   | "for"           { FOR }
-  | "Up"         { UP }
-  | "Down"       { DOWN }
+  | "Up"            { UP }
+  | "Down"          { DOWN }
+  | "struct"        { STRUCT }
   | "ref"           { REF }
   | "!"             { DEREF }
-  | ":="           { MASSGN }
+  | ":="            { MASSGN }
   | "true"          { BOOL true }
   | "false"         { BOOL false }
   | "unit"          { UNIT }
@@ -44,16 +45,16 @@ rule read_token = parse
   | "bool"          { BOOLTYPE }
   | "ulong"         { ULONGTYPE }
   | "long"          { LONGTYPE }
-  | "bool*"        { RBOOLTYPE }
-  | "int8*"        { RINT8TYPE }
-  | "uint8*"       { RUINT8TYPE }
-  | "int16*"       { RINT16TYPE }
-  | "uint16*"      { RUINT16TYPE }
-  | "int32*"       { RINT32TYPE }
-  | "uint32*"      { RUINT32TYPE }
-  | "long*"        { RLONGTYPE }
-  | "ulong*"       { RULONGTYPE }
-  | "struct*"      { RSTRUCT }
+  | "bool*"         { RBOOLTYPE }
+  | "int8*"         { RINT8TYPE }
+  | "uint8*"        { RUINT8TYPE }
+  | "int16*"        { RINT16TYPE }
+  | "uint16*"       { RUINT16TYPE }
+  | "int32*"        { RINT32TYPE }
+  | "uint32*"       { RUINT32TYPE }
+  | "long*"         { RLONGTYPE }
+  | "ulong*"        { RULONGTYPE }
+  | "struct*"       { RSTRUCT }
   | "oint8*"        { ORINT8TYPE }
   | "ouint8*"       { ORUINT8TYPE }
   | "oint16*"       { ORINT16TYPE }
@@ -94,6 +95,7 @@ rule read_token = parse
   | ">"             { GT }  
   | "<="            { LE }
   | ">="            { GE }
+  | "."             { DOT }
   | '"' ([^ '"' '\n']* as s) '"' { STRING s }
 
   

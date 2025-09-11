@@ -4,16 +4,19 @@
 type token = 
   | XOR
   | WRITE
+  | UP
   | UNIT
   | ULONGTYPE
   | UINT8TYPE
   | UINT32TYPE
   | UINT16TYPE
+  | TSTRUCT
   | TILDE
   | THEN
   | STRUCT
   | STRING of (string)
   | STAR
+  | SINIT
   | SHR
   | SHL
   | SECTION of (string)
@@ -91,10 +94,13 @@ type token =
   | GE
   | FUNTYPE
   | FUNC
+  | FOR
   | EQ
   | EOF
   | EMPTYBRACKETS
   | ELSE
+  | DOWN
+  | DOT
   | DIVERGENCE
   | DIV
   | DEREF

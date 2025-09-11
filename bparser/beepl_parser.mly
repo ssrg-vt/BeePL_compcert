@@ -6,7 +6,7 @@ open Beepl_ast
 %token <int32> INT32
 %token <int64> INT64
 %token <bool> BOOL
-%token UP DOWN
+%token UP DOWN DOT
 %token INT8TYPE UINT8TYPE
 %token INT16TYPE UINT16TYPE 
 %token BOOLTYPE INT32TYPE UINT32TYPE ULONGTYPE LONGTYPE
@@ -19,9 +19,10 @@ open Beepl_ast
 %token ORINT16TYPE ORUINT16TYPE ORINT32TYPE ORUINT32TYPE
 %token ORLONGTYPE ORULONGTYPE ORARRAY ORSTRUCT OSTRUCT
 %token ORABOOL ORAINT8 ORAUINT8 ORAUINT16 ORAINT16 ORAINT32 ORAUINT32 ORALONG ORAULONG
-%token FUNTYPE
+%token FUNTYPE TSTRUCT
 %token FUNC LET IN IF THEN ELSE 
 %token REF DEREF MASSGN
+%token SINIT
 %token TILDE NEG PLUS MINUS MUL DIV MOD AND OR XOR SHL SHR OEQ NEQ LT GT LE GE
 %token CAST
 %token FOR
@@ -49,8 +50,6 @@ open Beepl_ast
 %start <Beepl_ast.program> prog
 
 %%
-
-
 
 prog:
   | tops = toplevel_list EOF { tops }
@@ -120,7 +119,7 @@ typ:
   | RUINT32TYPE { Ptr (Reftype ("h", (Bprim Tuint32))) }
   | RLONGTYPE { Ptr (Reftype ("h", (Bprim Tlong))) }
   | RULONGTYPE { Ptr (Reftype ("h", (Bprim Tulong))) }
-  | STRUCT IDENT STAR { Ptr (Reftype ("h", (Bstruct $2))) }
+  | STRUCT IDENT MUL { Ptr (Reftype ("h", (Bstruct $2))) }
   | RABOOL LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tbool, Int32.to_int n)))) }
   | RAINT8 LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tint8, Int32.to_int n)))) }
   | RAUINT8 LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tuint8, Int32.to_int n)))) }
@@ -149,6 +148,7 @@ typ:
   | ORAUINT32 LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ("h", (Barray (Tuint32, Int32.to_int n))))) }
   | ORALONG LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ("h", (Barray (Tlong, Int32.to_int n))))) }
   | ORAULONG LBRACE n = INT32 RBRACE { Ptr (Otype ((Reftype ("h", (Barray (Tulong, Int32.to_int n)))))) }
+  | STRUCT id = IDENT { Stype id }
   | FUNTYPE LPAREN args = separated_list(COMMA, typ) RPAREN
     COLON eff = separated_list(COMMA, effect) COMMA ret = typ { Ftype(args, eff, ret) }
 
@@ -225,4 +225,9 @@ expr:
   | IF e1 = expr THEN e2 = expr ELSE e3 = expr
     { If(e1, e2, e3) }
   | FOR LPAREN e1 = expr COMMA e2 = expr COMMA d = dir COMMA e3 = expr RPAREN
-    { For(e1, e2, d, e3) }   
+    { For(e1, e2, d, e3) } 
+  | STRUCT id = IDENT LPAREN fields = separated_nonempty_list(COMMA, IDENT) RPAREN
+    LPAREN args = separated_nonempty_list(COMMA, expr) RPAREN
+    { Sinit(id, fields, args) }
+  | e = expr DOT id = IDENT
+    { Fget(e, id) }

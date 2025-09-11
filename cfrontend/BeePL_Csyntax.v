@@ -222,7 +222,23 @@ match t with
 | _ => error (msg "COMPILER ERROR: The type of argument of shr should be int or long")
 end.
 
-Fixpoint init_struct_fields (sid : ident) (fields : list (ident * Csyntax.expr)) (t : Ctypes.type) 
+Fixpoint init_struct_fields
+  (tmp   : ident)
+  (tstr  : Ctypes.type)
+  (pairs : list (ident * Csyntax.expr))
+  (ret   : Csyntax.expr)
+  (ret_ty: Ctypes.type)
+  : Csyntax.expr :=
+  match pairs with
+  | nil => ret
+  | (f, e) :: rest =>
+      let tf  := typeof e in
+      let lhs := Efield (Evar tmp tstr) f tf in
+      let asg := Eassign lhs e tf in
+      Ecomma asg (init_struct_fields tmp tstr rest ret ret_ty) ret_ty
+  end.
+
+(*Fixpoint init_struct_fields (sid : ident) (fields : list (ident * Csyntax.expr)) (t : Ctypes.type) 
 (t' : Ctypes.type) {struct fields} : mon Csyntax.statement :=
 match fields with
 | nil => ret Sskip
@@ -230,7 +246,7 @@ match fields with
                     let ff := (Sdo (Eassign lhs e (typeof e))) in
                     do rs <- (init_struct_fields sid rest t t');
                     ret (Ssequence ff rs)
-end.
+end.*)
 
 Fixpoint use_comma_rec (ces : list Csyntax.expr) : expr :=
 match ces with 
@@ -238,6 +254,21 @@ match ces with
 | ce :: ces => let ces' := (use_comma_rec ces) in
                (Ecomma ce ces' (Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr))
 end.
+
+Fixpoint assign_struct_fields_chain
+  (base    : Csyntax.expr)                       (* e.g. Evar tmp (Tstruct ...) *)
+  (pairs   : list (ident * Csyntax.expr))        (* (field, rhs) list *)
+  (tail    : Csyntax.expr)                       (* expression after inits *)
+  (tail_ty : Ctypes.type)
+  : Csyntax.expr :=
+  match pairs with
+  | nil => tail
+  | (f,e) :: rest =>
+      let tf  := typeof e in
+      let lhs := Efield base f tf in             (* base.f *)
+      let asg := Eassign lhs e tf in             (* base.f = e *)
+      Ecomma asg (assign_struct_fields_chain base rest tail tail_ty) tail_ty
+  end.
 
 Fixpoint transBeePL_expr_expr (e : BeePL.expr) (fn_ctx : list (ident * BeeTypes.type * string)) (bctx : bcompiler_ctx) : 
 mon (Csyntax.expr * (list (ident * BeeTypes.type * string)) * bcompiler_ctx) := 
@@ -350,7 +381,37 @@ end
                      let ct := (transBeePL_type t) in
                      do (ces, bctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx bctx);
                      ret (Ebuiltin cef cts (fst ces) ct, snd ces, bctx')
-| Sinit x ids es t => error (msg "COMPILER ERROR: Struct creation cannot be translated to another C epxr")
+| Sinit sid fnames es t =>
+    (* translate constructor arguments *)
+    do (ces, bctx') <- transBeePL_expr_exprs transBeePL_expr_expr es fn_ctx bctx;
+    do (tmp, tag)   <- fresh_ident (List.map unzip_ident (snd ces)) max_fresh;
+
+    (* tmp : struct sid *)
+    let tstruct  := Ctypes.Tstruct sid Ctypes.noattr in
+    let base     := Evar tmp tstruct in
+    let args     := exprlist_list_expr (fst ces) in
+    let pairs    := combine fnames args in
+
+    match t with
+    (* Sinit : struct value *)
+    | BeeTypes.Stype sid' noattr =>
+        let chain := assign_struct_fields_chain base pairs base tstruct in
+        let fn_ctx' := (tmp, BeeTypes.Stype sid' noattr, tag) :: (snd ces) in
+        ret (chain, fn_ctx', bctx')
+
+    (* Sinit : pointer to struct *)
+    | BeeTypes.Ptrtype (BeeTypes.Reftype _ (BeeTypes.Bstruct sid' _) _) =>
+        let tptr   := Ctypes.Tpointer tstruct Ctypes.noattr in
+        let addr   := Eaddrof base tptr in
+        let chain  := assign_struct_fields_chain base pairs addr tptr in
+        let fn_ctx' := (tmp, BeeTypes.Stype sid' noattr, tag) :: (snd ces) in
+        ret (chain, fn_ctx', bctx')
+
+    | _ => error (msg "Sinit expects struct or pointer-to-struct type")
+    end
+(* t init_struct_fields (sid : ident) (fields : list (ident * Csyntax.expr)) (t : Ctypes.type) 
+(t' : Ctypes.type) {struct fields}*) 
+(*| Sinit x ids es t => error (msg "COMPILER ERROR: Struct creation should be done inside a let-binding")*)
 | Sfield e x t => do (ce, bctx') <- transBeePL_expr_expr e fn_ctx bctx;
                   let ct := transBeePL_type t in
                   ret (Efield (Evalof (fst ce) (transBeePL_type (typeof_expr e))) x ct, snd ce, bctx')
@@ -524,6 +585,21 @@ match es with
                                r)
 end.
 
+Fixpoint init_struct_fields_stmt
+  (x    : ident)                    (* target C local (already declared) *)
+  (tstr : Ctypes.type)              (* C struct type of [x] *)
+  (ps   : list (ident * Csyntax.expr))  (* (field, rhs) list *)
+  : Csyntax.statement :=
+  match ps with
+  | nil => Sskip
+  | (f, rhs) :: rest =>
+      let tf  := typeof rhs in
+      let lhs := Efield (Evar x tstr) f tf in    (* x.f *)
+      Ssequence
+        (Sdo (Eassign lhs rhs tf))               (* x.f = rhs; *)
+        (init_struct_fields_stmt x tstr rest)
+  end.
+
 Fixpoint transBeePL_expr_st (cenv : bcomposite_env) (e : BeePL.expr ) (ctx : list (ident * BeeTypes.type * string)) (bctx : bcompiler_ctx) : 
 mon (Csyntax.statement * list (ident * BeeTypes.type * string) * bcompiler_ctx) :=
 match e with 
@@ -606,7 +682,31 @@ match e with
                       | Prim Massgn es t => do (ce, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst ce) (fst ce'), snd ce, ctx'') 
                       | For e1 e2 d e3 t => do (cs, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst cs) (fst ce'), snd cs, ctx'') 
                       | Ainit a t es t' => do (ce, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst ce) (fst ce'), snd ce, ctx'') 
-                      | Sinit sx ids es t =>  do (cs, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst cs) (fst ce'), snd cs, ctx'') 
+                      | Sinit sx ids es t =>  
+                          (* translate initializer expressions *)
+                          do (ces, bctx1) <- transBeePL_expr_exprs transBeePL_expr_expr es (snd ce') bctx;
+                          let rhs_list := exprlist_list_expr (fst ces) in
+                          (* get the field and value pair *)
+                          let pairs    := combine ids rhs_list in
+                          match transBeePL_type t with
+                          (* Case A: let p : struct S = struct S { … } *)
+                          | Ctypes.Tstruct sid' a as tstr =>
+                              let s_init := init_struct_fields_stmt x tstr pairs in
+                              ret (Ssequence s_init (fst ce'), (snd ce'), bctx1)
+
+                          (* Case B: let p : struct S* = struct S { … } *)
+                          | Ctypes.Tpointer (Ctypes.Tstruct sid' a as tstr) aptr =>
+                              (* Make a fresh local tmp : struct S; remember it in fn_ctx so it gets declared *)
+                              do (tmp, tag) <- fresh_ident (List.map unzip_ident (snd ces)) max_fresh;
+                              let fn_ctx2 := (tmp, BeeTypes.Stype sid' a, tag) :: (snd ces) in
+                              let s_tmp_init := init_struct_fields_stmt tmp tstr pairs in
+                              let sptr := Ctypes.Tpointer tstr aptr in
+                              let s_assign_x := Sdo (Eassign (Evar x sptr) (Eaddrof (Evar tmp tstr) sptr) sptr) in
+                              ret (Ssequence s_tmp_init (Ssequence s_assign_x (fst ce')), (snd ce'), bctx1)
+
+                          | _ =>
+                              error (msg "Sinit let-binding must have struct or pointer-to-struct type")
+                          end
                       | Bind x1 t1 e1 e1' t1' =>  do (cs, ctx'') <- (transBeePL_expr_st cenv e (snd ce') ctx'); ret (Ssequence (fst cs) (fst ce'), snd cs, ctx'') 
                       | _ => if (x =? Ctypesdefs.ident_of_string "_")%positive 
                              then do (ce, ctx'') <- (transBeePL_expr_expr e (snd ce') ctx');
@@ -636,17 +736,18 @@ match e with
                      let ct := (transBeePL_type t) in
                      do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es ctx bctx);
                      ret (Sdo (Ebuiltin cef cts (fst ces) ct), snd ces, ctx')
-| Sinit sx ids es t => do (ces, ctx') <- transBeePL_expr_exprs transBeePL_expr_expr es ctx bctx;
-                         do (temp, strl) <- (fresh_ident (List.map unzip_ident (snd ces)) max_fresh);
-                         do pty <- ref_to_prim t;
-                         let ctx'' := (temp, pty, strl) :: snd ces in
-                         do rs <- init_struct_fields sx (zip ids (exprlist_list_expr (fst ces))) (transBeePL_type t) (transBeePL_type pty);
-                         ret (Ssequence (Sdo (Eassign (Evar sx (transBeePL_type t)) 
+| Sinit sx ids es t => error (msg "COMPILER ERROR: Struct creation should be done inside a let-binding") 
+                       (*do (ces, ctx') <- transBeePL_expr_exprs transBeePL_expr_expr es ctx bctx;
+                       do (temp, strl) <- (fresh_ident (List.map unzip_ident (snd ces)) max_fresh);
+                       do pty <- ref_to_prim t;
+                       let ctx'' := (temp, pty, strl) :: snd ces in
+                       do rs <- init_struct_fields sx (zip ids (exprlist_list_expr (fst ces))) (transBeePL_type t) (transBeePL_type pty);
+                       ret (Ssequence (Sdo (Eassign (Evar sx (transBeePL_type t)) 
                                                                          (Eaddrof (Evar temp (transBeePL_type pty)) (transBeePL_type t)) (transBeePL_type t)))
-                                                            rs, ctx'', ctx')
+                                                            rs, ctx'', ctx')*)
 | Sfield e x t => do (ce, ctx') <- transBeePL_expr_expr e ctx bctx;
                   let ct := transBeePL_type t in
-                  ret (Sdo (Evalof (Efield (Evalof (fst ce) (transBeePL_type (typeof_expr e))) x ct) ct), snd ce, ctx')
+                  ret (Sreturn (Some (Evalof (Efield (Evalof (fst ce) (transBeePL_type (typeof_expr e))) x ct) ct)), snd ce, ctx')
 | For e1 e2 d e t => do (ce1, bctx1) <- transBeePL_expr_expr e1 ctx bctx;
                      do (low, strl) <- (fresh_ident (List.map unzip_ident (snd ce1)) max_fresh);
                      let ctx2 := (low, typeof_expr e1, strl) :: snd ce1 in

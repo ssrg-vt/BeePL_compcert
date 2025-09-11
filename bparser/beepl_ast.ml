@@ -84,6 +84,8 @@ type expr =
   | Let of string * typ * expr * expr
   | If of expr * expr * expr
   | For of expr * expr * dir * expr  
+  | Sinit of string * string list * expr list  
+  | Fget of expr * string
 
 type fundecl =
   | Tfundecl of string * typ * effect list * (string * typ) list * (string * typ) list * expr
@@ -114,4 +116,7 @@ let rec collect_vars (e : expr) : (string * typ) list =
       collect_vars e1 @ collect_vars e2 @ collect_vars e3
   | For (e1, e2, d, e3) ->
       collect_vars e1 @ collect_vars e2 @ collect_vars e3
-
+  | Sinit (struct_name, fnames, exprs) ->
+      List.flatten (List.map collect_vars exprs)
+  | Fget (e, field_name) ->
+      collect_vars e

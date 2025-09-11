@@ -28,32 +28,41 @@ let int_to_coq_z n =
   else if n > 0 then Zpos (int_to_positive n)
   else Zneg (int_to_positive (-n))
 
-  let collect_global_env (prog : Beepl_ast.program) : Beepl_ast_typechecker.tyenv =
-  
-    let env_with_externals =
-      List.fold_left (fun acc (id, t) -> Beepl_ast_typechecker.Env.add id t acc)
-        Beepl_ast_typechecker.Env.empty Beepl_ast_typechecker.predefined_externals
-    in
-  
-    let ftype_of_decl (Beepl_ast.Tfundecl (name, ret, eff, args, _, _)) =
-      (name, Ftype (List.map snd args, eff, ret))
-    in
-    let bindings =
-      List.filter_map (function
-        | Beepl_ast.Internal (f, _) | Beepl_ast.EBPFInternal (f, _) -> Some (ftype_of_decl f)
-        | Beepl_ast.StructDecl _ -> None
-        | Beepl_ast.GlobalLet (x, t, _) -> Some (x, t)
-      ) prog
-    in
-  
+(* Build a struct environment (senv) from top-level struct declarations *)
+let build_senv (prog : Beepl_ast.program) : Beepl_ast_typechecker.Senv.t =
+  List.fold_left
+    (fun acc -> function
+      | Beepl_ast.StructDecl (name, fields) ->
+          Beepl_ast_typechecker.Senv.add name fields acc
+      | _ -> acc)
+    Beepl_ast_typechecker.Senv.empty
+    prog
+
+let collect_global_env (prog : Beepl_ast.program) : Beepl_ast_typechecker.tyenv =
+  let env_with_externals =
     List.fold_left (fun acc (id, t) -> Beepl_ast_typechecker.Env.add id t acc)
-      env_with_externals bindings
+      Beepl_ast_typechecker.Env.empty Beepl_ast_typechecker.predefined_externals
+  in
+
+  let ftype_of_decl (Beepl_ast.Tfundecl (name, ret, eff, args, _, _)) =
+    (name, Ftype (List.map snd args, eff, ret))
+  in
+  let bindings =
+    List.filter_map (function
+      | Beepl_ast.Internal (f, _) | Beepl_ast.EBPFInternal (f, _) -> Some (ftype_of_decl f)
+      | Beepl_ast.StructDecl _ -> None
+      | Beepl_ast.GlobalLet (x, t, _) -> Some (x, t)
+    ) prog
+  in
+
+  List.fold_left (fun acc (id, t) -> Beepl_ast_typechecker.Env.add id t acc)
+    env_with_externals bindings
   
 
 let collect_idents (prog : Beepl_ast.program) : string list =
   let idents = ref [] in
   let add_ident x =
-    if not (String.length x >= 13 && String.sub x 0 13 = "___stringlit_") &&
+    if not (String.length x >= 12 && String.sub x 0 12 = "___stringlit_") &&
        not (List.mem x !idents)
     then idents := x :: !idents
   in
@@ -69,6 +78,10 @@ let collect_idents (prog : Beepl_ast.program) : string list =
     | Beepl_ast.Let (x, _, e1, e2) -> add_ident x; from_expr e1; from_expr e2
     | Beepl_ast.If (e1, e2, e3) -> from_expr e1; from_expr e2; from_expr e3
     | Beepl_ast.For (e1, e2, _, e3) -> from_expr e1; from_expr e2; from_expr e3
+    | Beepl_ast.Sinit (s, fields, exprs) ->
+        List.iter from_expr exprs
+    | Beepl_ast.Fget (e, _) -> from_expr e
+
   in
   let from_effect = function
     | Beepl_ast.Read s | Beepl_ast.Write s | Beepl_ast.Alloc s -> add_ident s
@@ -213,6 +226,10 @@ let rec resolve_overloaded_op (e : expr) (typ : typ) : expr =
       If (resolve_overloaded_op e1 (Vtype Tbool), resolve_overloaded_op e2 typ, resolve_overloaded_op e3 typ)
   | For (e1, e2, d, e3) ->
       For (resolve_overloaded_op e1 typ, resolve_overloaded_op e2 typ, d, resolve_overloaded_op e3 typ)
+  | Sinit (s, fields, exprs) ->
+      Sinit (s, fields, List.map (fun a -> resolve_overloaded_op a typ) exprs)
+  | Fget (e, field) ->
+      Fget (resolve_overloaded_op e typ, field)
   | _ -> e
 
 let transform_dir (d : Beepl_ast.dir) : BeePL_values.dir =
@@ -220,8 +237,8 @@ let transform_dir (d : Beepl_ast.dir) : BeePL_values.dir =
   | Beepl_ast.Up -> BeePL_values.Up
   | Beepl_ast.Down -> BeePL_values.Down
 
-let rec transform_expr (env : Beepl_ast_typechecker.tyenv) (e : Beepl_ast.expr) : BeePL.expr =
-  let typ = Beepl_ast_typechecker.infer_expr env e in
+let rec transform_expr (senv : Beepl_ast_typechecker.Senv.t) (env : Beepl_ast_typechecker.tyenv) (e : Beepl_ast.expr) : BeePL.expr =
+  let typ = Beepl_ast_typechecker.infer_expr senv env e in
   let e' = resolve_overloaded_op e typ in
   let t' = transform_typ typ in
   match e' with
@@ -248,43 +265,50 @@ let rec transform_expr (env : Beepl_ast_typechecker.tyenv) (e : Beepl_ast.expr) 
     
     
   | Beepl_ast.App (e1, args) ->
-      let e1' = transform_expr env e1 in
-      let args' = List.map (transform_expr env) args in
+      let e1' = transform_expr senv env e1 in
+      let args' = List.map (transform_expr senv env) args in
       BeePL.App (e1', args', t')
   | Beepl_ast.Prim (Uop uop, args) ->
-    let args' = List.map (transform_expr env) args in
+    let args' = List.map (transform_expr senv env) args in
     BeePL.Prim (transform_builtin (Beepl_ast.Uop uop), args', t')
   | Beepl_ast.Prim (Bop bop, args) ->
-    let args' = List.map (transform_expr env) args in
+    let args' = List.map (transform_expr senv env) args in
     BeePL.Prim (transform_builtin (Beepl_ast.Bop bop), args', t')
   | Beepl_ast.Prim (Cast t, args) ->
-      let args' = List.map (transform_expr env) args in
+      let args' = List.map (transform_expr senv env) args in
       let t'' = transform_typ t in
       BeePL.Prim (BeePL.Cast t'', args', t')
   | Beepl_ast.Prim (Ref, args) ->
-      let args' = List.map (transform_expr env) args in
+      let args' = List.map (transform_expr senv env) args in
       BeePL.Prim (BeePL.Ref, args', t')
   | Beepl_ast.Prim (Deref, args) ->
-      let args' = List.map (transform_expr env) args in
+      let args' = List.map (transform_expr senv env) args in
       BeePL.Prim (BeePL.Deref, args', t')
   | Beepl_ast.Prim (Massgn, args) ->
-      let args' = List.map (transform_expr env) args in
+      let args' = List.map (transform_expr senv env) args in
       BeePL.Prim (BeePL.Massgn, args', t')
   | Beepl_ast.Let (x, t, e1, e2) ->
-      let e1' = transform_expr env e1 in
+      let e1' = transform_expr senv env e1 in
       let env' = Beepl_ast_typechecker.Env.add x t env in
-      let e2' = transform_expr env' e2 in
+      let e2' = transform_expr senv env' e2 in
       BeePL.Bind (Camlcoq.intern_string x, transform_typ t, e1', e2', t')
   | Beepl_ast.If (e1, e2, e3) ->
-      let e1' = transform_expr env e1 in
-      let e2' = transform_expr env e2 in
-      let e3' = transform_expr env e3 in
+      let e1' = transform_expr senv env e1 in
+      let e2' = transform_expr senv env e2 in
+      let e3' = transform_expr senv env e3 in
       BeePL.Cond (e1', e2', e3', t')
   | Beepl_ast.For (e1, e2, d, e3) ->
-      let e1' = transform_expr env e1 in
-      let e2' = transform_expr env e2 in
-      let e3' = transform_expr env e3 in
+      let e1' = transform_expr senv env e1 in
+      let e2' = transform_expr senv env e2 in
+      let e3' = transform_expr senv env e3 in
       BeePL.For (e1', e2', transform_dir d, e3', t')
+  | Beepl_ast.Sinit (s, fnames, exprs) ->
+      let exprs' = List.map (transform_expr senv env) exprs in
+      let fnames' = List.map Camlcoq.intern_string fnames in
+      BeePL.Sinit (Camlcoq.intern_string s, fnames', exprs', t')
+  | Beepl_ast.Fget (e, field) ->
+      let e' = transform_expr senv env e in
+      BeePL.Sfield (e', Camlcoq.intern_string field, t')
       
 
 let rec collect_vars (e : Beepl_ast.expr) : (string * Beepl_ast.typ) list =
@@ -309,13 +333,17 @@ let rec collect_vars (e : Beepl_ast.expr) : (string * Beepl_ast.typ) list =
       unique_vars (collect_vars e1 @ collect_vars e2 @ collect_vars e3)
   | Beepl_ast.For (e1, e2, _, e3) ->
       unique_vars (collect_vars e1 @ collect_vars e2 @ collect_vars e3)
+  | Beepl_ast.Sinit (s, fields, exprs) ->
+      unique_vars (List.flatten (List.map collect_vars exprs)) 
+  | Beepl_ast.Fget (e, _) ->
+      collect_vars e     
 
-let transform_function fdecl is_ebpf global_env =
+let transform_function fdecl is_ebpf senv global_env =
   let Tfundecl (name, ret, eff, args, _, body) = fdecl in
   let local_env = List.fold_left (fun acc (x, t) -> Beepl_ast_typechecker.Env.add x t acc) global_env args in
   let fn_args = List.map (fun (id, t) -> (Camlcoq.intern_string id, transform_typ t)) args in
   let fn_vars = List.map (fun (id, t) -> (Camlcoq.intern_string id, transform_typ t)) (collect_vars body) in
-  let fn_body = transform_expr local_env body in
+  let fn_body = transform_expr senv local_env body in
   {
     BeePL.fn_return = transform_typ ret;
     BeePL.fn_effect = transform_effect_list eff;
@@ -335,13 +363,13 @@ let transform_struct (name : string) (fields : (string * Beepl_ast.typ) list) : 
 
 let get_fun_name (Tfundecl (name, _, _, _, _, _)) = name
 
-let transform_toplevel global_env = function
+let transform_toplevel senv global_env = function
 | Internal(f, sec) ->
     let id = Camlcoq.intern_string (get_fun_name f) in
-    `Fun (id, transform_function f false global_env, sec)
+    `Fun (id, transform_function f false senv global_env, sec)
 | EBPFInternal(f, sec) ->
     let id = Camlcoq.intern_string (get_fun_name f) in
-    `Fun (id, transform_function f true global_env, sec)
+    `Fun (id, transform_function f true senv global_env, sec)
 | StructDecl (name, fields) ->
     let id = Camlcoq.intern_string name in
     `Struct (id, transform_struct name fields)
@@ -413,10 +441,11 @@ let init_data_of_string (s : string) : AST.init_data list =
   
     let prog_ident_to_string =
       List.map (fun s -> (get_id s, string_to_char_list s)) idents in
-  
+    
+    let senv = build_senv prog in
     let global_env = collect_global_env prog in
     let transformed_decls =
-        List.map (transform_toplevel global_env) prog in
+        List.map (transform_toplevel senv global_env) prog in
   
     let prog_types =
       List.filter_map (function `Struct (_, s) -> Some s | _ -> None) transformed_decls in

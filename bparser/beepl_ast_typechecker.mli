@@ -7,28 +7,30 @@ exception TypeError of string
 module Env : Map.S with type key = string
 type tyenv = typ Env.t
 
-val predefined_externals : (string * Beepl_ast.typ) list
+module Senv : sig
+    type t
+    val empty : t
+    val add : string -> (string * typ) list -> t -> t
+    val find : string -> t -> (string * typ) list
+    val find_field : string -> string -> t -> typ
+    val fields_of : string -> t -> (string * typ) list
+  end
+
+(** Build a struct environment from the program’s StructDecls. *)
+val build_senv : program -> Senv.t
+
+val predefined_externals : (string * typ) list
 
 val list_to_env : (string * typ) list -> tyenv
 
 val string_of_ptype : ptype -> string
-
 val string_of_typ : typ -> string
 
-(** Check if two primitive types are equal. *)
+(** Type inference for expressions (needs struct env + var env). *)
+val infer_expr : Senv.t -> tyenv -> expr -> typ
 
-(** Convert a type to a string representation. *)
+(** Type check a function declaration. *)
+val infer_fundecl : fundecl -> Senv.t -> tyenv -> unit
 
-(** Check that an expression is well-typed under the given environment.
-    Returns the inferred type of the expression. Raises [TypeError] on failure. *)
-val infer_expr : tyenv -> expr -> typ
-
-(** Type check a function declaration. Raises [TypeError] if invalid. *)
-val infer_fundecl : fundecl -> tyenv -> unit
-
-(** Type check an entire program. Raises [TypeError] if any function is invalid. *)
+(** Type check an entire program. Builds Senv internally. *)
 val infer_program : program -> unit
-
-
-
-
