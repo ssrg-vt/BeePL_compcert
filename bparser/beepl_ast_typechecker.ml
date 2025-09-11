@@ -249,6 +249,17 @@ let rec infer_expr (env : tyenv) (e : expr) : typ =
       if not (typ_eq t2 t3) then
         raise (TypeError "If branches have mismatched types");
       t2
+  | For (e1, e2, d, e3) ->
+      let t1 = infer_expr env e1 in
+      let t2 = infer_expr env e2 in
+      let t3 = infer_expr env e3 in
+      if (typ_eq t1 t2) && (match t1 with
+        | Vtype Tint8 | Vtype Tint16 | Vtype Tint32
+        | Vtype Tuint8 | Vtype Tuint16 | Vtype Tuint32
+        | Vtype Tlong | Vtype Tulong -> true
+        | _ -> false)
+      then t3
+      else raise (TypeError "For loop bounds must be matching integer/long types")
 
 let infer_fundecl (Tfundecl (_name, ret_type, _eff, args, _vars, body)) (global_env : tyenv) =
   let env_with_args = List.fold_left (fun acc (x, ty) -> Env.add x ty acc) global_env args in

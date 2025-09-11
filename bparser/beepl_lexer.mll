@@ -26,6 +26,9 @@ rule read_token = parse
   | "if"            { IF }
   | "then"          { THEN }
   | "else"          { ELSE }
+  | "for"           { FOR }
+  | "Up"         { UP }
+  | "Down"       { DOWN }
   | "ref"           { REF }
   | "!"             { DEREF }
   | ":="           { MASSGN }

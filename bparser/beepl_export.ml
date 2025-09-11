@@ -53,6 +53,8 @@ let rec from_expr acc e =
       from_expr (from_expr (if List.mem x acc then acc else x :: acc) e1) e2
   | If (e1, e2, e3) ->
       List.fold_left from_expr acc [e1; e2; e3]
+  | For (e1, e2, _, e3) ->
+      List.fold_left from_expr acc [e1; e2; e3]
 in
 let idents_from_prog =
   List.fold_left (fun acc top ->
@@ -320,6 +322,16 @@ let rec export_expr_to_coq (env : (string * typ) list) (e : expr) : string =
         (export_expr_to_coq env e2)
         (export_expr_to_coq env e3)
         ty2
+  | For (e1, e2, dir, e3) ->
+      let dir_str = match dir with Up -> "Up" | Down -> "Down" in
+      let ty3 = export_typ_to_coq (infer_expr (list_to_env env) e3) in
+      Printf.sprintf 
+      "(For (%s)\n                  (%s)\n                  %s\n                  (%s)\n                  (%s))"
+        (export_expr_to_coq env e1)
+        (export_expr_to_coq env e2)
+        dir_str
+        (export_expr_to_coq env e3)
+        ty3
 
 let export_transform_function ~globals (Tfundecl (name, ret, eff, args, vars, body)) is_ebpf =
   let env = args @ vars @ globals in (* Build (string * typ) list environment *)

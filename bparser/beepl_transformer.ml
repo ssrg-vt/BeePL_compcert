@@ -68,6 +68,7 @@ let collect_idents (prog : Beepl_ast.program) : string list =
     | Beepl_ast.Prim (_, args) -> List.iter from_expr args
     | Beepl_ast.Let (x, _, e1, e2) -> add_ident x; from_expr e1; from_expr e2
     | Beepl_ast.If (e1, e2, e3) -> from_expr e1; from_expr e2; from_expr e3
+    | Beepl_ast.For (e1, e2, _, e3) -> from_expr e1; from_expr e2; from_expr e3
   in
   let from_effect = function
     | Beepl_ast.Read s | Beepl_ast.Write s | Beepl_ast.Alloc s -> add_ident s
@@ -210,7 +211,14 @@ let rec resolve_overloaded_op (e : expr) (typ : typ) : expr =
       Let (x, ty, resolve_overloaded_op e1 ty, resolve_overloaded_op e2 typ)
   | If (e1, e2, e3) ->
       If (resolve_overloaded_op e1 (Vtype Tbool), resolve_overloaded_op e2 typ, resolve_overloaded_op e3 typ)
+  | For (e1, e2, d, e3) ->
+      For (resolve_overloaded_op e1 typ, resolve_overloaded_op e2 typ, d, resolve_overloaded_op e3 typ)
   | _ -> e
+
+let transform_dir (d : Beepl_ast.dir) : BeePL_values.dir =
+  match d with
+  | Beepl_ast.Up -> BeePL_values.Up
+  | Beepl_ast.Down -> BeePL_values.Down
 
 let rec transform_expr (env : Beepl_ast_typechecker.tyenv) (e : Beepl_ast.expr) : BeePL.expr =
   let typ = Beepl_ast_typechecker.infer_expr env e in
@@ -272,6 +280,11 @@ let rec transform_expr (env : Beepl_ast_typechecker.tyenv) (e : Beepl_ast.expr) 
       let e2' = transform_expr env e2 in
       let e3' = transform_expr env e3 in
       BeePL.Cond (e1', e2', e3', t')
+  | Beepl_ast.For (e1, e2, d, e3) ->
+      let e1' = transform_expr env e1 in
+      let e2' = transform_expr env e2 in
+      let e3' = transform_expr env e3 in
+      BeePL.For (e1', e2', transform_dir d, e3', t')
       
 
 let rec collect_vars (e : Beepl_ast.expr) : (string * Beepl_ast.typ) list =
@@ -293,6 +306,8 @@ let rec collect_vars (e : Beepl_ast.expr) : (string * Beepl_ast.typ) list =
   | Beepl_ast.App (e1, args) ->
       unique_vars (collect_vars e1 @ List.flatten (List.map collect_vars args))
   | Beepl_ast.If (e1, e2, e3) ->
+      unique_vars (collect_vars e1 @ collect_vars e2 @ collect_vars e3)
+  | Beepl_ast.For (e1, e2, _, e3) ->
       unique_vars (collect_vars e1 @ collect_vars e2 @ collect_vars e3)
 
 let transform_function fdecl is_ebpf global_env =

@@ -6,6 +6,7 @@ open Beepl_ast
 %token <int32> INT32
 %token <int64> INT64
 %token <bool> BOOL
+%token UP DOWN
 %token INT8TYPE UINT8TYPE
 %token INT16TYPE UINT16TYPE 
 %token BOOLTYPE INT32TYPE UINT32TYPE ULONGTYPE LONGTYPE
@@ -23,6 +24,7 @@ open Beepl_ast
 %token REF DEREF MASSGN
 %token TILDE NEG PLUS MINUS MUL DIV MOD AND OR XOR SHL SHR OEQ NEQ LT GT LE GE
 %token CAST
+%token FOR
 %token LPAREN RPAREN COLON COMMA EQ
 %token LBRACE RBRACE
 %token IO DIVERGENCE READ WRITE ALLOC EMPTYBRACKETS
@@ -33,18 +35,16 @@ open Beepl_ast
 %token STAR    
 %token EOF
 
-%left PLUS MINUS       /* operators are left associative (a - b) - c */
-%left MUL DIV MOD 
-%left AND 
-%left OR 
-%left XOR
-%left SHL
-%left SHR
-%nonassoc OEQ               /* comparison is non-associative a == b == c is not allowed */
-%nonassoc NEQ              /* comparison is non-associative a != b != c is not allowed */
-%nonassoc LT GT LE
-%nonassoc DEREF REF UMINUS TILDE  /* unary operators are non-associative */
-%right MASSGN
+%right  MASSGN            /* := lowest precedence, right-assoc */
+%left   OR                /* |  (lowest among bitwise) */
+%left   XOR               /* ^ */
+%left   AND               /* &  (highest among bitwise) */
+%nonassoc OEQ NEQ         /* == != */
+%nonassoc LT LE GT GE     /* < <= > >= */
+%left   SHL SHR           /* << >> */
+%left   PLUS MINUS        /* + - */
+%left   MUL DIV MOD       /* * / % */
+%nonassoc DEREF REF UMINUS TILDE   /* unary: highest */
 
 %start <Beepl_ast.program> prog
 
@@ -72,6 +72,7 @@ toplevel:
     { StructDecl(id, fields) }
   | LET id = IDENT COLON t = typ EQ e = expr
     { GlobalLet(id, t, e) }
+  
 
 annotations:
   | anns = annotation_list { anns }
@@ -153,6 +154,10 @@ typ:
 
 (* --- END OF typ --- *)
 
+dir : 
+  | UP   { Up }
+  | DOWN { Down }
+
 const:
   | b = BOOL { Cbool b }
   | UNIT     { Cunit }
@@ -219,3 +224,5 @@ expr:
     { Let(id, t, e1, e2) }
   | IF e1 = expr THEN e2 = expr ELSE e3 = expr
     { If(e1, e2, e3) }
+  | FOR LPAREN e1 = expr COMMA e2 = expr COMMA d = dir COMMA e3 = expr RPAREN
+    { For(e1, e2, d, e3) }   

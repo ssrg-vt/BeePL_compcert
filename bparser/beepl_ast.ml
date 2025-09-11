@@ -73,6 +73,8 @@ type builtin =
   | Deref 
   | Massgn
 
+type dir = Up | Down
+
 (** The type of the abstract syntax tree (AST). *)
 type expr =
   | Var of string
@@ -81,6 +83,7 @@ type expr =
   | Prim of builtin * expr list
   | Let of string * typ * expr * expr
   | If of expr * expr * expr
+  | For of expr * expr * dir * expr  
 
 type fundecl =
   | Tfundecl of string * typ * effect list * (string * typ) list * (string * typ) list * expr
@@ -108,5 +111,7 @@ let rec collect_vars (e : expr) : (string * typ) list =
       (* Collect variables from both subexpressions and prepend current binding *)
       (id, ty) :: (collect_vars e1 @ collect_vars e2)
   | If (e1, e2, e3) ->
+      collect_vars e1 @ collect_vars e2 @ collect_vars e3
+  | For (e1, e2, d, e3) ->
       collect_vars e1 @ collect_vars e2 @ collect_vars e3
 
