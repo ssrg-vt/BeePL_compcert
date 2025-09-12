@@ -28,8 +28,10 @@ open Beepl_ast
 %token FOR
 %token LPAREN RPAREN COLON COMMA EQ
 %token LBRACE RBRACE
+%token ARRAY LBRACK RBRACK
 %token IO DIVERGENCE READ WRITE ALLOC EMPTYBRACKETS
 %token STRUCT
+%token AINIT AACEESS
 %token HASHEBPF
 %token <string> STRING
 %token <string> SECTION
@@ -149,6 +151,7 @@ typ:
   | ORALONG LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ("h", (Barray (Tlong, Int32.to_int n))))) }
   | ORAULONG LBRACE n = INT32 RBRACE { Ptr (Otype ((Reftype ("h", (Barray (Tulong, Int32.to_int n)))))) }
   | STRUCT id = IDENT { Stype id }
+  | t = typ LBRACK n = INT32 RBRACK { Atype(t, Int32.to_int n) }
   | FUNTYPE LPAREN args = separated_list(COMMA, typ) RPAREN
     COLON eff = separated_list(COMMA, effect) COMMA ret = typ { Ftype(args, eff, ret) }
 
@@ -164,6 +167,9 @@ const:
   | i = INT32 { Cint32 i }
   | l = INT64 { Clong l }
   | s = STRING { Cstring s }
+
+array_elems:
+  | LBRACE xs = separated_list(COMMA, expr) RBRACE { xs }
 
 expr:
   | LPAREN expr RPAREN          { $2 }
@@ -220,6 +226,12 @@ expr:
     { App(fn, args) }
   | fn = expr LPAREN RPAREN
     { App(fn, []) }
+  | LET id = IDENT COLON t = typ EQ elems = array_elems IN e2 = expr
+    { 
+      match t with
+      | Atype (_, _) -> Let(id, t, Ainit(id, elems), e2)
+      | _ -> failwith "Array initializer {..} can only initialize an array type"
+    }
   | LET id = IDENT COLON t = typ EQ e1 = expr IN e2 = expr
     { Let(id, t, e1, e2) }
   | IF e1 = expr THEN e2 = expr ELSE e3 = expr
@@ -231,3 +243,5 @@ expr:
     { Sinit(id, fields, args) }
   | e = expr DOT id = IDENT
     { Fget(e, id) }
+  | id = IDENT LBRACK n = INT32 RBRACK
+    { Aaccess(id, Int32.to_int n) }

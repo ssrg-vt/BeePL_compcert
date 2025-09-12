@@ -96,6 +96,9 @@ rule read_token = parse
   | "<="            { LE }
   | ">="            { GE }
   | "."             { DOT }
+  | "["             { LBRACK }
+  | "]"             { RBRACK }
+  | "array"         { ARRAY }
   | '"' ([^ '"' '\n']* as s) '"' { STRING s }
 
   

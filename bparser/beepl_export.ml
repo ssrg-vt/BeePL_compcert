@@ -69,6 +69,12 @@ let rec from_expr acc e =
       List.fold_left from_expr acc args
   | Fget (e, _) ->
       from_expr acc e
+  | Ainit (arr, args) ->
+    if List.mem arr acc 
+    then List.fold_left from_expr acc args
+    else arr :: List.fold_left from_expr acc args
+  | Aaccess (arr, _) ->
+      if List.mem arr acc then acc else arr :: acc
 in
 let idents_from_prog =
   List.fold_left (fun acc top ->
@@ -362,6 +368,26 @@ let rec export_expr_to_coq (senv : Beepl_ast_typechecker.Senv.t) (env : (string 
         (export_expr_to_coq senv env e)
         field_name
         ret_ty
+  | Ainit (arr, args) ->
+      let args_str = List.map (export_expr_to_coq senv env) args in
+      let ty = export_typ_to_coq (infer_expr senv (list_to_env env) e) in
+      Printf.sprintf 
+      "(Ainit (%s)\n                  _%s\n                  %s\n                  (%s))"
+        arr 
+        ty
+        (export_coq_list args_str)
+        ty
+  | Aaccess (arr, n) ->
+      let ty = export_typ_to_coq (infer_expr senv (list_to_env env) e) in
+      let t = match List.assoc arr env with
+              | Atype (elem_type, _) -> elem_type
+              | _ -> failwith ("Expected array type for Aaccess, got different type for " ^ arr) in 
+      Printf.sprintf 
+      "(Aaccess (%s)\n                  _%s\n                  %d\n                  (%s))"
+        arr 
+        (export_typ_to_coq t)
+        n
+        ty 
 
 let export_transform_function ~senv ~globals (Tfundecl (name, ret, eff, args, vars, body)) is_ebpf =
   let env = args @ vars @ globals in (* Build (string * typ) list environment *)

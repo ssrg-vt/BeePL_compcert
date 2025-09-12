@@ -86,6 +86,8 @@ type expr =
   | For of expr * expr * dir * expr  
   | Sinit of string * string list * expr list  
   | Fget of expr * string
+  | Ainit of string * expr list
+  | Aaccess of string * int 
 
 type fundecl =
   | Tfundecl of string * typ * effect list * (string * typ) list * (string * typ) list * expr
@@ -120,3 +122,7 @@ let rec collect_vars (e : expr) : (string * typ) list =
       List.flatten (List.map collect_vars exprs)
   | Fget (e, field_name) ->
       collect_vars e
+  | Ainit (id, exprs) ->
+      List.flatten (List.map collect_vars exprs)
+  | Aaccess (arr_name, index) ->
+      []  (* Array access does not introduce new variables *)

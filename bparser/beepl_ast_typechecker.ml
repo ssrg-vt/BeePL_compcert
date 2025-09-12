@@ -110,6 +110,7 @@ let rec typ_eq t1 t2 =
         ptype_eq pt1 pt2
     | _ -> false)
   | Stype s1, Stype s2 -> s1 = s2
+  | Atype (elem1, n1), Atype (elem2, n2) -> n1 = n2 && typ_eq elem1 elem2
   | _, _ -> false
 
 let rec infer_expr (senv : Senv.t) (env : tyenv) (e : expr) : typ =
@@ -317,7 +318,7 @@ let rec infer_expr (senv : Senv.t) (env : tyenv) (e : expr) : typ =
         Stype struct_name
   | Fget (e, field_name) ->
       let e_ty = infer_expr senv env e in
-      match e_ty with
+      begin match e_ty with
       | Stype struct_name ->
           let field_ty = Senv.find_field struct_name field_name senv in
           field_ty
@@ -328,6 +329,26 @@ let rec infer_expr (senv : Senv.t) (env : tyenv) (e : expr) : typ =
           let field_ty = Senv.find_field struct_name field_name senv in
           field_ty
       | _ -> raise (TypeError "Fget can only be applied to struct or pointer to struct types")
+      end
+  | Beepl_ast.Ainit (arr, exprs) ->
+    (match exprs with
+    | [] -> raise (TypeError "Ainit requires at least one element to infer type")
+    | first_elem :: _ ->
+        let elem_ty = infer_expr senv env first_elem in
+        List.iter (fun expr ->
+          let expr_ty = infer_expr senv env expr in
+          if not (typ_eq elem_ty expr_ty) then
+            raise (TypeError "Array initialization element type mismatch")
+        ) exprs;
+        Atype (elem_ty, List.length exprs))
+  | Aaccess (arr, idx) ->
+    (match Env.find_opt arr env with
+    | Some (Atype (elem_ty, size)) ->
+        if idx < 0 || idx >= size then
+          raise (TypeError "Array access index out of bounds");
+        elem_ty
+    | Some _ -> raise (TypeError "Aaccess can only be applied to array types")
+    | None -> raise (TypeError ("Unbound array variable: " ^ arr)))
 
 let infer_fundecl (Tfundecl (_name, ret_type, _eff, args, _vars, body))
 (senv : Senv.t) (global_env : tyenv) =

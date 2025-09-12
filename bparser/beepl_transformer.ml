@@ -28,6 +28,9 @@ let int_to_coq_z n =
   else if n > 0 then Zpos (int_to_positive n)
   else Zneg (int_to_positive (-n))
 
+let rec int_to_coq_nat (n : int) : Datatypes.nat =
+    if n <= 0 then Datatypes.O else Datatypes.S (int_to_coq_nat (n - 1))
+
 (* Build a struct environment (senv) from top-level struct declarations *)
 let build_senv (prog : Beepl_ast.program) : Beepl_ast_typechecker.Senv.t =
   List.fold_left
@@ -81,6 +84,8 @@ let collect_idents (prog : Beepl_ast.program) : string list =
     | Beepl_ast.Sinit (s, fields, exprs) ->
         List.iter from_expr exprs
     | Beepl_ast.Fget (e, _) -> from_expr e
+    | Beepl_ast.Ainit (arr, exprs) -> add_ident arr; List.iter from_expr exprs
+    | Beepl_ast.Aaccess (s, _) -> add_ident s
 
   in
   let from_effect = function
@@ -230,6 +235,10 @@ let rec resolve_overloaded_op (e : expr) (typ : typ) : expr =
       Sinit (s, fields, List.map (fun a -> resolve_overloaded_op a typ) exprs)
   | Fget (e, field) ->
       Fget (resolve_overloaded_op e typ, field)
+  | Ainit (arr, exprs) ->
+      Ainit (arr, List.map (fun a -> resolve_overloaded_op a typ) exprs)
+  | Aaccess (s, n) ->
+      Aaccess (s, n)
   | _ -> e
 
 let transform_dir (d : Beepl_ast.dir) : BeePL_values.dir =
@@ -309,7 +318,14 @@ let rec transform_expr (senv : Beepl_ast_typechecker.Senv.t) (env : Beepl_ast_ty
   | Beepl_ast.Fget (e, field) ->
       let e' = transform_expr senv env e in
       BeePL.Sfield (e', Camlcoq.intern_string field, t')
-      
+  | Beepl_ast.Ainit (arr, exprs) ->
+      let exprs' = List.map (transform_expr senv env) exprs in
+      BeePL.Ainit (Camlcoq.intern_string arr, t', exprs', t')
+  | Beepl_ast.Aaccess (arr, index) ->
+      match Beepl_ast_typechecker.Env.find_opt arr env with 
+      | Some (Atype (elem_ty, size)) -> BeePL.Aaccess (Camlcoq.intern_string arr, (transform_typ ((Atype (elem_ty, size)))), int_to_coq_nat index, t')
+      | Some _ -> failwith "Aaccess can only be applied to array types"
+      | _ -> failwith ("Array "^arr^" not found in environment")
 
 let rec collect_vars (e : Beepl_ast.expr) : (string * Beepl_ast.typ) list =
   let unique_vars vars =
@@ -336,7 +352,11 @@ let rec collect_vars (e : Beepl_ast.expr) : (string * Beepl_ast.typ) list =
   | Beepl_ast.Sinit (s, fields, exprs) ->
       unique_vars (List.flatten (List.map collect_vars exprs)) 
   | Beepl_ast.Fget (e, _) ->
-      collect_vars e     
+      collect_vars e 
+  | Beepl_ast.Ainit (arr, exprs) ->
+      unique_vars (List.flatten (List.map collect_vars exprs))
+  | Beepl_ast.Aaccess (s, n) ->
+      []    
 
 let transform_function fdecl is_ebpf senv global_env =
   let Tfundecl (name, ret, eff, args, _, body) = fdecl in

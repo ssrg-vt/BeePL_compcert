@@ -32,6 +32,7 @@ type token =
   | RINT16TYPE
   | REF
   | READ
+  | RBRACK
   | RBRACE
   | RBOOLTYPE
   | RAULONG
@@ -79,6 +80,7 @@ type token =
   | LONGTYPE
   | LET
   | LE
+  | LBRACK
   | LBRACE
   | IO
   | INT8TYPE
@@ -109,8 +111,11 @@ type token =
   | CAST
   | BOOLTYPE
   | BOOL of (bool)
+  | ARRAY
   | AND
   | ALLOC
+  | AINIT
+  | AACEESS
 
 (* This exception is raised by the monolithic API functions. *)
 
