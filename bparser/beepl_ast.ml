@@ -75,6 +75,11 @@ type builtin =
 
 type dir = Up | Down
 
+type pattern = 
+  | Psome of string 
+  | Pnone 
+  | Pbytes of string * typ * (string * typ) list
+
 (** The type of the abstract syntax tree (AST). *)
 type expr =
   | Var of string
@@ -88,6 +93,7 @@ type expr =
   | Fget of expr * string
   | Ainit of string * expr list
   | Aaccess of string * int 
+  | Match of expr * pattern list * expr list
 
 type fundecl =
   | Tfundecl of string * typ * effect list * (string * typ) list * (string * typ) list * expr
@@ -126,3 +132,5 @@ let rec collect_vars (e : expr) : (string * typ) list =
       List.flatten (List.map collect_vars exprs)
   | Aaccess (arr_name, index) ->
       []  (* Array access does not introduce new variables *)
+  | Match (e, patterns, exprs) ->
+      collect_vars e @ List.flatten (List.map collect_vars exprs)

@@ -22,7 +22,8 @@ open Beepl_ast
 %token FUNTYPE TSTRUCT
 %token FUNC LET IN IF THEN ELSE 
 %token REF DEREF MASSGN
-%token SINIT
+%token PNONE BAR
+%token SINIT MATCH PSOME PBYTES WITH ARROW
 %token TILDE NEG PLUS MINUS MUL DIV MOD AND OR XOR SHL SHR OEQ NEQ LT GT LE GE
 %token CAST
 %token FOR
@@ -171,6 +172,36 @@ const:
 array_elems:
   | LBRACE xs = separated_list(COMMA, expr) RBRACE { xs }
 
+bytes_field:
+  | id = IDENT COLON t = typ { (id, t) }
+
+/* The pattern nonterminal */
+pattern:
+  | PSOME id = IDENT
+      { Psome id }
+  | PNONE
+      { Pnone }
+  | PBYTES id = IDENT COLON t = typ
+      LPAREN xs = separated_list(COMMA, bytes_field) RPAREN
+      { Pbytes (id, t, xs) }
+
+/* A single case:  pattern -> expr 
+match_branch:
+  | OR p = pattern ARROW e = expr        { (p, e) } */
+
+/* non-empty list of patterns 
+match_branches:
+  | b=match_branch bs=match_branches { b :: bs }
+  | b=match_branch                  { [b] } */
+
+clause:
+  | PSOME id=IDENT ARROW e=expr  { (Psome id, e) }
+  | PNONE        ARROW e=expr    { (Pnone   , e) }
+  | PBYTES id=IDENT COLON t=typ
+    LPAREN fields=separated_list(COMMA, bytes_field) RPAREN
+    ARROW e=expr
+    { (Pbytes (id, t, fields), e) }
+
 expr:
   | LPAREN expr RPAREN          { $2 }
   | id = IDENT { Var id }
@@ -245,3 +276,9 @@ expr:
     { Fget(e, id) }
   | id = IDENT LBRACK n = INT32 RBRACK
     { Aaccess(id, Int32.to_int n) }
+  | MATCH e=expr WITH optbar=option(BAR) cs=separated_nonempty_list(BAR, clause)
+    { 
+      let pats, bodies = List.split cs in
+      Match(e, pats, bodies)
+    }
+  

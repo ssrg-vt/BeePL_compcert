@@ -349,6 +349,47 @@ let rec infer_expr (senv : Senv.t) (env : tyenv) (e : expr) : typ =
         elem_ty
     | Some _ -> raise (TypeError "Aaccess can only be applied to array types")
     | None -> raise (TypeError ("Unbound array variable: " ^ arr)))
+  | Match (e, patterns, exprs) ->
+    (* 1) scrutinee type *)
+    let scrut_ty = infer_expr senv env e in
+    (* same arity *)
+    if List.length patterns <> List.length exprs then
+    raise (TypeError "Match branches count mismatch");
+    (* 2) ensure the scrutinee is an option pointer and remember the inner ptrtype *)
+      let inner_pt =
+        match scrut_ty with
+        | Ptr (Otype pt) -> pt
+        | _ ->
+            raise (TypeError "Match scrutinee must be an option pointer (Ptr (Otype _))")
+      in
+    (* 3) infer each branch under the env extended by its pattern *)
+      let infer_branch pat body =
+        let env' =
+          match pat with
+          | Pnone -> env
+          | Psome x ->
+              (* bind x to the *inner pointer type* so that !x (Deref) typechecks *)
+              Env.add x (Ptr inner_pt) env
+          | Pbytes (_x, _t, _fields) ->
+              raise (TypeError "Pbytes pattern not supported yet")
+        in
+        infer_expr senv env' body
+      in
+
+      let branch_tys =
+        try List.map2 infer_branch patterns exprs with
+        | Invalid_argument _ ->
+            raise (TypeError "Match: internal arity error")
+      in
+
+      (* 4) all branches must have the same type *)
+      (match branch_tys with
+       | [] ->
+           raise (TypeError "Match must have at least one branch")
+       | ty0 :: rest ->
+           if List.for_all (fun t -> typ_eq t ty0) rest
+           then ty0
+           else raise (TypeError "Match branches have mismatched types"))
 
 let infer_fundecl (Tfundecl (_name, ret_type, _eff, args, _vars, body))
 (senv : Senv.t) (global_env : tyenv) =

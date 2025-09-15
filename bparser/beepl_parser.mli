@@ -4,6 +4,7 @@
 type token = 
   | XOR
   | WRITE
+  | WITH
   | UP
   | UNIT
   | ULONGTYPE
@@ -45,7 +46,10 @@ type token =
   | RAINT32
   | RAINT16
   | RABOOL
+  | PSOME
+  | PNONE
   | PLUS
+  | PBYTES
   | OSTRUCT
   | ORULONGTYPE
   | ORUINT8TYPE
@@ -74,6 +78,7 @@ type token =
   | MUL
   | MOD
   | MINUS
+  | MATCH
   | MASSGN
   | LT
   | LPAREN
@@ -111,6 +116,8 @@ type token =
   | CAST
   | BOOLTYPE
   | BOOL of (bool)
+  | BAR
+  | ARROW
   | ARRAY
   | AND
   | ALLOC

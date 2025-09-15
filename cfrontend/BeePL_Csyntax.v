@@ -432,6 +432,42 @@ end
                      let te := typeof_expr e in
                      match te with 
                      | Ptrtype t' => 
+                         if is_option_ptr_type t' then
+                           (* identify which body is 'none' and which is 'some', and the binder name *)
+                           match ps, es with
+                           | (Pnone :: Psome x :: nil), (e_none :: e_some :: nil)
+                           | (Psome x :: Pnone :: nil), (e_some :: e_none :: nil) =>
+
+                               (* translate bodies: none under base ctx, some under extended ctx *)
+                               do (c_none, b1) <- transBeePL_expr_expr e_none fn_ctx bctx';
+                               do (c_some, b2) <- transBeePL_expr_expr e_some fn_ctx b1;
+
+                               (* condition: is match expression None? (ptr == 0) *)
+                               let is_none :=
+                                 Ebinop Cop.Oeq (fst ce)
+                                   (Ecast (Eval (Values.Vint (Int.repr 0)) tint)
+                                      (transBeePL_type te))
+                                   (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr) in
+
+                               (* bind x in SOME branch before evaluating its body *)
+                               let bind_x :=
+                                  (Eassign (Evar x (transBeePL_type te)) (fst ce) (transBeePL_type te)) in
+
+                               (* if (u == 0) then none-body else { x = u; some-body } *)
+                               ret (Econdition is_none
+                                       (fst c_none)
+                                       (Ecomma bind_x (fst c_some) (transBeePL_type t)) (transBeePL_type t),
+                                   (* keep the extended ctx so 'x' is a declared local *)
+                                   snd c_some, b2)
+                           | _, _ =>
+                               error (msg "COMPILER ERROR: Match supports exactly two branches: some/none")
+                           end
+                         else
+                           error (msg "COMPILER ERROR: Match expression must be an option pointer")
+                     (*do (ce, bctx') <- transBeePL_expr_expr e fn_ctx bctx;
+                     let te := typeof_expr e in
+                     match te with 
+                     | Ptrtype t' => 
                          if is_option_ptr_type t'  
                          then match ps, es with 
                               | nil, nil => error (msg "COMPILER ERROR: No pattern matching cases found")
@@ -454,7 +490,7 @@ end
                                           (fst ce1) (transBeePL_type t)), snd (ce2), bctx2)
                               | _, _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
                               end
-                          else error (msg "COMPILER ERROR: Match can be only performed on option type")
+                          else error (msg "COMPILER ERROR: Match can be only performed on option type")*)
                      | Bytes => error (msg "COMPILER ERROR: Match can be only performed on ptr type ") (* fix me *)
                      | _ => error (msg "COMPILER ERROR: Match can be only performed on ptr type or bytes type")
                      end
@@ -793,7 +829,39 @@ match e with
                      let te := typeof_expr e in
                      match te with 
                      | Ptrtype t' => 
-                         if is_option_ptr_type t' 
+                         if is_option_ptr_type t' then
+                           (* identify which body is 'none' and which is 'some', and the binder name *)
+                           match ps, es with
+                           | (Pnone :: Psome x :: nil), (e_none :: e_some :: nil)
+                           | (Psome x :: Pnone :: nil), (e_some :: e_none :: nil) =>
+
+                               (* translate bodies: none under base ctx, some under extended ctx *)
+                               do (c_none, b1) <- transBeePL_expr_st cenv e_none ctx bctx';
+                               do (c_some, b2) <- transBeePL_expr_st cenv e_some ctx b1;
+
+                               (* condition: is match expression None? (ptr == 0) *)
+                               let is_none :=
+                                 Ebinop Cop.Oeq (fst ce)
+                                   (Ecast (Eval (Values.Vint (Int.repr 0)) tint)
+                                      (transBeePL_type te))
+                                   (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr) in
+
+                               (* bind x in SOME branch before evaluating its body *)
+                               let bind_x :=
+                                 Sdo (Eassign (Evar x (transBeePL_type te)) (fst ce) (transBeePL_type te)) in
+
+                               (* if (u == 0) then none-body else { x = u; some-body } *)
+                               ret ( Sifthenelse is_none
+                                       (fst c_none)
+                                       (Ssequence bind_x (fst c_some)),
+                                   (* keep the extended ctx so 'x' is a declared local *)
+                                   snd c_some, b2)
+                           | _, _ =>
+                               error (msg "COMPILER ERROR: Match supports exactly two branches: some/none")
+                           end
+                         else
+                           error (msg "COMPILER ERROR: Match expression must be an option pointer")
+                         (*if is_option_ptr_type t' 
                          then match ps, es with 
                               | nil, nil => error (msg "COMPILER ERROR: No pattern matching cases found")
                               | (Pnone :: Psome x :: nil), (e1 :: e2 :: nil) => 
@@ -811,11 +879,11 @@ match e with
                                   ret ((Sifthenelse (Ebinop Cop.Oeq (fst ce) 
                                                        (Ecast (Eval (Values.Vint (Int.repr 0)) tint) (transBeePL_type te))
                                                        (Ctypes.Tint Ctypes.I8 Ctypes.Unsigned noattr))
-                                          (Ssequence (Sdo (Eassign (Evar x (transBeePL_type te)) (fst ce) (transBeePL_type te))) (fst ce2))
+                                          (Ssequence (Sdo (Eassign (Evar x (transBeePL_type te)) (fst ce) (transBeePL_type te))) (fst ce1))
                                           (fst ce1)), snd (ce1), bctx2)
                               | _, _ => error (msg "COMPILER ERROR: We support only two patterns as of now")
                               end
-                          else error (msg "COMPILER ERROR: Match can be only performed on option type containing types other than ref")
+                          else error (msg "COMPILER ERROR: Match can be only performed on option type containing types other than ref")*)
                      | Bytes => match ps, es with 
                                 | (Pbytes x (Stype s noattr) xts :: p2), (e1 :: e2 :: nil) => 
                                     let cxts := zip (unzip1 xts) (transBeePL_types transBeePL_type (unzip2 xts)) in 

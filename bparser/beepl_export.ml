@@ -75,6 +75,17 @@ let rec from_expr acc e =
     else arr :: List.fold_left from_expr acc args
   | Aaccess (arr, _) ->
       if List.mem arr acc then acc else arr :: acc
+  | Match (e, patterns, exprs) ->
+      let acc = from_expr acc e in
+      let acc = List.fold_left (fun a p ->
+        match p with
+        | Psome x -> if List.mem x a then a else x :: a
+        | Pnone -> a
+        | Pbytes (id, _, fields) ->
+            let a = if List.mem id a then a else id :: a in
+            List.fold_left add_var a fields
+      ) acc patterns in
+      List.fold_left from_expr acc exprs
 in
 let idents_from_prog =
   List.fold_left (fun acc top ->
@@ -388,6 +399,22 @@ let rec export_expr_to_coq (senv : Beepl_ast_typechecker.Senv.t) (env : (string 
         (export_typ_to_coq t)
         n
         ty 
+  | Match (e, patterns, exprs) ->
+      let patterns_str = List.map (function
+        | Psome id -> Printf.sprintf "Psome _%s" id
+        | Pnone -> "Pnone"
+        | Pbytes (id, t, fields) ->
+            let field_strs = List.map (fun (fid, fty) -> Printf.sprintf "(_%s, %s)" fid (export_typ_to_coq fty)) fields in
+            Printf.sprintf "Pbytes (_%s) (%s) (%s)" id (export_typ_to_coq t) (export_coq_list field_strs)
+      ) patterns in
+      let exprs_str = List.map (export_expr_to_coq senv env) exprs in
+      let ty = export_typ_to_coq (infer_expr senv (list_to_env env) e) in
+      Printf.sprintf 
+      "(Match (%s)\n                  (%s)\n                  (%s)\n                  (%s))"
+        (export_expr_to_coq senv env e)
+        (export_coq_list patterns_str)
+        (export_coq_list exprs_str)
+        ty
 
 let export_transform_function ~senv ~globals (Tfundecl (name, ret, eff, args, vars, body)) is_ebpf =
   let env = args @ vars @ globals in (* Build (string * typ) list environment *)

@@ -86,6 +86,16 @@ let collect_idents (prog : Beepl_ast.program) : string list =
     | Beepl_ast.Fget (e, _) -> from_expr e
     | Beepl_ast.Ainit (arr, exprs) -> add_ident arr; List.iter from_expr exprs
     | Beepl_ast.Aaccess (s, _) -> add_ident s
+    | Beepl_ast.Match (e, patterns, exprs) ->
+        from_expr e;
+        List.iter (function
+          | Beepl_ast.Psome x -> add_ident x
+          | Beepl_ast.Pnone -> ()
+          | Beepl_ast.Pbytes (s, _, fields) ->
+              add_ident s;
+              List.iter add_var fields
+        ) patterns;
+        List.iter from_expr exprs
 
   in
   let from_effect = function
@@ -210,6 +220,13 @@ let transform_builtin (b : Beepl_ast.builtin) : BeePL.builtin =
   | Beepl_ast.Deref -> BeePL.Deref
   | Beepl_ast.Massgn -> BeePL.Massgn
 
+let transform_pattern (p : Beepl_ast.pattern) : BeePL.pattern =
+  match p with
+  | Beepl_ast.Psome x -> BeePL.Psome (Camlcoq.intern_string x)
+  | Beepl_ast.Pnone -> BeePL.Pnone
+  | Beepl_ast.Pbytes (s, t, fields) ->
+      let fields' = List.map (fun (id, t) -> (Camlcoq.intern_string id, transform_typ t)) fields in
+      BeePL.Pbytes (Camlcoq.intern_string s, transform_typ t, fields')
 let rec resolve_overloaded_op (e : expr) (typ : typ) : expr =
   match e with
   | Prim (Uop UOverloadTilde, [arg]) ->
@@ -239,6 +256,8 @@ let rec resolve_overloaded_op (e : expr) (typ : typ) : expr =
       Ainit (arr, List.map (fun a -> resolve_overloaded_op a typ) exprs)
   | Aaccess (s, n) ->
       Aaccess (s, n)
+  | Match (e, patterns, exprs) ->
+      Match (resolve_overloaded_op e typ, patterns, List.map (fun a -> resolve_overloaded_op a typ) exprs)
   | _ -> e
 
 let transform_dir (d : Beepl_ast.dir) : BeePL_values.dir =
@@ -322,12 +341,40 @@ let rec transform_expr (senv : Beepl_ast_typechecker.Senv.t) (env : Beepl_ast_ty
       let exprs' = List.map (transform_expr senv env) exprs in
       BeePL.Ainit (Camlcoq.intern_string arr, t', exprs', t')
   | Beepl_ast.Aaccess (arr, index) ->
-      match Beepl_ast_typechecker.Env.find_opt arr env with 
+      begin match Beepl_ast_typechecker.Env.find_opt arr env with 
       | Some (Atype (elem_ty, size)) -> BeePL.Aaccess (Camlcoq.intern_string arr, (transform_typ ((Atype (elem_ty, size)))), int_to_coq_nat index, t')
       | Some _ -> failwith "Aaccess can only be applied to array types"
       | _ -> failwith ("Array "^arr^" not found in environment")
+      end
+  | Beepl_ast.Match (scrut, pats, bodies) ->
+    (* type of scrutinee (under the current env) *)
+    let scrut_ty = Beepl_ast_typechecker.infer_expr senv env scrut in
+    (* scrutinee must be option pointer; compute the inner pointer type we bind in 'some x' *)
+    let inner_ptr_ty =
+      match scrut_ty with
+      | Ptr (Otype pt) -> Ptr pt
+      | _ -> failwith "Match scrutinee must be an option pointer (Ptr (Otype _))"
+    in
+    let scrut' = transform_expr senv env scrut in
+    let pats'  = List.map transform_pattern pats in
 
-let rec collect_vars (e : Beepl_ast.expr) : (string * Beepl_ast.typ) list =
+    (* transform each branch body with its own extended env *)
+    let transform_branch p b =
+      let env' =
+        match p with
+        | Beepl_ast.Pnone      -> env
+        | Beepl_ast.Psome x    -> Beepl_ast_typechecker.Env.add x inner_ptr_ty env
+        | Beepl_ast.Pbytes _   -> failwith "Pbytes pattern not supported yet"
+      in
+      transform_expr senv env' b
+    in
+    let bodies' =
+      try List.map2 transform_branch pats bodies with
+      | Invalid_argument _ -> failwith "Match: branches/patterns arity mismatch"
+    in
+    BeePL.Match (scrut', pats', bodies', t')
+
+let rec collect_vars (senv : Beepl_ast_typechecker.Senv.t) (env : Beepl_ast_typechecker.tyenv) (e : Beepl_ast.expr) : (string * Beepl_ast.typ) list =
   let unique_vars vars =
     List.fold_left (fun acc (x, t) ->
       if List.exists (fun (y, _) -> x = y) acc then acc else (x, t) :: acc
@@ -336,33 +383,62 @@ let rec collect_vars (e : Beepl_ast.expr) : (string * Beepl_ast.typ) list =
   match e with
   | Beepl_ast.Var _ | Beepl_ast.Const _ -> []
   | Beepl_ast.Prim (_, args) ->
-      unique_vars (List.flatten (List.map collect_vars args))
+      unique_vars (List.flatten (List.map (collect_vars senv env) args))
   | Beepl_ast.Let (x, t, e1, e2) ->
-    let rest = collect_vars e1 @ collect_vars e2 in
+    let rest = collect_vars senv env e1 @ collect_vars senv env e2 in
     if String.equal x "_" || t = Beepl_ast.Utype then
       unique_vars rest
     else
       unique_vars ((x, t) :: rest)
   | Beepl_ast.App (e1, args) ->
-      unique_vars (collect_vars e1 @ List.flatten (List.map collect_vars args))
+      unique_vars (collect_vars senv env e1 @ List.flatten (List.map (collect_vars senv env) args))
   | Beepl_ast.If (e1, e2, e3) ->
-      unique_vars (collect_vars e1 @ collect_vars e2 @ collect_vars e3)
+      unique_vars (collect_vars senv env e1 @ collect_vars senv env e2 @ collect_vars senv env e3)
   | Beepl_ast.For (e1, e2, _, e3) ->
-      unique_vars (collect_vars e1 @ collect_vars e2 @ collect_vars e3)
+      unique_vars (collect_vars senv env e1 @ collect_vars senv env e2 @ collect_vars senv env e3)
   | Beepl_ast.Sinit (s, fields, exprs) ->
-      unique_vars (List.flatten (List.map collect_vars exprs)) 
+      unique_vars (List.flatten (List.map (collect_vars senv env) exprs)) 
   | Beepl_ast.Fget (e, _) ->
-      collect_vars e 
+      collect_vars senv env e 
   | Beepl_ast.Ainit (arr, exprs) ->
-      unique_vars (List.flatten (List.map collect_vars exprs))
+      unique_vars (List.flatten (List.map (collect_vars senv env) exprs))
   | Beepl_ast.Aaccess (s, n) ->
-      []    
+      []   
+  | Beepl_ast.Match (scrut, patterns, bodies) ->
+      (* infer ONLY the scrutinee type to know what the pattern binds *)
+      let scrut_ty = Beepl_ast_typechecker.infer_expr senv env scrut in
+      let inner_pt_opt =
+        match scrut_ty with
+        | Beepl_ast.Ptr (Beepl_ast.Otype pt) -> Some pt
+        | _ -> None
+      in
+      let pat_bindings pat : (string * Beepl_ast.typ) list =
+        match pat, inner_pt_opt with
+        | Beepl_ast.Pnone, _ -> []
+        | Beepl_ast.Psome x, Some pt -> [ (x, Beepl_ast.Ptr pt) ]  (* so !x typechecks *)
+        | Beepl_ast.Psome _, None -> []                            (* non-option scrut: ignore *)
+        | Beepl_ast.Pbytes (s, t, fields), _ -> (s, t) :: fields
+      in
+      let extend env binds =
+        List.fold_left (fun acc (x,t) -> Beepl_ast_typechecker.Env.add x t acc) env binds
+      in
+      let scrut_vars = collect_vars senv env scrut in
+      let bound_vars = List.flatten (List.map pat_bindings patterns) in
+      let body_vars =
+        List.flatten
+          (List.map2
+             (fun pat body ->
+               let env' = extend env (pat_bindings pat) in
+               collect_vars senv env' body)
+             patterns bodies)
+      in
+      unique_vars (scrut_vars @ bound_vars @ body_vars) 
 
 let transform_function fdecl is_ebpf senv global_env =
   let Tfundecl (name, ret, eff, args, _, body) = fdecl in
   let local_env = List.fold_left (fun acc (x, t) -> Beepl_ast_typechecker.Env.add x t acc) global_env args in
   let fn_args = List.map (fun (id, t) -> (Camlcoq.intern_string id, transform_typ t)) args in
-  let fn_vars = List.map (fun (id, t) -> (Camlcoq.intern_string id, transform_typ t)) (collect_vars body) in
+  let fn_vars = List.map (fun (id, t) -> (Camlcoq.intern_string id, transform_typ t)) (collect_vars senv local_env body) in
   let fn_body = transform_expr senv local_env body in
   {
     BeePL.fn_return = transform_typ ret;

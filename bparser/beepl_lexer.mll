@@ -30,6 +30,13 @@ rule read_token = parse
   | "Up"            { UP }
   | "Down"          { DOWN }
   | "struct"        { STRUCT }
+  | "match"         { MATCH }
+  | "with"          { WITH }
+  | "->"            { ARROW }
+  | "some"          { PSOME }
+  | "none"          { PNONE }
+  | "|"             { BAR }
+  | "bytes"         { PBYTES }
   | "ref"           { REF }
   | "!"             { DEREF }
   | ":="            { MASSGN }
