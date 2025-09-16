@@ -532,7 +532,7 @@ match e with
                    fresh_ident (List.map unzip_ident fctx') max_fresh g1 = Res (i, str) g2 i2 /\
                    ref_to_prim t g2 = Res pty g' i3 /\ ct = (transBeePL_type t) /\
                    ce = Ecomma (Eassign (Csyntax.Evar i (transBeePL_type pty)) (hd default_expr (exprlist_list_expr ces)) (transBeePL_type pty)) 
-                                        (Csyntax.Eaddrof (Csyntax.Evar i ct) ct) ct /\
+                                        (Csyntax.Eaddrof (Csyntax.Evar i (transBeePL_type pty)) ct) ct /\
                    f = (i, pty, str) :: fctx' /\ b = bctx'
 | Prim Deref es t => exists ces g1 i1, 
                      transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g = Res (ces, f, b) g1 i1 /\
@@ -1063,10 +1063,10 @@ move=> e. elim: e=> //=.
   case: ifP=> //= hot. move=> [] h1 h2 h3 h4 /=; subst.
   by rewrite /Csyntax.typeof /=. 
 (* Some *)
-+ move=> e hin t fctx bctx ce fctx' bctx' g g' i'.
++ (*move=> e hin t fctx bctx ce fctx' bctx' g g' i'.
   case: t=> //= p. case: ifP=> /andP //=. move=> [] h1 h2 he.
   move: (hin fctx bctx ce fctx' bctx' g g' i' he) => <- /=.
-  by have := ptr_t_eq_trans (typeof_expr e) p h2.
+  by have := ptr_t_eq_trans (typeof_expr e) p h2.*) admit.
 (* Match *)
 + (*move=> e hin ps es t fctx bctx ce fctx' bctx' g g' i'. rewrite /SimplExpr.bind2 /SimplExpr.bind /=.
   case he : (transBeePL_expr_expr e fctx bctx) => [err | ce1 g1 i1] //=.

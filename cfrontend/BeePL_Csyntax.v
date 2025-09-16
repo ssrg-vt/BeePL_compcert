@@ -75,7 +75,12 @@ Definition unzip_ident {A B C} (p : A * B * C) : A :=
   | (x, _, _) => x
   end.
 
-Definition unzip_str {A B C} (p : A * B * C) : B :=
+Definition unzip_str {A B C} (p : A * B * C) : C :=
+match p with
+| (_, _, z) => z
+end.
+
+Definition unzip_type {A B C} (p : A * B * C) : B :=
 match p with
 | (_, y, _) => y
 end.
@@ -310,7 +315,7 @@ match e with
                                         ret ((Ecomma (Eassign (Evar i cpty) 
                                                               (hd default_expr (exprlist_list_expr (fst ces))) 
                                                               (cpty)) 
-                                                     (Eaddrof (Evar i ct) 
+                                                     (Eaddrof (Evar i cpty) 
                                                               (ct))
                                                      (ct)), fn_ctx'', bctx')
                           | _ => error (msg "COMPILER ERROR: Ref should only have one expr in its expr list.")
@@ -423,9 +428,9 @@ end
              | _ => error (msg "COMPILER ERROR: Expression none should be a pointer type")
              end
 | Esome e t => match t with 
-             | Ptrtype t' => if is_option_ptr_type t' && eq_type (typeof_expr e) t
-                             then transBeePL_expr_expr e fn_ctx bctx
-                             else error (msg "COMPILER ERROR: Expression some should be a pointer option type")
+             | Ptrtype (Otype t') => if is_option_ptr_type t' && eq_type (typeof_expr e) (Ptrtype t')
+                                     then transBeePL_expr_expr e fn_ctx bctx
+                                     else error (msg "COMPILER ERROR: Expression some should be a pointer option type")
              | _ => error (msg "COMPILER ERROR: Expression some should be a pointer type")
              end
 | Match e ps es t => do (ce, bctx') <- transBeePL_expr_expr e fn_ctx bctx;
@@ -668,7 +673,7 @@ match e with
                                         ret (Ssequence (Sdo (Eassign (Evar i cpty)
                                                                      (hd default_expr (exprlist_list_expr (fst ces)))
                                                                      (cpty)))
-                                                       (Sdo (Eaddrof (Evar i ct) 
+                                                       (Sdo (Eaddrof (Evar i cpty) 
                                                                      (ct))), ctx'', ctx')
                           | _ => error (msg "COMPILER ERROR: Ref should only have one expr in its expr list.")
                           end
@@ -820,7 +825,7 @@ match e with
              | _ => error (msg "COMPILER ERROR: None should be of Option type")
              end
 | Esome e t => match t with 
-               | Ptrtype t' => if is_option_ptr_type t' 
+               | Ptrtype (Otype t') => if is_option_ptr_type t' && eq_type (typeof_expr e) (Ptrtype t')
                                then transBeePL_expr_st cenv e ctx bctx
                                else error (msg "COMPILER ERROR: Option type of Some should contain a pointer in BeePL")
                | _ => error (msg "COMPILER ERROR: Some should be of Option type")
@@ -940,8 +945,59 @@ match e with
                                 
 end.
 
+(* Translates the BeePL function declaration to a C function *)
+Definition transBeePL_function_function
+  (cenv : bcomposite_env)
+  (fd   : BeePL.function)
+  (is   : list (ident * string))
+  (bctx : bcompiler_ctx)
+: res (Csyntax.function * list (ident * string) * bcompiler_ctx) :=
+let crt := transBeePL_type fd.(BeePL.fn_return) in
+(* Build initial fn_ctx (locals + their strings) and an initial fresh-name generator *)
+match create_fn_ctx (BeePL.fn_vars fd) is (initial_generator tt) with
+| Err msg => Error msg
+| Res fn_ctx g0 i0 =>
+
+  (* IMPORTANT: thread g0; do NOT reinitialize the generator here *)
+  match transBeePL_expr_st cenv (BeePL.fn_body fd) fn_ctx bctx g0 with
+  | Err msg => Error msg
+  | Res (fbody, bctx') g1 i1 =>
+
+    (* Locals accumulated during translation (declared locals + fresh temps) *)
+    let loc_ids  := List.map unzip_ident (snd fbody) in
+    let loc_btys := List.map unzip_type   (snd fbody) in
+    let loc_ctys := transBeePL_types transBeePL_type loc_btys in
+    let locals   := zip loc_ids loc_ctys in
+
+    (* Extend ident->string table with any new temps introduced during translation *)
+    let is' := merge_ident_string (snd fbody) is in
+
+    (* Params differ only for eBPF *)
+    if fd.(is_ebpf) then
+      match transform_ctx_ebpf_ctx (zip (unzip1 fd.(fn_args)) (unzip2 fd.(fn_args))) with
+      | Error msg => Error msg
+      | OK params =>
+          OK ({| fn_return   := crt
+               ; fn_callconv := cc_default
+               ; fn_params   := params
+               ; fn_vars     := locals
+               ; fn_body     := fst fbody |},
+              is', bctx')
+      end
+    else
+      let param_tys := transBeePL_types transBeePL_type (unzip2 fd.(fn_args)) in
+      let params    := zip (unzip1 fd.(fn_args)) param_tys in
+      OK ({| fn_return   := crt
+           ; fn_callconv := cc_default
+           ; fn_params   := params
+           ; fn_vars     := locals
+           ; fn_body     := fst fbody |},
+         is', bctx')
+  end
+end.
+
 (* Translates the BeePL function declaration to C function *)  
-Definition transBeePL_function_function (cenv : bcomposite_env) (fd : BeePL.function) (is : list (ident * string)) (bctx : bcompiler_ctx) : 
+(*Definition transBeePL_function_function (cenv : bcomposite_env) (fd : BeePL.function) (is : list (ident * string)) (bctx : bcompiler_ctx) : 
 res (Csyntax.function * list (ident * string) * bcompiler_ctx) :=
 if fd.(is_ebpf) then 
   (let crt := (transBeePL_type (fd.(BeePL.fn_return))) in
@@ -995,7 +1051,7 @@ else
          fn_vars := zip (List.map unzip_ident (snd fbody)) vt;
          fn_body :=  fst fbody|}, is', fn_ctx')
   end
-  end).
+  end).*)
                         
             
 

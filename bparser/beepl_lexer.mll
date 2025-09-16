@@ -33,8 +33,8 @@ rule read_token = parse
   | "match"         { MATCH }
   | "with"          { WITH }
   | "->"            { ARROW }
-  | "some"          { PSOME }
-  | "none"          { PNONE }
+  | "some"          { SOME }
+  | "none"          { NONE }
   | "|"             { BAR }
   | "bytes"         { PBYTES }
   | "ref"           { REF }

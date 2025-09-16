@@ -17,6 +17,7 @@ type token =
   | STRUCT
   | STRING of (string)
   | STAR
+  | SOME
   | SINIT
   | SHR
   | SHL
@@ -46,8 +47,6 @@ type token =
   | RAINT32
   | RAINT16
   | RABOOL
-  | PSOME
-  | PNONE
   | PLUS
   | PBYTES
   | OSTRUCT
@@ -73,6 +72,7 @@ type token =
   | ORABOOL
   | OR
   | OEQ
+  | NONE
   | NEQ
   | NEG
   | MUL

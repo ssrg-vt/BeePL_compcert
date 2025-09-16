@@ -65,7 +65,7 @@ let collect_global_env (prog : Beepl_ast.program) : Beepl_ast_typechecker.tyenv 
 let collect_idents (prog : Beepl_ast.program) : string list =
   let idents = ref [] in
   let add_ident x =
-    if not (String.length x >= 12 && String.sub x 0 12 = "___stringlit_") &&
+    if not (String.length x >= 13 && String.sub x 0 13 = "___stringlit_") &&
        not (List.mem x !idents)
     then idents := x :: !idents
   in
@@ -96,6 +96,8 @@ let collect_idents (prog : Beepl_ast.program) : string list =
               List.iter add_var fields
         ) patterns;
         List.iter from_expr exprs
+    | Beepl_ast.Esome e1 -> from_expr e1
+    | Beepl_ast.Enone -> ()
 
   in
   let from_effect = function
@@ -373,6 +375,11 @@ let rec transform_expr (senv : Beepl_ast_typechecker.Senv.t) (env : Beepl_ast_ty
       | Invalid_argument _ -> failwith "Match: branches/patterns arity mismatch"
     in
     BeePL.Match (scrut', pats', bodies', t')
+  | Beepl_ast.Esome e1 ->
+      let e1' = transform_expr senv env e1 in
+      BeePL.Esome (e1', t')
+  | Beepl_ast.Enone ->
+      BeePL.Enone t'
 
 let rec collect_vars (senv : Beepl_ast_typechecker.Senv.t) (env : Beepl_ast_typechecker.tyenv) (e : Beepl_ast.expr) : (string * Beepl_ast.typ) list =
   let unique_vars vars =
@@ -432,7 +439,11 @@ let rec collect_vars (senv : Beepl_ast_typechecker.Senv.t) (env : Beepl_ast_type
                collect_vars senv env' body)
              patterns bodies)
       in
-      unique_vars (scrut_vars @ bound_vars @ body_vars) 
+      unique_vars (scrut_vars @ bound_vars @ body_vars)
+  | Beepl_ast.Esome e1 ->
+      collect_vars senv env e1
+  | Beepl_ast.Enone ->
+      [] 
 
 let transform_function fdecl is_ebpf senv global_env =
   let Tfundecl (name, ret, eff, args, _, body) = fdecl in

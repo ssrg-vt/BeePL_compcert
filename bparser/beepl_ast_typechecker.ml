@@ -390,6 +390,20 @@ let rec infer_expr (senv : Senv.t) (env : tyenv) (e : expr) : typ =
            if List.for_all (fun t -> typ_eq t ty0) rest
            then ty0
            else raise (TypeError "Match branches have mismatched types"))
+  | Esome e_inner ->
+    let te = infer_expr senv env e in
+    begin match te with
+    | Ptr pt ->
+        (* wrap a *non-option* pointer into option-pointer *)
+        begin match pt with
+        | Otype _ -> raise (TypeError "some expects a non-option pointer")
+        | _       -> Ptr (Otype pt)
+        end
+    | _ -> raise (TypeError "some expects a pointer expression")
+    end
+  | Enone ->
+    raise (TypeError "none must be used in a match expression and cannot be typed alone")
+
 
 let infer_fundecl (Tfundecl (_name, ret_type, _eff, args, _vars, body))
 (senv : Senv.t) (global_env : tyenv) =

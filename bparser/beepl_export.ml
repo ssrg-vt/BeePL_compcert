@@ -86,6 +86,9 @@ let rec from_expr acc e =
             List.fold_left add_var a fields
       ) acc patterns in
       List.fold_left from_expr acc exprs
+  | Esome e1 ->
+      from_expr acc e1
+  | Enone -> acc
 in
 let idents_from_prog =
   List.fold_left (fun acc top ->
@@ -414,6 +417,17 @@ let rec export_expr_to_coq (senv : Beepl_ast_typechecker.Senv.t) (env : (string 
         (export_expr_to_coq senv env e)
         (export_coq_list patterns_str)
         (export_coq_list exprs_str)
+        ty
+  | Esome e1 ->
+      let ty = export_typ_to_coq (infer_expr senv (list_to_env env) e) in
+      Printf.sprintf 
+      "(Esome (%s)\n                  (%s))"
+        (export_expr_to_coq senv env e1)
+        ty
+  | Enone ->
+      let ty = export_typ_to_coq (infer_expr senv (list_to_env env) e) in
+      Printf.sprintf 
+      "(Enone (%s))"
         ty
 
 let export_transform_function ~senv ~globals (Tfundecl (name, ret, eff, args, vars, body)) is_ebpf =
