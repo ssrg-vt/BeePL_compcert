@@ -1,9 +1,5 @@
 fun main () : int32, [] {
-  let p  : int32*   = ref 4 in
-  let u  : oint32*  = some u in
-  !p
+  let u : int32* = ref 2 in  
+  let o : oint32* = some u in
+  !u + 2
 }
-
-  (*match u with 
-  | some r -> let _ : unit = r := 2 in !r
-  | none   -> 0*)

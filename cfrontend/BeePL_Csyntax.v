@@ -428,7 +428,7 @@ end
              | _ => error (msg "COMPILER ERROR: Expression none should be a pointer type")
              end
 | Esome e t => match t with 
-             | Ptrtype (Otype t') => if is_option_ptr_type t' && eq_type (typeof_expr e) (Ptrtype t')
+             | Ptrtype (Otype t') => if is_option_ptr_type (Otype t') && eq_type (typeof_expr e) (Ptrtype t')
                                      then transBeePL_expr_expr e fn_ctx bctx
                                      else error (msg "COMPILER ERROR: Expression some should be a pointer option type")
              | _ => error (msg "COMPILER ERROR: Expression some should be a pointer type")
@@ -825,7 +825,7 @@ match e with
              | _ => error (msg "COMPILER ERROR: None should be of Option type")
              end
 | Esome e t => match t with 
-               | Ptrtype (Otype t') => if is_option_ptr_type t' && eq_type (typeof_expr e) (Ptrtype t')
+               | Ptrtype (Otype t') => if is_option_ptr_type (Otype t') && eq_type (typeof_expr e) (Ptrtype t')
                                then transBeePL_expr_st cenv e ctx bctx
                                else error (msg "COMPILER ERROR: Option type of Some should contain a pointer in BeePL")
                | _ => error (msg "COMPILER ERROR: Some should be of Option type")

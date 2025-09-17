@@ -349,7 +349,7 @@ match e with
              end
 | Esome e t => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                match t with 
-               | Ptrtype t' => if is_option_ptr_type t' && eq_type te (get_data_type t') 
+               | Ptrtype (Otype t') => if is_option_ptr_type t' && eq_type te (Ptrtype t') 
                                then OK(t, ef)
                                else Error (msg "TYPE ERROR: Type of Esome should be an option to ref type")
                | _ => Error (msg "TYPE ERROR: Type of Esome should be an option type")

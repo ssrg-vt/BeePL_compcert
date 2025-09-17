@@ -418,7 +418,32 @@ let rec export_expr_to_coq (senv : Beepl_ast_typechecker.Senv.t) (env : (string 
         (export_coq_list patterns_str)
         (export_coq_list exprs_str)
         ty
-  | Esome e1 ->
+  (* e : Beepl_ast.expr is the whole node you’re exporting *)
+
+| Esome e1 ->
+  (* 1) infer the child’s type *)
+  let child_ty = Beepl_ast_typechecker.infer_expr senv (list_to_env env) e1 in
+  (* 2) it must be a plain pointer; wrap it into an option-pointer for the node type *)
+  (match child_ty with
+   | Ptr pt ->
+       let opt_ty = Ptr (Otype pt) in
+       Printf.sprintf
+         "(Esome (%s)\n         (%s))"
+         (export_expr_to_coq senv env e1)
+         (export_typ_to_coq opt_ty)
+   | _ ->
+       failwith "Esome expects its argument to be a pointer (Ptr _).")
+
+| Enone ->
+  (* Infer the type of this node in context; it must already be an option-pointer *)
+  let ty = Beepl_ast_typechecker.infer_expr senv (list_to_env env) e in
+  (match ty with
+   | Ptr (Otype _) ->
+       Printf.sprintf "(Enone (%s))" (export_typ_to_coq ty)
+   | _ ->
+       failwith "Enone must have an option-pointer type (Ptr (Otype _)).")
+
+ (* | Esome e1 ->
       let ty = export_typ_to_coq (infer_expr senv (list_to_env env) e) in
       Printf.sprintf 
       "(Esome (%s)\n                  (%s))"
@@ -428,7 +453,7 @@ let rec export_expr_to_coq (senv : Beepl_ast_typechecker.Senv.t) (env : (string 
       let ty = export_typ_to_coq (infer_expr senv (list_to_env env) e) in
       Printf.sprintf 
       "(Enone (%s))"
-        ty
+        ty*)
 
 let export_transform_function ~senv ~globals (Tfundecl (name, ret, eff, args, vars, body)) is_ebpf =
   let env = args @ vars @ globals in (* Build (string * typ) list environment *)

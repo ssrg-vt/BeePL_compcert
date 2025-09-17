@@ -8,7 +8,8 @@ BeePL_external_call BeePL_match_fail_ex1 BeePL_null_ptr BeePL_bitstring1 BeePL_g
 BeePL_bpf_xdp_packet_count BeePL_bpf_xdp_packet_count1 BeePL_bpf_map_example1 BeePL_bpf_drop_xdp_packet_iPv6
 BeePL_bpf BeePL_bpf_handle_tp BeePL_add_ref BeePL_section BeePL_cast BeePL_cast1 BeePL_shift BeePL_bpf_map_null_check
 BeePL_bpf_safe_null_check BeePL_globvar_local beepl_success_load.BeePL_bpf_xdp1 beepl_success_load.BeePL_bpf_xdp2
-beepl_success_load.BeePL_bpf_pid_tgid BeePL_var BeePL_bytes1 BeePL_for3 BeePL_array BeePL_array1 BeePL_array2. 
+beepl_success_load.BeePL_bpf_pid_tgid BeePL_var BeePL_bytes1 BeePL_for3 BeePL_array BeePL_array1 BeePL_array2 
+BeePL_some BeePL_some_match. 
 
 (* In this file you will see two definitions. One for example1 and the other for
    example1_atom_of_string. Those two definitions are extracted to OCaml by 
@@ -27,9 +28,9 @@ beepl_success_load.BeePL_bpf_pid_tgid BeePL_var BeePL_bytes1 BeePL_for3 BeePL_ar
 
 (* Construct the BeePL.program *)
 
-Definition example1 : BeePL.program := @mkbprogram BeePL_array1.bcomposites 
-                                                   BeePL_array1.global_definitions 
-                                                   BeePL_array1.public_idents 
-                                                   BeePL_array1._main 
-                                                   BeePL_array1.bcomposite_correct
-                                                   BeePL_array1.ident_to_string.
+Definition example1 : BeePL.program := @mkbprogram BeePL_some_match.bcomposites 
+                                                   BeePL_some_match.global_definitions 
+                                                   BeePL_some_match.public_idents 
+                                                   BeePL_some_match._main 
+                                                   BeePL_some_match.bcomposite_correct
+                                                   BeePL_some_match.ident_to_string.

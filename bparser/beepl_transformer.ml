@@ -65,7 +65,7 @@ let collect_global_env (prog : Beepl_ast.program) : Beepl_ast_typechecker.tyenv 
 let collect_idents (prog : Beepl_ast.program) : string list =
   let idents = ref [] in
   let add_ident x =
-    if not (String.length x >= 13 && String.sub x 0 13 = "___stringlit_") &&
+    if not (String.length x >= 12 && String.sub x 0 12 = "__stringlit_") &&
        not (List.mem x !idents)
     then idents := x :: !idents
   in
@@ -376,11 +376,18 @@ let rec transform_expr (senv : Beepl_ast_typechecker.Senv.t) (env : Beepl_ast_ty
     in
     BeePL.Match (scrut', pats', bodies', t')
   | Beepl_ast.Esome e1 ->
-      let e1' = transform_expr senv env e1 in
-      BeePL.Esome (e1', t')
+    let child_ty = Beepl_ast_typechecker.infer_expr senv env e1 in
+    (match child_ty with
+      | Ptr pt ->
+          let node_ty = Ptr (Otype pt) in
+          BeePL.Esome (transform_expr senv env e1, transform_typ node_ty)
+      | _ -> failwith "Esome expects a pointer child")
   | Beepl_ast.Enone ->
-      BeePL.Enone t'
-
+      (* rely on the inferred type at this site; it must be Ptr (Otype _) *)
+      (match Beepl_ast_typechecker.infer_expr senv env e with
+       | Ptr (Otype _ as pt) -> BeePL.Enone (transform_typ (Ptr pt))
+       | _ -> failwith "Enone must be an option-pointer here")
+  
 let rec collect_vars (senv : Beepl_ast_typechecker.Senv.t) (env : Beepl_ast_typechecker.tyenv) (e : Beepl_ast.expr) : (string * Beepl_ast.typ) list =
   let unique_vars vars =
     List.fold_left (fun acc (x, t) ->
@@ -628,7 +635,7 @@ let init_data_of_string (s : string) : AST.init_data list =
       external_globals @ defs @ globals_from_strings in 
     let is_not_stringlit id =
       let name = Camlcoq.extern_atom id in
-      not (String.length name >= 13 && String.sub name 0 13 = "___stringlit_")
+      not (String.length name >= 12 && String.sub name 0 12 = "__stringlit_")
     in
       
     let fun_ids = List.filter is_not_stringlit (List.map (fun (id, _, _) -> id) fun_defs) in
@@ -641,7 +648,7 @@ let init_data_of_string (s : string) : AST.init_data list =
     (* Exclude any ident that corresponds to a string literal *)
     let is_stringlit_id id =
       let name = Camlcoq.extern_atom id in
-      String.length name >= 13 && String.sub name 0 13 = "__stringlit_"
+      String.length name >= 12 && String.sub name 0 12 = "__stringlit_"
     in
 
     let filtered_fun_ids = List.filter (fun id -> not (is_stringlit_id id)) fun_ids in
