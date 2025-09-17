@@ -88,7 +88,7 @@ let rec from_expr acc e =
       List.fold_left from_expr acc exprs
   | Esome e1 ->
       from_expr acc e1
-  | Enone -> acc
+  | Enone t -> acc
 in
 let idents_from_prog =
   List.fold_left (fun acc top ->
@@ -434,9 +434,7 @@ let rec export_expr_to_coq (senv : Beepl_ast_typechecker.Senv.t) (env : (string 
    | _ ->
        failwith "Esome expects its argument to be a pointer (Ptr _).")
 
-| Enone ->
-  (* Infer the type of this node in context; it must already be an option-pointer *)
-  let ty = Beepl_ast_typechecker.infer_expr senv (list_to_env env) e in
+| Enone ty ->
   (match ty with
    | Ptr (Otype _) ->
        Printf.sprintf "(Enone (%s))" (export_typ_to_coq ty)

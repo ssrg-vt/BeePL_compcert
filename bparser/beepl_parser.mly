@@ -22,7 +22,7 @@ open Beepl_ast
 %token FUNTYPE TSTRUCT
 %token FUNC LET IN IF THEN ELSE 
 %token REF DEREF MASSGN
-%token BAR SOME NONE
+%token BAR OSOME ONONE
 %token SINIT MATCH PBYTES WITH ARROW
 %token TILDE NEG PLUS MINUS MUL DIV MOD AND OR XOR SHL SHR OEQ NEQ LT GT LE GE
 %token CAST
@@ -177,9 +177,9 @@ bytes_field:
 
 /* The pattern nonterminal */
 pattern:
-  | SOME id = IDENT
+  | OSOME id = IDENT
       { Psome id }
-  | NONE
+  | ONONE
       { Pnone }
   | PBYTES id = IDENT COLON t = typ
       LPAREN xs = separated_list(COMMA, bytes_field) RPAREN
@@ -195,8 +195,8 @@ match_branches:
   | b=match_branch                  { [b] } */
 
 clause:
-  | SOME id=IDENT ARROW e=expr  { (Psome id, e) }
-  | NONE        ARROW e=expr    { (Pnone   , e) }
+  | OSOME id=IDENT ARROW e=expr  { (Psome id, e) }
+  | ONONE        ARROW e=expr    { (Pnone   , e) }
   | PBYTES id=IDENT COLON t=typ
     LPAREN fields=separated_list(COMMA, bytes_field) RPAREN
     ARROW e=expr
@@ -281,6 +281,6 @@ expr:
       let pats, bodies = List.split cs in
       Match(e, pats, bodies)
     }
-  | SOME e = expr { Esome e }
-  | NONE      { Enone }
+  | OSOME e = expr { Esome e }
+  | ONONE t = typ     { Enone t}
   

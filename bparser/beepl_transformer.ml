@@ -7,6 +7,8 @@ open BinNums
 
 let string_globals : (string, string) Hashtbl.t = Hashtbl.create 17
 
+(*let dbg s = Printf.eprintf "Debug message %s\n%!" s*)
+
 let gensym_string_literal s =
   let id = "__stringlit_" ^ string_of_int (Hashtbl.length string_globals) in
   id
@@ -97,7 +99,7 @@ let collect_idents (prog : Beepl_ast.program) : string list =
         ) patterns;
         List.iter from_expr exprs
     | Beepl_ast.Esome e1 -> from_expr e1
-    | Beepl_ast.Enone -> ()
+    | Beepl_ast.Enone t -> ()
 
   in
   let from_effect = function
@@ -260,6 +262,9 @@ let rec resolve_overloaded_op (e : expr) (typ : typ) : expr =
       Aaccess (s, n)
   | Match (e, patterns, exprs) ->
       Match (resolve_overloaded_op e typ, patterns, List.map (fun a -> resolve_overloaded_op a typ) exprs)
+  | Esome e1 ->
+      Esome (resolve_overloaded_op e1 typ)
+  | Enone t -> Enone t
   | _ -> e
 
 let transform_dir (d : Beepl_ast.dir) : BeePL_values.dir =
@@ -268,7 +273,9 @@ let transform_dir (d : Beepl_ast.dir) : BeePL_values.dir =
   | Beepl_ast.Down -> BeePL_values.Down
 
 let rec transform_expr (senv : Beepl_ast_typechecker.Senv.t) (env : Beepl_ast_typechecker.tyenv) (e : Beepl_ast.expr) : BeePL.expr =
+  (*dbg "Enter expr transformation";*)
   let typ = Beepl_ast_typechecker.infer_expr senv env e in
+  (*dbg "Exit type inference\n%!";*)
   let e' = resolve_overloaded_op e typ in
   let t' = transform_typ typ in
   match e' with
@@ -380,12 +387,12 @@ let rec transform_expr (senv : Beepl_ast_typechecker.Senv.t) (env : Beepl_ast_ty
     (match child_ty with
       | Ptr pt ->
           let node_ty = Ptr (Otype pt) in
-          BeePL.Esome (transform_expr senv env e1, transform_typ node_ty)
+          (BeePL.Esome (transform_expr senv env e1, transform_typ node_ty)) 
       | _ -> failwith "Esome expects a pointer child")
-  | Beepl_ast.Enone ->
+  | Beepl_ast.Enone t ->
       (* rely on the inferred type at this site; it must be Ptr (Otype _) *)
-      (match Beepl_ast_typechecker.infer_expr senv env e with
-       | Ptr (Otype _ as pt) -> BeePL.Enone (transform_typ (Ptr pt))
+      (match t with
+       | Ptr (Otype _) -> BeePL.Enone (transform_typ t)
        | _ -> failwith "Enone must be an option-pointer here")
   
 let rec collect_vars (senv : Beepl_ast_typechecker.Senv.t) (env : Beepl_ast_typechecker.tyenv) (e : Beepl_ast.expr) : (string * Beepl_ast.typ) list =
@@ -399,11 +406,12 @@ let rec collect_vars (senv : Beepl_ast_typechecker.Senv.t) (env : Beepl_ast_type
   | Beepl_ast.Prim (_, args) ->
       unique_vars (List.flatten (List.map (collect_vars senv env) args))
   | Beepl_ast.Let (x, t, e1, e2) ->
-    let rest = collect_vars senv env e1 @ collect_vars senv env e2 in
-    if String.equal x "_" || t = Beepl_ast.Utype then
-      unique_vars rest
-    else
-      unique_vars ((x, t) :: rest)
+    let v1   = collect_vars senv env e1 in
+    let env' = Beepl_ast_typechecker.Env.add x t env in   (* <-- extend env! *)
+    let v2   = collect_vars senv env' e2 in
+    let base = unique_vars (v1 @ v2) in
+    if String.equal x "_" || t = Beepl_ast.Utype then base
+    else unique_vars ((x, t) :: base)
   | Beepl_ast.App (e1, args) ->
       unique_vars (collect_vars senv env e1 @ List.flatten (List.map (collect_vars senv env) args))
   | Beepl_ast.If (e1, e2, e3) ->
@@ -449,7 +457,7 @@ let rec collect_vars (senv : Beepl_ast_typechecker.Senv.t) (env : Beepl_ast_type
       unique_vars (scrut_vars @ bound_vars @ body_vars)
   | Beepl_ast.Esome e1 ->
       collect_vars senv env e1
-  | Beepl_ast.Enone ->
+  | Beepl_ast.Enone t ->
       [] 
 
 let transform_function fdecl is_ebpf senv global_env =
@@ -466,7 +474,7 @@ let transform_function fdecl is_ebpf senv global_env =
     BeePL.fn_vars = fn_vars;
     BeePL.fn_body = fn_body;
     BeePL.is_ebpf = is_ebpf;
-  }
+  } 
       
 
 let transform_struct (name : string) (fields : (string * Beepl_ast.typ) list) : BeeTypes.bcomposite_definition =
@@ -546,120 +554,126 @@ let init_data_of_string (s : string) : AST.init_data list =
   let null_term = AST.Init_int8 (Integers.Int.repr Z0) in
   char_init @ [null_term]
    
-
   let transform_program (prog : Beepl_ast.program) : BeePL.program =
-    let prog = reorder_program prog in  
+    (*dbg "start";*)
+    let prog = reorder_program prog in
+    (*dbg "reorder_program done";*)
+  
     let idents = collect_idents prog in
+    (*dbg (Printf.sprintf "collect_idents done (n=%d)" (List.length idents));*)
   
     let get_id = Camlcoq.intern_string in
-  
     let prog_ident_to_string =
       List.map (fun s -> (get_id s, string_to_char_list s)) idents in
-    
+    (*dbg "ident_to_string built";*)
+  
     let senv = build_senv prog in
+    (*dbg "build_senv done";*)
+  
     let global_env = collect_global_env prog in
-    let transformed_decls =
-        List.map (transform_toplevel senv global_env) prog in
+    (*dbg "collect_global_env done";*)
+  
+    let transformed_decls = List.map (transform_toplevel senv global_env) prog in
+    (*dbg "transform_toplevel done";*)
   
     let prog_types =
       List.filter_map (function `Struct (_, s) -> Some s | _ -> None) transformed_decls in
+    (*dbg (Printf.sprintf "prog_types done (n=%d)" (List.length prog_types));*)
   
     let fun_defs =
       List.filter_map (function `Fun (id, f, sec) -> Some (id, f, sec) | _ -> None) transformed_decls in
-    
+    (*dbg (Printf.sprintf "fun_defs done (n=%d)" (List.length fun_defs));*)
+  
     let external_globals =
       List.map (fun (id, typ) ->
         let coq_id = Camlcoq.intern_string id in
         match typ with
         | Ftype (args, effs, ret) ->
             let coq_args = List.map transform_typ args in
-            let coq_ret = transform_typ ret in
-            let coq_eff = transform_effect_list effs in
+            let coq_ret  = transform_typ ret in
+            let coq_eff  = transform_effect_list effs in
             let signature = {
               BeePL.bsig_args = coq_args;
-              BeePL.bsig_ef = coq_eff;
-              BeePL.bsig_res = coq_ret;
-              bsig_cc = { AST.cc_vararg = Some (coqint_of_camlint32 1l); cc_unproto = false; cc_structret = false };
+              BeePL.bsig_ef   = coq_eff;
+              BeePL.bsig_res  = coq_ret;
+              bsig_cc = { AST.cc_vararg = Some (coqint_of_camlint32 1l);
+                          cc_unproto = false; cc_structret = false };
             } in
             let ef = AST.Gfun (BeePL.External (
               BeePL.EF_external (string_to_char_list id, signature),
-              coq_args,
-              coq_ret,
-              { AST.cc_vararg = Some (coqint_of_camlint32 1l); cc_unproto = false; cc_structret = false }
+              coq_args, coq_ret,
+              { AST.cc_vararg = Some (coqint_of_camlint32 1l);
+                cc_unproto = false; cc_structret = false }
             )) in
             ((coq_id, ef), None)
         | _ -> failwith ("Expected function type for external: " ^ id)
-      ) Beepl_ast_typechecker.predefined_externals in 
+      ) Beepl_ast_typechecker.predefined_externals in
+    (*dbg "external_globals done";*)
   
     let globals_from_strings =
       Hashtbl.fold (fun id s acc ->
-        let id' = Camlcoq.intern_string id in
+        let id'  = Camlcoq.intern_string id in
         let gvar = AST.Gvar {
           AST.gvar_info = BeeTypes.Atype (
             BeeTypes.Vtype (BeeTypes.Tint (Ctypes.I8, Ctypes.Signed, Ctypes.noattr)),
-            int_to_coq_z (String.length s + 1),
-            Ctypes.noattr
-          );
+            int_to_coq_z (String.length s + 1), Ctypes.noattr);
           AST.gvar_init = init_data_of_string s;
-          AST.gvar_readonly = true;
-          AST.gvar_volatile = false;
-        } in
-        ((id', gvar), None) :: acc
-      ) string_globals [] in         
+          AST.gvar_readonly = true; AST.gvar_volatile = false;
+        } in ((id', gvar), None) :: acc
+      ) string_globals [] in
+    (*dbg (Printf.sprintf "globals_from_strings done (n=%d)" (List.length globals_from_strings));*)
   
-    let prog_defs =
-      let defs =
-        List.filter_map (function
-          | `Fun (id, f, section) ->
-              let sec =
-                match section with
-                | Some s when String.length s > 8 && String.sub s 0 8 = "#section" ->
-                    let raw = String.trim (String.sub s 8 (String.length s - 8)) in
-                    Some (string_to_char_list ("\"" ^ raw ^ "\""))
-                | Some s -> Some (string_to_char_list ("\"" ^ s ^ "\""))
-                | None -> None
-              in
-              Some ((id, AST.Gfun (BeePL.Internal f)), sec)
+    let defs =
+      List.filter_map (function
+        | `Fun (id, f, section) ->
+            let sec =
+              match section with
+              | Some s when String.length s > 8 && String.sub s 0 8 = "#section" ->
+                  let raw = String.trim (String.sub s 8 (String.length s - 8)) in
+                  Some (string_to_char_list ("\"" ^ raw ^ "\""))
+              | Some s -> Some (string_to_char_list ("\"" ^ s ^ "\""))
+              | None -> None
+            in Some ((id, AST.Gfun (BeePL.Internal f)), sec)
+        | `Global (id, t, v) ->
+            Some ((id, AST.Gvar {
+              AST.gvar_info = t; AST.gvar_init = eval_const_expr v;
+              AST.gvar_readonly = false; AST.gvar_volatile = false }), None)
+        | _ -> None
+      ) transformed_decls in
+    (*dbg "defs done";*)
   
-          | `Global (id, t, v) ->
-              Some ((id, AST.Gvar {
-                AST.gvar_info = t;
-                AST.gvar_init = eval_const_expr v;
-                AST.gvar_readonly = false;
-                AST.gvar_volatile = false;
-              }), None)
+    let prog_defs = external_globals @ defs @ globals_from_strings in
+    (*dbg (Printf.sprintf "prog_defs concat done (n=%d)" (List.length prog_defs));*)
   
-          | _ -> None
-        ) transformed_decls
-      in
-      external_globals @ defs @ globals_from_strings in 
-    let is_not_stringlit id =
-      let name = Camlcoq.extern_atom id in
-      not (String.length name >= 12 && String.sub name 0 12 = "__stringlit_")
-    in
-      
-    let fun_ids = List.filter is_not_stringlit (List.map (fun (id, _, _) -> id) fun_defs) in
-  
-    let prog_comp_env = BeeTypes.build_bcomposite_env' prog_types in
-    let prog_main = get_id (find_main_or_fallback prog) in
-    let external_ids = List.map (fun (name, _) -> Camlcoq.intern_string name) Beepl_ast_typechecker.predefined_externals in
-  
-    (* Remove __stringlit_* from prog_public but keep in prog_ident_to_string *)
-    (* Exclude any ident that corresponds to a string literal *)
     let is_stringlit_id id =
       let name = Camlcoq.extern_atom id in
       String.length name >= 12 && String.sub name 0 12 = "__stringlit_"
     in
-
+    let is_not_stringlit id = not (is_stringlit_id id) in
+  
+    let fun_ids = List.filter is_not_stringlit (List.map (fun (id,_,_) -> id) fun_defs) in
+    (*dbg (Printf.sprintf "fun_ids filtered (n=%d)" (List.length fun_ids));*)
+  
+    let prog_comp_env = BeeTypes.build_bcomposite_env' prog_types in
+    (*dbg "build_bcomposite_env' done";*)
+  
+    let get_id = Camlcoq.intern_string in
+    let prog_main = get_id (find_main_or_fallback prog) in
+    (*dbg "prog_main set";*)
+  
+    let external_ids =
+      List.map (fun (name,_) -> Camlcoq.intern_string name)
+               Beepl_ast_typechecker.predefined_externals in
+    (*dbg (Printf.sprintf "external_ids (n=%d)" (List.length external_ids));*)
+  
     let filtered_fun_ids = List.filter (fun id -> not (is_stringlit_id id)) fun_ids in
-
     let prog_public =
-      if List.mem prog_main filtered_fun_ids then
-        filtered_fun_ids @ external_ids
-      else
-        prog_main :: filtered_fun_ids @ external_ids
+      if List.mem prog_main filtered_fun_ids
+      then filtered_fun_ids @ external_ids
+      else prog_main :: filtered_fun_ids @ external_ids
     in
-
+    (*dbg (Printf.sprintf "prog_public built (n=%d)" (List.length prog_public));*)
+  
     {
       BeePL.prog_defs = prog_defs;
       BeePL.prog_public = prog_public;
@@ -667,9 +681,9 @@ let init_data_of_string (s : string) : AST.init_data list =
       BeePL.prog_types = prog_types;
       BeePL.prog_comp_env = prog_comp_env;
       BeePL.prog_ident_to_string = prog_ident_to_string;
-    }
+    } 
+    (*dbg "OK TRANSFORMED PROGRAM";*)
   
-
 let parse_file (filename : string) : Beepl_ast.program =
   let ch = open_in filename in
   let lexbuf = from_channel ch in

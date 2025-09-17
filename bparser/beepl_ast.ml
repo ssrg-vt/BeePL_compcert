@@ -95,7 +95,7 @@ type expr =
   | Aaccess of string * int 
   | Match of expr * pattern list * expr list
   | Esome of expr 
-  | Enone
+  | Enone of typ
 
 type fundecl =
   | Tfundecl of string * typ * effect list * (string * typ) list * (string * typ) list * expr
@@ -138,4 +138,4 @@ let rec collect_vars (e : expr) : (string * typ) list =
       collect_vars e @ List.flatten (List.map collect_vars exprs)
   | Esome e1 ->
       collect_vars e1
-  | Enone -> []
+  | Enone t -> []

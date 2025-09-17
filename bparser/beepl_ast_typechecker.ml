@@ -111,6 +111,7 @@ let rec typ_eq t1 t2 =
     | _ -> false)
   | Stype s1, Stype s2 -> s1 = s2
   | Atype (elem1, n1), Atype (elem2, n2) -> n1 = n2 && typ_eq elem1 elem2
+  | Ptr (Otype pt1), Ptr (Otype pt2) -> typ_eq (Ptr pt1) (Ptr pt2)
   | _, _ -> false
 
 let rec infer_expr (senv : Senv.t) (env : tyenv) (e : expr) : typ =
@@ -154,127 +155,127 @@ let rec infer_expr (senv : Senv.t) (env : tyenv) (e : expr) : typ =
           end
       |  _ ->
         raise (TypeError "Unary operator expects exactly one argument"))
-      | Prim (Bop bop, args) ->
-        begin match args with 
-          | [a1; a2] ->
-            let t1 = infer_expr senv env a1 in
-            let t2 = infer_expr senv env a2 in
-            begin match bop with
-            | Oadd | Osub | Omul | Odiv | Omod | Oand | Oor | Oxor | Oshl | Oshr  ->
-                if (typ_eq t1 t2) && (match t1 with
-                  | Vtype Tint8 | Vtype Tint16 | Vtype Tint32
-                  | Vtype Tuint8 | Vtype Tuint16 | Vtype Tuint32
-                  | Vtype Tlong | Vtype Tulong -> true
-                  | _ -> false)
-                then t1
-                else raise (TypeError "+, -, *, /, mod, and, or, xor, <<, >> can only be applied to matching integer/long types")
-            | Oeq | One ->
-                  if (typ_eq t1 t2) && (match t1 with
-                    | Vtype Tbool | Vtype Tint8 | Vtype Tint16 | Vtype Tint32
-                    | Vtype Tuint8 | Vtype Tuint16 | Vtype Tuint32
-                    | Vtype Tlong | Vtype Tulong -> true
-                    | _ -> false)
-                  then Vtype Tbool
-                  else raise (TypeError "==, != can only be applied to matching integer/long/bool types")
-            | Olt | Ogt | Ole | Oge ->
-                  if (typ_eq t1 t2) && (match t1 with
-                    | Vtype Tint8 | Vtype Tint16 | Vtype Tint32
-                    | Vtype Tuint8 | Vtype Tuint16 | Vtype Tuint32
-                    | Vtype Tlong | Vtype Tulong -> true
-                    | _ -> false)
-                    then Vtype Tbool
-                    else raise (TypeError "<,>,<=,>= can only be applied to matching integer/long types")
-            (* Add other binary operators here as needed *)
-            end
-          | _ -> raise (TypeError "Binary operator expects exactly two arguments")
-          end
-      | Prim (Cast t, args) ->
-        begin match args with
-        | [arg] ->
-            let arg_ty = infer_expr senv env arg in
-            begin match arg_ty, t with
-            | Vtype ta, Vtype _ -> t
-            | _ -> raise (TypeError "Cast can only be applied between primitive types")
-            end
-        | _ -> raise (TypeError "Cast expects exactly one argument")
+  | Prim (Bop bop, args) ->
+    begin match args with 
+      | [a1; a2] ->
+        let t1 = infer_expr senv env a1 in
+        let t2 = infer_expr senv env a2 in
+        begin match bop with
+        | Oadd | Osub | Omul | Odiv | Omod | Oand | Oor | Oxor | Oshl | Oshr  ->
+            if (typ_eq t1 t2) && (match t1 with
+              | Vtype Tint8 | Vtype Tint16 | Vtype Tint32
+              | Vtype Tuint8 | Vtype Tuint16 | Vtype Tuint32
+              | Vtype Tlong | Vtype Tulong -> true
+              | _ -> false)
+            then t1
+            else raise (TypeError "+, -, *, /, mod, and, or, xor, <<, >> can only be applied to matching integer/long types")
+        | Oeq | One ->
+              if (typ_eq t1 t2) && (match t1 with
+                | Vtype Tbool | Vtype Tint8 | Vtype Tint16 | Vtype Tint32
+                | Vtype Tuint8 | Vtype Tuint16 | Vtype Tuint32
+                | Vtype Tlong | Vtype Tulong -> true
+                | _ -> false)
+              then Vtype Tbool
+              else raise (TypeError "==, != can only be applied to matching integer/long/bool types")
+        | Olt | Ogt | Ole | Oge ->
+              if (typ_eq t1 t2) && (match t1 with
+                | Vtype Tint8 | Vtype Tint16 | Vtype Tint32
+                | Vtype Tuint8 | Vtype Tuint16 | Vtype Tuint32
+                | Vtype Tlong | Vtype Tulong -> true
+                | _ -> false)
+                then Vtype Tbool
+                else raise (TypeError "<,>,<=,>= can only be applied to matching integer/long types")
+        (* Add other binary operators here as needed *)
         end
-      | Prim (Ref, args) ->
-        begin match args with
-        | [arg] ->
-            let arg_ty = infer_expr senv env arg in
-            Ptr (Reftype ("h", match arg_ty with
-              | Vtype pt -> Bprim pt
-              | Stype s -> Bstruct s
-              | Atype (Vtype pt, n) -> Barray (pt, n)  (* Array type with known size *)
-              | _ -> raise (TypeError "Can only take reference of basic types")))
-        | _ -> raise (TypeError "Ref expects exactly one argument")
-        end 
-      | Prim (Deref, args) ->
-        begin match args with
-        | [arg] ->
-            let arg_ty = infer_expr senv env arg in
-            begin match arg_ty with
-            | Ptr (Reftype (_, btype)) ->
-                begin match btype with
-                | Bprim pt -> Vtype pt
-                | Bstruct s -> Stype s
-                | Barray (pt, n) -> Atype (Vtype pt, n)  (* Array type with known size *)
-                end
-            | Ptr (Otype _) ->
-                raise (TypeError "Deref cannot be applied to option type, it should be wrapped inside match")
-            | _ -> raise (TypeError "Deref can only be applied to pointer types")
-            end
-        | _ -> raise (TypeError "Deref expects exactly one argument")
+      | _ -> raise (TypeError "Binary operator expects exactly two arguments")
+      end
+  | Prim (Cast t, args) ->
+    begin match args with
+    | [arg] ->
+        let arg_ty = infer_expr senv env arg in
+        begin match arg_ty, t with
+        | Vtype ta, Vtype _ -> t
+        | _ -> raise (TypeError "Cast can only be applied between primitive types")
         end
-      | Prim (Massgn, args) ->
-        begin match args with
-        | [arg1; arg2] ->
-            let t1 = infer_expr senv env arg1 in
-            let t2 = infer_expr senv env arg2 in
-            begin match t1 with
-            | Ptr (Reftype (_, btype)) ->
-                let expected_ty = match btype with
-                  | Bprim pt -> Vtype pt
-                  | Bstruct s -> Stype s
-                  | Barray (pt, n) -> Atype (Vtype pt, n)  (* Array type with known size *)
-                in
-                if typ_eq expected_ty t2 then Utype
-                else raise (TypeError "Massgn type mismatch")
-            | Ptr (Otype _) ->
-                raise (TypeError "Massgn cannot be applied to option type, it should be wrapped inside match")
-            | _ -> raise (TypeError "Massgn can only be applied to pointer types")
+    | _ -> raise (TypeError "Cast expects exactly one argument")
+    end
+  | Prim (Ref, args) ->
+    begin match args with
+    | [arg] ->
+        let arg_ty = infer_expr senv env arg in
+        Ptr (Reftype ("h", match arg_ty with
+          | Vtype pt -> Bprim pt
+          | Stype s -> Bstruct s
+          | Atype (Vtype pt, n) -> Barray (pt, n)  (* Array type with known size *)
+          | _ -> raise (TypeError "Can only take reference of basic types")))
+    | _ -> raise (TypeError "Ref expects exactly one argument")
+    end 
+  | Prim (Deref, args) ->
+    begin match args with
+    | [arg] ->
+        let arg_ty = infer_expr senv env arg in
+        begin match arg_ty with
+        | Ptr (Reftype (_, btype)) ->
+            begin match btype with
+            | Bprim pt -> Vtype pt
+            | Bstruct s -> Stype s
+            | Barray (pt, n) -> Atype (Vtype pt, n)  (* Array type with known size *)
             end
-        | _ -> raise (TypeError "Massgn expects exactly two arguments")
+        | Ptr (Otype _) ->
+            raise (TypeError "Deref cannot be applied to option type, it should be wrapped inside match")
+        | _ -> raise (TypeError "Deref can only be applied to pointer types")
         end
-      | App (e1, args) ->
-        let ty1 = infer_expr senv env e1 in
-        let arg_tys = List.map (infer_expr senv env) args in
-        (match ty1 with
-        | Ftype (arg_types, _eff, ret_type) ->
-            begin match List.compare_lengths arg_types arg_tys with
-            | 0 ->
+    | _ -> raise (TypeError "Deref expects exactly one argument")
+    end
+  | Prim (Massgn, args) ->
+    begin match args with
+    | [arg1; arg2] ->
+        let t1 = infer_expr senv env arg1 in
+        let t2 = infer_expr senv env arg2 in
+        begin match t1 with
+        | Ptr (Reftype (_, btype)) ->
+            let expected_ty = match btype with
+              | Bprim pt -> Vtype pt
+              | Bstruct s -> Stype s
+              | Barray (pt, n) -> Atype (Vtype pt, n)  (* Array type with known size *)
+            in
+            if typ_eq expected_ty t2 then Utype
+            else raise (TypeError "Massgn type mismatch")
+        | Ptr (Otype _) ->
+            raise (TypeError "Massgn cannot be applied to option type, it should be wrapped inside match")
+        | _ -> raise (TypeError "Massgn can only be applied to pointer types")
+        end
+    | _ -> raise (TypeError "Massgn expects exactly two arguments")
+    end
+  | App (e1, args) ->
+    let ty1 = infer_expr senv env e1 in
+    let arg_tys = List.map (infer_expr senv env) args in
+    (match ty1 with
+    | Ftype (arg_types, _eff, ret_type) ->
+        begin match List.compare_lengths arg_types arg_tys with
+        | 0 ->
+            List.iter2 (fun a b -> if not (typ_eq a b) then
+              raise (TypeError "Function application argument type mismatch"))
+              arg_types arg_tys;
+            ret_type
+        | -1 ->
+            (match e1 with
+            | Var fname when fname = "printf" ->
                 List.iter2 (fun a b -> if not (typ_eq a b) then
                   raise (TypeError "Function application argument type mismatch"))
-                  arg_types arg_tys;
+                  arg_types (take (List.length arg_types) arg_tys);
                 ret_type
-            | -1 ->
-                (match e1 with
-                | Var fname when fname = "printf" ->
-                    List.iter2 (fun a b -> if not (typ_eq a b) then
-                      raise (TypeError "Function application argument type mismatch"))
-                      arg_types (take (List.length arg_types) arg_tys);
-                    ret_type
-                | _ -> raise (TypeError "Function application argument count mismatch"))
-            | _ -> raise (TypeError "Function application argument count mismatch")
-            end
-        | _ ->
-            raise (TypeError "Expected type is a function type for application"))
+            | _ -> raise (TypeError "Function application argument count mismatch"))
+        | _ -> raise (TypeError "Function application argument count mismatch")
+        end
+    | _ ->
+        raise (TypeError "Expected type is a function type for application"))
   | Let (x, ty_ann, e1, e2) ->
       let ty1 = infer_expr senv env e1 in
       if not (typ_eq ty1 ty_ann) then
         raise (TypeError ("Let-binding type mismatch for " ^ x));
       let env' = Env.add x ty1 env in
-      infer_expr senv env' e2
+      infer_expr senv env' e2 
   | If (e1, e2, e3) ->
       let t1 = infer_expr senv env e1 in
       if not (typ_eq t1 (Vtype Tbool)) then
@@ -391,18 +392,16 @@ let rec infer_expr (senv : Senv.t) (env : tyenv) (e : expr) : typ =
            then ty0
            else raise (TypeError "Match branches have mismatched types"))
   | Esome e_inner ->
-    let te = infer_expr senv env e in
-    begin match te with
-    | Ptr pt ->
-        (* wrap a *non-option* pointer into option-pointer *)
-        begin match pt with
-        | Otype _ -> raise (TypeError "some expects a non-option pointer")
-        | _       -> Ptr (Otype pt)
-        end
-    | _ -> raise (TypeError "some expects a pointer expression")
+    let te = infer_expr senv env e_inner in
+    begin match te with 
+              | Ptr pt  -> Ptr (Otype pt)
+              | _ -> raise (TypeError "some expects a pointer type")
+              end 
+  | Enone ty ->
+    begin match ty with
+    | Ptr pt -> Ptr (Otype pt)
+    | _ -> raise (TypeError "none expects a pointer type")
     end
-  | Enone ->
-    raise (TypeError "none must be used in a match expression and cannot be typed alone")
 
 
 let infer_fundecl (Tfundecl (_name, ret_type, _eff, args, _vars, body))
