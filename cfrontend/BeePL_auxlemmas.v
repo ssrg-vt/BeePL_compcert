@@ -48,6 +48,12 @@ r = r'.
 Proof. (* use inductive principle proved in BeeTypes.v *)
 Admitted.
 
+Lemma eq_type_trans : forall t t' t'',
+eq_type t t' ->
+transBeePL_type t' = t'' ->
+t'' = transBeePL_type t. 
+Proof.
+Admitted.
 
 (*** Auxillary lemmas related to types and effects ***)
 (* Complete Me: Easy *)

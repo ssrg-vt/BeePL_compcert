@@ -517,6 +517,9 @@ Fixpoint vars_bound_by (p : pattern) : list ident :=
   | Pbytes x _ fields => x :: map fst fields
   end.
 
+End Memory_semantics.
+
+
 Section SubstHelper.
 
 Variable subst : ident -> expr -> expr -> expr.
@@ -544,6 +547,17 @@ Fixpoint subst_match_branches (x : ident) (se : expr) (ps : list pattern) (es : 
 
 End SubstHelper.
 
+Section Substitution.
+
+Variable subst : ident -> expr -> expr -> expr.
+
+Fixpoint substs (x : ident) (se : expr) (es : list expr) : list expr :=
+match es with 
+| nil => nil
+| e :: es => subst x se e :: substs x se es
+end.
+
+End Substitution.
 
 (* Substitution *)
 Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
@@ -551,8 +565,8 @@ Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
   | Val v t => e
   | Var y t => if (x =? y)%positive then se else Var y t
   | Const c t => e 
-  | App e es t => App (subst x se e) (map (subst x se) es) t
-  | Prim b es t => Prim b (map (subst x se) es) t
+  | App e es t => App (subst x se e) (substs subst x se es) t
+  | Prim b es t => Prim b (substs subst x se es) t
   | Bind y t e1 e2 t' =>
       if (x =? y)%positive 
       then Bind y t (subst x se e1) e2 t'
@@ -560,19 +574,96 @@ Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
   | Cond e1 e2 e3 t => Cond (subst x se e1) (subst x se e2) (subst x se e3) t
   | Unit t => Unit t 
   | Addr l p t => Addr l p t
-  | Eapp ef ts es t => Eapp ef ts (map (subst x se) es) t
+  | Eapp ef ts es t => Eapp ef ts (substs subst x se es) t
   | Sinit y ids es t => if (x =? y)%positive then Sinit y ids es t
-                        else Sinit y ids (map (subst x se) es) t
+                        else Sinit y ids (substs subst x se es) t
   | Sfield e fld t => Sfield (subst x se e) fld t
   | For e1 e2 d e' t => For (subst x se e1) (subst x se e2) d (subst x se e') t
   | Enone t => Enone t 
   | Esome e t => Esome (subst x se e) t
   | Match e ps es t => (*Match (subst x se e) ps (subst_match_branches subst x se ps es) t : correct *)
-    Match (subst x se e) ps (map (subst x se) es) t (* replace this with above *)
-  | Ebytes es t => Ebytes (map (subst x se) es) t
-  | Ainit a t es t' => Ainit a t (map (subst x se) es) t'
+    Match (subst x se e) ps (substs subst x se es) t (* replace this with above *)
+  | Ebytes es t => Ebytes (substs subst x se es) t
+  | Ainit a t es t' => Ainit a t (substs subst x se es) t'
   | Aaccess a t n t' => Aaccess a t n t'
   end.
+
+(* Inductive principles for subst *)
+Inductive SubstE (x:ident) (se:expr) : expr -> expr -> Prop :=
+| S_Val v t :
+    SubstE x se (Val v t) (Val v t)
+| S_Var_hit t :
+    SubstE x se (Var x t) se
+| S_Var_miss y t (H: x <> y) :
+    SubstE x se (Var y t) (Var y t)
+| S_Const c t :
+    SubstE x se (Const c t) (Const c t)
+| S_App e0 e0' es es' t
+    (H0  : SubstE  x se e0 e0')
+    (Hes : SubstEs x se es es') :
+    SubstE x se (App e0 es t) (App e0' es' t)
+| S_Prim b es es' t
+    (Hes : SubstEs x se es es') :
+    SubstE x se (Prim b es t) (Prim b es' t)
+| S_Bind_hit y t e1 e1' e2 t'
+    (Hy : x = y)
+    (H1 : SubstE x se e1 e1') :
+    SubstE x se (Bind y t e1 e2 t') (Bind y t e1' e2 t')
+| S_Bind_miss y t e1 e1' e2 e2' t'
+    (Hy : x <> y)
+    (H1 : SubstE  x se e1 e1')
+    (H2 : SubstE  x se e2 e2') :
+    SubstE x se (Bind y t e1 e2 t') (Bind y t e1' e2' t')
+| S_Cond e1 e1' e2 e2' e3 e3' t
+    (H1: SubstE x se e1 e1') (H2: SubstE x se e2 e2') (H3: SubstE x se e3 e3') :
+    SubstE x se (Cond e1 e2 e3 t) (Cond e1' e2' e3' t)
+| S_Unit t :
+    SubstE x se (Unit t) (Unit t)
+| S_Addr l p t :
+    SubstE x se (Addr l p t) (Addr l p t)
+| S_Eapp ef ts es es' t
+    (Hes : SubstEs x se es es') :
+    SubstE x se (Eapp ef ts es t) (Eapp ef ts es' t)
+| S_Sinit_hit y ids es t (Hy : x = y) :
+    SubstE x se (Sinit y ids es t) (Sinit y ids es t)
+| S_Sinit_miss y ids es es' t (Hy : x <> y)
+    (Hes : SubstEs x se es es') :
+    SubstE x se (Sinit y ids es t) (Sinit y ids es' t)
+| S_Sfield e e' fld t
+    (He : SubstE x se e e') :
+    SubstE x se (Sfield e fld t) (Sfield e' fld t)
+| S_For e1 e1' e2 e2' d e e' t
+    (H1: SubstE x se e1 e1') (H2: SubstE x se e2 e2') (H3: SubstE x se e e') :
+    SubstE x se (For e1 e2 d e t) (For e1' e2' d e' t)
+| S_Enone t :
+    SubstE x se (Enone t) (Enone t)
+| S_Esome e e' t
+    (He: SubstE x se e e') :
+    SubstE x se (Esome e t) (Esome e' t)
+| S_Match e e' ps es es' t
+    (He : SubstE  x se e  e')
+    (Hs : SubstEs x se es es') :
+    SubstE x se (Match e ps es t) (Match e' ps es' t)
+| S_Ebytes es es' t
+    (Hs : SubstEs x se es es') :
+    SubstE x se (Ebytes es t) (Ebytes es' t)
+| S_Ainit a t0 es es' t'
+    (Hs : SubstEs x se es es') :
+    SubstE x se (Ainit a t0 es t') (Ainit a t0 es' t')
+| S_Aaccess a t0 n t' :
+    SubstE x se (Aaccess a t0 n t') (Aaccess a t0 n t')
+
+with SubstEs (x:ident) (se:expr) : list expr -> list expr -> Prop :=
+| S_Nil :
+    SubstEs x se nil nil
+| S_Cons e e' es es'
+    (He  : SubstE  x se e  e')
+    (Hes : SubstEs x se es es') :
+    SubstEs x se (e :: es) (e' :: es').
+
+Scheme SubstE_mut_ind  := Induction for SubstE  Sort Prop
+with   SubstEs_mut_ind := Induction for SubstEs Sort Prop.
+Combined Scheme Subst_mutind from SubstE_mut_ind, SubstEs_mut_ind.
 
 
 Inductive well_formed_value : value -> type -> Prop :=
@@ -585,7 +676,6 @@ Inductive well_formed_value : value -> type -> Prop :=
 | wf_vloc : forall l ofs h t a,
             well_formed_value (Vloc l ofs) (Ptrtype (Reftype h t a)).
 
-End Memory_semantics.
 
 Fixpoint bind_vars (Gamma : ty_context) (l: list (ident * type)) : ty_context :=
 match l with

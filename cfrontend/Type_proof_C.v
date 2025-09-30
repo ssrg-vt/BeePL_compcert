@@ -2,7 +2,7 @@ Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx FunI
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Linking.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Linking Ctypes Smallstep SimplExpr.
 Require Import BeePL_aux BeePL_mem BeeTypes BeePL Csyntax Csem Clight Globalenvs BeePL_Csyntax SimplExpr.
-Require Import Initializersproof Cstrategy BeePL_auxlemmas Coqlib Errors BeePL_values BeePL_sem.
+Require Import Initializersproof Cstrategy BeePL_auxlemmas Coqlib Errors BeePL_values BeePL_sem Ctyping.
 
 From mathcomp Require Import all_ssreflect. 
 
@@ -58,31 +58,20 @@ move=> e. elim: e=> //=.
 move=> e1 hin t1 t2 cge cvm m e' tr m' he. by inversion he; subst.
 Qed.
 
-(*Lemma div_c_exec : forall cge cvm m ce1 ce2 tr m' a' v1 v2 zv g g' i' rs t,
-eval_expr cge cvm m RV (hd default_expr (exprlist_list_expr ce2)) tr m' a' ->
-eval_simple_rvalue cge cvm m' a' (trans_bvalue_cvalue v2) ->
-signedness_of_type t = Some Signed ->
-is_zero_val v2 || is_overflow_vals v1 v2 ->
-check_div (Econs ce1 ce2) zv (transBeePL_type t) g = Res rs g' i' ->
-rs = Eval zv (transBeePL_type t).
+(*Lemma eval_simple_rvalue_type_preservation: forall e cge cvm m v,
+eval_simple_rvalue cge cvm m e v ->
+Ctyping.wt_val v (Csyntax.typeof e).
 Proof.
-move=> cge cvm m ce1 ce2 tr m' a' v1 v2 zv g g' i' rs t he he' hs hv hc.
-rewrite /check_div in hc. case: t hs hc=> //=.
-+ move=> [] //=.
-  + move=> sz s a [] hs; subst; rewrite /=.
-    case: sz=> //=. move=> [] h1 h2; subst.*)
+move=> e. elim: e=> //=.
+(* val *)
++ move=> v t cge cvm m  v' hrv. inversion hrv; subst.
+  case: v' hrv=> //=.
+  + move=> hrv. by apply wt_val_undef.
+  + case: t=> //=.
+    + move=> i hrv. by apply wt_val_void.
+    + move=> sz s a i hrv. apply wt_val_int.
+      Print wt_int.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Lemma eval_expression_type_preservation:
+eval_expression cge cvm m e tr m' v ->
+Cop.val_casted v (Csyntax.typeof e).*)

@@ -376,7 +376,9 @@ end
                      do (ce', bctx'') <- (transBeePL_expr_expr e' (snd ce) bctx');
                      do (ce'', bctx''') <- (transBeePL_expr_expr e'' (snd ce') bctx'');
                      let ct := (transBeePL_type t) in
-                     ret (Econdition (fst ce) (fst ce') (fst ce'') ct, snd ce'', bctx''')  
+                     if eq_type t (typeof_expr e') && eq_type t (typeof_expr e'')
+                     then ret (Econdition (fst ce) (fst ce') (fst ce'') ct, snd ce'', bctx''')  
+                     else error (msg "Then and Else branch should be the same type as the return type")
 | Unit t=> let ct := (transBeePL_type t) in
            ret (Eval (trans_bvalue_cvalue Vunit) ct, fn_ctx, bctx) (* Fix me *)
 | Addr l ofs t => let ct := transBeePL_type t in
@@ -762,13 +764,9 @@ match e with
                       do (ce', ctx'') <- (transBeePL_expr_st cenv e' (snd ce) ctx');
                       do (ce'', ctx''') <- (transBeePL_expr_st cenv e'' (snd ce') ctx'');
                       let ct' := (transBeePL_type t') in
-                      ret (Sifthenelse (fst ce) (fst ce') (fst ce''), snd ce'', ctx''')
-                      (*if (check_var_const e' && check_var_const e'') (* check for expressions with side-effects *)
-                      then ret (Sifthenelse ce ce' ce'')
-                      else if (check_var_const e') then ret (Sifthenelse ce ce' ce'')
-                                                   else if (check_var_const e'') 
-                                                        then ret (Sifthenelse ce ce' (Sreturn (Some (Evalof ce'' ct'))))
-                                                        else ret (Sifthenelse ce ce' (Sdo ce''))*)
+                      if eq_type t' (typeof_expr e') && eq_type t' (typeof_expr e'') 
+                      then ret (Sifthenelse (fst ce) (fst ce') (fst ce''), snd ce'', ctx''')
+                      else error (msg "Then and else branch should be of same type as return type")
 | Unit t=> ret (Sskip, ctx, bctx) (*Sreturn (Some (Eval (Values.Vint (Int.repr 0)) (Ctypes.Tint I32 Unsigned noattr)))*) (* In case of unit, we return 0 *)
 | Addr l ofs t => let ct := (transBeePL_type t) in
                   ret (Sdo (Eloc l.(lname) ofs l.(lbitfield) ct), ctx, bctx)                    
