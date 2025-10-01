@@ -11,6 +11,18 @@ access_mode_type ty = md ->
 transBeePL_type ty =  cty ->
 Ctypes.access_mode cty = md.
 Proof.
+induction ty.
+- induction md; simpl; intros.
+  + inv H.
+  + inv H.
+  + inv H.
+  + subst. auto.
+- induction md; simpl; intros.
+  + destruct p.
+    * simpl in *. injection H. intros.
+      subst. simpl.
+(* Looks like this is unresolvable without
+ well-formedness theorem on chunk_of_type*)
 Admitted.
 
 Lemma non_volatile_type_preserved : forall ty cty b,
@@ -18,7 +30,17 @@ type_is_volatile (transBeePL_type ty) = b ->
 transBeePL_type ty = cty ->
 Ctypes.type_is_volatile cty = b.
 Proof.
-Admitted.
+intros. Search type_is_volatile.
+induction ty.
+- induction cty; simpl in *; try (rewrite <- H0; auto).
+  + auto.
+- induction cty; simpl in *; try (rewrite <- H0; auto).
+- induction cty; simpl in *; try (rewrite <- H0; auto).
+- induction cty; simpl in *; try (rewrite <- H0; auto).
+- induction cty; simpl in *; try (rewrite <- H0; auto).
+- induction cty; simpl in *; try (rewrite <- H0; auto).
+- induction cty; simpl in *; try (rewrite <- H0; auto).
+Qed.
 
 (* Lemma typec_expr : forall e ct ce g' g'' i',
 transBeePL_type (typeof_expr e) = ct ->
@@ -39,7 +61,12 @@ Qed.
 Lemma bc_cv_comp : forall v,
 trans_cvalue_bvalue (trans_bvalue_cvalue v) = OK v.
 Proof.
-Admitted.
+intros.
+induction v eqn:?.
+- Locate trans_cvalue_bvalue.
+  (* Can't be proved without fixing Vunit issue in trans_bvalue_cvalue*)
+Admitted.   
+
 
 (* Since translation of types does not depend on the generator, it 
    should produce the same result irrespective of them *)
@@ -48,16 +75,33 @@ Lemma type_preserved_generator : forall t r r' ,
 transBeePL_type t = r ->
 transBeePL_type t = r'->
 r = r'.
-Proof. (* use inductive principle proved in BeeTypes.v *)
-Admitted.
+Proof. 
+intros. induction H. induction H0.
+auto.
+Qed.
 
+Lemma eq_effect_refl : forall a,
+eq_effect_label a a = true.
+Proof.
+  intros. unfold eq_effect_label.
+  destruct a; auto; try(rewrite Pos.eqb_refl; auto).
+Qed.
+
+Lemma sub_effect_ss : forall a ef1 ef2,
+    sub_effect (a::ef1) (a :: ef2) ->
+    sub_effect ef1 ef2.
+Proof.
+  intros. simpl in H. rewrite eq_effect_refl in H. auto.
+Qed.
 
 (*** Auxillary lemmas related to types and effects ***)
 (* Complete Me: Easy *)
 Lemma sub_effect_refl : forall ef, 
 sub_effect ef ef = true.
 Proof.
-Admitted.
+induction ef; auto.
+simpl. rewrite eq_effect_refl. auto.
+Qed.
 
 (*
 Lemma value_cannot_be_reduced : forall bge benv e m e' m',
@@ -84,7 +128,76 @@ Admitted.
 Lemma sub_effect_nil : forall ef, 
 sub_effect nil ef = true.
 Proof.
-Admitted.
+intros. induction ef; auto.
+Qed.
+
+Lemma sub_effect_1s : forall a ef1 ef2,
+    sub_effect ef1 ef2 ->
+    sub_effect ef1 (a :: ef2).
+Proof.
+  intros a ef1. generalize dependent a. induction ef1.
+  - auto.
+  - intros. simpl. destruct (eq_effect_label a a0); auto.
+    induction ef2.
+    + inv H.
+    + apply IHef1. simpl in H. destruct (eq_effect_label a a1); auto.
+Qed.
+
+Lemma sub_effect_1c : forall ef1 ef2 ef3,
+    sub_effect ef1 ef2 ->
+    sub_effect ef1 (ef3 ++ ef2).
+Proof.
+  intros. induction ef3.
+  - auto.
+  - Search cat. rewrite cat_cons. apply sub_effect_1s. auto.
+Qed.
+
+Lemma eq_effect_trans: forall a a0 a1,
+    eq_effect_label a a0 ->
+    eq_effect_label a a1 ->
+    eq_effect_label a0 a1.
+Proof.
+  intros. induction a.
+  induction a0; induction a1; auto; try(inv H).
+  induction a0; induction a1; auto; try(inv H1).
+  induction a0; induction a1; auto; try(inv H).
+  + apply Peqb_true_eq in H2. subst. auto.
+  induction a0; induction a1; auto; try(inv H).
+  +  apply Peqb_true_eq in H2. subst. auto.
+  induction a0; induction a1; auto; try(inv H).
+  +  apply Peqb_true_eq in H2. subst. auto.
+  induction a0; induction a1; auto; try(inv H1).
+Qed.
+  
+Lemma eq_effect_trans': forall a a0 a1,
+    eq_effect_label a0 a ->
+    eq_effect_label a1 a ->
+    eq_effect_label a0 a1.
+Proof.
+  intros. induction a.
+  induction a0; induction a1; auto; try(inv H).
+  induction a0; induction a1; auto; try(inv H1).
+  induction a0; induction a1; auto; try(inv H).
+  + apply Peqb_true_eq in H2. subst. auto.
+    unfold eq_effect_label in *. rewrite Pos.eqb_sym. auto.
+  induction a0; induction a1; auto; try(inv H).
+  + apply Peqb_true_eq in H2. subst. auto.
+    unfold eq_effect_label in *. rewrite Pos.eqb_sym. auto.
+  induction a0; induction a1; auto; try(inv H).
+  + apply Peqb_true_eq in H2. subst. auto.
+    unfold eq_effect_label in *. rewrite Pos.eqb_sym. auto.
+  induction a0; induction a1; auto; try(inv H).
+Qed.
+
+Lemma eq_effect_sym : forall a b,
+    eq_effect_label a b ->
+    eq_effect_label b a.
+Proof.
+  intros. induction a; induction b; auto.
+  - unfold eq_effect_label in *. rewrite Pos.eqb_sym. auto.
+  - unfold eq_effect_label in *. rewrite Pos.eqb_sym. auto.
+  - unfold eq_effect_label in *. rewrite Pos.eqb_sym. auto.
+Qed.
 
 (* Complete Me: Easy *)
 Lemma sub_effect_trans : forall ef1 ef2 ef3, 
@@ -92,19 +205,74 @@ sub_effect ef1 ef2 = true ->
 sub_effect ef2 ef3 = true ->
 sub_effect ef1 ef3 = true.
 Proof.
-Admitted.
+  intro. induction ef1.
+  - intros. apply sub_effect_nil.
+  - intros. generalize dependent ef3. induction ef2.
+    + intros. inv H.
+    + intros. induction ef3.
+      * inv H0.
+      * simpl. destruct (eq_effect_label a a1) eqn:Eqaa1.
+        -- simpl in H. simpl in H0. destruct (eq_effect_label a a0) eqn:Eqaa0.
+           ++ assert (eq_effect_label a0 a1 = true).
+              apply eq_effect_trans with (a := a); auto.
+              rewrite H1 in H0. apply IHef1 with (ef2 := ef2); auto.
+           ++ destruct (eq_effect_label a0 a1) eqn:Eqa01.
+              ** assert (eq_effect_label a a0).
+                 apply eq_effect_trans' with (a := a1). auto.
+                 auto. congruence.
+              ** apply IHef1 with (ef2 := ef2).
+                 --- apply sub_effect_1s with (a := a) in H.
+                     apply sub_effect_ss in H. auto.
+                     apply sub_effect_1s with (a := a0) in H0.
+                     apply sub_effect_ss in H0. auto.
+                 --- have Hmid : sub_effect (a :: ef1) (a1 :: ef3) = true.
+                     simpl. rewrite Eqaa1. 
+                     apply IHef3.
+                     apply sub_effect_1s with (a:= a) in H.
+                     apply sub_effect_ss in H. apply IHef1 with (ef3 := a1 :: ef3) in H; auto.
+                     destruct (eq_effect_label a0 a1) eqn:Eqa01.
+                     simpl in H0. rewrite Eqa01 in H0.
+                     admit.
+                     simpl in H0. rewrite Eqa01 in H0. auto.
+                     simpl in Hmid. rewrite Eqaa1 in Hmid. auto.
+Admitted.                 
+
+
+
 
 (* Complete Me: Easy *)
 Lemma prefix_sub_effect : forall (ef1 ef2 : effect), 
 sub_effect ef1 (ef1 ++ ef2)%list = true.
-Proof. 
-Admitted.
+Proof.
+induction ef1.
+- apply sub_effect_nil.
+- intros. simpl.
+  destruct a; simpl; try apply IHef1;
+  try (rewrite Pos.eqb_refl; apply IHef1).
+Qed.
 
 (* Complete Me: Easy *)
 Lemma suffix_sub_effect : forall (ef1 ef2 : effect), 
 sub_effect ef2 (ef1 ++ ef2)%list = true.
-Proof. 
-Admitted.
+Proof.
+  intros. revert ef1.
+induction ef2; intros.
+- apply sub_effect_nil.
+- simpl. induction ef1.
+  +  simpl. rewrite eq_effect_refl. apply sub_effect_refl.
+  + simpl. destruct (eq_effect_label a a0).
+    * assert ((ef1 ++ (a :: ef2)%SEQ)%list = (ef1 ++ [:: a]) ++ ef2).
+      rewrite - catA. rewrite cat1s. auto.
+      rewrite H. apply IHef2. apply IHef1.
+Qed.
+
+Lemma sub_effect_lem1 : forall efa efb,
+    sub_effect efa efb ->
+    sub_effect efa efa.
+Proof.
+  induction efa; auto.
+  - intros. apply sub_effect_refl.
+Qed.
 
 (* Complete Me: Easy *)
 Lemma sub_effect_concat : forall ef1 ef2 ef1' ef2',
@@ -112,7 +280,59 @@ sub_effect ef1 ef1' ->
 sub_effect ef2 ef2' ->
 sub_effect (ef1 ++ ef2) (ef1' ++ ef2').
 Proof.
-Admitted.
+intro ef1. induction ef1.
+-  intros. generalize dependent ef2. generalize dependent ef2'. induction ef1'.
+  + auto. 
+  + intros. rewrite sub_effect_nil in IHef1'.
+    simpl. generalize dependent ef2'. induction ef2.
+    * auto.
+    * intros. destruct (eq_effect_label a0 a).
+      -- simpl in IHef1'. apply IHef1'; auto.
+         ++ apply sub_effect_1s with (a := a0) in H0.
+         apply sub_effect_ss in H0. apply H0.
+      -- apply sub_effect_1c. auto.
+- intros. generalize dependent ef2. generalize dependent ef2'.
+  induction ef1'.
+  + intros. inv H.
+  + intros. simpl in *. destruct (eq_effect_label a a0). 
+    apply IHef1; auto. apply IHef1' with (ef2 := ef2) (ef2' := ef2') in H; auto.
+Qed.
+
+Lemma no_divergence_a : forall a ef,
+    no_divergence (a :: ef) <->
+    no_divergence ef /\ no_divergence [:: a].
+Proof.
+  split.
+  - intros. simpl in H.
+    destruct a; auto.
+  - intros. destruct H. unfold no_divergence.
+    unfold no_divergence in H0. destruct (eq_effect_label Divergence a); auto.
+Qed.
+
+Lemma no_divergence_fe : forall a ef,
+    no_divergence (ef ++ [:: a]) <->
+      no_divergence (a :: ef).
+Proof.
+split.
+- intros. generalize dependent a.
+  induction ef; auto.
+  + intros.  destruct a0; try (simpl; simpl in H).
+    * destruct a; try (apply IHef in H; auto); try auto.
+    * destruct a; try (apply IHef in H; auto); try auto.
+    * destruct a; try (apply IHef in H; auto); try auto.
+    * destruct a; try (apply IHef in H; auto); try auto.
+    * destruct a; try (apply IHef in H; auto); try auto.
+    * destruct a; try (apply IHef in H; auto); try auto.
+- intros. generalize dependent a.
+  induction ef; auto.
+  + intros. destruct a; try(simpl; apply IHef; simpl in H).
+    * destruct a0; auto.
+    * destruct a0; auto.
+    * destruct a0; auto.
+    * destruct a0; auto.
+    * destruct a0; auto.
+    * destruct a0; auto.
+Qed.
 
 (* Complete Me: Easy *)
 Lemma no_divergence_concat : forall ef ef',
@@ -120,7 +340,13 @@ no_divergence ef ->
 no_divergence ef' ->
 no_divergence (ef ++ ef').
 Proof.
-Admitted. 
+  intros. generalize dependent ef. induction ef'; intros.
+  - rewrite cats0. auto.
+  - assert (ef ++ a :: ef' = (ef ++ [:: a]) ++ ef'). rewrite -catA. auto.
+    rewrite H1. apply IHef'; auto; try (apply no_divergence_a in  H0;  destruct H0; auto).
+    +  assert (no_divergence ef /\ no_divergence [:: a]). auto.
+       apply no_divergence_a in H3. apply no_divergence_fe. assumption.
+Qed.
 
 Lemma unzip1_cancel {A} {B} : forall (l1 : list A) (l2 : list B),
   length l1 = length l2 ->
