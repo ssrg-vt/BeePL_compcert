@@ -731,7 +731,7 @@ end.
 (* Insights about Cstrategy: 
    In Cstrategy, a bare variable (Evar) is never evaluated as a value; 
    we always need Evalof (Evar …) to turn it into an r-value and then load its contents. 
-   A big-step semantics produces a value, only by treating l-value as r-value using Evalof *)
+   A big-step semantics produces a value, only by treating l-value as r-value using Evalof *) 
 Fixpoint convert_to_rval (e : Csyntax.expr) : Csyntax.expr :=
 match e with 
 | Csyntax.Evar x t => Evalof (Csyntax.Evar x t) t
@@ -740,6 +740,8 @@ match e with
 | Csyntax.Eunop op e t => Csyntax.Eunop op (convert_to_rval e) t
 | Csyntax.Ecast e t => Csyntax.Ecast (convert_to_rval e) t
 | Csyntax.Econdition e1 e2 e3 t => Csyntax.Econdition (convert_to_rval e1) (convert_to_rval e2) (convert_to_rval e3) t
+| Csyntax.Eassign e1 e2 t => Csyntax.Eassign (convert_to_rval e1) (convert_to_rval e2) t
+| Csyntax.Ecomma e1 e2 t => Csyntax.Ecomma (convert_to_rval e1) (convert_to_rval e2) t
 | _ => e
 end.
 
@@ -1224,7 +1226,7 @@ by move=> [] //=.
 Qed.
 
 (**** Substitution progresses ****)
-Lemma SubstE_sound :
+(*Lemma SubstE_sound :
     (forall x se e e', SubstE  x se e  e' -> subst x se e = e') /\
     (forall x se es es', SubstEs x se es es' -> substs subst x se es = es').
 Proof.
@@ -1267,20 +1269,20 @@ move=> x se. apply Subst_mutind=> //=.
 + by move=> es es' t h1 h1'; subst.
 + by move=> a t' es es' h1 h1' h2; subst.
 by move=> e e' es es' h1 h1' h2 h2'; subst.
-Qed.
+Qed.*)
 
-Lemma SubstE_complete:
+(*Lemma SubstE_complete:
 (forall x se e,
   SubstE x se e (subst x se e)) /\
 (forall x se es,
-  SubstE x se es (subst x se es)).
+  SubstEs x se es (substs subst x se es)).
 Proof.
 suff: forall x se,
       (forall e, SubstE x se e (subst x se e)) /\
       (forall es, SubstEs x se es (substs subst x se es)).
 + admit.
-move=> x se.
-Admitted.
+move=> x se. apply Subst_mutind=> //=.
+Admitted.*)
 
 Lemma subst_progress_rel : 
 (forall x se e e' fctx bctx g ce fctx' bctx' g' i' fctx1 bctx1 g1,
@@ -1309,7 +1311,7 @@ transBeePL_expr_exprs transBeePL_expr_expr es' fctx1 bctx1 g1 = Res (ces', fctx'
 move=> x se. apply Subst_mutind=> //=.
 Admitted.
 
-Lemma subst_progress_fun : 
+(*Lemma subst_progress_fun : 
 (forall x se e fctx bctx g ce fctx' bctx' g' i' fctx1 bctx1 g1,
 transBeePL_expr_expr e fctx bctx g = Res (ce, fctx', bctx') g' i' ->
 exists ce' fctx'' bctx'' g'' i'',
@@ -1320,7 +1322,7 @@ transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g = Res (ce, fctx', bctx
 exists ces' fctx'' bctx'' g'' i'',
 transBeePL_expr_exprs transBeePL_expr_expr (substs subst x se es) fctx1 bctx1 g1 = Res (ces', fctx'', bctx'') g'' i'').
 Proof.
-Admitted.
+Admitted.*)
 
 (***** Comparing BeePL big-step semantics with Csyntax big-step semantics *****)
 Lemma bsem_csem_expr_equiv : forall bge cp,
@@ -1590,12 +1592,29 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
   have := sem_equiv_cast v e (transBeePL_type t2) m' v' fctx bctx g (hd default_expr (exprlist_list_expr ces)) fctx' bctx' g2 i2 v'' hc hce hv.
   by rewrite htce.
 (* bind *)
-+ move=> p vm m x e1 m' v e2 e2' v' tx he1 hin1 hst he2 hin2 cp cge fctx bctx ce cvm fctx' bctx' g g' i' hp hte hm.
++ move=> p vm m x e1 m' m'' v e2 e2' v' tx he1 hin1 hx hst he2 hin2 cp cge fctx bctx ce cvm fctx' bctx' g g' i' hp hte hm.
   have [htr1 htr2] := trans_expr_expr_ind.
   move: (htr1 (Bind x tx e1 e2 (typeof_expr e2)) fctx bctx ce fctx' bctx' g g' i' hte)=> [] ce1 [] fctx1 [] bctx1 [] g1 [] i1 [] ce2 [] g2 [] i2 [] hce1 [] hce2.
   move: (hin1 cp cge fctx bctx ce1 cvm fctx1 bctx1 g g1 i1 hp hce1 hm)=> [] tr1 hce3; subst.
-  (* x = _ *)
-  admit.
+  case: ifP=> //= hxeq.
+  (* !x = _ *)
+  + have [hs1 hs2] := subst_progress_rel.  move: (hs1 x (Val v (typeof_expr e1)) e2 e2' fctx1 bctx1 g1 ce2 fctx' bctx' g2 i2 fctx' bctx' g1 hst hce2).
+    move=> [] ce2' [] fctx'' [] bctx'' [] g'' [] i'' hce2'.
+    move: (hin2 cp cge fctx' bctx' ce2' cvm fctx'' bctx'' g1 g'' i'' hp hce2' hm)=> [] tr2 hce4.
+    move=> heq; subst. rewrite /=. inversion hce3; subst. inversion hce4; subst. admit.
+  (* x = _ *) (* bind as seq done *)
+  move=> p vm m x e1 m' m'' v e2 v' tx he1 hin1 hx he2 hin2 cp cge fctx bctx ce cvm fctx' bctx' g g' i' hp hte hm.
+  have [htr1 htr2] := trans_expr_expr_ind.
+  move: (htr1 (Bind x tx e1 e2 (typeof_expr e2)) fctx bctx ce fctx' bctx' g g' i' hte)=> [] ce1 [] fctx1 [] bctx1 [] g1 [] i1 [] ce2 [] g2 [] i2 [] hce1 [] hce2.
+  rewrite /ident_of_string /= hx /=. move=> heq; subst.
+  move: (hin1 cp cge fctx bctx ce1 cvm fctx1 bctx1 g g1 i1 hp hce1 hm)=> [] tr1 hce3; subst.
+  move: (hin2 cp cge fctx1 bctx1 ce2 cvm fctx' bctx' g1 g2 i2 hp hce2 hm)=> [] tr2 hce4; subst.
+  exists (tr1 ++ tr2). rewrite /=. inversion hce3; subst. inversion hce4; subst.
+  apply eval_expression_intro with a'0.
+  + apply eval_comma with m' a' (trans_bvalue_cvalue v); auto.
+  have ht := compilation_preserve_type e2 fctx1 bctx1 ce2 fctx' bctx' g1 g2 i2 hce2.  
+  have -> := convert_rval_type_eq ce2. by rewrite ht.
+  by apply H2.
 (* cond *) (* done *)
 + move=> p vm m e1 e2 e3 t m' vb ct1 v' v v'' m'' he1 hin1 ht1 hb he2 hin2 hs hv cp cge fctx bctx ce
          cvm fctx' bctx' g g' i' hp he hm.

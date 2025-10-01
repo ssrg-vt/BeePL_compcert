@@ -239,12 +239,18 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                sem_cast (trans_bvalue_cvalue v) (transBeePL_type (typeof_expr e)) (transBeePL_type t2) m' = Some v' ->
                trans_cvalue_bvalue v' = OK v'' ->
                bsem_expr p vm m (Prim (Cast t2) (e:: nil) t2) m' vm v''
-(* fix me : add semantics for run primitive *)
-| bsem_bind : forall p vm m x e1 m' v e2 e2' v' tx,
-              bsem_expr p vm m e1 m' vm v -> 
-              subst x (Val v (typeof_expr e1)) e2 = e2' ->
-              bsem_expr p vm m e2' m' vm v' ->
-              bsem_expr p vm m (Bind x tx e1 e2 (typeof_expr e2)) m' vm v'
+| bsem_bind_subst : forall p vm m x e1 m' m'' v e2 e2' v' tx,
+                    bsem_expr p vm m e1 m' vm v -> 
+                    not (x =? Ctypesdefs.ident_of_string "_")%positive ->
+                    
+                    SubstE x (Val v (typeof_expr e1)) e2 e2' ->
+                    bsem_expr p vm m' e2' m'' vm v' ->
+                    bsem_expr p vm m (Bind x tx e1 e2 (typeof_expr e2)) m'' vm v'
+| bsem_bind_no_subst : forall p vm m x e1 m' m'' v e2 v' tx,
+                       bsem_expr p vm m e1 m' vm v -> 
+                       (x =? Ctypesdefs.ident_of_string "_")%positive ->
+                       bsem_expr p vm m' e2 m'' vm v' ->
+                       bsem_expr p vm m (Bind x tx e1 e2 (typeof_expr e2)) m'' vm v'
 | bsem_ctrue : forall p vm m e1 e2 e3 t  m' vb ct1 v' v v'' m'', 
                bsem_expr p vm m e1 m' vm vb -> 
                transBeePL_type (typeof_expr e1) = ct1 ->
@@ -475,8 +481,9 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                ssem_expr p vm m e1 m' vm' e1' -> 
                ssem_expr p vm m (Bind x tx e1 e2 (typeof_expr e2)) m' vm' 
                               (Bind x tx e1' e2 (typeof_expr e2)) 
-| ssem_bind2 : forall p vm m x v1 e2 tx,
-               ssem_expr p vm m (Bind x tx (Val v1 tx) e2 (typeof_expr e2)) m vm (subst x (Val v1 tx) e2)  
+| ssem_bind2 : forall p vm m x v1 e2 tx e2',
+               SubstE x (Val v1 tx) e2 e2' ->
+               ssem_expr p vm m (Bind x tx (Val v1 tx) e2 (typeof_expr e2)) m vm e2' 
 | ssem_cond : forall p vm m e1 e2 e3 vm' m' e1', 
               ssem_expr p vm m e1 m' vm' e1' -> 
               ssem_expr p vm m (Cond e1 e2 e3 (typeof_expr e2)) m' vm' (Cond e1' e2 e3 (typeof_expr e2))

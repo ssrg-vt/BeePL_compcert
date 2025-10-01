@@ -368,9 +368,10 @@ end
                            ret (Ecomma (fst ce) (fst ce') ct', snd ce', bctx'')
                       else let ct := (transBeePL_type t) in
                            do (ce, bctx') <- (transBeePL_expr_expr e fn_ctx bctx);
-                           do (ce', bctx'') <- (transBeePL_expr_expr e' (snd ce) bctx');
+                           (*do (i, str) <- (fresh_ident (List.map unzip_ident (snd ce)) max_fresh);*)
+                           do (ce'', bctx'') <- (transBeePL_expr_expr e' (*(subst x (Var i t) e')*) (snd ce) bctx');
                            let ct' := (transBeePL_type t') in
-                           ret (Ecomma (Eassign (Evar x ct) (fst ce) ct) (fst ce') ct', snd ce', bctx'') 
+                           ret (Ecomma (Eassign (Evar x ct) (fst ce) ct) (fst ce'') ct', snd ce'', bctx'') 
                       
 | Cond e e' e'' t => do (ce, bctx') <- (transBeePL_expr_expr e fn_ctx bctx);
                      do (ce', bctx'') <- (transBeePL_expr_expr e' (snd ce) bctx');

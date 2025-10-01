@@ -547,20 +547,57 @@ Fixpoint subst_match_branches (x : ident) (se : expr) (ps : list pattern) (es : 
 
 End SubstHelper.
 
+(* A reusable mutual induction principle over expr and list expr *)
+(*Theorem expr_list_mutind
+  (He  : expr -> Prop)
+  (Hes  : list expr -> Prop)
+  (* one hypothesis per constructor of expr, using He and Hes for subparts *)
+  (HVal   : forall v t, He (Val v t))
+  (HVar   : forall y t, He (Var y t))
+  (HConst : forall c t, He (Const c t))
+  (HApp   : forall e0 es t, He e0 -> Hes es -> He (App e0 es t))
+  (HPrim  : forall b es t, Hes es -> He (Prim b es t))
+  (HBind  : forall x t e1 e2, He e1 -> He e2 -> He (Bind x t e1 e2 t))
+  (HCond  : forall e1 e2 e3 t, He e1 -> He e2 -> He e3 -> He (Cond e1 e2 e3 t))
+  (HUnit  : forall t, He (Unit t))
+  (HAddr  : forall l ofs t, He (Addr l ofs t))
+  (HEapp  : forall ef ts es t, Hes es -> He (Eapp ef ts es t))
+  (HSinit : forall s ids es t, Hes es -> He (Sinit s ids es t))
+  (HSfield : forall e i t, He e -> He (Sfield e i t))
+  (Hfor : forall e1 e2 d e3 t, He e1 -> He e2 -> He e3 -> He (For e1 e2 d e3 t))
+  (HEnone : forall t, He (Enone t))
+  (HEsome : forall e t, He e -> He (Esome e t))
+  (HMatch : forall e ps es t, Hes es -> He (Match e ps es t))
+  (HEbytes: forall es t, Hes es -> He (Ebytes es t))
+  (HAinit : forall a t0 es t', Hes es -> He (Ainit a t0 es t'))
+  (HAacc  : forall a t0 n t', He (Aaccess a t0 n t'))
+  (* list hypotheses *)
+  (HNil   : Hes nil)
+  (HCons  : forall e es, He e -> Hes es -> Hes (e::es))
+  : (forall e, He e) /\ (forall es, Hes es).
+Proof.
+have Hexpr : forall e, He e.
+- fix IH 1. (* or: refine (expr_ind (…); …) *)
+  destruct e; cbn; try solve [auto].
+split=> //=. move=> es. elim: es=> //=.
+move=> e' es' hes'. apply HCons; auto.
+Qed.*)
+
+
 Section Substitution.
 
-Variable subst : ident -> expr -> expr -> expr.
+Variable S : ident -> expr -> expr -> expr.
 
 Fixpoint substs (x : ident) (se : expr) (es : list expr) : list expr :=
 match es with 
 | nil => nil
-| e :: es => subst x se e :: substs x se es
+| e :: es => S x se e :: substs x se es
 end.
 
 End Substitution.
 
 (* Substitution *)
-Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
+Program Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
   match e with 
   | Val v t => e
   | Var y t => if (x =? y)%positive then se else Var y t
