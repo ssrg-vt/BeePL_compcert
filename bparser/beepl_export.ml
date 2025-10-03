@@ -246,8 +246,8 @@ let rec export_expr_to_coq (ee : Beepl_ast_typechecker.efenv) (senv : Beepl_ast_
   | Const c -> (match c with
     | Cstring s ->
       let id = lift_string_constant s in
-    (* pass as char* : Ptr(Reftype "h", int8) *)
-    Printf.sprintf
+      (* pass as char* : Ptr(Reftype "h", int8) *)
+      Printf.sprintf
       "(Const (ConsPtr _%s) (Ptrtype (Reftype _h (BeeTypes.Tint I8 Signed dattr) noattr)))"
       id
     | _ ->

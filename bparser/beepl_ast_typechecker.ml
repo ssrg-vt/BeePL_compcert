@@ -52,6 +52,11 @@ let build_efenv () : efenv =
           effects = [Io];
           ret = Vtype Tint32;
           variadic = true }
+  |> Env.add "bpf_printk"
+  { formals = [ Ptr (Reftype ("h", Bprim Tint8)); Vtype Tint32];
+    effects = [Io];
+    ret = Vtype Tint32;
+    variadic = true }
   |> Env.add "bpf_get_prandom_u32"
         { formals = [];
           effects = [Io];
@@ -61,6 +66,11 @@ let build_efenv () : efenv =
         { formals = [];
           effects = [Io];
           ret = (* prefer Tuint64 if you have it *) Vtype Tulong;
+          variadic = false }
+  |> Env.add "bpf_get_current_pid_tgid"
+        { formals = [];
+          effects = [Io];
+          ret = Vtype Tulong;
           variadic = false }
     
 let extern_bindings_of_efenv (ee : efenv) : (string * typ) list =
@@ -158,7 +168,7 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
         begin match uop with
         | Oneg ->
             begin match arg_ty with
-            | Vtype Tint32 | Vtype Tlong -> arg_ty
+            | Vtype Tint32 | Vtype Tlong | Vtype Tulong -> arg_ty
             | _ -> raise (TypeError "- can only be applied to int32 or long")
             end
         | Onotint ->
