@@ -491,7 +491,7 @@ let infer_program (prog : program) =
       | EBPFInternal (Tfundecl (name, ret, eff, args, _, _), _) ->
           Some (name, Ftype (List.map snd args, eff, ret))
       | StructDecl _ -> None
-      | GlobalLet (name, ty, _) -> Some (name, ty)
+      | GlobalLet (name, ty, _, _) -> Some (name, ty)
     ) prog
   in
   let global_env = list_to_env (extern_fun_types @ global_fun_types) in
@@ -502,8 +502,9 @@ let infer_program (prog : program) =
       | Internal (f, _) | EBPFInternal (f, _) ->
           infer_fundecl ee f senv global_env
       | StructDecl _ -> ()
-      | GlobalLet (name, ty, e) ->
+      | GlobalLet (name, ty, e, l) ->
           let inferred_ty = infer_expr ee senv global_env e in
           if not (typ_eq inferred_ty ty) then
-            raise (TypeError ("Global let binding type mismatch for " ^ name))
+            raise (TypeError ("Global let " ^ name ^ " type mismatch"))
+        
     ) prog

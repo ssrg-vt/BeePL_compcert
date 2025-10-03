@@ -72,8 +72,12 @@ toplevel:
     }
   | STRUCT id = IDENT LBRACE fields = separated_list(COMMA, field_decl) RBRACE
     { StructDecl(id, fields) }
-  | LET id = IDENT COLON t = typ EQ e = expr
-    { GlobalLet(id, t, e) }
+  | anns = annotations LET id = IDENT COLON t = typ EQ e = expr
+    {
+      match anns with
+      | (false, sec) -> GlobalLet(id, t, e, sec)
+      | (true, sec)  -> failwith "Global let cannot be eBPF"
+    }
   
 
 annotations:

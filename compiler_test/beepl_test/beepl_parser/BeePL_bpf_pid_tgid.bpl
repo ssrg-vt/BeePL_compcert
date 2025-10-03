@@ -24,6 +24,9 @@ struct xdp_md {
     _egress_ifindex : uint32
 }
 
+#section license
+let _license : int8[4] = "GPL\0"
+
 #ebpf
 #section xdp
 fun xdp_prog (struct xdp_md* p) : int32, [] {

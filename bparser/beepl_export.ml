@@ -104,7 +104,7 @@ let idents_from_prog =
     | StructDecl (sname, fields) ->
         let acc = if List.mem sname acc then acc else sname :: acc in
         List.fold_left add_var acc fields 
-    | GlobalLet (name, _, body) ->
+    | GlobalLet (name, _, body, _) ->
         let acc = if List.mem name acc then acc else name :: acc in
         from_expr acc body     
   ) [] prog
@@ -523,8 +523,12 @@ let export_coq_globals prog ext_entries =
             | None -> "None"
           in
           Some (Printf.sprintf "(_%s, AST.Gfun (BeePL.Internal f_%s), %s)" name name sec_str)
-      | GlobalLet (name, _, _) ->
-          Some (Printf.sprintf "(_%s, AST.Gvar v_%s, None)" name name)
+      | GlobalLet (name, _, _, section) ->
+        let sec_str = match section with
+            | Some s -> Printf.sprintf "Some \"%s\"" (clean_section s)
+            | None -> "None"
+          in
+          Some (Printf.sprintf "(_%s, AST.Gvar v_%s, %s)" name name sec_str)
       | _ -> None) prog
   in
   let string_entries =
@@ -582,7 +586,7 @@ let export_transform_toplevel ~ee ~senv ~globals = function
 | Internal(f, _) -> export_transform_function ee senv globals f false
 | EBPFInternal(f, _) -> export_transform_function ee senv globals f true
 | StructDecl (name, fields) -> export_transform_struct name fields
-| GlobalLet (name, t, e) ->
+| GlobalLet (name, t, e, _) ->
     let env = globals in
     let body_str = export_expr_to_coq ee senv env e in
     Printf.sprintf
@@ -599,7 +603,7 @@ Qed. |}
   
 let export_collect_globals (prog : program) : (string * typ) list =
   List.filter_map (function
-    | GlobalLet (name, t, _) -> Some (name, t)
+    | GlobalLet (name, t, _, _) -> Some (name, t)
     | _ -> None
   ) prog
 

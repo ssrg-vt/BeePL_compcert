@@ -65,7 +65,7 @@ let collect_global_env
     List.filter_map (function
       | Beepl_ast.Internal (f, _) | Beepl_ast.EBPFInternal (f, _) -> Some (ftype_of_decl f)
       | Beepl_ast.StructDecl _ -> None
-      | Beepl_ast.GlobalLet (x, t, _) -> Some (x, t)
+      | Beepl_ast.GlobalLet (x, t, _, _) -> Some (x, t)
     ) prog
   in
   List.fold_left
@@ -130,7 +130,7 @@ let collect_idents (prog : Beepl_ast.program) : string list =
     | Beepl_ast.StructDecl (sname, fields) ->
         add_ident sname;
         List.iter add_var fields
-    | Beepl_ast.GlobalLet (x, _, e) ->
+    | Beepl_ast.GlobalLet (x, _, e, _) ->
         add_ident x;
         from_expr e
   ) prog;
@@ -508,10 +508,10 @@ let transform_toplevel ee senv global_env = function
 | StructDecl (name, fields) ->
     let id = Camlcoq.intern_string name in
     `Struct (id, transform_struct name fields)
-| GlobalLet (name, typ, expr) ->
+| GlobalLet (name, typ, expr, sec) ->
     let id = Camlcoq.intern_string name in
     let t' = transform_typ typ in
-    `Global (id, t', expr)
+    `Global (id, t', expr, sec)
       
 let find_main_or_fallback prog : string =
   let names =
@@ -649,10 +649,17 @@ let init_data_of_string (s : string) : AST.init_data list =
               | Some s -> Some (string_to_char_list ("\"" ^ s ^ "\""))
               | None -> None
             in Some ((id, AST.Gfun (BeePL.Internal f)), sec)
-        | `Global (id, t, v) ->
-            Some ((id, AST.Gvar {
+        | `Global (id, t, v, section) ->
+          let sec =
+            match section with
+            | Some s when String.length s > 8 && String.sub s 0 8 = "#section" ->
+                let raw = String.trim (String.sub s 8 (String.length s - 8)) in
+                Some (string_to_char_list ("\"" ^ raw ^ "\""))
+            | Some s -> Some (string_to_char_list ("\"" ^ s ^ "\""))
+            | None -> None
+            in Some ((id, AST.Gvar {
               AST.gvar_info = t; AST.gvar_init = eval_const_expr v;
-              AST.gvar_readonly = false; AST.gvar_volatile = false }), None)
+              AST.gvar_readonly = false; AST.gvar_volatile = false }), sec)
         | _ -> None
       ) transformed_decls in
     (*dbg "defs done";*)
