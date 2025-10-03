@@ -12,12 +12,14 @@ Local Open Scope gensym_monad_scope.
 Record bcompiler_ctx := { arg_ctx : list (ident * type);
                           benv : bcomposite_env; }.
 
+Definition max_fresh : nat := 1000%nat.
+
+
 Section transBeePL_exprs.
 
-Variables transBeePL_expr_expr : BeePL.expr -> list (ident * BeeTypes.type * string) -> bcompiler_ctx -> 
+Variables transBeePL_expr_expr : BeePL.expr -> list (ident * BeeTypes.type * string) -> bcompiler_ctx ->
 mon (Csyntax.expr * list (ident * BeeTypes.type * string) * bcompiler_ctx).
 
-Definition max_fresh : nat := 1000%nat.
 
 (* Translates list of BeePL expressions to list of C expressions *)
 Fixpoint transBeePL_expr_exprs (es : list BeePL.expr) (fn_ctx : list (ident * BeeTypes.type * string)) (bctx : bcompiler_ctx) : 
@@ -275,6 +277,33 @@ Fixpoint assign_struct_fields_chain
       Ecomma asg (assign_struct_fields_chain base rest tail tail_ty) tail_ty
   end.
 
+(*let x = 3 in (x + x) ==> temp = 3; [x <= temp](x+x)
+temp = 3; [x <= temp](x+x)*)
+Locate "'do'". Print mon.
+(*Program Fixpoint transBeePL_expr_expr (e : BeePL.expr) (fn_ctx : list (ident * BeeTypes.type * string)) (bctx : bcompiler_ctx) 
+{measure (size_e e)}: mon (Csyntax.expr * (list (ident * BeeTypes.type * string)) * bcompiler_ctx) := 
+match e with 
+| Val v t => ret (Eval (trans_bvalue_cvalue v) (transBeePL_type t), fn_ctx, bctx) 
+| Var x t => ret (Evar x (transBeePL_type t), fn_ctx, bctx)
+| Const c t => match c with 
+               | ConsInt i => ret (Eval (Values.Vint i) (transBeePL_type t), fn_ctx, bctx)
+               | ConsLong i => ret (Eval (Values.Vlong i) (transBeePL_type t), fn_ctx, bctx)
+               | ConsUnit => ret (Eval (Values.Vint (Int.repr 0)) (transBeePL_type t), fn_ctx, bctx) 
+               | ConsBool b => ret (if eqb b true 
+                                    then (Eval (Values.Vint (Int.repr 1)) (transBeePL_type t), fn_ctx, bctx) 
+                                    else (Eval (Values.Vint (Int.repr 0)) (transBeePL_type t), fn_ctx, bctx))
+               end
+| App e es t => match (transBeePL_expr_expr e fn_ctx bctx _) with 
+                | Res (ce, bctx') g' i' => ret (Ecall (fst ce) Enil (transBeePL_type t), snd ce, bctx')
+                (*do (ces, bctx'') <- (transBeePL_expr_exprs transBeePL_expr_expr es (snd ce) bctx');*)
+                | _ => error (msg "FOO") end
+| _ => error (msg "FOO")
+end.
+Next Obligation.
+Admitted.
+Next Obligation.
+Admit Obligations.*)
+
 Fixpoint transBeePL_expr_expr (e : BeePL.expr) (fn_ctx : list (ident * BeeTypes.type * string)) (bctx : bcompiler_ctx) : 
 mon (Csyntax.expr * (list (ident * BeeTypes.type * string)) * bcompiler_ctx) := 
 match e with 
@@ -368,18 +397,15 @@ end
                            ret (Ecomma (fst ce) (fst ce') ct', snd ce', bctx'')
                       else let ct := (transBeePL_type t) in
                            do (ce, bctx') <- (transBeePL_expr_expr e fn_ctx bctx);
-                           (*do (i, str) <- (fresh_ident (List.map unzip_ident (snd ce)) max_fresh);*)
-                           do (ce'', bctx'') <- (transBeePL_expr_expr e' (*(subst x (Var i t) e')*) (snd ce) bctx');
+                           do (ce', bctx'') <- (transBeePL_expr_expr e' (snd ce) bctx');
                            let ct' := (transBeePL_type t') in
-                           ret (Ecomma (Eassign (Evar x ct) (fst ce) ct) (fst ce'') ct', snd ce'', bctx'') 
+                           ret (Ecomma (Eassign (Evar x ct) (fst ce) ct) (fst ce') ct', snd ce', bctx'') 
                       
 | Cond e e' e'' t => do (ce, bctx') <- (transBeePL_expr_expr e fn_ctx bctx);
                      do (ce', bctx'') <- (transBeePL_expr_expr e' (snd ce) bctx');
                      do (ce'', bctx''') <- (transBeePL_expr_expr e'' (snd ce') bctx'');
                      let ct := (transBeePL_type t) in
-                     if eq_type t (typeof_expr e') && eq_type t (typeof_expr e'')
-                     then ret (Econdition (fst ce) (fst ce') (fst ce'') ct, snd ce'', bctx''')  
-                     else error (msg "Then and Else branch should be the same type as the return type")
+                     ret (Econdition (fst ce) (fst ce') (fst ce'') ct, snd ce'', bctx''')  
 | Unit t=> let ct := (transBeePL_type t) in
            ret (Eval (trans_bvalue_cvalue Vunit) ct, fn_ctx, bctx) (* Fix me *)
 | Addr l ofs t => let ct := transBeePL_type t in

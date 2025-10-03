@@ -117,8 +117,31 @@ Inductive expr : Type :=
 | Match : expr -> list pattern -> list expr -> type -> expr             (* pattern matching *)
 | Ebytes : list expr -> type -> expr                                    (* bitstrings *)
 | Ainit : ident -> type -> list expr -> type -> expr                    (* array initialization *)
-| Aaccess : ident -> type -> nat -> type -> expr.                               (* array access *)
+| Aaccess : ident -> type -> nat -> type -> expr.                       (* array access *)
 
+(* Size of the expression to help termination checker of Rocq *)
+Fixpoint size_e (e : expr) : nat :=
+match e with 
+| Val v t => 1
+| Var x t => 1
+| Const c t => 1
+| App e es t => size_e e + foldr (fun e acc => (size_e e + acc)%nat) O es + 1
+| Prim b es t => foldr (fun e acc => (size_e e + acc)%nat) O es + 1
+| Bind x t e1 e2 t' => size_e e1 + size_e e2 + 1 
+| Cond e1 e2 e3 t => size_e e1 + size_e e2 + size_e e3 + 1
+| Unit t => 1
+| Addr l ofs t => 1
+| Eapp ef ts es t => foldr (fun e acc => (size_e e + acc)%nat) O es + 1
+| Sinit s ids es t => foldr (fun e acc => (size_e e + acc)%nat) O es + 1
+| Sfield e id t => size_e e + 1
+| For e1 e2 d e3 t => size_e e1 + size_e e2 + size_e e3 + 1
+| Enone t => 1
+| Esome e t => size_e e + 1
+| Match e ps es t => foldr (fun e acc => (size_e e + acc)%nat) O es + 1
+| Ebytes es t => foldr (fun e acc => (size_e e + acc)%nat) O es + 1
+| Ainit a t es t' => foldr (fun e acc => (size_e e + acc)%nat) O es + 1
+| Aaccess a t n t' => 1
+end.
 
 (* Free variables *) 
 Fixpoint free_variables (e : expr) : list ident  :=
@@ -547,43 +570,6 @@ Fixpoint subst_match_branches (x : ident) (se : expr) (ps : list pattern) (es : 
 
 End SubstHelper.
 
-(* A reusable mutual induction principle over expr and list expr *)
-(*Theorem expr_list_mutind
-  (He  : expr -> Prop)
-  (Hes  : list expr -> Prop)
-  (* one hypothesis per constructor of expr, using He and Hes for subparts *)
-  (HVal   : forall v t, He (Val v t))
-  (HVar   : forall y t, He (Var y t))
-  (HConst : forall c t, He (Const c t))
-  (HApp   : forall e0 es t, He e0 -> Hes es -> He (App e0 es t))
-  (HPrim  : forall b es t, Hes es -> He (Prim b es t))
-  (HBind  : forall x t e1 e2, He e1 -> He e2 -> He (Bind x t e1 e2 t))
-  (HCond  : forall e1 e2 e3 t, He e1 -> He e2 -> He e3 -> He (Cond e1 e2 e3 t))
-  (HUnit  : forall t, He (Unit t))
-  (HAddr  : forall l ofs t, He (Addr l ofs t))
-  (HEapp  : forall ef ts es t, Hes es -> He (Eapp ef ts es t))
-  (HSinit : forall s ids es t, Hes es -> He (Sinit s ids es t))
-  (HSfield : forall e i t, He e -> He (Sfield e i t))
-  (Hfor : forall e1 e2 d e3 t, He e1 -> He e2 -> He e3 -> He (For e1 e2 d e3 t))
-  (HEnone : forall t, He (Enone t))
-  (HEsome : forall e t, He e -> He (Esome e t))
-  (HMatch : forall e ps es t, Hes es -> He (Match e ps es t))
-  (HEbytes: forall es t, Hes es -> He (Ebytes es t))
-  (HAinit : forall a t0 es t', Hes es -> He (Ainit a t0 es t'))
-  (HAacc  : forall a t0 n t', He (Aaccess a t0 n t'))
-  (* list hypotheses *)
-  (HNil   : Hes nil)
-  (HCons  : forall e es, He e -> Hes es -> Hes (e::es))
-  : (forall e, He e) /\ (forall es, Hes es).
-Proof.
-have Hexpr : forall e, He e.
-- fix IH 1. (* or: refine (expr_ind (…); …) *)
-  destruct e; cbn; try solve [auto].
-split=> //=. move=> es. elim: es=> //=.
-move=> e' es' hes'. apply HCons; auto.
-Qed.*)
-
-
 Section Substitution.
 
 Variable S : ident -> expr -> expr -> expr.
@@ -597,7 +583,7 @@ end.
 End Substitution.
 
 (* Substitution *)
-Program Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
+Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
   match e with 
   | Val v t => e
   | Var y t => if (x =? y)%positive then se else Var y t

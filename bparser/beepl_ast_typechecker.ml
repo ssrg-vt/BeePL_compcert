@@ -36,12 +36,37 @@ let build_senv (prog : Beepl_ast.program) : Senv.t =
     Senv.empty
     prog
 
-let predefined_externals : (string * typ) list = [
-  ("printf", Ftype (
-    [Ptr (Reftype ("h", Bprim Tint8))],
-    [Io],
-    Vtype Tint32));
-]
+type efinfo = {
+  formals  : typ list;     (* fixed prefix *)
+  effects  : effect list;
+  ret      : typ;
+  variadic : bool;
+}
+    
+type efenv = efinfo Env.t
+    
+let build_efenv () : efenv =
+  Env.empty
+  |> Env.add "printf"
+        { formals = [ Ptr (Reftype ("h", Bprim Tint8)) ];
+          effects = [Io];
+          ret = Vtype Tint32;
+          variadic = true }
+  |> Env.add "bpf_get_prandom_u32"
+        { formals = [];
+          effects = [Io];
+          ret = Vtype Tuint32;
+          variadic = false }
+  |> Env.add "bpf_ktime_get_ns"
+        { formals = [];
+          effects = [Io];
+          ret = (* prefer Tuint64 if you have it *) Vtype Tulong;
+          variadic = false }
+    
+let extern_bindings_of_efenv (ee : efenv) : (string * typ) list =
+  Env.bindings ee
+  |> List.map (fun (name, info) ->
+        (name, Ftype (info.formals, info.effects, info.ret)))
 
 let rec take n xs =
   match n, xs with
@@ -114,7 +139,7 @@ let rec typ_eq t1 t2 =
   | Ptr (Otype pt1), Ptr (Otype pt2) -> typ_eq (Ptr pt1) (Ptr pt2)
   | _, _ -> false
 
-let rec infer_expr (senv : Senv.t) (env : tyenv) (e : expr) : typ =
+let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
   match e with
   | Var x ->
       (match Env.find_opt x env with
@@ -129,7 +154,7 @@ let rec infer_expr (senv : Senv.t) (env : tyenv) (e : expr) : typ =
        | Cstring s -> Ptr (Reftype ("h", Bprim (Tint8)))) (* Assuming string is a byte array and max length *)
   | Prim (Uop uop, args) ->
     (match args with 
-    | [arg] -> let arg_ty = infer_expr senv env arg in
+    | [arg] -> let arg_ty = infer_expr ee senv env arg in
         begin match uop with
         | Oneg ->
             begin match arg_ty with
@@ -158,8 +183,8 @@ let rec infer_expr (senv : Senv.t) (env : tyenv) (e : expr) : typ =
   | Prim (Bop bop, args) ->
     begin match args with 
       | [a1; a2] ->
-        let t1 = infer_expr senv env a1 in
-        let t2 = infer_expr senv env a2 in
+        let t1 = infer_expr ee senv env a1 in
+        let t2 = infer_expr ee senv env a2 in
         begin match bop with
         | Oadd | Osub | Omul | Odiv | Omod | Oand | Oor | Oxor | Oshl | Oshr  ->
             if (typ_eq t1 t2) && (match t1 with
@@ -192,7 +217,7 @@ let rec infer_expr (senv : Senv.t) (env : tyenv) (e : expr) : typ =
   | Prim (Cast t, args) ->
     begin match args with
     | [arg] ->
-        let arg_ty = infer_expr senv env arg in
+        let arg_ty = infer_expr ee senv env arg in
         begin match arg_ty, t with
         | Vtype ta, Vtype _ -> t
         | _ -> raise (TypeError "Cast can only be applied between primitive types")
@@ -202,7 +227,7 @@ let rec infer_expr (senv : Senv.t) (env : tyenv) (e : expr) : typ =
   | Prim (Ref, args) ->
     begin match args with
     | [arg] ->
-        let arg_ty = infer_expr senv env arg in
+        let arg_ty = infer_expr ee senv env arg in
         Ptr (Reftype ("h", match arg_ty with
           | Vtype pt -> Bprim pt
           | Stype s -> Bstruct s
@@ -213,7 +238,7 @@ let rec infer_expr (senv : Senv.t) (env : tyenv) (e : expr) : typ =
   | Prim (Deref, args) ->
     begin match args with
     | [arg] ->
-        let arg_ty = infer_expr senv env arg in
+        let arg_ty = infer_expr ee senv env arg in
         begin match arg_ty with
         | Ptr (Reftype (_, btype)) ->
             begin match btype with
@@ -230,8 +255,8 @@ let rec infer_expr (senv : Senv.t) (env : tyenv) (e : expr) : typ =
   | Prim (Massgn, args) ->
     begin match args with
     | [arg1; arg2] ->
-        let t1 = infer_expr senv env arg1 in
-        let t2 = infer_expr senv env arg2 in
+        let t1 = infer_expr ee senv env arg1 in
+        let t2 = infer_expr ee senv env arg2 in
         begin match t1 with
         | Ptr (Reftype (_, btype)) ->
             let expected_ty = match btype with
@@ -248,47 +273,60 @@ let rec infer_expr (senv : Senv.t) (env : tyenv) (e : expr) : typ =
     | _ -> raise (TypeError "Massgn expects exactly two arguments")
     end
   | App (e1, args) ->
-    let ty1 = infer_expr senv env e1 in
-    let arg_tys = List.map (infer_expr senv env) args in
-    (match ty1 with
-    | Ftype (arg_types, _eff, ret_type) ->
-        begin match List.compare_lengths arg_types arg_tys with
-        | 0 ->
-            List.iter2 (fun a b -> if not (typ_eq a b) then
-              raise (TypeError "Function application argument type mismatch"))
-              arg_types arg_tys;
-            ret_type
-        | -1 ->
-            (match e1 with
-            | Var fname when fname = "printf" ->
-                List.iter2 (fun a b -> if not (typ_eq a b) then
-                  raise (TypeError "Function application argument type mismatch"))
-                  arg_types (take (List.length arg_types) arg_tys);
-                ret_type
-            | _ -> raise (TypeError "Function application argument count mismatch"))
-        | _ -> raise (TypeError "Function application argument count mismatch")
-        end
+    let ty1      = infer_expr ee senv env e1 in
+    let arg_tys  = List.map (infer_expr ee senv env) args in
+    begin match ty1 with
+    | Ftype (formals, _eff, ret_type) ->
+        let n_formals = List.length formals
+        and n_actuals = List.length arg_tys in
+
+        (* Does the callee name correspond to a known external variadic? *)
+        let callee_is_variadic =
+          match e1 with
+          | Var fname ->
+              (match Env.find_opt fname ee with
+                | Some info -> info.variadic
+                | None -> false)
+          | _ -> false
+        in
+
+        if n_actuals < n_formals then
+          raise (TypeError "Function application: not enough arguments");
+        (* extra arguments are only allowed for variadic functions.*)
+        if n_actuals > n_formals && not callee_is_variadic then
+          raise (TypeError "Function application: too many arguments");
+
+        (* Always check the fixed prefix pairwise *)
+        let prefix_actuals = take n_formals arg_tys in
+        List.iter2 (fun formal actual ->
+          if not (typ_eq formal actual) then
+            raise (TypeError "Function application argument type mismatch")
+        ) formals prefix_actuals;
+
+        ret_type
+
     | _ ->
-        raise (TypeError "Expected type is a function type for application"))
+        raise (TypeError "Expected a function type in application")
+    end
   | Let (x, ty_ann, e1, e2) ->
-      let ty1 = infer_expr senv env e1 in
+      let ty1 = infer_expr ee senv env e1 in
       if not (typ_eq ty1 ty_ann) then
         raise (TypeError ("Let-binding type mismatch for " ^ x));
       let env' = Env.add x ty1 env in
-      infer_expr senv env' e2 
+      infer_expr ee senv env' e2 
   | If (e1, e2, e3) ->
-      let t1 = infer_expr senv env e1 in
+      let t1 = infer_expr ee senv env e1 in
       if not (typ_eq t1 (Vtype Tbool)) then
         raise (TypeError "If condition must be bool");
-      let t2 = infer_expr senv env e2 in
-      let t3 = infer_expr senv env e3 in
+      let t2 = infer_expr ee senv env e2 in
+      let t3 = infer_expr ee senv env e3 in
       if not (typ_eq t2 t3) then
         raise (TypeError "If branches have mismatched types");
       t2
   | For (e1, e2, d, e3) ->
-      let t1 = infer_expr senv env e1 in
-      let t2 = infer_expr senv env e2 in
-      let t3 = infer_expr senv env e3 in
+      let t1 = infer_expr ee senv env e1 in
+      let t2 = infer_expr ee senv env e2 in
+      let t3 = infer_expr ee senv env e3 in
       if (typ_eq t1 t2) && (match t1 with
         | Vtype Tint8 | Vtype Tint16 | Vtype Tint32
         | Vtype Tuint8 | Vtype Tuint16 | Vtype Tuint32
@@ -309,7 +347,7 @@ let rec infer_expr (senv : Senv.t) (env : tyenv) (e : expr) : typ =
         (* 2) type-check values against declared types *)
         List.iter2 (fun fname expr ->
           let expected_ty = Senv.find_field struct_name fname senv in
-          let expr_ty = infer_expr senv env expr in
+          let expr_ty = infer_expr ee senv env expr in
           if not (typ_eq expected_ty expr_ty) then
             raise (TypeError (Printf.sprintf
               "Struct %s field %s type mismatch (expected %s, got %s)"
@@ -318,7 +356,7 @@ let rec infer_expr (senv : Senv.t) (env : tyenv) (e : expr) : typ =
     
         Stype struct_name
   | Fget (e, field_name) ->
-      let e_ty = infer_expr senv env e in
+      let e_ty = infer_expr ee senv env e in
       begin match e_ty with
       | Stype struct_name ->
           let field_ty = Senv.find_field struct_name field_name senv in
@@ -335,9 +373,9 @@ let rec infer_expr (senv : Senv.t) (env : tyenv) (e : expr) : typ =
     (match exprs with
     | [] -> raise (TypeError "Ainit requires at least one element to infer type")
     | first_elem :: _ ->
-        let elem_ty = infer_expr senv env first_elem in
+        let elem_ty = infer_expr ee senv env first_elem in
         List.iter (fun expr ->
-          let expr_ty = infer_expr senv env expr in
+          let expr_ty = infer_expr ee senv env expr in
           if not (typ_eq elem_ty expr_ty) then
             raise (TypeError "Array initialization element type mismatch")
         ) exprs;
@@ -352,7 +390,7 @@ let rec infer_expr (senv : Senv.t) (env : tyenv) (e : expr) : typ =
     | None -> raise (TypeError ("Unbound array variable: " ^ arr)))
   | Match (e, patterns, exprs) ->
     (* 1) scrutinee type *)
-    let scrut_ty = infer_expr senv env e in
+    let scrut_ty = infer_expr ee senv env e in
     (* same arity *)
     if List.length patterns <> List.length exprs then
     raise (TypeError "Match branches count mismatch");
@@ -374,7 +412,7 @@ let rec infer_expr (senv : Senv.t) (env : tyenv) (e : expr) : typ =
           | Pbytes (_x, _t, _fields) ->
               raise (TypeError "Pbytes pattern not supported yet")
         in
-        infer_expr senv env' body
+        infer_expr ee senv env' body
       in
 
       let branch_tys =
@@ -392,7 +430,7 @@ let rec infer_expr (senv : Senv.t) (env : tyenv) (e : expr) : typ =
            then ty0
            else raise (TypeError "Match branches have mismatched types"))
   | Esome e_inner ->
-    let te = infer_expr senv env e_inner in
+    let te = infer_expr ee senv env e_inner in
     begin match te with 
               | Ptr pt  -> Ptr (Otype pt)
               | _ -> raise (TypeError "some expects a pointer type")
@@ -404,17 +442,19 @@ let rec infer_expr (senv : Senv.t) (env : tyenv) (e : expr) : typ =
     end
 
 
-let infer_fundecl (Tfundecl (_name, ret_type, _eff, args, _vars, body))
+let infer_fundecl (ee : efenv) (Tfundecl (_name, ret_type, _eff, args, _vars, body))
 (senv : Senv.t) (global_env : tyenv) =
 let env_with_args =
 List.fold_left (fun acc (x, ty) -> Env.add x ty acc) global_env args in
-let inferred_type = infer_expr senv env_with_args body in
+let inferred_type = infer_expr ee senv env_with_args body in
 if not (typ_eq inferred_type ret_type) then
 raise (TypeError "Return type mismatch");
 ()
 
 let infer_program (prog : program) =
-  let senv = build_senv prog in     
+  let senv = build_senv prog in  
+  let ee    = build_efenv () in
+  let extern_fun_types = extern_bindings_of_efenv ee in   
   (* Step 1: collect all top-level function types into global env *)
   let global_fun_types =
     List.filter_map (function
@@ -426,16 +466,16 @@ let infer_program (prog : program) =
       | GlobalLet (name, ty, _) -> Some (name, ty)
     ) prog
   in
-  let global_env = list_to_env global_fun_types in
+  let global_env = list_to_env (extern_fun_types @ global_fun_types) in
 
   (* Step 2: typecheck each function body *)
   List.iter
     (function
       | Internal (f, _) | EBPFInternal (f, _) ->
-          infer_fundecl f senv global_env
+          infer_fundecl ee f senv global_env
       | StructDecl _ -> ()
       | GlobalLet (name, ty, e) ->
-          let inferred_ty = infer_expr senv global_env e in
+          let inferred_ty = infer_expr ee senv global_env e in
           if not (typ_eq inferred_ty ty) then
             raise (TypeError ("Global let binding type mismatch for " ^ name))
     ) prog

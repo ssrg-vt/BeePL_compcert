@@ -713,7 +713,6 @@ split.
   case he1: (transBeePL_expr_expr e1 fctx bctx g) => [err1 | ce1 g1 i1] //=.
   case he2: (transBeePL_expr_expr e2 ce1.1.2 ce1.2 g1) => [err2 | ce2 g2 i2] //=.
   case he3: (transBeePL_expr_expr e3 ce2.1.2 ce2.2 g2) => [err3 | ce3 g3 i3] //=.
-  case: ifP=> //= /andP [] hteq1 hteq2.
   move=> [] h1 h2 h3 h4; subst. exists ce1.1.1, ce1.1.2, ce1.2, g1, i1, ce2.1.1, ce2.1.2, ce2.2.
   exists g2, i2, ce3.1.1, g', i3. split=> //=.
   + by case: (ce1)=> [[a b] c].
@@ -1085,7 +1084,6 @@ move=> e. elim: e=> //=.
   case he1: (transBeePL_expr_expr e1 fctx bctx g)=> [err1 | ce1 g1 i1] //=.
   case he2: (transBeePL_expr_expr e2 ce1.1.2 ce1.2 g1) => [err2 | ce2 g2 i2] //=.
   case he3: (transBeePL_expr_expr e3 ce2.1.2 ce2.2 g2) => [err3 | ce3 g3 i3] //=.
-  case: ifP=> //= /andP [] ht1 ht2.
   by move=> [] h1 h2 h3 h4; subst.
 (* Unit *)
 + move=> t fctx bctx ce fctx' bctx' g g' i'. by move=> [] h1 h2 h3 h4; subst.
@@ -1661,8 +1659,6 @@ match_env bvm cvm ->
 exec_stmt cge cvm m ce tr m' o.
 Proof.
 Admitted.
-
-
 
 
 (*

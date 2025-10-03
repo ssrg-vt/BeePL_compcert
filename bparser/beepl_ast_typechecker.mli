@@ -16,21 +16,32 @@ module Senv : sig
     val fields_of : string -> t -> (string * typ) list
   end
 
+(** External functions environment. *)
+type efinfo = {
+  formals  : typ list;       (* fixed prefix parameters *)
+  effects  : effect list;
+  ret      : typ;
+  variadic : bool;           (* true => accepts extra ... args *)
+}
+type efenv = efinfo Env.t
+
 (** Build a struct environment from the program’s StructDecls. *)
 val build_senv : program -> Senv.t
 
-val predefined_externals : (string * typ) list
+(** Build an external function environment from the program’s ExternDecls. *)
+val build_efenv : unit -> efenv
 
+(** Build a type environment from a list of (name, type) pairs. *)
 val list_to_env : (string * typ) list -> tyenv
 
 val string_of_ptype : ptype -> string
 val string_of_typ : typ -> string
 
 (** Type inference for expressions (needs struct env + var env). *)
-val infer_expr : Senv.t -> tyenv -> expr -> typ
+val infer_expr : efenv -> Senv.t -> tyenv -> expr -> typ
 
 (** Type check a function declaration. *)
-val infer_fundecl : fundecl -> Senv.t -> tyenv -> unit
+val infer_fundecl : efenv -> fundecl -> Senv.t -> tyenv -> unit
 
 (** Type check an entire program. Builds Senv internally. *)
 val infer_program : program -> unit

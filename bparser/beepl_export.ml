@@ -5,7 +5,10 @@ open Lexing
 open Beepl_ast_typechecker
 [@@@ocaml.warning "-32"]
 
-let external_functions = predefined_externals
+let extern_bindings_of_efenv (ee : Beepl_ast_typechecker.efenv) : (string * typ) list =
+  Beepl_ast_typechecker.Env.bindings ee
+  |> List.map (fun (name, info) ->
+       (name, Ftype (info.formals, info.effects, info.ret)))
 
 (* Build struct environment from the program *)
 let build_senv (prog : program) : Beepl_ast_typechecker.Senv.t =
@@ -242,7 +245,7 @@ let export_stringlit_def (id : string) (s : string) : string =
     "Definition v_%s := {|\n  gvar_info := tbarray tint8s %d noattr;\n  gvar_init := %s :: nil;\n  gvar_readonly := true;\n  gvar_volatile := false\n|}." id length init_values
 
 
-let rec export_expr_to_coq (senv : Beepl_ast_typechecker.Senv.t) (env : (string * typ) list) (e : expr) : string =
+let rec export_expr_to_coq (ee : Beepl_ast_typechecker.efenv) (senv : Beepl_ast_typechecker.Senv.t) (env : (string * typ) list) (e : expr) : string =
   match e with
   | Var id ->
       let ty =
@@ -258,12 +261,12 @@ let rec export_expr_to_coq (senv : Beepl_ast_typechecker.Senv.t) (env : (string 
         let ty = Printf.sprintf "Ptrtype (Reftype _%s (Barray (Tint I8 Signed noattr) %d) noattr)" id (String.length s + 1) in
         Printf.sprintf "(Var _%s (%s))" id ty
     | _ ->
-        let ty = export_typ_to_coq (infer_expr senv (list_to_env env) e) in
+        let ty = export_typ_to_coq (infer_expr ee senv (list_to_env env) e) in
         Printf.sprintf "(Const %s (%s))" (export_const_to_coq c) ty)
   | App (e1, args) ->
-      let e1_str = export_expr_to_coq senv env e1 in
-      let args_str = List.map (export_expr_to_coq senv env) args in
-      let ty1 = export_typ_to_coq (infer_expr senv (list_to_env env) e1) in
+      let e1_str = export_expr_to_coq ee senv env e1 in
+      let args_str = List.map (export_expr_to_coq ee senv env) args in
+      let ty1 = export_typ_to_coq (infer_expr ee senv (list_to_env env) e1) in
       Printf.sprintf 
       "(App (%s)\n                  (%s)\n                  (%s))"
         e1_str
@@ -271,8 +274,8 @@ let rec export_expr_to_coq (senv : Beepl_ast_typechecker.Senv.t) (env : (string 
         ty1
   (* Note: The type of the function is inferred from the environment *)
   | Prim (Uop uop, args) ->
-      let args_str = List.map (export_expr_to_coq senv env) args in
-      let ty = export_typ_to_coq (infer_expr senv (list_to_env env) e) in
+      let args_str = List.map (export_expr_to_coq ee senv env) args in
+      let ty = export_typ_to_coq (infer_expr ee senv (list_to_env env) e) in
       let uop_str = match uop with
         | Onotbool -> "Onotbool"
         | Onotint -> "Onotint"
@@ -285,8 +288,8 @@ let rec export_expr_to_coq (senv : Beepl_ast_typechecker.Senv.t) (env : (string 
         (export_coq_list args_str)
         ty
   | Prim (Bop bop, args) ->
-      let args_str = List.map (export_expr_to_coq senv env) args in
-      let ty = export_typ_to_coq (infer_expr senv (list_to_env env) e) in
+      let args_str = List.map (export_expr_to_coq ee senv env) args in
+      let ty = export_typ_to_coq (infer_expr ee senv (list_to_env env) e) in
       let bop_str = match bop with
         | Oadd -> "Oadd"
         | Osub -> "Osub"
@@ -312,63 +315,63 @@ let rec export_expr_to_coq (senv : Beepl_ast_typechecker.Senv.t) (env : (string 
         (export_coq_list args_str)
         ty
   | Prim (Cast t, args) ->
-      let args_str = List.map (export_expr_to_coq senv env) args in
-      let ty = export_typ_to_coq (infer_expr senv (list_to_env env) e) in
+      let args_str = List.map (export_expr_to_coq ee senv env) args in
+      let ty = export_typ_to_coq (infer_expr ee senv (list_to_env env) e) in
       Printf.sprintf 
       "(Prim (Cast %s)\n                  (%s)\n                  (%s))"
         (export_typ_to_coq t)
         (export_coq_list args_str)
         ty
   | Prim (Ref, args) ->
-      let args_str = List.map (export_expr_to_coq senv env) args in
-      let ty = export_typ_to_coq (infer_expr senv (list_to_env env) e) in
+      let args_str = List.map (export_expr_to_coq ee senv env) args in
+      let ty = export_typ_to_coq (infer_expr ee senv (list_to_env env) e) in
       Printf.sprintf 
       "(Prim (Ref)\n                  (%s)\n                  (%s))"
         (export_coq_list args_str)
         ty
   | Prim (Deref, args) ->
-      let args_str = List.map (export_expr_to_coq senv env) args in
-      let ty = export_typ_to_coq (infer_expr senv (list_to_env env) e) in
+      let args_str = List.map (export_expr_to_coq ee senv env) args in
+      let ty = export_typ_to_coq (infer_expr ee senv (list_to_env env) e) in
       Printf.sprintf 
       "(Prim (Deref)\n                  (%s)\n                  (%s))"
         (export_coq_list args_str)
         ty
   | Prim (Massgn, args) ->
-      let args_str = List.map (export_expr_to_coq senv env) args in
-      let ty = export_typ_to_coq (infer_expr senv (list_to_env env) e) in
+      let args_str = List.map (export_expr_to_coq ee senv env) args in
+      let ty = export_typ_to_coq (infer_expr ee senv (list_to_env env) e) in
       Printf.sprintf 
       "(Prim (Massgn)\n                  (%s)\n                  (%s))"
         (export_coq_list args_str)
         ty
   | Let (id, t, e1, e2) ->
-      let e1_str = export_expr_to_coq senv env e1 in
+      let e1_str = export_expr_to_coq ee senv env e1 in
       let env' = (id, t) :: env in
-      let e2_str = export_expr_to_coq senv env' e2 in
-      let ty2 = export_typ_to_coq (infer_expr senv (list_to_env env') e2) in
+      let e2_str = export_expr_to_coq ee senv env' e2 in
+      let ty2 = export_typ_to_coq (infer_expr ee senv (list_to_env env') e2) in
       Printf.sprintf 
       "(Bind _%s (%s)\n                  %s\n                  %s\n             (%s))"
         id (export_typ_to_coq t) e1_str e2_str ty2
   | If (e1, e2, e3) ->
-      let ty2 = export_typ_to_coq (infer_expr senv (list_to_env env) e2) in
+      let ty2 = export_typ_to_coq (infer_expr ee senv (list_to_env env) e2) in
       Printf.sprintf 
       "(Cond (%s)\n                       (%s)\n                       (%s)\n                  (%s))"
-        (export_expr_to_coq senv env e1)
-        (export_expr_to_coq senv env e2)
-        (export_expr_to_coq senv env e3)
+        (export_expr_to_coq ee senv env e1)
+        (export_expr_to_coq ee senv env e2)
+        (export_expr_to_coq ee senv env e3)
         ty2
   | For (e1, e2, dir, e3) ->
       let dir_str = match dir with Up -> "Up" | Down -> "Down" in
-      let ty3 = export_typ_to_coq (infer_expr senv (list_to_env env) e3) in
+      let ty3 = export_typ_to_coq (infer_expr ee senv (list_to_env env) e3) in
       Printf.sprintf 
       "(For (%s)\n                  (%s)\n                  %s\n                  (%s)\n                  (%s))"
-        (export_expr_to_coq senv env e1)
-        (export_expr_to_coq senv env e2)
+        (export_expr_to_coq ee senv env e1)
+        (export_expr_to_coq ee senv env e2)
         dir_str
-        (export_expr_to_coq senv env e3)
+        (export_expr_to_coq ee senv env e3)
         ty3
   | Sinit (struct_name, fnames, exprs) ->
-      let exprs_str = List.map (export_expr_to_coq senv env) exprs in
-      let ty = export_typ_to_coq (infer_expr senv (list_to_env env) e) in
+      let exprs_str = List.map (export_expr_to_coq ee senv env) exprs in
+      let ty = export_typ_to_coq (infer_expr ee senv (list_to_env env) e) in
       Printf.sprintf 
       "(Sinit _%s (%s)\n                  (%s)\n                  (%s))"
         struct_name
@@ -376,15 +379,15 @@ let rec export_expr_to_coq (senv : Beepl_ast_typechecker.Senv.t) (env : (string 
         (export_coq_list exprs_str)
         ty
   | Fget (e, field_name) ->
-      let ret_ty = export_typ_to_coq (infer_expr senv (list_to_env env) e) in
+      let ret_ty = export_typ_to_coq (infer_expr ee senv (list_to_env env) e) in
       Printf.sprintf 
       "(Fget (%s)\n                  _%s\n                  (%s))"
-        (export_expr_to_coq senv env e)
+        (export_expr_to_coq ee senv env e)
         field_name
         ret_ty
   | Ainit (arr, args) ->
-      let args_str = List.map (export_expr_to_coq senv env) args in
-      let ty = export_typ_to_coq (infer_expr senv (list_to_env env) e) in
+      let args_str = List.map (export_expr_to_coq ee senv env) args in
+      let ty = export_typ_to_coq (infer_expr ee senv (list_to_env env) e) in
       Printf.sprintf 
       "(Ainit (%s)\n                  _%s\n                  %s\n                  (%s))"
         arr 
@@ -392,7 +395,7 @@ let rec export_expr_to_coq (senv : Beepl_ast_typechecker.Senv.t) (env : (string 
         (export_coq_list args_str)
         ty
   | Aaccess (arr, n) ->
-      let ty = export_typ_to_coq (infer_expr senv (list_to_env env) e) in
+      let ty = export_typ_to_coq (infer_expr ee senv (list_to_env env) e) in
       let t = match List.assoc arr env with
               | Atype (elem_type, _) -> elem_type
               | _ -> failwith ("Expected array type for Aaccess, got different type for " ^ arr) in 
@@ -410,11 +413,11 @@ let rec export_expr_to_coq (senv : Beepl_ast_typechecker.Senv.t) (env : (string 
             let field_strs = List.map (fun (fid, fty) -> Printf.sprintf "(_%s, %s)" fid (export_typ_to_coq fty)) fields in
             Printf.sprintf "Pbytes (_%s) (%s) (%s)" id (export_typ_to_coq t) (export_coq_list field_strs)
       ) patterns in
-      let exprs_str = List.map (export_expr_to_coq senv env) exprs in
-      let ty = export_typ_to_coq (infer_expr senv (list_to_env env) e) in
+      let exprs_str = List.map (export_expr_to_coq ee senv env) exprs in
+      let ty = export_typ_to_coq (infer_expr ee senv (list_to_env env) e) in
       Printf.sprintf 
       "(Match (%s)\n                  (%s)\n                  (%s)\n                  (%s))"
-        (export_expr_to_coq senv env e)
+        (export_expr_to_coq ee senv env e)
         (export_coq_list patterns_str)
         (export_coq_list exprs_str)
         ty
@@ -422,14 +425,14 @@ let rec export_expr_to_coq (senv : Beepl_ast_typechecker.Senv.t) (env : (string 
 
 | Esome e1 ->
   (* 1) infer the child’s type *)
-  let child_ty = Beepl_ast_typechecker.infer_expr senv (list_to_env env) e1 in
+  let child_ty = Beepl_ast_typechecker.infer_expr ee senv (list_to_env env) e1 in
   (* 2) it must be a plain pointer; wrap it into an option-pointer for the node type *)
   (match child_ty with
    | Ptr pt ->
        let opt_ty = Ptr (Otype pt) in
        Printf.sprintf
          "(Esome (%s)\n         (%s))"
-         (export_expr_to_coq senv env e1)
+         (export_expr_to_coq ee senv env e1)
          (export_typ_to_coq opt_ty)
    | _ ->
        failwith "Esome expects its argument to be a pointer (Ptr _).")
@@ -453,12 +456,12 @@ let rec export_expr_to_coq (senv : Beepl_ast_typechecker.Senv.t) (env : (string 
       "(Enone (%s))"
         ty*)
 
-let export_transform_function ~senv ~globals (Tfundecl (name, ret, eff, args, vars, body)) is_ebpf =
+let export_transform_function ~ee ~senv ~globals (Tfundecl (name, ret, eff, args, vars, body)) is_ebpf =
   let env = args @ vars @ globals in (* Build (string * typ) list environment *)
   let arg_strs = List.map export_arg_to_coq args in
   let var_strs = List.map export_arg_to_coq (collect_vars body) in
   let coq_name = "f_" ^ name in
-  let body_str = export_expr_to_coq senv env body in
+  let body_str = export_expr_to_coq ee senv env body in
   Printf.sprintf
     "Definition %s : BeePL.function := {| \n  fn_return := %s;\n  fn_effect := %s;\n  fn_callconv := cc_default;\n  fn_args := %s;\n  fn_vars := %s;\n  fn_body := %s;\n  is_ebpf := %s\n|}.\n"
     coq_name
@@ -554,13 +557,13 @@ let export_coq_program_wrapper ?(name="example1") (entry : string) : string =
          \                                        ident_to_string.\n"
         name entry
                       
-let export_transform_toplevel ~senv ~globals = function
-| Internal(f, _) -> export_transform_function senv globals f false
-| EBPFInternal(f, _) -> export_transform_function senv globals f true
+let export_transform_toplevel ~ee ~senv ~globals = function
+| Internal(f, _) -> export_transform_function ee senv globals f false
+| EBPFInternal(f, _) -> export_transform_function ee senv globals f true
 | StructDecl (name, fields) -> export_transform_struct name fields
 | GlobalLet (name, t, e) ->
     let env = globals in
-    let body_str = export_expr_to_coq senv env e in
+    let body_str = export_expr_to_coq ee senv env e in
     Printf.sprintf
       "Definition v_%s :=\n {| gtype := %s\n; gvalue := %s\n; gattr := noattr |}.\n"
       name (export_typ_to_coq t) body_str
@@ -582,8 +585,10 @@ let export_collect_globals (prog : program) : (string * typ) list =
 let export_transform_program prog =
   let coq_header = generate_coq_prelude prog in
   let senv       = build_senv prog in
-  let global_env = external_functions @ export_collect_globals prog in
-  let defs = List.map (export_transform_toplevel ~senv ~globals:global_env) prog in
+  let ee         = Beepl_ast_typechecker.build_efenv () in
+  let externs    = extern_bindings_of_efenv ee in
+  let global_env = externs @ export_collect_globals prog in
+  let defs = List.map (export_transform_toplevel ~ee ~senv ~globals:global_env) prog in
   let stringlit_defs =
     Hashtbl.fold (fun id s acc -> export_stringlit_def id s :: acc) 
       string_global_table [] in 
