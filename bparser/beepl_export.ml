@@ -19,7 +19,6 @@ let build_senv (prog : program) : Beepl_ast_typechecker.Senv.t =
       | _ -> acc)
     Beepl_ast_typechecker.Senv.empty
     prog
-
 let export_coq_list (elems : string list) : string =
   match elems with
   | [] -> "nil"
@@ -28,14 +27,15 @@ let export_coq_list (elems : string list) : string =
 let string_constant_counter = ref 0
 let string_global_table = Beepl_transformer.string_globals
 
+let string_to_id : (string, string) Hashtbl.t = Hashtbl.create 17
 
 let lift_string_constant (s : string) : string =
-  match Hashtbl.find_opt string_global_table s with
+  match Hashtbl.find_opt string_to_id s with
   | Some id -> id
   | None ->
-      let id = "___stringlit_" ^ string_of_int !string_constant_counter in
-      incr string_constant_counter;
-      Hashtbl.add string_global_table id s;
+      let id = "___stringlit_" ^ string_of_int (Hashtbl.length string_to_id) in
+      Hashtbl.add string_to_id s id;
+      Hashtbl.add string_global_table id s;   (* keep id -> string for globals emission *)
       id
     
 let export_collect_idents (prog : program) : string list  =
@@ -158,11 +158,11 @@ let rec export_btype_to_coq (bt : btype) : string =
   match bt with
   | Bprim Tbool -> "BeeTypes.Tbool"
   | Bprim Tuint8 -> "BeeTypes.Tuint8 Unsigned dattr"
-  | Bprim Tint8 -> "BeeTypes.Tint I8 Unsigned dattr"
+  | Bprim Tint8 -> "BeeTypes.Tint I8 Signed dattr"
   | Bprim Tuint16 -> "BeeTypes.Tuint I16 Unsigned dattr"
-  | Bprim Tint16 -> "BeeTypes.Tint I16 Unsigned dattr"
+  | Bprim Tint16 -> "BeeTypes.Tint I16 Signed dattr"
   | Bprim Tuint32 -> "BeeTypes.Tuint I32 Unsigned dattr"
-  | Bprim Tint32 -> "BeeTypes.Tint I32 Unsigned dattr"
+  | Bprim Tint32 -> "BeeTypes.Tint I32 Signed dattr"
   | Bprim Tulong -> "BeeTypes.Tulong Unsigned dattr"
   | Bprim Tlong -> "BeeTypes.Tlong"
   | Bstruct name -> Printf.sprintf "(Bstruct _%s noattr)" name
@@ -187,11 +187,11 @@ let rec export_typ_to_coq (t : typ) : string =
   match t with
   | Utype -> "Utype"
   | Vtype Tuint8 -> "Vtype (BeeTypes.Tuint8 Unsigned dattr)"
-  | Vtype Tint8 -> "Vtype (BeeTypes.Tint I8 Unsigned dattr)"
+  | Vtype Tint8 -> "Vtype (BeeTypes.Tint I8 Signed dattr)"
   | Vtype Tuint16 -> "Vtype (BeeTypes.Tuint I16 Unsigned dattr)"
-  | Vtype Tint16 -> "Vtype (BeeTypes.Tint I16 Unsigned dattr)"
+  | Vtype Tint16 -> "Vtype (BeeTypes.Tint I16 Signed dattr)"
   | Vtype Tuint32 -> "Vtype (BeeTypes.Tuint I32 Unsigned dattr)"
-  | Vtype Tint32 -> "Vtype (BeeTypes.Tint I32 Unsigned dattr)"
+  | Vtype Tint32 -> "Vtype (BeeTypes.Tint I32 Signed dattr)"
   | Vtype Tulong -> "Vtype (BeeTypes.Tulong Unsigned dattr)"
   | Vtype Tbool -> "Vtype Tbool"
   | Vtype Tlong -> "Vtype Tlong"
@@ -234,17 +234,6 @@ let export_const_to_coq c =
     let id = lift_string_constant s in
     Printf.sprintf "(ConsPtr _%s)" id
 
-let export_stringlit_def (id : string) (s : string) : string =
-  let bytes = List.init (String.length s) (String.get s) @ ['\000'] in
-  let init_values =
-    bytes
-    |> List.map (fun c -> Printf.sprintf "Init_int8 (Int.repr %d)" (Char.code c))
-    |> String.concat " :: " in
-  let length = List.length bytes in
-  Printf.sprintf
-    "Definition v_%s := {|\n  gvar_info := tbarray tint8s %d noattr;\n  gvar_init := %s :: nil;\n  gvar_readonly := true;\n  gvar_volatile := false\n|}." id length init_values
-
-
 let rec export_expr_to_coq (ee : Beepl_ast_typechecker.efenv) (senv : Beepl_ast_typechecker.Senv.t) (env : (string * typ) list) (e : expr) : string =
   match e with
   | Var id ->
@@ -254,19 +243,20 @@ let rec export_expr_to_coq (ee : Beepl_ast_typechecker.efenv) (senv : Beepl_ast_
           failwith ("Identifier not found in environment: " ^ id)
       in 
       Printf.sprintf "(Var _%s (%s))" id (export_typ_to_coq ty)
-  | Const c ->
-    (match c with
+  | Const c -> (match c with
     | Cstring s ->
-        let id = lift_string_constant s in
-        let ty = Printf.sprintf "Ptrtype (Reftype _%s (Barray (Tint I8 Signed noattr) %d) noattr)" id (String.length s + 1) in
-        Printf.sprintf "(Var _%s (%s))" id ty
+      let id = lift_string_constant s in
+    (* pass as char* : Ptr(Reftype "h", int8) *)
+    Printf.sprintf
+      "(Const (ConsPtr _%s) (Ptrtype (Reftype _h (BeeTypes.Tint I8 Signed dattr) noattr)))"
+      id
     | _ ->
         let ty = export_typ_to_coq (infer_expr ee senv (list_to_env env) e) in
         Printf.sprintf "(Const %s (%s))" (export_const_to_coq c) ty)
   | App (e1, args) ->
       let e1_str = export_expr_to_coq ee senv env e1 in
       let args_str = List.map (export_expr_to_coq ee senv env) args in
-      let ty1 = export_typ_to_coq (infer_expr ee senv (list_to_env env) e1) in
+      let ty1   = export_typ_to_coq (infer_expr ee senv (list_to_env env) (App (e1, args))) in
       Printf.sprintf 
       "(App (%s)\n                  (%s)\n                  (%s))"
         e1_str
@@ -481,15 +471,50 @@ let export_transform_struct (name : string) (fields : (string * typ) list) : str
 let export_starts_with ~prefix s =
   let plen = String.length prefix in
   String.length s >= plen && String.sub s 0 plen = prefix
+
+let export_cc_of_efinfo (variadic : bool) (fixed_arity : int) : string =
+  if variadic then
+    Printf.sprintf
+      "{| cc_vararg := Some (Z.of_nat %d); cc_unproto := false; cc_structret := false |}"
+      fixed_arity
+  else
+    "{| cc_vararg := None; cc_unproto := false; cc_structret := false |}"
+  
+  let export_bsig_of_external (formals : typ list) (effects : effect list) (ret : typ) (variadic : bool) : string =
+    let args = List.map export_typ_to_coq formals |> export_coq_list in
+    let res  = export_typ_to_coq ret in
+    let ef   = export_effect_to_coq_list effects in
+    let cc   = export_cc_of_efinfo variadic (List.length formals) in
+    Printf.sprintf
+      "{| bsig_args := %s; bsig_ef := %s; bsig_res := %s; bsig_cc := %s |}"
+      args ef res cc
+  
+  (* Produce (Coq definitions, entries to splice into global_definitions) *)
+  let export_coq_external_globdefs (ee : Beepl_ast_typechecker.efenv) : string list * string list =
+    Beepl_ast_typechecker.Env.bindings ee
+    |> List.map (fun (name, info) ->
+         let bsig  = export_bsig_of_external info.formals info.effects info.ret info.variadic in
+         let coq_name = "ext_" ^ name in
+         let def =
+           Printf.sprintf
+             "Definition %s : AST.globdef BeePL.fundef type :=\n\
+              AST.Gfun (BeePL.External (BeePL.EF_external \"%s\" %s)\n\
+              \                          (bsig_args %s) (bsig_res %s) (bsig_cc %s))."
+             coq_name name bsig coq_name coq_name coq_name
+         in
+         let entry = Printf.sprintf "(_%s, %s, None)" name coq_name in
+         (def, entry))
+    |> List.split
+  
     
-let export_coq_globals prog =
+let export_coq_globals prog ext_entries =
   let clean_section s =
     let prefix = "#section " in
     if export_starts_with ~prefix s then
       String.sub s (String.length prefix) (String.length s - String.length prefix)
     else s
   in
-  let entries =
+  let fun_and_global_entries =
     List.filter_map (function
       | Internal (Tfundecl (name, _, _, _, _, _), section)
       | EBPFInternal (Tfundecl (name, _, _, _, _, _), section) ->
@@ -500,21 +525,17 @@ let export_coq_globals prog =
           Some (Printf.sprintf "(_%s, AST.Gfun (BeePL.Internal f_%s), %s)" name name sec_str)
       | GlobalLet (name, _, _) ->
           Some (Printf.sprintf "(_%s, AST.Gvar v_%s, None)" name name)
-      | _ -> None
-    ) prog
+      | _ -> None) prog
   in
   let string_entries =
     Hashtbl.fold (fun id _ acc ->
       let def = Printf.sprintf "(_%s, AST.Gvar v_%s, None)" id id in
-      def :: acc
-    ) Beepl_transformer.string_globals []
+      def :: acc) Beepl_transformer.string_globals []
   in
-  let entries = string_entries @ entries in
+  let entries = ext_entries @ string_entries @ fun_and_global_entries in
   if entries = [] then ""
-  else "Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) :=\n  " ^
-        String.concat " ::\n  " entries ^ " :: nil.\n"
-  
-  
+  else "Definition global_definitions : list (ident * AST.globdef BeePL.fundef type * option string) :=\n  "
+        ^ String.concat " ::\n  " entries ^ " :: nil.\n"
     
     
 let export_collect_public_idents prog =
@@ -582,23 +603,33 @@ let export_collect_globals (prog : program) : (string * typ) list =
     | _ -> None
   ) prog
 
-let export_transform_program prog =
-  let coq_header = generate_coq_prelude prog in
-  let senv       = build_senv prog in
-  let ee         = Beepl_ast_typechecker.build_efenv () in
-  let externs    = extern_bindings_of_efenv ee in
-  let global_env = externs @ export_collect_globals prog in
-  let defs = List.map (export_transform_toplevel ~ee ~senv ~globals:global_env) prog in
-  let stringlit_defs =
-    Hashtbl.fold (fun id s acc -> export_stringlit_def id s :: acc) 
-      string_global_table [] in 
-  let defs = stringlit_defs @ defs  in
-  let globals = export_coq_globals prog in
-  let publics = export_coq_public_idents prog in
-  let entry = export_find_main_or_fallback prog in
-  let wrapper = export_coq_program_wrapper ~name:"bprogram" entry in
-  coq_header ^ String.concat "\n\n" defs ^ "\n\n" ^ globals ^ "\n" ^ publics ^ "\n" ^ coq_bcomposite_correct_lemma ^ "\n\n" ^ wrapper
-
+  let export_transform_program prog =
+    let coq_header = generate_coq_prelude prog in
+    let senv       = build_senv prog in
+    let ee         = Beepl_ast_typechecker.build_efenv () in
+  
+    (* extern EF defs + entries *)
+    let ext_defs, ext_entries = export_coq_external_globdefs ee in
+  
+    let externs    = extern_bindings_of_efenv ee in
+    let global_env = externs @ export_collect_globals prog in
+  
+    let defs = List.map (export_transform_toplevel ~ee ~senv ~globals:global_env) prog in
+    let stringlit_defs =
+      Hashtbl.fold (fun id s acc -> export_stringlit_def id s :: acc) string_global_table [] in
+  
+    (* include extern DEFs here *)
+    let defs = stringlit_defs @ ext_defs @ defs in
+  
+    (* pass extern ENTRIES to globals table *)
+    let globals = export_coq_globals prog ext_entries in
+  
+    let publics = export_coq_public_idents prog in
+    let entry   = export_find_main_or_fallback prog in
+    let wrapper = export_coq_program_wrapper ~name:"bprogram" entry in
+    coq_header ^ String.concat "\n\n" defs ^ "\n\n" ^ globals ^ "\n" ^ publics
+    ^ "\n" ^ coq_bcomposite_correct_lemma ^ "\n\n" ^ wrapper
+  
 let export_parse_file (filename : string) : program =
   let ch = open_in filename in
   let lexbuf = from_channel ch in

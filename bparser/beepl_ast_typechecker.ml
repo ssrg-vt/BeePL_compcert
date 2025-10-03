@@ -298,11 +298,29 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
 
         (* Always check the fixed prefix pairwise *)
         let prefix_actuals = take n_formals arg_tys in
+        let ptype_eq p1 p2 =
+          match p1, p2 with
+          | Tbool, Tbool -> true
+          | Tuint8, Tuint8 | Tint8, Tint8
+          | Tuint16, Tuint16 | Tint16, Tint16
+          | Tuint32, Tuint32 | Tint32, Tint32
+          | Tulong, Tulong | Tlong, Tlong -> true
+          | _ -> false
+        in
+        
+        let arg_compatible (formal : typ) (actual : typ) : bool =
+          (* exact match is always ok *)
+          typ_eq formal actual ||
+          (* array-to-pointer decay: Vtype pt [n] can be used where Ptr(Reftype(_, Bprim pt)) is expected *)
+          match formal, actual with
+          | Ptr (Reftype (_, Bprim ptf)), Atype (Vtype pta, _n) when ptype_eq ptf pta -> true
+          | _ -> false
+        in
+        
         List.iter2 (fun formal actual ->
-          if not (typ_eq formal actual) then
+          if not (arg_compatible formal actual) then
             raise (TypeError "Function application argument type mismatch")
         ) formals prefix_actuals;
-
         ret_type
 
     | _ ->

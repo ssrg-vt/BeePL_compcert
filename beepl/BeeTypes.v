@@ -205,7 +205,7 @@ Fixpoint transBeePL_type (t : BeeTypes.type) : Ctypes.type :=
       let cts := transBeePL_types transBeePL_type ts in 
       let ct := transBeePL_type t' in 
       (Tfunction cts ct
-        {| cc_vararg := Some (Z.of_nat (length ts));
+        {| cc_vararg := None;
            cc_unproto := false;
            cc_structret := false |})
   | Bytes => (Tstruct bytes_t noattr)
