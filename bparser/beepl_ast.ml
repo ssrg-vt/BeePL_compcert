@@ -32,6 +32,7 @@ type typ =
   | Stype of string  (* struct type name *)
   | Atype of typ * int  (* array type with fixed size *)
   | Ftype of typ list * effect list * typ
+  | Bytes
 
 type const = 
   | Cunit 

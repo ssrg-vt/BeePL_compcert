@@ -209,6 +209,7 @@ let rec export_typ_to_coq (t : typ) : string =
       (export_coq_list arg_strs)
       eff_strs
       (export_typ_to_coq ret_type)
+  | Bytes -> "Bytes"
 
 let export_arg_to_coq (id, t) =
   Printf.sprintf "(_%s, %s)" id (export_typ_to_coq t)

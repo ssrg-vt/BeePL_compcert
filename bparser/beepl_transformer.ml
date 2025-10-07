@@ -187,6 +187,7 @@ let rec transform_typ (t : Beepl_ast.typ) : BeeTypes.coq_type =
       let effs' = transform_effect_list effs in
       let ret' = transform_typ ret in
       BeeTypes.Ftype (args', effs', ret')
+  | Beepl_ast.Bytes -> BeeTypes.Bytes
 let transform_constant (c : Beepl_ast.const) (typ : Beepl_ast.typ) : BeePL_values.constant =
   match typ, c with
   | Beepl_ast.Vtype Beepl_ast.Tint32, Beepl_ast.Cint32 i ->
@@ -375,6 +376,7 @@ let rec transform_expr (ee: Beepl_ast_typechecker.efenv) (senv : Beepl_ast_typec
     let inner_ptr_ty =
       match scrut_ty with
       | Ptr (Otype pt) -> Ptr pt
+      | Bytes -> Bytes
       | _ -> failwith "Match scrutinee must be an option pointer (Ptr (Otype _))"
     in
     let scrut' = transform_expr ee senv env scrut in
@@ -386,7 +388,9 @@ let rec transform_expr (ee: Beepl_ast_typechecker.efenv) (senv : Beepl_ast_typec
         match p with
         | Beepl_ast.Pnone      -> env
         | Beepl_ast.Psome x    -> Beepl_ast_typechecker.Env.add x inner_ptr_ty env
-        | Beepl_ast.Pbytes _   -> failwith "Pbytes pattern not supported yet"
+        | Beepl_ast.Pbytes (s, t, fields) ->
+          let env1 = Beepl_ast_typechecker.Env.add s t env in
+          List.fold_left (fun acc (id, t) -> Beepl_ast_typechecker.Env.add id t acc) env1 fields
       in
       transform_expr ee senv env' b
     in
@@ -445,6 +449,7 @@ let rec collect_vars (ee : Beepl_ast_typechecker.efenv) (senv : Beepl_ast_typech
       let inner_pt_opt =
         match scrut_ty with
         | Beepl_ast.Ptr (Beepl_ast.Otype pt) -> Some pt
+        | Beepl_ast.Bytes -> None
         | _ -> None
       in
       let pat_bindings pat : (string * Beepl_ast.typ) list =

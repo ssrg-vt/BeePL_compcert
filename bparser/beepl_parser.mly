@@ -19,7 +19,7 @@ open Beepl_ast
 %token ORINT16TYPE ORUINT16TYPE ORINT32TYPE ORUINT32TYPE
 %token ORLONGTYPE ORULONGTYPE ORARRAY ORSTRUCT OSTRUCT
 %token ORABOOL ORAINT8 ORAUINT8 ORAUINT16 ORAINT16 ORAINT32 ORAUINT32 ORALONG ORAULONG
-%token FUNTYPE TSTRUCT
+%token FUNTYPE TSTRUCT BYTES
 %token FUNC LET IN IF THEN ELSE 
 %token REF DEREF MASSGN
 %token BAR OSOME ONONE
@@ -145,7 +145,7 @@ typ:
   | ORUINT32TYPE { Ptr (Otype (Reftype ("h", (Bprim Tuint32)))) }
   | ORLONGTYPE { Ptr (Otype (Reftype ("h", (Bprim Tlong)))) }
   | ORULONGTYPE { Ptr (Otype (Reftype ("h", (Bprim Tulong)))) }
-  | OSTRUCT IDENT STAR { Ptr (Otype (Reftype ("h", (Bstruct $2)))) }
+  | ORSTRUCT IDENT MUL { Ptr (Otype (Reftype ("h", (Bstruct $2)))) }
   | ORABOOL LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ("h", (Barray (Tbool, Int32.to_int n))))) }
   | ORAINT8 LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ("h", (Barray (Tint8, Int32.to_int n))))) }
   | ORAUINT8 LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ("h", (Barray (Tuint8, Int32.to_int n))))) }
@@ -159,6 +159,7 @@ typ:
   | t = typ LBRACK n = INT32 RBRACK { Atype(t, Int32.to_int n) }
   | FUNTYPE LPAREN args = separated_list(COMMA, typ) RPAREN
     COLON eff = separated_list(COMMA, effect) COMMA ret = typ { Ftype(args, eff, ret) }
+  | BYTES { Bytes }
 
 (* --- END OF typ --- *)
 
@@ -179,15 +180,22 @@ array_elems:
 bytes_field:
   | id = IDENT COLON t = typ { (id, t) }
 
+bytes_fields:
+  /* empty [] as a single token from the lexer */
+  | EMPTYBRACKETS                                  { [] }
+  /* empty [] as two tokens */
+  | LBRACK RBRACK                                  { [] }
+  /* non-empty [ f0, f1, ... ] */
+  | LBRACK xs = separated_list(COMMA, bytes_field) RBRACK  { xs }
+
 /* The pattern nonterminal */
 pattern:
   | OSOME id = IDENT
       { Psome id }
   | ONONE
       { Pnone }
-  | PBYTES id = IDENT COLON t = typ
-      LPAREN xs = separated_list(COMMA, bytes_field) RPAREN
-      { Pbytes (id, t, xs) }
+  | PBYTES id = IDENT COLON t = typ fields=bytes_fields
+      { Pbytes (id, t, fields) }
 
 /* A single case:  pattern -> expr 
 match_branch:
@@ -201,8 +209,7 @@ match_branches:
 clause:
   | OSOME id=IDENT ARROW e=expr  { (Psome id, e) }
   | ONONE        ARROW e=expr    { (Pnone   , e) }
-  | PBYTES id=IDENT COLON t=typ
-    LPAREN fields=separated_list(COMMA, bytes_field) RPAREN
+  | PBYTES id=IDENT COLON t=typ fields=bytes_fields
     ARROW e=expr
     { (Pbytes (id, t, fields), e) }
 

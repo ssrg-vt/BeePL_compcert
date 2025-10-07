@@ -36,7 +36,8 @@ rule read_token = parse
   | "some"          { OSOME }
   | "none"          { ONONE }
   | "|"             { BAR }
-  | "bytes"         { PBYTES }
+  | "bytes"          { BYTES }
+  | "Pbytes"         { PBYTES }
   | "ref"           { REF }
   | "!"             { DEREF }
   | ":="            { MASSGN }
@@ -70,7 +71,7 @@ rule read_token = parse
   | "ouint32*"      { ORUINT32TYPE }
   | "olong*"        { ORLONGTYPE }
   | "oulong*"       { ORULONGTYPE }
-  | "ostruct*"      { ORSTRUCT }
+  | "ostruct"      { ORSTRUCT }
   | "io"            { IO }
   | "divergence"    { DIVERGENCE }
   | "read"          { READ }

@@ -72,6 +72,11 @@ let build_efenv () : efenv =
           effects = [Io];
           ret = Vtype Tulong;
           variadic = false }
+  |> Env.add "htons"
+        { formals = [ Vtype Tuint16 ];
+          effects = [];
+          ret = Vtype Tuint16;
+          variadic = false }
     
 let extern_bindings_of_efenv (ee : efenv) : (string * typ) list =
   Env.bindings ee
@@ -111,6 +116,7 @@ let rec string_of_typ = function
   | Stype s -> "struct " ^ s
   | Atype (t, n) -> Printf.sprintf "array[%d] of %s" n (string_of_typ t)
   | Ftype _ -> "function type"
+  | Bytes -> "bytes"
 
 let list_to_env (xs : (string * typ) list) : tyenv =
   List.fold_left (fun acc (x, ty) -> Env.add x ty acc) Env.empty xs
@@ -147,6 +153,7 @@ let rec typ_eq t1 t2 =
   | Stype s1, Stype s2 -> s1 = s2
   | Atype (elem1, n1), Atype (elem2, n2) -> n1 = n2 && typ_eq elem1 elem2
   | Ptr (Otype pt1), Ptr (Otype pt2) -> typ_eq (Ptr pt1) (Ptr pt2)
+  | Bytes, Bytes -> true
   | _, _ -> false
 
 let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
@@ -417,46 +424,76 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
     | Some _ -> raise (TypeError "Aaccess can only be applied to array types")
     | None -> raise (TypeError ("Unbound array variable: " ^ arr)))
   | Match (e, patterns, exprs) ->
-    (* 1) scrutinee type *)
-    let scrut_ty = infer_expr ee senv env e in
-    (* same arity *)
-    if List.length patterns <> List.length exprs then
-    raise (TypeError "Match branches count mismatch");
-    (* 2) ensure the scrutinee is an option pointer and remember the inner ptrtype *)
-      let inner_pt =
-        match scrut_ty with
-        | Ptr (Otype pt) -> pt
-        | _ ->
-            raise (TypeError "Match scrutinee must be an option pointer (Ptr (Otype _))")
-      in
-    (* 3) infer each branch under the env extended by its pattern *)
+      (* 1) scrutinee type *)
+      let scrut_ty = infer_expr ee senv env e in
+  
+      (* arity check *)
+      if List.length patterns <> List.length exprs then
+        raise (TypeError "Match branches count mismatch");
+  
+      (* classify patterns *)
+      let has_pbytes =
+        List.exists (function Pbytes _ -> true | _ -> false) patterns in
+      let has_opt =
+        List.exists (function Psome _ | Pnone -> true | _ -> false) patterns in
+  
+      if has_pbytes && has_opt then
+        raise (TypeError "Match: cannot mix Pbytes with option patterns (Psome/Pnone)");
+  
+      (* branch inference under the right discipline *)
       let infer_branch pat body =
-        let env' =
-          match pat with
-          | Pnone -> env
-          | Psome x ->
-              (* bind x to the *inner pointer type* so that !x (Deref) typechecks *)
-              Env.add x (Ptr inner_pt) env
-          | Pbytes (_x, _t, _fields) ->
-              raise (TypeError "Pbytes pattern not supported yet")
-        in
-        infer_expr ee senv env' body
+        match pat with
+        (* ---------- OPTION MODE ---------- *)
+        | Pnone | Psome _ ->
+            (* require option pointer scrutinee *)
+            let inner_pt =
+              match scrut_ty with
+              | Ptr (Otype pt) -> pt
+              | _ ->
+                  raise (TypeError "Match on option requires scrutinee of type Ptr (Otype _)") in
+            let env' =
+              match pat with
+              | Pnone   -> env
+              | Psome x -> Env.add x (Ptr inner_pt) env
+              | _       -> env (* unreachable here *)
+            in
+            infer_expr ee senv env' body
+  
+        (* ---------- BYTES MODE ---------- *)
+        | Pbytes (s, t, fields) ->
+            (* require bytes scrutinee *)
+            (match scrut_ty with
+             | Bytes -> ()
+             | _ -> raise (TypeError "Pbytes requires scrutinee of type bytes"));
+            (* (optional) sanity: the schema 't' for 's' should be a struct type *)
+            (match t with
+             | Stype _ -> ()
+             | Bytes -> ()
+             | _ -> raise (TypeError "Pbytes schema must be a struct type (Stype ...)"));
+            (* extend env with the packet-as-struct name and field bindings *)
+            let env1 = Env.add s t env in
+            let env' =
+              List.fold_left
+                (fun acc (fname, fty) -> Env.add fname fty acc)
+                env1 fields
+            in
+            (* you may add extra checks here, e.g., that field types are byte-sized ints *)
+            infer_expr ee senv env' body
       in
-
+  
       let branch_tys =
         try List.map2 infer_branch patterns exprs with
         | Invalid_argument _ ->
             raise (TypeError "Match: internal arity error")
       in
-
-      (* 4) all branches must have the same type *)
+  
+      (* branches must agree on type *)
       (match branch_tys with
-       | [] ->
-           raise (TypeError "Match must have at least one branch")
+       | [] -> raise (TypeError "Match must have at least one branch")
        | ty0 :: rest ->
-           if List.for_all (fun t -> typ_eq t ty0) rest
-           then ty0
+           if List.for_all (fun t -> typ_eq t ty0) rest then ty0
            else raise (TypeError "Match branches have mismatched types"))
+  
   | Esome e_inner ->
     let te = infer_expr ee senv env e_inner in
     begin match te with 
