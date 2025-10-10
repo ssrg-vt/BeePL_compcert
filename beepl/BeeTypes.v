@@ -719,13 +719,13 @@ Definition access_mode_type (t : type) : mode :=
 
 Definition chunk_of_ptype (ty: primitive_type) :=
 match ty with
-| Tbool => BMint8signed
-| Tint I8 Signed _ => BMint8signed
-| Tint I8 Unsigned _ => BMint8unsigned
-| Tint I16 Signed _ => BMint16signed
-| Tint I16 Unsigned _ => BMint16unsigned
+| Tbool => (*BMint8signed*) BMint32
+| Tint I8 Signed _ => (*BMint8signed*) BMint32
+| Tint I8 Unsigned _ => (*BMint8unsigned*) BMint32
+| Tint I16 Signed _ => (*BMint16signed*) BMint32
+| Tint I16 Unsigned _ => (*BMint16unsigned*) BMint32
 | Tint I32 _ _ => BMint32
-| Tint IBool _ _ => BMbool
+| Tint IBool _ _ => (*BMbool*) BMint32
 | Tlong _ _ => BMint64
 end.
 

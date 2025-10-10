@@ -114,6 +114,7 @@ type token =
   | COMMA
   | COLON
   | CAST
+  | BYTES
   | BOOLTYPE
   | BOOL of (bool)
   | BAR

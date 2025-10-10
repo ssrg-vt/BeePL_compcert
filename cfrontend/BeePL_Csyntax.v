@@ -3,6 +3,8 @@ Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat Pe
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes Coqlib SimplExpr Csyntaxdefs BeePL_notations.
 Require Import BeePL_aux BeePL BeeTypes Csyntax Errors SimplExpr BeePL_values DecimalString BeePL_Bytes_Struct BeePL_Check_Reserved_Struct BeePL_bpf.
 Require Import BeePL_Wrapper_Pass.
+From mathcomp Require Import ssreflect seq. 
+
 
 Local Open Scope string_scope.
 Local Open Scope gensym_monad_scope.
@@ -14,6 +16,32 @@ Record bcompiler_ctx := { arg_ctx : list (ident * type);
 
 Definition max_fresh : nat := 1000%nat.
 
+
+(*Definition size_es (es : list BeePL.expr) := foldr (fun e acc => (BeePL.size_e e + acc)%nat) O es.
+
+
+Section transBeePL_exprs.
+Variable e : BeePL.expr.
+Variables transBeePL_expr_expr : forall (e0:BeePL.expr), list (ident * BeeTypes.type * string) -> bcompiler_ctx -> (size_e e0 < size_e e)%nat -> 
+mon (Csyntax.expr * list (ident * BeeTypes.type * string) * bcompiler_ctx).
+
+
+(* Translates list of BeePL expressions to list of C expressions *)
+Program Fixpoint transBeePL_expr_exprs (es : list BeePL.expr) (fn_ctx : list (ident * BeeTypes.type * string)) 
+(bctx : bcompiler_ctx) (psize : (size_es es < size_e e)%nat) : 
+mon (Csyntax.exprlist * list (ident * BeeTypes.type * string) * bcompiler_ctx) :=
+match es with 
+| nil => ret (Enil, fn_ctx, bctx) 
+| e' :: es' => do (ce, fn_ctx') <- transBeePL_expr_expr e' fn_ctx bctx _;
+               do (ces, fn_ctx'') <- transBeePL_expr_exprs es' (snd ce) fn_ctx' _;
+               ret ((Econs (fst ce) (fst ces)), snd ces, fn_ctx'')
+end.
+Next Obligation.
+simpl in psize. Admitted.
+Next Obligation.
+Admitted.
+
+End transBeePL_exprs.*)
 
 Section transBeePL_exprs.
 
@@ -88,20 +116,20 @@ match p with
 end.
 
 
-Fixpoint lookup_string (id : ident) (is : list (ident * string)) : option string :=
-  match is with
+Fixpoint lookup_string (id : ident) (iss : list (ident * string)) : option string :=
+  match iss with
   | nil              => None                       (* should never happen by assumption *)
   | (id', s) :: rest =>
       if ident_eq id id' then Some s else lookup_string id rest
   end.
 
 (* Go through each arg in args and find string in ident to string mapping *)
-Fixpoint create_fn_ctx (args : list (ident * BeeTypes.type)) (is : list (ident * string)) : mon (list (ident * BeeTypes.type * string)) :=
+Fixpoint create_fn_ctx (args : list (ident * BeeTypes.type)) (iss : list (ident * string)) : mon (list (ident * BeeTypes.type * string)) :=
   match args with
   | nil => ret nil
   | (id, ty) :: rest =>
-      do triples <- create_fn_ctx rest is;
-      match lookup_string id is with
+      do triples <- create_fn_ctx rest iss;
+      match lookup_string id iss with
       | Some str => ret ((id, ty, str) :: triples)
       | _        => let id_str := NilZero.string_of_uint (Nat.to_uint (Pos.to_nat id)) in
                     let full_msg := "COMPILER ERROR: ident " ++ id_str ++ " is missing from ident to string mapping" in
@@ -109,13 +137,13 @@ Fixpoint create_fn_ctx (args : list (ident * BeeTypes.type)) (is : list (ident *
       end
   end.
 
-Fixpoint merge_ident_string (fn_ctx : list (ident * BeeTypes.type * string)) (is : list (ident * string)) : list (ident * string) :=
+Fixpoint merge_ident_string (fn_ctx : list (ident * BeeTypes.type * string)) (iss : list (ident * string)) : list (ident * string) :=
   match fn_ctx with
-  | nil => is
+  | nil => iss
   | (id, _, s) :: rest =>
-      match lookup_string id is with
-      | Some _ => merge_ident_string rest is               (* already present, skip *)
-      | None   => merge_ident_string rest ((id, s) :: is)  (* add new binding *)
+      match lookup_string id iss with
+      | Some _ => merge_ident_string rest iss               (* already present, skip *)
+      | None   => merge_ident_string rest ((id, s) :: iss)  (* add new binding *)
       end
   end.
 
@@ -279,7 +307,83 @@ Fixpoint assign_struct_fields_chain
 
 (*let x = 3 in (x + x) ==> temp = 3; [x <= temp](x+x)
 temp = 3; [x <= temp](x+x)*)
-Locate "'do'". Print mon.
+
+(*fresh var  = temp
+map (temp, x)
+[x] => [temp] 
+
+main () {
+int x = 2;
+{ int x = 3;
+  x := x  + 1;
+}
+return x;*)
+
+(*Program Fixpoint transBeePL_expr_expr (e : BeePL.expr) (fn_ctx : list (ident * BeeTypes.type * string)) (bctx : bcompiler_ctx) 
+{measure (size_e e)}: mon (Csyntax.expr * (list (ident * BeeTypes.type * string)) * bcompiler_ctx) := 
+match e with 
+| Val v t => ret (Eval (trans_bvalue_cvalue v) (transBeePL_type t), fn_ctx, bctx) 
+| Var x t => ret (Evar x (transBeePL_type t), fn_ctx, bctx)
+| Const c t => match c with 
+               | ConsInt i => ret (Eval (Values.Vint i) (transBeePL_type t), fn_ctx, bctx)
+               | ConsLong i => ret (Eval (Values.Vlong i) (transBeePL_type t), fn_ctx, bctx)
+               | ConsUnit => ret (Eval (Values.Vint (Int.repr 0)) (transBeePL_type t), fn_ctx, bctx) 
+               | ConsBool b => ret (if eqb b true 
+                                    then (Eval (Values.Vint (Int.repr 1)) (transBeePL_type t), fn_ctx, bctx) 
+                                    else (Eval (Values.Vint (Int.repr 0)) (transBeePL_type t), fn_ctx, bctx))
+               end
+| App e es t => do (i, str) <- (fresh_ident (List.map unzip_ident fn_ctx) max_fresh);
+                let e' := subst i (Var i (typeof_expr e)) e in
+                do (ce, bctx') <- @transBeePL_expr_expr e' fn_ctx bctx  _;
+                do (ces, bctx'') <- (transBeePL_expr_exprs _ transBeePL_expr_expr es (snd ce) bctx' _);
+                ret (Ecall (fst ce) (fst ces) (transBeePL_type t), snd ces, bctx'')
+| _ => error (msg "FOO")
+end.
+Admit Obligations.*)
+
+(*Next Obligation. 
+simpl. rewrite -ssrnat.plusE. lia.
+(*size_e e1 < size_e e2 ->
+is_var e ->
+size_e (subst i e e1) < size_e e2.*)
+ 
+Qed.
+Solve Obligations with (repeat split; discriminate).
+Next Obligation.
+simpl. rewrite -ssrnat.plusE; rewrite -/(size_es _); lia.
+Qed.
+Next Obligation.
+repeat split; discriminate.
+Qed.
+Next Obligation.*)
+
+(*Lemma transBeePL_expr_expr_eq (e : BeePL.expr) (fn_ctx : list (ident * BeeTypes.type * string)) (bctx : bcompiler_ctx) 
+: transBeePL_expr_expr e fn_ctx bctx = 
+match e with 
+| Val v t => ret (Eval (trans_bvalue_cvalue v) (transBeePL_type t), fn_ctx, bctx) 
+| Var x t => ret (Evar x (transBeePL_type t), fn_ctx, bctx)
+| Const c t => match c with 
+               | ConsInt i => ret (Eval (Values.Vint i) (transBeePL_type t), fn_ctx, bctx)
+               | ConsLong i => ret (Eval (Values.Vlong i) (transBeePL_type t), fn_ctx, bctx)
+               | ConsUnit => ret (Eval (Values.Vint (Int.repr 0)) (transBeePL_type t), fn_ctx, bctx) 
+               | ConsBool b => ret (if eqb b true 
+                                    then (Eval (Values.Vint (Int.repr 1)) (transBeePL_type t), fn_ctx, bctx) 
+                                    else (Eval (Values.Vint (Int.repr 0)) (transBeePL_type t), fn_ctx, bctx))
+               end
+| App e es t => do (i, str) <- (fresh_ident (List.map unzip_ident fn_ctx) max_fresh);
+                let e' := subst i (Var i (typeof_expr e)) e in
+                do (ce, bctx') <- transBeePL_expr_expr e' fn_ctx bctx ;
+                do (ces, bctx'') <- (transBeePL_expr_exprs _ transBeePL_expr_expr es (snd ce) bctx' _);
+                ret (Ecall (fst ce) (fst ces) (transBeePL_type t), snd ces, bctx'')
+| _ => error (msg "FOO")
+end.*)
+
+(*Lemma foo_expr : forall v t fctx bctx, 
+transBeePL_expr_expr (Val v t) fctx bctx = ret (Eval (trans_bvalue_cvalue v) (transBeePL_type t), fctx, bctx).
+Proof.
+move=> v t fctx bctx; simpl. reflexivity. 
+Qed.*)
+
 (*Program Fixpoint transBeePL_expr_expr (e : BeePL.expr) (fn_ctx : list (ident * BeeTypes.type * string)) (bctx : bcompiler_ctx) 
 {measure (size_e e)}: mon (Csyntax.expr * (list (ident * BeeTypes.type * string)) * bcompiler_ctx) := 
 match e with 
@@ -294,15 +398,18 @@ match e with
                                     else (Eval (Values.Vint (Int.repr 0)) (transBeePL_type t), fn_ctx, bctx))
                end
 | App e es t => match (transBeePL_expr_expr e fn_ctx bctx _) with 
-                | Res (ce, bctx') g' i' => ret (Ecall (fst ce) Enil (transBeePL_type t), snd ce, bctx')
-                (*do (ces, bctx'') <- (transBeePL_expr_exprs transBeePL_expr_expr es (snd ce) bctx');*)
+                | Res (ce, bctx') g' i' => match (fresh_ident (List.map unzip_ident (snd ce)) max_fresh g') with 
+                                           | Res (i, str) g'' i'' => let e' := subst i e e in 
+                                                                     match (transBeePL_expr_expr e' fn_ctx bctx _) with 
+                                                                     | Res (ce'', bctx'') g1 i1 => ret (fst ce'', snd ce, bctx')
+                                                                     | _ => error (msg "FOO") end
+                                           | _ => error (msg "FOO") end
                 | _ => error (msg "FOO") end
 | _ => error (msg "FOO")
 end.
-Next Obligation.
-Admitted.
-Next Obligation.
-Admit Obligations.*)
+Obligation Tactic := idtac.
+Admit Obligations.
+Print transBeePL_expr_expr_func.*)
 
 Fixpoint transBeePL_expr_expr (e : BeePL.expr) (fn_ctx : list (ident * BeeTypes.type * string)) (bctx : bcompiler_ctx) : 
 mon (Csyntax.expr * (list (ident * BeeTypes.type * string)) * bcompiler_ctx) := 
@@ -974,12 +1081,12 @@ end.
 Definition transBeePL_function_function
   (cenv : bcomposite_env)
   (fd   : BeePL.function)
-  (is   : list (ident * string))
+  (iss  : list (ident * string))
   (bctx : bcompiler_ctx)
 : res (Csyntax.function * list (ident * string) * bcompiler_ctx) :=
 let crt := transBeePL_type fd.(BeePL.fn_return) in
 (* Build initial fn_ctx (locals + their strings) and an initial fresh-name generator *)
-match create_fn_ctx (BeePL.fn_vars fd) is (initial_generator tt) with
+match create_fn_ctx (BeePL.fn_vars fd) iss (initial_generator tt) with
 | Err msg => Error msg
 | Res fn_ctx g0 i0 =>
 
@@ -995,7 +1102,7 @@ match create_fn_ctx (BeePL.fn_vars fd) is (initial_generator tt) with
     let locals   := zip loc_ids loc_ctys in
 
     (* Extend ident->string table with any new temps introduced during translation *)
-    let is' := merge_ident_string (snd fbody) is in
+    let is' := merge_ident_string (snd fbody) iss in
 
     (* Params differ only for eBPF *)
     if fd.(is_ebpf) then
@@ -1082,15 +1189,15 @@ else
 
 Local Open Scope error_monad_scope.
 
-Definition transBeePL_fundef_fundef (cenv : bcomposite_env) (fd : BeePL.fundef) (is : list (ident * string)) (bctx : bcompiler_ctx) : 
+Definition transBeePL_fundef_fundef (cenv : bcomposite_env) (fd : BeePL.fundef) (iss : list (ident * string)) (bctx : bcompiler_ctx) : 
 res (Csyntax.fundef * list (ident * string) * bcompiler_ctx) :=
 match fd with 
-| Internal f => do (tf, is') <- transBeePL_function_function cenv f is bctx;
+| Internal f => do (tf, is') <- transBeePL_function_function cenv f iss bctx;
                 OK (Ctypes.Internal (fst tf), snd tf, is')
 | External ef ts t cc => let cef := (befunction_to_cefunction ef) in
                          let cts := (transBeePL_types transBeePL_type ts) in 
                          let ct := (transBeePL_type t) in
-                         OK ((Ctypes.External cef cts ct cc), is, bctx)
+                         OK ((Ctypes.External cef cts ct cc), iss, bctx)
 end.
 
 (* Translates the value that is assigned to global variable to C global variable data *)
@@ -1119,20 +1226,20 @@ let gvt := transBeePL_type (gv.(gvar_info)) in
            AST.gvar_readonly := gv.(gvar_readonly); 
            AST.gvar_volatile :=  gv.(gvar_volatile)|}, nil).
 
-Definition transBeePL_globdef_globdef (cenv : bcomposite_env) (gd : BeePL.globdef BeePL.fundef BeeTypes.type) (is : list (ident * string)) (bctx : bcompiler_ctx) : 
+Definition transBeePL_globdef_globdef (cenv : bcomposite_env) (gd : BeePL.globdef BeePL.fundef BeeTypes.type) (iss : list (ident * string)) (bctx : bcompiler_ctx) : 
 res ((AST.globdef fundef Ctypes.type) * list (ident * string) * list composite_definition * bcompiler_ctx) :=
 match gd with 
-| AST.Gfun f => do (cf, is') <- transBeePL_fundef_fundef cenv f is bctx;
+| AST.Gfun f => do (cf, is') <- transBeePL_fundef_fundef cenv f iss bctx;
                 OK ((AST.Gfun (fst cf)), snd cf, nil, is')
 | AST.Gvar g => let cg := transBeePLglobvar_globvar g in
-                OK ((AST.Gvar (fst cg)), is, (snd cg), bctx)
+                OK ((AST.Gvar (fst cg)), iss, (snd cg), bctx)
 end.
 
-Fixpoint transBeePL_globdefs_globdefs (cenv : bcomposite_env) (gds : list (BeePL.globdef BeePL.fundef BeeTypes.type)) (is : list (ident * string)) (bctx : bcompiler_ctx) : 
+Fixpoint transBeePL_globdefs_globdefs (cenv : bcomposite_env) (gds : list (BeePL.globdef BeePL.fundef BeeTypes.type)) (iss : list (ident * string)) (bctx : bcompiler_ctx) : 
 res (list (AST.globdef fundef Ctypes.type) * list (ident * string) * list composite_definition * bcompiler_ctx) :=
 match gds with 
-| nil => OK (nil, is, nil, bctx)
-| d :: ds => do (gd, is') <-  transBeePL_globdef_globdef cenv d is bctx; 
+| nil => OK (nil, iss, nil, bctx)
+| d :: ds => do (gd, is') <-  transBeePL_globdef_globdef cenv d iss bctx; 
              do (gds, is'') <- transBeePL_globdefs_globdefs cenv ds (snd (fst gd)) is';
              OK ((fst (fst gd) :: fst (fst gds)), (snd (fst gds)), (snd gd ++ snd gds)%list, is'')
 end.
