@@ -6,11 +6,84 @@ Require Import compcert.common.Errors Initializersproof Cstrategy Coqlib Errors.
 
 From mathcomp Require Import all_ssreflect. 
 
+Print access_mode.
+Print access_mode_type.
+(* BeePL
+type :=
+Inductive ptr_type : Set :=
+    Reftype : ident -> basic_type -> attr -> ptr_type
+  | Vptype : primitive_type -> ptr_type
+  | Otype : ptr_type -> ptr_type
+  | Fptype : list type -> effect -> type -> ptr_type
+  | Sptype : ident -> attr -> ptr_type
+  | Aptype : type -> Z -> attr -> ptr_type
+  with type : Set :=
+***    Utype : type
+***  | Vtype : primitive_type -> type
+***  | Ptrtype : ptr_type -> type
+  | Stype : ident -> attr -> type
+  | Atype : type -> Z -> attr -> type
+  | Ftype : list type -> effect -> type -> type
+  | Bytes : type.
+
+Only thing that is Reference is
+Ctypes
+Tarray Tfunction
+ *)
+Definition access_modeBC (t : type) : mode :=
+  match t with
+  | Vtype Tbool => By_value Mint8unsigned
+  | Vtype (Tint IBool _ _) => By_value Mbool
+  | Stype _ _ | Bytes => By_copy
+  | _ => access_mode_type t
+  end.
+(*
+Definition access_modeBC (t : type) : mode :=
+  match t with
+  | Vtype pt => match pt with
+               | Tbool => By_value Mint8unsigned
+               | pt => access_mode_prim pt
+               end
+  | t => access_mode_type t
+  end.
+*)
+Print access_mode_type.
+Print access_mode_prim. Print Ctypes.access_mode.
+
 Lemma access_mode_preserved : forall ty cty md, 
-access_mode_type ty = md ->
+access_modeBC ty = md ->
 transBeePL_type ty =  cty ->
 Ctypes.access_mode cty = md.
 Proof.
+induction ty.
+- induction md; simpl; intros; inv H; subst; auto.
+- induction md; simpl; intros; destruct p; simpl in *.
+    * injection H. intros. subst. auto.
+    * destruct i.
+      destruct s; injection H; intros; subst; auto.
+      destruct s; injection H; intros; subst; auto.
+    * destruct s; injection H; intros; subst; auto. 
+    * destruct s; injection H; intros; subst; auto.
+    * destruct s; injection H; intros; subst; auto.
+    * inv H. destruct i; inv H.
+      destruct s; inv H2.
+      destruct s; inv H2. inv H.
+      inv H. destruct i; inv H.
+      destruct s; inv H2. destruct s; inv H2.
+      inv H. inv H. destruct i; inv H.
+      destruct s; inv H2. destruct s; inv H2.
+      inv H.
+- induction md; simpl; intros.
+  induction p; auto; injection H; intros; subst; auto.
+  destruct b; auto. destruct p; auto.
+  destruct p; auto.
+  destruct p; auto. inv H. inv H. inv H.
+- simpl. intros. subst. auto.
+- simpl. intros. subst. auto.
+- simpl. intros. subst. auto.
+- simpl. intros. subst. simpl. auto.
+Qed.
+ (*
 induction ty.
 - induction md; simpl; intros.
   + inv H.
@@ -20,10 +93,12 @@ induction ty.
 - induction md; simpl; intros.
   + destruct p.
     * simpl in *. injection H. intros.
-      subst. simpl.
+      subst. auto.
+    * destruct i;  destruct s; destruct a; destruct m; simpl in *;  try auto; try inv H;
+      try auto; try simpl.
+-  admit.  admit.*) 
 (* Looks like this is unresolvable without
  well-formedness theorem on chunk_of_type*)
-Admitted.
 
 Lemma non_volatile_type_preserved : forall ty cty b,
 type_is_volatile (transBeePL_type ty) = b ->

@@ -825,18 +825,19 @@ Definition access_mode_type (t : type) : mode :=
 
 (** The chunk that is appropriate to store and reload a value of
   the given type, without losing information. *)
-
 Definition chunk_of_ptype (ty: primitive_type) :=
 match ty with
-| Tbool => BMint8signed
-| Tint I8 Signed _ => BMint8signed
-| Tint I8 Unsigned _ => BMint8unsigned
-| Tint I16 Signed _ => BMint16signed
-| Tint I16 Unsigned _ => BMint16unsigned
+| Tbool => (*BMint8signed*) BMint32
+| Tint I8 Signed _ => (*BMint8signed*) BMint32
+| Tint I8 Unsigned _ => (*BMint8unsigned*) BMint32
+| Tint I16 Signed _ => (*BMint16signed*) BMint32
+| Tint I16 Unsigned _ => (*BMint16unsigned*) BMint32
 | Tint I32 _ _ => BMint32
-| Tint IBool _ _ => BMbool
+| Tint IBool _ _ => (*BMbool*) BMint32
 | Tlong _ _ => BMint64
 end.
+
+
 
 Definition chunk_of_type (ty : type) : option bmemory_chunk :=
 match ty with
@@ -849,6 +850,15 @@ match ty with
 | Ftype _ _ _ => None
 | Utype => None
 end.
+
+Print typ. 
+Print AST.chunk_of_type. 
+Definition get_chunk (t : typ) : memory_chunk :=
+  match t with
+  | Tbool | AST.Tint | Tint32 => Mint32
+  | _ => AST.chunk_of_type t
+  end.
+                                    
 
 Section Eq_basic_types.
 
