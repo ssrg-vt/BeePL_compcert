@@ -34,7 +34,8 @@ struct trace_event_raw_sys_enter {
     _id : ulong
 }
 
-
+#section license
+let _license : int8[4] = "GPL\0"
 
 #ebpf
 #section tracepoint_syscalls_sys_enter_openat
