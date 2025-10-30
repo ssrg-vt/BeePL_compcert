@@ -139,13 +139,14 @@ Inductive sem_array_init_helper : Memory.mem -> Values.block -> ptrofs -> list v
                            sem_array_init_helper m' loc (Ptrofs.add ofs (Ptrofs.repr 1)) vs t m'' ->
                            sem_array_init_helper m loc ofs vs t m''.
 
-Inductive sem_array_init : ident -> type -> list value -> vmap -> Memory.mem -> vmap -> Memory.mem -> Prop :=
-| sem_allocate_array : forall ge vm arr t aty vs loc m vm' m' m'',
-                       alloc_variables ge vm m ((arr, t) :: nil) vm' m' ->
+Inductive sem_array_init : store_context -> ident -> type -> list value -> vmap -> Memory.mem -> 
+                           vmap -> Memory.mem -> store_context -> Prop :=
+| sem_allocate_array : forall Sigma ge vm arr t aty vs loc m vm' m' m'' Sigma',
+                       alloc_variables ge Sigma vm m ((arr, t) :: nil) vm' m' Sigma' ->
                        vm ! arr = Some (loc, t) ->
                        get_array_elm_ty t = OK aty ->
                        sem_array_init_helper m' loc (Ptrofs.repr 0) vs aty m'' ->
-                       sem_array_init arr t vs vm m vm' m''.
+                       sem_array_init Sigma arr t vs vm m vm' m'' Sigma'.
                         
 Section Big_Step_Semantics.
 
@@ -171,7 +172,7 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                 bsem_expr p vm m (Const (ConsLong i) t) m vm (Vint64 i)
 | bsem_constu : forall p vm m,
                 bsem_expr p vm m (Const (ConsUnit) Utype) m vm (Vunit)
-| bsem_appr : forall p vm1 vm_callee m1 e es t l fd m2 m3 m4 m5 m6 vs rv,
+| bsem_appr : forall p vm1 vm_callee m1 e es t l fd m2 m3 m4 m5 m6 vs rv Sigma ,
               (* head: evaluate the function expression to a pointer/location *)
               bsem_expr p vm1 m1 e m2 vm1 (Vloc l Ptrofs.zero) ->
               Genv.find_funct ge (trans_bvalue_cvalue (Vloc l Ptrofs.zero))  = Some (Internal fd) ->
@@ -179,7 +180,7 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                 Ftype (typeof_exprs es) (get_effect_fundef (Internal fd)) (get_rt_fundef (Internal fd)) ->
               list_norepet (fd.(fn_args) ++ fd.(BeePL.fn_vars)) ->
               (* allocate callee locals/args: produce vm_callee *)
-              alloc_variables ge empty_vmap m2 (fd.(fn_args) ++ fd.(BeePL.fn_vars)) vm_callee m3 ->
+              alloc_variables ge empty_context empty_vmap m2 (fd.(fn_args) ++ fd.(BeePL.fn_vars)) vm_callee m3 Sigma ->
               (* evaluate arguments in the CALLER env *)
               bsem_exprs p vm1 m3 es m4 vm1 vs ->
               typeof_values vs (unzip2 fd.(fn_args)) ->
@@ -277,10 +278,10 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
               external_call cef ge (trans_bvalues_cvalues vs) m' t vres m'' ->
               trans_cvalue_bvalue vres = OK bv ->
               bsem_expr p vm m (BeePL.Eapp ef ts es ty) m'' vm' bv
-| bsem_screate : forall p x ids t vm1 m1 es vm2 m2 vm3 m3 m4 vs fid loc ofs st sa,
+| bsem_screate : forall Sigma p x ids t vm1 m1 es vm2 m2 vm3 m3 m4 vs fid loc ofs st sa Sigma',
                  bsem_exprs p vm1 m1 es m2 vm2 vs ->
                  create_fresh_ident (unzip1 (extract_variables_globdefs (map (fun '(_, gd, _) => gd) p.(prog_defs)))) = fid ->
-                 alloc_variables ge vm2 m2 ((fid, t) :: nil) vm3 m3 ->
+                 alloc_variables ge Sigma vm2 m2 ((fid, t) :: nil) vm3 m3 Sigma' ->
                  vm3!fid = Some (loc, t) ->
                  t = Stype st sa ->
                  (*bsem_expr vm3 m3 (Var fid (Ptype t)) m'' vm'' (Val (Vloc loc ofs) (Reftype h t a)) -> *)
@@ -316,9 +317,9 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                     bsem_expr p vm'' m'' e2 m''' vm''' v2 ->
                     bsem_expr p vm m (Match e (p1 :: p2 :: nil) (e1 :: e2 :: nil) t) m'' vm'' 
                        (if eq_pattern p1 Pnone then v2 else v1)  
-| bsem_ainit : forall p vm m m' vm' vs arr t es loc vm'' m'', 
+| bsem_ainit : forall Sigma p vm m m' vm' vs arr t es loc vm'' m'' Sigma', 
                bsem_exprs p vm m es m' vm' vs ->
-               sem_array_init arr t vs vm' m' vm'' m'' ->
+               sem_array_init Sigma arr t vs vm' m' vm'' m'' Sigma' ->
                vm'' ! arr = Some (loc, t) ->
                bsem_expr p vm m (Ainit arr t es t) m'' vm'' (Vloc loc (Ptrofs.repr 0)) 
 | bsem_aaccess : forall p vm m arr t n t' loc aty v,
@@ -391,13 +392,13 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
               ssem_exprs p vm1 m1 es m2 vm2 es' ->
               ssem_expr p vm1 m1 (App (Val (Vloc l o) vt) es t) m2 vm2 
                 (App (Val (Vloc l o) vt) es' t)
-| ssem_app3 : forall p vm1 vm2 m1 es t l o fd m2 m3 m4 vs vm3,
+| ssem_app3 : forall Sigma Sigma' p vm1 vm2 m1 es t l o fd m2 m3 m4 vs vm3,
               Genv.find_funct ge (trans_bvalue_cvalue (Vloc l o)) = Some (Internal fd) ->
               BeePL.type_of_fundef (Internal fd) = 
               Ftype (unzip2 fd.(fn_args)) (get_effect_fundef (Internal fd)) (get_rt_fundef (Internal fd)) ->
               t = get_rt_fundef (Internal fd) ->
               list_norepet (fd.(fn_args) ++ fd.(BeePL.fn_vars)) ->
-              alloc_variables ge vm1 m1 (fd.(fn_args) ++ fd.(BeePL.fn_vars)) vm2 m2 -> 
+              alloc_variables ge Sigma vm1 m1 (fd.(fn_args) ++ fd.(BeePL.fn_vars)) vm2 m2 Sigma' -> 
               ssem_exprs p vm2 m2 es m3 vm3 vs ->
               typeof_exprs vs = (unzip2 fd.(fn_args)) ->
               bind_variables ge vm3 m3 fd.(fn_args) (extract_values_exprs vs) m4  ->
@@ -504,9 +505,9 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
 | ssem_sinit1 : forall p x ids t vm1 m1 es vm2 m2 es',
                   ssem_exprs p vm1 m1 es m2 vm2 es' ->
                   ssem_expr p vm1 m1 (Sinit x ids es t) m2 vm2 (Sinit x ids es' t)
-| ssem_sinit2 : forall p x ids t vm1 m1 vm2 m2 m3 vs fid loc ofs ts h a st sa,
+| ssem_sinit2 : forall Sigma Sigma' p x ids t vm1 m1 vm2 m2 m3 vs fid loc ofs ts h a st sa,
                   create_fresh_ident (unzip1 (extract_variables_globdefs (map (fun '(_, gd, _) => gd) p.(prog_defs)))) = fid ->
-                  alloc_variables ge vm1 m1 ((fid, t) :: nil) vm2 m2 ->
+                  alloc_variables ge Sigma vm1 m1 ((fid, t) :: nil) vm2 m2 Sigma' ->
                   vm2!fid = Some (loc, t) ->
                   t = Stype st sa ->
                   typeof_values (extract_values_exprs vs) ts ->
@@ -557,8 +558,8 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                      get_array_elm_ty t = OK aty ->
                      ssem_exprs p vm m es m' vm' es' ->
                      ssem_expr p vm m (Ainit arr t (Val v aty :: es) t) m' vm' (Ainit arr t (Val v aty :: es') t)
-| ssem_array_init3 : forall p vm m vs vm' m' arr t,
-                     sem_array_init arr t (extract_values_exprs vs) vm m vm' m' ->
+| ssem_array_init3 : forall Sigma Sigma' p vm m vs vm' m' arr t,
+                     sem_array_init Sigma arr t (extract_values_exprs vs) vm m vm' m' Sigma' ->
                      ssem_expr p vm m (Ainit arr t vs t) m' vm' (Ainit arr t vs t)
 | ssem_array_access : forall p vm m arr t n t' loc aty v,
                       vm ! arr = Some (loc, t) ->

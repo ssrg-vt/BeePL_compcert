@@ -137,11 +137,14 @@ match e with
 | For e1 e2 d e3 t => size_e e1 + size_e e2 + size_e e3 + 1
 | Enone t => 1
 | Esome e t => size_e e + 1
-| Match e ps es t => foldr (fun e acc => (size_e e + acc)%nat) O es + 1
+| Match e ps es t => size_e e + foldr (fun e acc => (size_e e + acc)%nat) O es + 1
 | Ebytes es t => foldr (fun e acc => (size_e e + acc)%nat) O es + 1
 | Ainit a t es t' => foldr (fun e acc => (size_e e + acc)%nat) O es + 1
 | Aaccess a t n t' => 1
 end.
+
+Definition size_es (es : list BeePL.expr) := foldr (fun e acc => (BeePL.size_e e + acc)%nat) O es.
+
 
 (* Free variables *) 
 Fixpoint free_variables (e : expr) : list ident  :=
@@ -504,13 +507,18 @@ Inductive assign_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : 
    declared in [vars], and associates the variable name with this block. 
    [vm1] and [m1] are the initial local environment and memory state.
    [e2] and [m2] are the final local environment and memory state *) 
-Inductive alloc_variables : vmap -> Memory.mem -> list (ident * type) -> vmap -> Memory.mem -> Prop :=
-| alloc_variables_nil : forall vm hm, 
-  alloc_variables vm hm nil vm hm
-| alloc_variables_con : forall e m id ty vars m1 l1 m2 e2,
-  Mem.alloc m 0 (sizeof_type (genv_cenv ge) ty) = (m1, l1) ->
-  alloc_variables (PTree.set id (l1, ty) e) m1 vars e2 m2 ->
-  alloc_variables e m ((id, ty) :: vars) e2 m2.
+Definition balloc (Sigma : store_context) (m : Memory.mem) (ty : type) (lo hi: Z) : Mem.mem' * Values.block * store_context :=
+let (m1, l1) := Mem.alloc m 0 (sizeof_type (genv_cenv ge) ty) in 
+let Sigma' := PTree.set l1 ty Sigma in
+(m1, l1, Sigma').
+
+Inductive alloc_variables : store_context -> vmap -> Memory.mem -> list (ident * type) -> vmap -> Memory.mem -> store_context -> Prop :=
+| alloc_variables_nil : forall Sigma vm hm, 
+  alloc_variables Sigma vm hm nil vm hm Sigma
+| alloc_variables_con : forall Sigma e m id ty vars m1 l1 m2 e2 Sigma',
+  balloc Sigma m ty 0 (sizeof_type (genv_cenv ge) ty) = (m1, l1, Sigma') ->
+  alloc_variables Sigma (PTree.set id (l1, ty) e) m1 vars e2 m2 Sigma' ->
+  alloc_variables Sigma e m ((id, ty) :: vars) e2 m2 Sigma'.
 
 (** Initialization of local variables that are parameters to a function.
   [bind_parameters e m1 params args m2] stores the values [args]
