@@ -16,33 +16,6 @@ Record bcompiler_ctx := { arg_ctx : list (ident * type);
 
 Definition max_fresh : nat := 1000%nat.
 
-
-(*Definition size_es (es : list BeePL.expr) := foldr (fun e acc => (BeePL.size_e e + acc)%nat) O es.
-
-
-Section transBeePL_exprs.
-Variable e : BeePL.expr.
-Variables transBeePL_expr_expr : forall (e0:BeePL.expr), list (ident * BeeTypes.type * string) -> bcompiler_ctx -> (size_e e0 < size_e e)%nat -> 
-mon (Csyntax.expr * list (ident * BeeTypes.type * string) * bcompiler_ctx).
-
-
-(* Translates list of BeePL expressions to list of C expressions *)
-Program Fixpoint transBeePL_expr_exprs (es : list BeePL.expr) (fn_ctx : list (ident * BeeTypes.type * string)) 
-(bctx : bcompiler_ctx) (psize : (size_es es < size_e e)%nat) : 
-mon (Csyntax.exprlist * list (ident * BeeTypes.type * string) * bcompiler_ctx) :=
-match es with 
-| nil => ret (Enil, fn_ctx, bctx) 
-| e' :: es' => do (ce, fn_ctx') <- transBeePL_expr_expr e' fn_ctx bctx _;
-               do (ces, fn_ctx'') <- transBeePL_expr_exprs es' (snd ce) fn_ctx' _;
-               ret ((Econs (fst ce) (fst ces)), snd ces, fn_ctx'')
-end.
-Next Obligation.
-simpl in psize. Admitted.
-Next Obligation.
-Admitted.
-
-End transBeePL_exprs.*)
-
 (* ------------------------------------------------------------------ *)
 (* Renaming environment                                                *)
 (* ------------------------------------------------------------------ *)
@@ -322,98 +295,6 @@ int x = 2;
 }
 return x;*)
 
-(*Program Fixpoint transBeePL_expr_expr (e : BeePL.expr) (fn_ctx : list (ident * BeeTypes.type * string)) (bctx : bcompiler_ctx) 
-{measure (size_e e)}: mon (Csyntax.expr * (list (ident * BeeTypes.type * string)) * bcompiler_ctx) := 
-match e with 
-| Val v t => ret (Eval (trans_bvalue_cvalue v) (transBeePL_type t), fn_ctx, bctx) 
-| Var x t => ret (Evar x (transBeePL_type t), fn_ctx, bctx)
-| Const c t => match c with 
-               | ConsInt i => ret (Eval (Values.Vint i) (transBeePL_type t), fn_ctx, bctx)
-               | ConsLong i => ret (Eval (Values.Vlong i) (transBeePL_type t), fn_ctx, bctx)
-               | ConsUnit => ret (Eval (Values.Vint (Int.repr 0)) (transBeePL_type t), fn_ctx, bctx) 
-               | ConsBool b => ret (if eqb b true 
-                                    then (Eval (Values.Vint (Int.repr 1)) (transBeePL_type t), fn_ctx, bctx) 
-                                    else (Eval (Values.Vint (Int.repr 0)) (transBeePL_type t), fn_ctx, bctx))
-               end
-| App e es t => do (i, str) <- (fresh_ident (List.map unzip_ident fn_ctx) max_fresh);
-                let e' := subst i (Var i (typeof_expr e)) e in
-                do (ce, bctx') <- @transBeePL_expr_expr e' fn_ctx bctx  _;
-                do (ces, bctx'') <- (transBeePL_expr_exprs _ transBeePL_expr_expr es (snd ce) bctx' _);
-                ret (Ecall (fst ce) (fst ces) (transBeePL_type t), snd ces, bctx'')
-| _ => error (msg "FOO")
-end.
-Admit Obligations.*)
-
-(*Next Obligation. 
-simpl. rewrite -ssrnat.plusE. lia.
-(*size_e e1 < size_e e2 ->
-is_var e ->
-size_e (subst i e e1) < size_e e2.*)
- 
-Qed.
-Solve Obligations with (repeat split; discriminate).
-Next Obligation.
-simpl. rewrite -ssrnat.plusE; rewrite -/(size_es _); lia.
-Qed.
-Next Obligation.
-repeat split; discriminate.
-Qed.
-Next Obligation.*)
-
-(*Lemma transBeePL_expr_expr_eq (e : BeePL.expr) (fn_ctx : list (ident * BeeTypes.type * string)) (bctx : bcompiler_ctx) 
-: transBeePL_expr_expr e fn_ctx bctx = 
-match e with 
-| Val v t => ret (Eval (trans_bvalue_cvalue v) (transBeePL_type t), fn_ctx, bctx) 
-| Var x t => ret (Evar x (transBeePL_type t), fn_ctx, bctx)
-| Const c t => match c with 
-               | ConsInt i => ret (Eval (Values.Vint i) (transBeePL_type t), fn_ctx, bctx)
-               | ConsLong i => ret (Eval (Values.Vlong i) (transBeePL_type t), fn_ctx, bctx)
-               | ConsUnit => ret (Eval (Values.Vint (Int.repr 0)) (transBeePL_type t), fn_ctx, bctx) 
-               | ConsBool b => ret (if eqb b true 
-                                    then (Eval (Values.Vint (Int.repr 1)) (transBeePL_type t), fn_ctx, bctx) 
-                                    else (Eval (Values.Vint (Int.repr 0)) (transBeePL_type t), fn_ctx, bctx))
-               end
-| App e es t => do (i, str) <- (fresh_ident (List.map unzip_ident fn_ctx) max_fresh);
-                let e' := subst i (Var i (typeof_expr e)) e in
-                do (ce, bctx') <- transBeePL_expr_expr e' fn_ctx bctx ;
-                do (ces, bctx'') <- (transBeePL_expr_exprs _ transBeePL_expr_expr es (snd ce) bctx' _);
-                ret (Ecall (fst ce) (fst ces) (transBeePL_type t), snd ces, bctx'')
-| _ => error (msg "FOO")
-end.*)
-
-(*Lemma foo_expr : forall v t fctx bctx, 
-transBeePL_expr_expr (Val v t) fctx bctx = ret (Eval (trans_bvalue_cvalue v) (transBeePL_type t), fctx, bctx).
-Proof.
-move=> v t fctx bctx; simpl. reflexivity. 
-Qed.*)
-
-(*Program Fixpoint transBeePL_expr_expr (e : BeePL.expr) (fn_ctx : list (ident * BeeTypes.type * string)) (bctx : bcompiler_ctx) 
-{measure (size_e e)}: mon (Csyntax.expr * (list (ident * BeeTypes.type * string)) * bcompiler_ctx) := 
-match e with 
-| Val v t => ret (Eval (trans_bvalue_cvalue v) (transBeePL_type t), fn_ctx, bctx) 
-| Var x t => ret (Evar x (transBeePL_type t), fn_ctx, bctx)
-| Const c t => match c with 
-               | ConsInt i => ret (Eval (Values.Vint i) (transBeePL_type t), fn_ctx, bctx)
-               | ConsLong i => ret (Eval (Values.Vlong i) (transBeePL_type t), fn_ctx, bctx)
-               | ConsUnit => ret (Eval (Values.Vint (Int.repr 0)) (transBeePL_type t), fn_ctx, bctx) 
-               | ConsBool b => ret (if eqb b true 
-                                    then (Eval (Values.Vint (Int.repr 1)) (transBeePL_type t), fn_ctx, bctx) 
-                                    else (Eval (Values.Vint (Int.repr 0)) (transBeePL_type t), fn_ctx, bctx))
-               end
-| App e es t => match (transBeePL_expr_expr e fn_ctx bctx _) with 
-                | Res (ce, bctx') g' i' => match (fresh_ident (List.map unzip_ident (snd ce)) max_fresh g') with 
-                                           | Res (i, str) g'' i'' => let e' := subst i e e in 
-                                                                     match (transBeePL_expr_expr e' fn_ctx bctx _) with 
-                                                                     | Res (ce'', bctx'') g1 i1 => ret (fst ce'', snd ce, bctx')
-                                                                     | _ => error (msg "FOO") end
-                                           | _ => error (msg "FOO") end
-                | _ => error (msg "FOO") end
-| _ => error (msg "FOO")
-end.
-Obligation Tactic := idtac.
-Admit Obligations.
-Print transBeePL_expr_expr_func.*)
-
 Fixpoint transBeePL_expr_expr (e : BeePL.expr) (venv : renv) (fn_ctx : list (ident * BeeTypes.type * string)) (bctx : bcompiler_ctx) : 
 mon (Csyntax.expr * (list (ident * BeeTypes.type * string)) * bcompiler_ctx) := 
 match e with 
@@ -514,7 +395,7 @@ end
                          let ctx' := (cx, t, tag) :: (snd ce1) in
                          do (ce2, ctx2) <- transBeePL_expr_expr e2 venv' ctx' ctx1;
                          (* 4) emit assignment + body *)
-                         ret (Ecomma (Eassign (Evar x ct) (fst ce1) ct) (fst ce2) (transBeePL_type t'), snd ce2, ctx2) 
+                         ret (Ecomma (Eassign (Evar cx ct) (fst ce1) ct) (fst ce2) (transBeePL_type t'), snd ce2, ctx2) 
 | Cond e e' e'' t => do (ce, bctx') <- (transBeePL_expr_expr e venv fn_ctx bctx);
                      do (ce', bctx'') <- (transBeePL_expr_expr e' venv (snd ce) bctx');
                      do (ce'', bctx''') <- (transBeePL_expr_expr e'' venv (snd ce') bctx'');
