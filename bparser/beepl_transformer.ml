@@ -313,7 +313,7 @@ let rec transform_expr (ee: Beepl_ast_typechecker.efenv) (senv : Beepl_ast_typec
       BeePL.Var (Camlcoq.intern_string x, t')
       | Beepl_ast.Const c ->
         (match c with
-         | Cstring s ->
+         (*| Cstring s ->
             let id_str = gensym_string_literal s in
             Hashtbl.replace string_globals id_str s;
             let id = Camlcoq.intern_string id_str in
@@ -327,7 +327,18 @@ let rec transform_expr (ee: Beepl_ast_typechecker.efenv) (senv : Beepl_ast_typec
                   Ctypes.noattr
                 )
               )
-            )
+            )*)
+            | Cstring s ->
+              let id_str = gensym_string_literal s in
+              Hashtbl.replace string_globals id_str s;
+              let id = Camlcoq.intern_string id_str in
+              let arr_t =
+                BeeTypes.Atype (
+                  BeeTypes.Vtype (BeeTypes.Tint (Ctypes.I8, Ctypes.Signed, Ctypes.noattr)),
+                  int_to_coq_z (String.length s + 1),
+                  Ctypes.noattr)
+              in
+              BeePL.Var (id, arr_t)
          | _ -> BeePL.Const (transform_constant c typ, t'))
     
     
