@@ -344,7 +344,9 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
         
         List.iter2 (fun formal actual ->
           if not (arg_compatible formal actual) then
-            raise (TypeError "Function application argument type mismatch")
+            raise (TypeError (Printf.sprintf
+              "Function application argument type mismatch: expected %s, got %s"
+              (string_of_typ formal) (string_of_typ actual)))          
         ) formals prefix_actuals;
         ret_type
 
