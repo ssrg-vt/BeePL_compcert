@@ -88,6 +88,12 @@ let rec take n xs =
   | 0, _ | _, [] -> []
   | n, x :: xs -> x :: take (n - 1) xs
 
+let rec drop n xs =
+    match n, xs with
+    | 0, _ -> xs
+    | _, [] -> []
+    | n, _ :: tl -> drop (n - 1) tl
+
 let string_of_ptype = function
   | Tbool -> "bool"
   | Tint8 -> "int8"
@@ -294,51 +300,74 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
     let arg_tys  = List.map (infer_expr ee senv env) args in
     begin match ty1 with
     | Ftype (formals, _eff, ret_type) ->
-        let n_formals = List.length formals
-        and n_actuals = List.length arg_tys in
-
-        (* Does the callee name correspond to a known external variadic? *)
-        let callee_is_variadic =
-          match e1 with
-          | Var fname ->
-              (match Env.find_opt fname ee with
-                | Some info -> info.variadic
-                | None -> false)
+      let n_formals = List.length formals
+      and n_actuals = List.length arg_tys in
+  
+      (* Is the callee variadic per efenv? *)
+      let callee_is_variadic =
+        match e1 with
+        | Var fname ->
+            (match Env.find_opt fname ee with
+             | Some info -> info.variadic
+             | None -> false)
+        | _ -> false
+      in
+  
+      if n_actuals < n_formals then
+        raise (TypeError "Function application: not enough arguments");
+  
+      (* For non-variadic functions, arity must match exactly. *)
+      if (not callee_is_variadic) && n_actuals > n_formals then
+        raise (TypeError "Function application: too many arguments");
+  
+      (* ---- NEW: BPF-style variadics (fmt,len + up to 3 payload scalars) ---- *)
+      if callee_is_variadic then begin
+        let tail = drop n_formals arg_tys in
+        let max_payload = 3 in    (* R1..R5 → fmt,len + up to 3 extra *)
+        if List.length tail > max_payload then
+          raise (TypeError "bpf_printk/printf: at most 3 variadic payload args are allowed");
+        let is_intlike = function
+          | Vtype Tint8 | Vtype Tuint8
+          | Vtype Tint16 | Vtype Tuint16
+          | Vtype Tint32 | Vtype Tuint32
+          | Vtype Tlong  | Vtype Tulong -> true
           | _ -> false
         in
-
-        if n_actuals < n_formals then
-          raise (TypeError "Function application: not enough arguments");
-        (* extra arguments are only allowed for variadic functions.*)
-        if n_actuals > n_formals && not callee_is_variadic then
-          raise (TypeError "Function application: too many arguments");
-
-        (* Always check the fixed prefix pairwise *)
-        let prefix_actuals = take n_formals arg_tys in
-        let ptype_eq p1 p2 =
-          match p1, p2 with
-          | Tbool, Tbool -> true
-          | Tuint8, Tuint8 | Tint8, Tint8
-          | Tuint16, Tuint16 | Tint16, Tint16
-          | Tuint32, Tuint32 | Tint32, Tint32
-          | Tulong, Tulong | Tlong, Tlong -> true
-          | _ -> false
-        in
-        
-        let arg_compatible (formal : typ) (actual : typ) : bool =
-          (* exact match is always ok *)
-          typ_eq formal actual ||
-          (* array-to-pointer decay: Vtype pt [n] can be used where Ptr(Reftype(_, Bprim pt)) is expected *)
-          match formal, actual with
-          | Ptr (Reftype (_, Bprim ptf)), Atype (Vtype pta, _n) when ptype_eq ptf pta -> true
-          | _ -> false
-        in
-        
-        List.iter2 (fun formal actual ->
-          if not (arg_compatible formal actual) then
-            raise (TypeError "Function application argument type mismatch")
-        ) formals prefix_actuals;
-        ret_type
+        List.iter (fun ty ->
+          if not (is_intlike ty) then
+            raise (TypeError "Variadic args must be integer/long scalars"))
+          tail
+      end;
+  
+      (* Check fixed prefix pairwise (keeps your array→pointer decay) *)
+      let prefix_actuals = take n_formals arg_tys in
+  
+      let ptype_eq p1 p2 =
+        match p1, p2 with
+        | Tbool, Tbool -> true
+        | Tuint8, Tuint8 | Tint8, Tint8
+        | Tuint16, Tuint16 | Tint16, Tint16
+        | Tuint32, Tuint32 | Tint32, Tint32
+        | Tulong, Tulong | Tlong, Tlong -> true
+        | _ -> false
+      in
+  
+      let arg_compatible (formal : typ) (actual : typ) : bool =
+        (* exact match is OK *)
+        typ_eq formal actual
+        ||
+        (* array-to-pointer decay for byte arrays into char* *)
+        match formal, actual with
+        | Ptr (Reftype (_, Bprim ptf)), Atype (Vtype pta, _n) when ptype_eq ptf pta -> true
+        | _ -> false
+      in
+  
+      List.iter2 (fun formal actual ->
+        if not (arg_compatible formal actual) then
+          raise (TypeError "Function application argument type mismatch"))
+        formals prefix_actuals;
+  
+      ret_type
 
     | _ ->
         raise (TypeError "Expected a function type in application")
