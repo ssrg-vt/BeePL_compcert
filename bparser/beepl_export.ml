@@ -235,6 +235,17 @@ let export_const_to_coq c =
     let id = lift_string_constant s in
     Printf.sprintf "(ConsPtr _%s)" id
 
+    let rec take n xs =
+      match n, xs with
+      | 0, _ | _, [] -> []
+      | n, x :: xs -> x :: take (n - 1) xs
+    
+    let rec drop n xs =
+      match n, xs with
+      | 0, _ -> xs
+      | _, [] -> []
+      | n, _::tl -> drop (n-1) tl
+
 let rec export_expr_to_coq (ee : Beepl_ast_typechecker.efenv) (senv : Beepl_ast_typechecker.Senv.t) (env : (string * typ) list) (e : expr) : string =
   match e with
   | Var id ->
@@ -254,15 +265,35 @@ let rec export_expr_to_coq (ee : Beepl_ast_typechecker.efenv) (senv : Beepl_ast_
     | _ ->
         let ty = export_typ_to_coq (infer_expr ee senv (list_to_env env) e) in
         Printf.sprintf "(Const %s (%s))" (export_const_to_coq c) ty)
-  | App (e1, args) ->
-      let e1_str = export_expr_to_coq ee senv env e1 in
-      let args_str = List.map (export_expr_to_coq ee senv env) args in
-      let ty1   = export_typ_to_coq (infer_expr ee senv (list_to_env env) (App (e1, args))) in
-      Printf.sprintf 
-      "(App (%s)\n                  (%s)\n                  (%s))"
-        e1_str
-        (export_coq_list args_str)
-        ty1
+        | App (e1, args) ->
+          let ty1   = infer_expr ee senv (list_to_env env) (App (e1, args)) in
+          let e1_str = export_expr_to_coq ee senv env e1 in
+        
+          (* detect bpf_printk and cast vararg tail to u64 *)
+          let args_str =
+            match e1 with
+            | Var "bpf_printk" ->
+                let fixed = List.map (export_expr_to_coq ee senv env) (take 2 args) in
+                let tail  =
+                  List.map
+                    (fun a ->
+                       let a_coq = export_expr_to_coq ee senv env a in
+                       (* wrap: (Prim (Cast (Vtype Tulong)) [a]) with its resulting type *)
+                       Printf.sprintf
+                         "(Prim (Cast %s) (%s :: nil) (%s))"
+                         (export_typ_to_coq (Vtype Tulong))
+                         a_coq
+                         (export_typ_to_coq (Vtype Tulong)))
+                    (drop 2 args)
+                in
+                fixed @ tail
+            | _ ->
+                List.map (export_expr_to_coq ee senv env) args
+          in
+        
+          let ty1_s = export_typ_to_coq ty1 in
+          Printf.sprintf "(App (%s)\n                  (%s)\n                  (%s))"
+            e1_str (export_coq_list args_str) ty1_s
   (* Note: The type of the function is inferred from the environment *)
   | Prim (Uop uop, args) ->
       let args_str = List.map (export_expr_to_coq ee senv env) args in

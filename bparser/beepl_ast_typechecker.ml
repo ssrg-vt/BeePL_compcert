@@ -57,14 +57,6 @@ let build_efenv () : efenv =
     effects = [Io];
     ret = Vtype Tint32;
     variadic = true }
-  |> Env.add "bpf_printk4"
-    { formals = [ Ptr (Reftype ("h", Bprim Tint8));  (* fmt: char* *)
-                  Vtype Tint32;                      (* len         *)
-                  Vtype Tulong;                      (* arg1: u64   *)
-                  Vtype Tulong ];                    (* arg2: u64   *)
-      effects = [Io];
-      ret = Vtype Tint32;
-      variadic = false }
   |> Env.add "bpf_get_prandom_u32"
         { formals = [];
           effects = [Io];
@@ -95,6 +87,12 @@ let rec take n xs =
   match n, xs with
   | 0, _ | _, [] -> []
   | n, x :: xs -> x :: take (n - 1) xs
+
+let rec drop n xs =
+  match n, xs with
+  | 0, _ -> xs
+  | _, [] -> []
+  | n, _::tl -> drop (n-1) tl
 
 let string_of_ptype = function
   | Tbool -> "bool"
@@ -302,8 +300,8 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
     let arg_tys  = List.map (infer_expr ee senv env) args in
     begin match ty1 with
     | Ftype (formals, _eff, ret_type) ->
-        let n_formals = List.length formals
-        and n_actuals = List.length arg_tys in
+        let n_formals = List.length formals in
+        (*and n_actuals = List.length arg_tys in*)
 
         (* Does the callee name correspond to a known external variadic? *)
         let callee_is_variadic =
@@ -315,11 +313,28 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
           | _ -> false
         in
 
-        if n_actuals < n_formals then
-          raise (TypeError "Function application: not enough arguments");
-        (* extra arguments are only allowed for variadic functions.*)
-        if n_actuals > n_formals && not callee_is_variadic then
-          raise (TypeError "Function application: too many arguments");
+        if callee_is_variadic then (
+          let tail = drop n_formals arg_tys in
+          let max_payload = 3 in  (* fmt,len + up to 3 payloads -> 5 arg regs *)
+          if List.length tail > max_payload then
+            raise (TypeError "bpf_printk: at most 3 variadic payload args are allowed");
+      
+          (* allow integers/longs AND pointers as payloads; exporter will cast to u64 *)
+          let is_intlike = function
+            | Vtype Tint8 | Vtype Tuint8
+            | Vtype Tint16 | Vtype Tuint16
+            | Vtype Tint32 | Vtype Tuint32
+            | Vtype Tlong  | Vtype Tulong -> true
+            | _ -> false
+          in
+          List.iter (fun ty ->
+            match ty with
+            | Ptr _ -> ()           (* pointers are allowed *)
+            | _ when is_intlike ty -> ()
+            | _ -> raise (TypeError "Variadic args must be integers/longs or pointers"))
+            tail
+        );
+      
 
         (* Always check the fixed prefix pairwise *)
         let prefix_actuals = take n_formals arg_tys in
