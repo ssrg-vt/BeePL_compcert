@@ -12,6 +12,22 @@ let string_globals : (string, string) Hashtbl.t = Hashtbl.create 17
 let gensym_string_literal s =
   let id = "__stringlit_" ^ string_of_int (Hashtbl.length string_globals) in
   id
+
+(* --- Section name normalization helpers --- *)
+let unquote (s : string) : string =
+  let s = String.trim s in
+  let n = String.length s in
+  if n >= 2 && s.[0] = '"' && s.[n-1] = '"' then
+  String.sub s 1 (n - 2)
+  else s
+  
+let normalize_section (s : string) : string =
+  (* Accept "#section foo", "#section \"foo\"", or just "foo" *)
+ let s' = if String.length s >= 8 && String.sub s 0 8 = "#section" then
+        String.trim (String.sub s 8 (String.length s - 8))
+        else s
+ in unquote s'
+
 let string_to_char_list s =
   let rec aux i acc =
     if i < 0 then acc
@@ -645,22 +661,18 @@ let init_data_of_string (s : string) : AST.init_data list =
   
     let defs =
       List.filter_map (function
-        | `Fun (id, f, section) ->
-            let sec =
-              match section with
-              | Some s when String.length s > 8 && String.sub s 0 8 = "#section" ->
-                  let raw = String.trim (String.sub s 8 (String.length s - 8)) in
-                  Some (string_to_char_list ("\"" ^ raw ^ "\""))
-              | Some s -> Some (string_to_char_list ("\"" ^ s ^ "\""))
-              | None -> None
+        | `Fun (id, f, section) -> 
+          let sec =
+            match section with
+                      | Some s ->let sec = normalize_section s in
+                                 Some (string_to_char_list sec)   (* bare: no extra quotes *)
+                      | None -> None
             in Some ((id, AST.Gfun (BeePL.Internal f)), sec)
         | `Global (id, t, v, section) ->
           let sec =
             match section with
-            | Some s when String.length s > 8 && String.sub s 0 8 = "#section" ->
-                let raw = String.trim (String.sub s 8 (String.length s - 8)) in
-                Some (string_to_char_list ("\"" ^ raw ^ "\""))
-            | Some s -> Some (string_to_char_list ("\"" ^ s ^ "\""))
+            | Some s -> let sec = normalize_section s in
+                        Some (string_to_char_list sec)     (* bare: no extra quotes *)
             | None -> None
             in Some ((id, AST.Gvar {
               AST.gvar_info = t; AST.gvar_init = eval_const_expr v;

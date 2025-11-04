@@ -507,27 +507,43 @@ let export_cc_of_efinfo (variadic : bool) (fixed_arity : int) : string =
          (def, entry))
     |> List.split
   
-    
+let unquote s =
+  let s = String.trim s in
+  let n = String.length s in
+  if n >= 2 && s.[0] = '"' && s.[n-1] = '"' then
+    String.sub s 1 (n - 2)
+  else s
+
+let assert_unquoted (name : string) : unit =
+  if String.contains name '"' then
+  failwith ("internal error: quoted section name leaked: " ^ name)
 let export_coq_globals prog ext_entries =
   let clean_section s =
     let prefix = "#section " in
-    if export_starts_with ~prefix s then
-      String.sub s (String.length prefix) (String.length s - String.length prefix)
-    else s
+    let s' =
+      if export_starts_with ~prefix s then
+        String.sub s (String.length prefix) (String.length s - String.length prefix)
+      else s
+    in
+    unquote s'
   in
   let fun_and_global_entries =
     List.filter_map (function
       | Internal (Tfundecl (name, _, _, _, _, _), section)
       | EBPFInternal (Tfundecl (name, _, _, _, _, _), section) ->
-          let sec_str = match section with
-            | Some s -> Printf.sprintf "Some \"%s\"" (clean_section s)
-            | None -> "None"
+        let sec_str = match section with
+                      | Some s -> let sec = clean_section s in
+                                  assert_unquoted sec;
+                                  Printf.sprintf "Some \"%s\"" sec
+                      | None -> "None"
           in
           Some (Printf.sprintf "(_%s, AST.Gfun (BeePL.Internal f_%s), %s)" name name sec_str)
       | GlobalLet (name, _, _, section) ->
         let sec_str = match section with
-            | Some s -> Printf.sprintf "Some \"%s\"" (clean_section s)
-            | None -> "None"
+                      | Some s -> let sec = clean_section s in
+                                  assert_unquoted sec;
+                                  Printf.sprintf "Some \"%s\"" sec
+                      | None -> "None"
           in
           Some (Printf.sprintf "(_%s, AST.Gvar v_%s, %s)" name name sec_str)
       | _ -> None) prog

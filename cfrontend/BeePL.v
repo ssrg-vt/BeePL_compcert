@@ -109,7 +109,7 @@ Inductive expr : Type :=
 | Unit : type -> expr                                                   (* unit *)
 | Addr : linfo -> ptrofs -> type -> expr                                (* address: Addr: not intended to be written by programmers: *)
 | Eapp : external_function -> list type -> list expr -> type -> expr    (* external function *)
-| Sinit : ident -> list ident -> list expr -> type -> expr                (* struct creation *)
+| Sinit : ident -> list ident -> list expr -> type -> expr              (* struct creation *)
 | Sfield : expr -> ident -> type -> expr                                (* access to a member of struct *)
 | For : expr -> expr -> dir -> expr -> type -> expr                     (* for loop - constant bound *)
 | Enone : type -> expr                                                  (* none: option *)
@@ -118,6 +118,56 @@ Inductive expr : Type :=
 | Ebytes : list expr -> type -> expr                                    (* bitstrings *)
 | Ainit : ident -> type -> list expr -> type -> expr                    (* array initialization *)
 | Aaccess : ident -> type -> nat -> type -> expr.                       (* array access *)
+
+Section Expr_Ind.
+Context 
+  (P : expr -> Prop)
+  (Hval : forall v t, P (Val v t))
+  (Hvar : forall x t, P (Var x t))
+  (Hconst : forall c t, P (Const c t))
+  (Happ : forall e t, P e -> forall es, (forall e, List.In e es -> P e) -> P (App e es t))
+  (Hprim : forall b es t, (forall e, List.In e es -> P e) -> P (Prim b es t))
+  (Hbind : forall x t e1 t', P e1 -> forall e2, P e2 -> P (Bind x t e1 e2 t')) 
+  (Hcond : forall e1 t, P e1 -> forall e2, P e2 -> forall e3, P e3 -> P (Cond e1 e2 e3 t))
+  (Hunit : forall t, P (Unit t))
+  (Haddr : forall l o t, P (Addr l o t))
+  (Heapp : forall ef ts es t, (forall e, List.In e es -> P e) -> P (Eapp ef ts es t))
+  (Hsinit : forall h ids es t, (forall e, List.In e es -> P e) -> P (Sinit h ids es t))
+  (Hsfield : forall e h t, P e -> P (Sfield e h t))
+  (Hfor : forall e1 d t, P e1 -> forall e2, P e2 -> forall e3, P e3 -> P (For e1 e2 d e3 t))
+  (Hnone : forall t, P (Enone t))
+  (Hsome : forall e t, P e -> P (Esome e t))
+  (Hmatch : forall e ps t, P e -> forall es, (forall e, List.In e es -> P e) -> P (Match e ps es t))
+  (Hbytes : forall es t, (forall e, List.In e es -> P e) -> P (Ebytes es t))
+  (Hainit : forall a t es t', (forall e, List.In e es -> P e) -> P (Ainit a t es t'))
+  (Haaccess : forall a t n t', P (Aaccess a t n t')). 
+
+Definition expr_ind_rec (f : forall e, P e)
+  : forall es e, List.In e es -> P e :=
+  fun _ e _ => f e.
+
+(*Fixpoint expr_ind (e : expr) : P e :=
+match e with 
+| Val v t => Hval v t
+| Var x t => Hvar x t
+| Const c t => Hconst c t
+| App e es t => Happ t (expr_ind e) (@expr_ind_rec expr_ind es)
+| Prim b es t => Hprim b t (@expr_ind_rec expr_ind es)
+| Cond e1 e2 e3 t => Hcond t (expr_ind e1) (expr_ind e2) (expr_ind e3)
+| Bind x t e1 e2 t' => Hbind x t t' (expr_ind e1) (expr_ind e2) 
+| Unit t => Hunit t
+| Addr l o t => Haddr l o t
+| Eapp ef ts es t => Heapp ef ts t (@expr_ind_rec expr_ind es)
+| Sinit s ids es t => Hsinit s ids t (@expr_ind_rec expr_ind es)
+| Sfield e id t => Hsfield id t (expr_ind e)
+| For e1 e2 d e3 t => Hfor d t (expr_ind e1) (expr_ind e2) (expr_ind e3)
+| Enone t => Hnone t
+| Esome e t => Hsome t (expr_ind e)
+| Match e ps es t => Hmatch ps t (expr_ind e) (@expr_ind_rec expr_ind es)
+| Bytes es t => Hbytes t (@expr
+end.*)
+
+End Expr_Ind.
 
 (* Size of the expression to help termination checker of Rocq *)
 Fixpoint size_e (e : expr) : nat :=
