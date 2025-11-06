@@ -272,7 +272,6 @@ match e with
                                            end 
                              | _ => Error (msg "TYPE ERROR: Casting is only allowed from one value type to another")
                              end
-                 | Run h => Error (msg "TYPE ERROR: Run is not yet supported")
                  end
 | Bind x t e1 e2 t' => do (te1, ef1) <- type_check_expr cenv Gamma Sigma e1;
                        do (te2, ef2) <- type_check_expr cenv (extend_context Gamma x t) Sigma e2;
@@ -293,20 +292,19 @@ match e with
                    | Some _ => Error (msg "TYPE ERROR: Wrong type inferred for location")
                    | None => Error (msg "TYPE ERROR: Location not found")
                    end
-| Hexpr h e t =>  Error (msg "TYPE ERROR: Hexpr is not yet supported")
 | Eapp ef ts es t => Error (msg "TYPE ERROR: We have no use case of builtin function as of now")
 | Sinit x ids es t => do (tes, efs) <- type_check_exprs type_check_expr cenv Gamma Sigma es;
                         match t with 
-                        | Ptrtype (Reftype mem_ident (Bstruct id a) a') => match cenv!id with 
-                                                                 | Some co => do cts <- type_of_members 
-                                                                                        (combine (map Ctypes.attr_of_type (transBeePL_types transBeePL_type tes)) ids) 
-                                                                                        (bmembers_cmembers co.(co_members));
-                                                                              do bts <- trans_ctypes_btypes trans_ctype_btype cts;
-                                                                              if eq_types eq_type tes bts 
-                                                                              then OK(t, efs)
-                                                                              else Error (msg "TYPE ERROR: Wrong type inferred for the struct initialization")
-                                                                 | None => Error (msg "TYPE ERROR: Struct fields not found in composite env")
-                                                                 end
+                        | Stype id a => match cenv!id with 
+                                        | Some co => do cts <- type_of_members 
+                                                               (combine (map Ctypes.attr_of_type (transBeePL_types transBeePL_type tes)) ids) 
+                                                                            (bmembers_cmembers co.(co_members));
+                                                     do bts <- trans_ctypes_btypes trans_ctype_btype cts;
+                                                     if eq_types eq_type tes bts 
+                                                     then OK(t, efs)
+                                                     else Error (msg "TYPE ERROR: Wrong type inferred for the struct initialization")
+                                       | None => Error (msg "TYPE ERROR: Struct fields not found in composite env")
+                        end
                      | _ => Error (msg "TYPE ERROR: Struct created in BeePL should always be reftype")
                     end
 | Sfield e x t => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
@@ -319,7 +317,7 @@ match e with
                                                else Error (msg "TYPE ERROR: Wrong type inferred for the struct field")
                                   | None => Error (msg "TYPE ERROR: The field accessed from the struct is not found in composite env")
                                   end
-                  | Ptrtype (Sptype id a) => match cenv!id with 
+                  | Ptrtype (Reftype mem_ident (Bstruct id a) _) => match cenv!id with 
                                              | Some co => do ct <- type_of_member a x (bmembers_cmembers co.(co_members));
                                                do bt <- trans_ctype_btype ct;
                                                if eq_type t bt 
@@ -351,7 +349,7 @@ match e with
              end
 | Esome e t => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                match t with 
-               | Ptrtype t' => if is_option_ptr_type t' && eq_type te (get_data_type t') 
+               | Ptrtype (Otype t') => if is_option_ptr_type t' && eq_type te (Ptrtype t') 
                                then OK(t, ef)
                                else Error (msg "TYPE ERROR: Type of Esome should be an option to ref type")
                | _ => Error (msg "TYPE ERROR: Type of Esome should be an option type")
@@ -372,7 +370,22 @@ match e with
                                 else Error (msg "TYPE ERROR: Type of Match expr should be an option to ref type and all its elements should be of same type")
                      | _ => Error (msg "TYPE ERROR: Type of Match expr should be an option or bytes type")
                      end
-| Ebytes es t => Error (msg "TYPE ERROR: Type of Bitstrings are not supported yet")
+| Ebytes es t => Error (msg "TYPE ERROR: Type checking of Bitstrings are not supported yet")
+| Ainit a t es t' => do (ts, efs) <- type_check_exprs type_check_expr cenv Gamma Sigma es;
+                     do aty <- get_array_elm_ty t;
+                     if is_atype t 
+                     then if is_atype t'
+                          then if all_eq_type aty ts 
+                               then OK (t', efs)   (* Should we consider write effect in array initialization? *)
+                               else Error (msg "TYPE ERROR: Elements assigned to an array must match the array’s element type")
+                          else Error (msg "TYPE ERROR: The return type of array initialization should be array type")
+                     else Error (msg "TYPE ERROR: The type of array should be an array type")
+| Aaccess a t n t' => do aty <- get_array_elm_ty t;   (* Index n is within the array bound is checked by the BeePL compiler *)
+                      if is_atype t 
+                      then if eq_type aty t' 
+                           then OK (t', nil) (* Shoule we consider read effect in array access? *)
+                           else Error (msg "TYPE ERROR: The type of array access should be the type of array element")
+                      else Error (msg "TYPE ERROR: The type of array accessed should be an array type")
                      
 end.
 

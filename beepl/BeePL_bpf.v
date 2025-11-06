@@ -160,8 +160,8 @@ Definition ident_to_string_bpf_map_type_hash : list (ident * string) := ((_bpf_m
 
 Definition bcomposites_bpf_map_type_hash : list bcomposite_definition := (* once we support enum types these can be generalized to one def *)
 (Bcomposite _bpf_map_type_hash Struct
-  (Member_plain _type (Ptrtype (Aptype tint32s 1 noattr)) ::
-   Member_plain _max_entries (Ptrtype (Aptype tint32s 5000000 noattr)) ::
+  (Member_plain _type (Ptrtype (Reftype mem_ident (Barray pint32s 1 noattr) noattr)) ::
+   Member_plain _max_entries (Ptrtype (Reftype mem_ident (Barray pint32s 5000000 noattr) noattr)) ::
    Member_plain _key trlongu ::
    Member_plain _value trlongu :: nil) noattr :: nil).
 

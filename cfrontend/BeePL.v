@@ -20,10 +20,10 @@ Inductive builtin : Type :=
                                                assigns the evaluation of e to the reference cell l *)
 | Uop : Cop.unary_operation -> builtin      (* unary operator *) (* rvalue *)
 | Bop : Cop.binary_operation -> builtin     (* binary operator *) (* rvalue *)
-| Cast : type -> builtin                            (* casting operator *)
-| Run : Memory.mem -> builtin               (* eliminate heap effect : [r1-> v1, ..., ern->vn] e 
+| Cast : type -> builtin                     (* casting operator *).
+(*| Run : Memory.mem -> builtin               (* eliminate heap effect : [r1-> v1, ..., ern->vn] e 
                                                reduces to e captures the essence of state isolation 
-                                               and reduces to a value discarding the heap *).
+                                               and reduces to a value discarding the heap *).*)
 
 (* Patterns *)
 (* Used in pattern matching in the match constructor *) 
@@ -108,7 +108,6 @@ Inductive expr : Type :=
 | Cond : expr -> expr -> expr -> type -> expr                           (* if e then e else e *) 
 | Unit : type -> expr                                                   (* unit *)
 | Addr : linfo -> ptrofs -> type -> expr                                (* address: Addr: not intended to be written by programmers: *)
-| Hexpr : Memory.mem -> expr -> type -> expr                            (* heap effect *)
 | Eapp : external_function -> list type -> list expr -> type -> expr    (* external function *)
 | Sinit : ident -> list ident -> list expr -> type -> expr                (* struct creation *)
 | Sfield : expr -> ident -> type -> expr                                (* access to a member of struct *)
@@ -116,109 +115,36 @@ Inductive expr : Type :=
 | Enone : type -> expr                                                  (* none: option *)
 | Esome : expr -> type -> expr                                          (* some: option *)
 | Match : expr -> list pattern -> list expr -> type -> expr             (* pattern matching *)
-| Ebytes : list expr -> type -> expr                                    (* bitstrings *).
+| Ebytes : list expr -> type -> expr                                    (* bitstrings *)
+| Ainit : ident -> type -> list expr -> type -> expr                    (* array initialization *)
+| Aaccess : ident -> type -> nat -> type -> expr.                       (* array access *)
 
+(* Size of the expression to help termination checker of Rocq *)
+Fixpoint size_e (e : expr) : nat :=
+match e with 
+| Val v t => 1
+| Var x t => 1
+| Const c t => 1
+| App e es t => size_e e + foldr (fun e acc => (size_e e + acc)%nat) O es + 1
+| Prim b es t => foldr (fun e acc => (size_e e + acc)%nat) O es + 1
+| Bind x t e1 e2 t' => size_e e1 + size_e e2 + 1 
+| Cond e1 e2 e3 t => size_e e1 + size_e e2 + size_e e3 + 1
+| Unit t => 1
+| Addr l ofs t => 1
+| Eapp ef ts es t => foldr (fun e acc => (size_e e + acc)%nat) O es + 1
+| Sinit s ids es t => foldr (fun e acc => (size_e e + acc)%nat) O es + 1
+| Sfield e id t => size_e e + 1
+| For e1 e2 d e3 t => size_e e1 + size_e e2 + size_e e3 + 1
+| Enone t => 1
+| Esome e t => size_e e + 1
+| Match e ps es t => size_e e + foldr (fun e acc => (size_e e + acc)%nat) O es + 1
+| Ebytes es t => foldr (fun e acc => (size_e e + acc)%nat) O es + 1
+| Ainit a t es t' => foldr (fun e acc => (size_e e + acc)%nat) O es + 1
+| Aaccess a t n t' => 1
+end.
 
-Lemma expr_list_expr_ind_mut:
-  forall (Pe : BeePL.expr -> Prop) (Pl : list BeePL.expr -> Prop),
-    (* Expression constructors *)
-    (forall (v : value) (t : type), Pe (Val v t)) ->
-    (forall (x : ident) (t : type), Pe (Var x t)) ->
-    (forall (c : BeePL_values.constant) (t : type), Pe (Const c t)) ->
-    (forall (e : BeePL.expr) (es : list BeePL.expr) (t : type),
-      Pe e -> Pl es -> Pe (App e es t)) ->
-    (forall (b : builtin) (es : list BeePL.expr) (t : type),
-      Pl es -> Pe (Prim b es t)) ->
-    (forall (x : ident) (t : type) (e e' : BeePL.expr) (t' : type),
-      Pe e -> Pe e' -> Pe (Bind x t e e' t')) ->
-    (forall (e1 e2 e3 : BeePL.expr) (t : type),
-      Pe e1 -> Pe e2 -> Pe e3 -> Pe (Cond e1 e2 e3 t)) ->
-    (forall (t : type), Pe (Unit t)) ->
-    (forall (l : linfo) (ofs : ptrofs) (t : type), Pe (Addr l ofs t)) ->
-    (forall (m : Memory.mem) (e : BeePL.expr) (t : type),
-      Pe e -> Pe (Hexpr m e t)) ->
-    (forall (ef : external_function) (ts : list type) (es : list BeePL.expr) (t : type),
-      Pl es -> Pe (Eapp ef ts es t)) ->
-    (forall (i : ident) (idents : list ident) (es : list expr) (t : type),
-      Pl es -> Pe (Sinit i idents es t)) ->
-    (forall (e : expr) (x : ident) (t : type), Pe e -> Pe (Sfield e x t)) ->
-    (forall (e1 e2 : expr) (d : dir) (e3 : expr) (t : type), 
-      Pe e1 -> Pe e2 -> Pe e3 -> Pe (For e1 e2 d e3 t)) ->
-    (forall (t : type), Pe (Enone t)) ->
-    (forall (e : expr) (t : type), Pe e -> Pe (Esome e t)) ->
-    (forall (e : expr) (ps : list pattern) (es : list expr) (t : type),
-      Pe e -> Pl es -> Pe (Match e ps es t)) ->
-    (forall (es : list expr) (t : type), Pl es -> Pe (Ebytes es t)) ->
-    (Pl nil) ->
-    (forall (e : BeePL.expr) (es : list BeePL.expr),
-      Pe e -> Pl es -> Pl (e :: es)) ->
-    (forall e, Pe e) /\ (forall es, Pl es).
-Proof.
-  intros Pe Pl HVal HVar HConst HApp HPrim HBind HCond HUnit HAddr HHexpr HEapp HSinit HSfield HFor HNone HSome HMatch HEbytes Hnil Hcons.
-  
-  (* Main proof strategy: induction on the structure of expressions and lists *)
-  assert (forall e, Pe e) as He.
-  { 
-    fix IHe 1.
-    intros e.
-    destruct e.
-    - apply HVal.
-    - apply HVar.
-    - apply HConst.
-    - apply HApp.
-      + apply IHe.
-      + apply (fix IHl (l : list BeePL.expr) : Pl l :=
-          match l with
-          | nil => Hnil
-          | e :: es => Hcons e es (IHe e) (IHl es)
-          end).
-    - apply HPrim.
-      apply (fix IHl (l : list BeePL.expr) : Pl l :=
-        match l with
-        | nil => Hnil
-        | e :: es => Hcons e es (IHe e) (IHl es)
-        end).
-    - apply HBind; apply IHe.
-    - apply HCond; apply IHe.
-    - apply HUnit.
-    - apply HAddr.
-    - apply HHexpr. apply IHe.
-    - apply HEapp.
-      apply (fix IHl (l : list BeePL.expr) : Pl l :=
-        match l with
-        | nil => Hnil
-        | e :: es => Hcons e es (IHe e) (IHl es)
-        end).
-    - apply HSinit.
-      apply (fix IHl (l : list BeePL.expr) : Pl l :=
-        match l with
-        | nil => Hnil
-        | e :: es => Hcons e es (IHe e) (IHl es)
-        end).
-    - apply HSfield; apply IHe.
-    - apply HFor; apply IHe.
-    - apply HNone.
-    - apply HSome; apply IHe.
-    - apply HMatch.
-      + apply IHe.
-      + induction l0; auto.
-    - apply HEbytes.
-      + induction l; auto.
-  }
-  
-  assert (forall l, Pl l) as Hl.
-  {
-    fix IHl 1.
-    intros l.
-    destruct l.
-    - apply Hnil.
-    - apply Hcons.
-      + apply He.
-      + apply IHl.
-  }
-  
-  split; assumption.
-Qed.
+Definition size_es (es : list BeePL.expr) := foldr (fun e acc => (BeePL.size_e e + acc)%nat) O es.
+
 
 (* Free variables *) 
 Fixpoint free_variables (e : expr) : list ident  :=
@@ -234,7 +160,6 @@ match e with
 | Cond e1 e2 e3 t => free_variables e1 ++ free_variables e2 ++ free_variables e3
 | Unit t => nil
 | Addr l o t => nil
-| Hexpr m e t => nil
 | Eapp ef ts es t => flatten (map free_variables es)
 | Sinit x ids es t => flatten (map free_variables es)
 | Sfield e x t => free_variables e 
@@ -243,6 +168,8 @@ match e with
 | Esome e t => free_variables e 
 | Match e ps es t => free_variables e ++ flatten (map free_variables es) 
 | Ebytes es t => flatten (map free_variables es)
+| Ainit a t es t' => flatten (map free_variables es)
+| Aaccess a t n t' => nil
 end.
  
 Fixpoint in_vars (x : ident) (xs : list ident) : bool :=
@@ -274,12 +201,14 @@ match e with
 | Var x t => t
 | Const x t => t
 | App e ts t => t
-| Prim b es t => t
+| Prim b es t => match b with 
+                 | Cast t' => t'
+                 | _ => t
+                 end
 | Bind x t e e' t' => t'
 | Cond e e' e'' t => t
 | Unit t => t
 | Addr l p t => t
-| Hexpr h e t => t
 | Eapp ef ts es t => t
 | Sinit _ _ _ t => t
 | Sfield e x t => t
@@ -288,6 +217,8 @@ match e with
 | Esome e t => t
 | Match e ps es t => t
 | Ebytes es t => t
+| Ainit _ _ _ t => t
+| Aaccess _ _ _ t => t
 end.
 
 Fixpoint typeof_exprs (e : list expr) : list BeeTypes.type :=
@@ -576,13 +507,18 @@ Inductive assign_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : 
    declared in [vars], and associates the variable name with this block. 
    [vm1] and [m1] are the initial local environment and memory state.
    [e2] and [m2] are the final local environment and memory state *) 
-Inductive alloc_variables : vmap -> Memory.mem -> list (ident * type) -> vmap -> Memory.mem -> Prop :=
-| alloc_variables_nil : forall vm hm, 
-  alloc_variables vm hm nil vm hm
-| alloc_variables_con : forall e m id ty vars m1 l1 m2 e2,
-  Mem.alloc m 0 (sizeof_type (genv_cenv ge) ty) = (m1, l1) ->
-  alloc_variables (PTree.set id (l1, ty) e) m1 vars e2 m2 ->
-  alloc_variables e m ((id, ty) :: vars) e2 m2.
+Definition balloc (Sigma : store_context) (m : Memory.mem) (ty : type) (lo hi: Z) : Mem.mem' * Values.block * store_context :=
+let (m1, l1) := Mem.alloc m 0 (sizeof_type (genv_cenv ge) ty) in 
+let Sigma' := PTree.set l1 ty Sigma in
+(m1, l1, Sigma').
+
+Inductive alloc_variables : store_context -> vmap -> Memory.mem -> list (ident * type) -> vmap -> Memory.mem -> store_context -> Prop :=
+| alloc_variables_nil : forall Sigma vm hm, 
+  alloc_variables Sigma vm hm nil vm hm Sigma
+| alloc_variables_con : forall Sigma e m id ty vars m1 l1 m2 e2 Sigma',
+  balloc Sigma m ty 0 (sizeof_type (genv_cenv ge) ty) = (m1, l1, Sigma') ->
+  alloc_variables Sigma (PTree.set id (l1, ty) e) m1 vars e2 m2 Sigma' ->
+  alloc_variables Sigma e m ((id, ty) :: vars) e2 m2 Sigma'.
 
 (** Initialization of local variables that are parameters to a function.
   [bind_parameters e m1 params args m2] stores the values [args]
@@ -612,6 +548,9 @@ Fixpoint vars_bound_by (p : pattern) : list ident :=
   | Pbytes x _ fields => x :: map fst fields
   end.
 
+End Memory_semantics.
+
+
 Section SubstHelper.
 
 Variable subst : ident -> expr -> expr -> expr.
@@ -639,6 +578,17 @@ Fixpoint subst_match_branches (x : ident) (se : expr) (ps : list pattern) (es : 
 
 End SubstHelper.
 
+Section Substitution.
+
+Variable S : ident -> expr -> expr -> expr.
+
+Fixpoint substs (x : ident) (se : expr) (es : list expr) : list expr :=
+match es with 
+| nil => nil
+| e :: es => S x se e :: substs x se es
+end.
+
+End Substitution.
 
 (* Substitution *)
 Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
@@ -646,8 +596,8 @@ Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
   | Val v t => e
   | Var y t => if (x =? y)%positive then se else Var y t
   | Const c t => e 
-  | App e es t => App (subst x se e) (map (subst x se) es) t
-  | Prim b es t => Prim b (map (subst x se) es) t
+  | App e es t => App (subst x se e) (substs subst x se es) t
+  | Prim b es t => Prim b (substs subst x se es) t
   | Bind y t e1 e2 t' =>
       if (x =? y)%positive 
       then Bind y t (subst x se e1) e2 t'
@@ -655,18 +605,96 @@ Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
   | Cond e1 e2 e3 t => Cond (subst x se e1) (subst x se e2) (subst x se e3) t
   | Unit t => Unit t 
   | Addr l p t => Addr l p t
-  | Hexpr h e t => Hexpr h (subst x se e) t
-  | Eapp ef ts es t => Eapp ef ts (map (subst x se) es) t
+  | Eapp ef ts es t => Eapp ef ts (substs subst x se es) t
   | Sinit y ids es t => if (x =? y)%positive then Sinit y ids es t
-                        else Sinit y ids (map (subst x se) es) t
+                        else Sinit y ids (substs subst x se es) t
   | Sfield e fld t => Sfield (subst x se e) fld t
   | For e1 e2 d e' t => For (subst x se e1) (subst x se e2) d (subst x se e') t
   | Enone t => Enone t 
   | Esome e t => Esome (subst x se e) t
   | Match e ps es t => (*Match (subst x se e) ps (subst_match_branches subst x se ps es) t : correct *)
-    Match (subst x se e) ps (map (subst x se) es) t (* replace this with above *)
-  | Ebytes es t => Ebytes (map (subst x se) es) t
+    Match (subst x se e) ps (substs subst x se es) t (* replace this with above *)
+  | Ebytes es t => Ebytes (substs subst x se es) t
+  | Ainit a t es t' => Ainit a t (substs subst x se es) t'
+  | Aaccess a t n t' => Aaccess a t n t'
   end.
+
+(* Inductive principles for subst *)
+Inductive SubstE (x:ident) (se:expr) : expr -> expr -> Prop :=
+| S_Val v t :
+    SubstE x se (Val v t) (Val v t)
+| S_Var_hit t :
+    SubstE x se (Var x t) se
+| S_Var_miss y t (H: x <> y) :
+    SubstE x se (Var y t) (Var y t)
+| S_Const c t :
+    SubstE x se (Const c t) (Const c t)
+| S_App e0 e0' es es' t
+    (H0  : SubstE  x se e0 e0')
+    (Hes : SubstEs x se es es') :
+    SubstE x se (App e0 es t) (App e0' es' t)
+| S_Prim b es es' t
+    (Hes : SubstEs x se es es') :
+    SubstE x se (Prim b es t) (Prim b es' t)
+| S_Bind_hit y t e1 e1' e2 t'
+    (Hy : x = y)
+    (H1 : SubstE x se e1 e1') :
+    SubstE x se (Bind y t e1 e2 t') (Bind y t e1' e2 t')
+| S_Bind_miss y t e1 e1' e2 e2' t'
+    (Hy : x <> y)
+    (H1 : SubstE  x se e1 e1')
+    (H2 : SubstE  x se e2 e2') :
+    SubstE x se (Bind y t e1 e2 t') (Bind y t e1' e2' t')
+| S_Cond e1 e1' e2 e2' e3 e3' t
+    (H1: SubstE x se e1 e1') (H2: SubstE x se e2 e2') (H3: SubstE x se e3 e3') :
+    SubstE x se (Cond e1 e2 e3 t) (Cond e1' e2' e3' t)
+| S_Unit t :
+    SubstE x se (Unit t) (Unit t)
+| S_Addr l p t :
+    SubstE x se (Addr l p t) (Addr l p t)
+| S_Eapp ef ts es es' t
+    (Hes : SubstEs x se es es') :
+    SubstE x se (Eapp ef ts es t) (Eapp ef ts es' t)
+| S_Sinit_hit y ids es t (Hy : x = y) :
+    SubstE x se (Sinit y ids es t) (Sinit y ids es t)
+| S_Sinit_miss y ids es es' t (Hy : x <> y)
+    (Hes : SubstEs x se es es') :
+    SubstE x se (Sinit y ids es t) (Sinit y ids es' t)
+| S_Sfield e e' fld t
+    (He : SubstE x se e e') :
+    SubstE x se (Sfield e fld t) (Sfield e' fld t)
+| S_For e1 e1' e2 e2' d e e' t
+    (H1: SubstE x se e1 e1') (H2: SubstE x se e2 e2') (H3: SubstE x se e e') :
+    SubstE x se (For e1 e2 d e t) (For e1' e2' d e' t)
+| S_Enone t :
+    SubstE x se (Enone t) (Enone t)
+| S_Esome e e' t
+    (He: SubstE x se e e') :
+    SubstE x se (Esome e t) (Esome e' t)
+| S_Match e e' ps es es' t
+    (He : SubstE  x se e  e')
+    (Hs : SubstEs x se es es') :
+    SubstE x se (Match e ps es t) (Match e' ps es' t)
+| S_Ebytes es es' t
+    (Hs : SubstEs x se es es') :
+    SubstE x se (Ebytes es t) (Ebytes es' t)
+| S_Ainit a t0 es es' t'
+    (Hs : SubstEs x se es es') :
+    SubstE x se (Ainit a t0 es t') (Ainit a t0 es' t')
+| S_Aaccess a t0 n t' :
+    SubstE x se (Aaccess a t0 n t') (Aaccess a t0 n t')
+
+with SubstEs (x:ident) (se:expr) : list expr -> list expr -> Prop :=
+| S_Nil :
+    SubstEs x se nil nil
+| S_Cons e e' es es'
+    (He  : SubstE  x se e  e')
+    (Hes : SubstEs x se es es') :
+    SubstEs x se (e :: es) (e' :: es').
+
+Scheme SubstE_mut_ind  := Induction for SubstE  Sort Prop
+with   SubstEs_mut_ind := Induction for SubstEs Sort Prop.
+Combined Scheme Subst_mutind from SubstE_mut_ind, SubstEs_mut_ind.
 
 
 Inductive well_formed_value : value -> type -> Prop :=
@@ -679,7 +707,6 @@ Inductive well_formed_value : value -> type -> Prop :=
 | wf_vloc : forall l ofs h t a,
             well_formed_value (Vloc l ofs) (Ptrtype (Reftype h t a)).
 
-End Memory_semantics.
 
 Fixpoint bind_vars (Gamma : ty_context) (l: list (ident * type)) : ty_context :=
 match l with

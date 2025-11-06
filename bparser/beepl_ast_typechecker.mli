@@ -7,24 +7,41 @@ exception TypeError of string
 module Env : Map.S with type key = string
 type tyenv = typ Env.t
 
+module Senv : sig
+    type t
+    val empty : t
+    val add : string -> (string * typ) list -> t -> t
+    val find : string -> t -> (string * typ) list
+    val find_field : string -> string -> t -> typ
+    val fields_of : string -> t -> (string * typ) list
+  end
+
+(** External functions environment. *)
+type efinfo = {
+  formals  : typ list;       (* fixed prefix parameters *)
+  effects  : effect list;
+  ret      : typ;
+  variadic : bool;           (* true => accepts extra ... args *)
+}
+type efenv = efinfo Env.t
+
+(** Build a struct environment from the program’s StructDecls. *)
+val build_senv : program -> Senv.t
+
+(** Build an external function environment from the program’s ExternDecls. *)
+val build_efenv : unit -> efenv
+
+(** Build a type environment from a list of (name, type) pairs. *)
 val list_to_env : (string * typ) list -> tyenv
 
 val string_of_ptype : ptype -> string
-
 val string_of_typ : typ -> string
 
-(** Check if two primitive types are equal. *)
+(** Type inference for expressions (needs struct env + var env). *)
+val infer_expr : efenv -> Senv.t -> tyenv -> expr -> typ
 
-(** Convert a type to a string representation. *)
+(** Type check a function declaration. *)
+val infer_fundecl : efenv -> fundecl -> Senv.t -> tyenv -> unit
 
-(** Check that an expression is well-typed under the given environment.
-    Returns the inferred type of the expression. Raises [TypeError] on failure. *)
-val infer_expr : tyenv -> expr -> typ
-
-(** Type check a function declaration. Raises [TypeError] if invalid. *)
-val infer_fundecl : fundecl -> tyenv -> unit
-
-(** Type check an entire program. Raises [TypeError] if any function is invalid. *)
+(** Type check an entire program. Builds Senv internally. *)
 val infer_program : program -> unit
-
-

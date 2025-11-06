@@ -176,7 +176,8 @@ Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> e
              type_expr cenv Gamma Sigma (Sinit x ids es (Ptrtype (Reftype h (Bstruct id a) a'))) efs (Ptrtype (Reftype h (Bstruct id a) a'))
 | ty_sfield : forall cenv Gamma Sigma e x id a te ef co ct bt,
               type_expr cenv Gamma Sigma e ef te ->
-              (eq_type te (Stype id a)) \/ (eq_type te (Ptrtype (Sptype id a))) ->
+              (eq_type te (Stype id a)) \/ (eq_type te (Ptrtype (Reftype mem_ident (Bstruct id a) noattr))) 
+              \/ (eq_type te (Ptrtype (Otype (Reftype mem_ident (Bstruct id a) noattr)))) ->
               PTree.get id cenv = Some co ->
               Ctyping.type_of_member a x (bmembers_cmembers co.(co_members)) = OK ct ->
               trans_ctype_btype ct = OK bt ->
@@ -208,6 +209,17 @@ Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> e
               is_option_type te \/ is_bytes te ->
               all_eq_types ts ->
               type_expr cenv Gamma Sigma (Match e ps es (hd tunit ts)) (ef ++ efs) (hd tunit ts)
+| ty_ainit : forall cenv Gamma Sigma a t es t' aty efs ts,
+             type_exprs cenv Gamma Sigma es efs ts -> 
+             get_array_elm_ty t = OK aty -> 
+             is_atype t && is_atype t' ->
+             all_eq_type aty ts ->
+             type_expr cenv Gamma Sigma (Ainit a t es t') efs t' (* Should we also include write effects for array initialization? *)
+| ty_aaccess : forall cenv Gamma Sigma a t n t' aty, 
+               get_array_elm_ty t = OK aty ->
+               is_atype t ->
+               eq_type aty t' ->
+               type_expr cenv Gamma Sigma (Aaccess a t n t') nil t'
 (*| ty_subt : forall cenv Gamma Sigma e ef t ef', 
             type_expr cenv Gamma Sigma e ef t ->
             sub_effect ef ef' ->
@@ -293,15 +305,15 @@ Inductive type_program : BeePL.program -> Prop :=
 Inductive well_formed_var (Gamma : ty_context) (Sigma : store_context) (bge : BeePL.genv) (vm : vmap) (m : Memory.mem) : Prop :=
 | store_well_typed_lvar : (forall x t,
                            Gamma ! x = Some t ->
-                           (exists l' t' v ofs, vm ! x = Some (l', t') /\
+                           (exists l' t' v, vm ! x = Some (l', t') /\
                            t = t' /\ PTree.get l' Sigma = Some t /\ 
-                                                  deref_addr bge t m l' ofs Full v)) ->
+                                                  deref_addr bge t m l' Ptrofs.zero Full v)) ->
                           well_formed_var Gamma Sigma bge vm m
 | store_well_typed_gvar : (forall x t,
                           Gamma ! x = Some t ->
-                          (exists l' ofs v, vm ! x = None /\ Genv.find_symbol bge x = Some l' /\ 
+                          (exists l' v, vm ! x = None /\ Genv.find_symbol bge x = Some l' /\ 
                                             PTree.get l' Sigma = Some t /\ 
-                                            deref_addr bge t m l' ofs Full v)) ->
+                                            deref_addr bge t m l' Ptrofs.zero Full v)) ->
                          well_formed_var Gamma Sigma bge vm m.
 
 (*** Well formed loc (coming from ref, not variables) ***)
@@ -843,7 +855,7 @@ Qed.
 Lemma type_infer_sfield : forall cenv Gamma Sigma e x t ef t',
 type_expr cenv Gamma Sigma (Sfield e x t) ef t' ->
 exists id a co ct ef te, 
-t = (Stype id a) /\ t' = (Ptrtype (Sptype id a)) /\
+t = (Stype id a) /\ t' = (Ptrtype (Reftype mem_ident (Bstruct id a) noattr)) /\
 type_expr cenv Gamma Sigma e ef te ->
 PTree.get id cenv = Some co /\ 
 Ctyping.type_of_member a x (bmembers_cmembers co.(co_members)) = OK ct /\
@@ -1035,7 +1047,6 @@ Proof.
 + by case: t'=> //=. 
 by case: t'=> //=.
 Qed.*) Admitted.
-
 
 (* Complete Me: Easy *)
 (* There always exists a C type for BeePL type which is 

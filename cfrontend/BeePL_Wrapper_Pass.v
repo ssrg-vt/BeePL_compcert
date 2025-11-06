@@ -46,7 +46,7 @@ let i := (ident_of_string "ctx") in
 match args with 
 | nil => OK nil
 | (i, t) :: nil => 
-  if eq_type t (Ptrtype (Sptype  _xdp_md_bee noattr)) 
+  if eq_type t (Ptrtype (Otype (Reftype mem_ident (Bstruct  _xdp_md_bee noattr) noattr))) 
   then OK ((ident_of_string "ctx", Tpointer (Tstruct (ident_of_string "xdp_md") noattr) noattr) :: nil)
   else OK ((i, (transBeePL_type t)) :: nil)
 | _ => Error (msg "COMPILER ERROR: eBPF program should take only one argument (context)")

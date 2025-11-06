@@ -28,7 +28,7 @@ else
 ARCHDIRS=$(ARCH)_$(BITSIZE) $(ARCH)
 endif
 
-DIRS := lib beepl common $(ARCHDIRS) ebpf backend cfrontend driver export cparser
+DIRS := lib beepl common $(ARCHDIRS) backend cfrontend driver export cparser
 
 ifeq ($(CLIGHTGEN),true)
 DIRS += export
@@ -162,7 +162,8 @@ BEEPL_TESTS=\
     BeePL_bpf_map_example1.v BeePL_bpf_drop_xdp_packet_iPv6.v BeePL_bpf_handle_tp.v BeePL_add_ref.v \
     BeePL_cast.v BeePL_cast1.v BeePL_shift.v BeePL_bpf_map_null_check.v BeePL_section.v BeePL_bpf_safe_null_check.v \
     BeePL_globvar_local.v BeePL_no_addr_return.v BeePL_check_sec.v beepl_success_load/BeePL_bpf_xdp1.v beepl_success_load/BeePL_bpf_xdp2.v \
-    beepl_success_load/BeePL_bpf_pid_tgid.v BeePL_var.v
+    beepl_success_load/BeePL_bpf_pid_tgid.v BeePL_var.v BeePL_bytes1.v BeePL_for3.v BeePL_array.v BeePL_array1.v BeePL_array2.v \
+    BeePL_some.v BeePL_some_match.v
 
 #  BeePL_div_zero.v BeePL_div_zero1.v BeePL_external_call.v BeePL_ref.v \
 #  BeePL_struct_ex2.v BeePL_for_ex1.v BeePL_for_ex2.v BeePL_globvar1.v \
@@ -210,17 +211,9 @@ BACKEND=\
   Bounds.v Stacklayout.v Stacking.v Stackingproof.v \
   Asm.v Asmgen.v Asmgenproof0.v Asmgenproof1.v Asmgenproof.v
 
-# EBPF modules
-
-EBPF=Archi.v Asm.v Asmgen.v Asmgenproof.v Asmgenproof1.v Builtins1.v \
-  CombineOp.v CombineOpproof.v ConstpropOp.v ConstpropOpproof.v \
-  Conventions1.v extractionMachdep.v Machregs.v Mulh.v NeedOp.v Op.v \
-  SelectLong.v SelectLongproof.v SelectOp.v SelectOpproof.v Size.v \
-  Stacklayout.v ValueAOp.v
-
 # C front-end modules (in cfrontend/)
 
-CFRONTEND=BeePL_mem.v BeePL_aux.v BeePL.v BeePL_notations.v BeePL_auxlemmas.v BeePL_helper_functions.v BeePL_sem.v BeePL_typechecker.v BeePL_typesystem.v \
+CFRONTEND=BeePL_mem.v BeePL_aux.v BeePL.v BeePL_notations.v BeePL_auxlemmas.v BeePL_helper_functions.v BeePL_sem.v BeePL_typechecker.v BeePL_typesystem.v Type_proof_C.v \
   BeePL_safety.v BeePL_memory_proofs.v BeePL_operators_proofs.v BeePL_typesystem_proofs.v BeePL_Check_Reserved_Struct.v BeePL_Bytes_Struct.v BeePL_Wrapper_Pass.v BeePL_Csyntax.v \
   BeePL_compiler_proofs.v Ctypes.v Cop.v Csyntax.v Csem.v Ctyping.v Cstrategy.v Cexec.v \
   Initializers.v Initializersproof.v \
@@ -257,7 +250,7 @@ endif
 
 # All source files
 
-FILES=$(VLIB) $(BEEPL) $(COMMON) $(EBPF) $(BACKEND) $(CFRONTEND) $(DRIVER) $(FLOCQ) \
+FILES=$(VLIB) $(BEEPL) $(COMMON) $(BACKEND) $(CFRONTEND) $(DRIVER) $(FLOCQ) \
   $(MENHIRLIB) $(PARSER) $(EXPORTLIB)
 
 # Generated source files

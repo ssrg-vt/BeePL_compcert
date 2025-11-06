@@ -421,7 +421,7 @@ Qed.
 
 Lemma construct_zero : forall t,
 is_primint t || is_primlong t ->
-exists zv, return_bzero t = ret zv. 
+exists zv, return_bzero t = OK zv. 
 Proof.
 move=> t ht. rewrite /return_bzero /=. case: t ht=> //= p.
 case: p=> //=.

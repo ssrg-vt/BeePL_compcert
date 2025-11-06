@@ -48,11 +48,8 @@ Inductive basic_type : Type :=
 
 Inductive ptr_type : Type :=
 | Reftype : ident -> basic_type -> attr -> ptr_type       (* Pointer to primitive types and struct : box - introduced in prog *)
-| Vptype : primitive_type -> ptr_type                     (* Pointer to primitve types coming from outside *)
 | Otype : ptr_type -> ptr_type                            (* Option type *)          
 | Fptype : list type -> effect -> type -> ptr_type        (* function/arrow pointer type *)
-| Sptype : ident -> attr -> ptr_type                      (* struct pointer - often used when it comes from helper functions *)
-| Aptype : type -> Z -> attr -> ptr_type                  (* array pointer - often used in ebpf structs *)
 with type : Type :=
 | Utype : type                                            (* Unit type *)
 | Vtype : primitive_type -> type                          (* Value types *)
@@ -62,83 +59,17 @@ with type : Type :=
 | Ftype : list type -> effect -> type -> type             (* function type *)
 | Bytes : type                                            (* bytes type of size n *).
 
+Definition get_array_elm_ty (t : type) : res type :=
+match t with 
+| Atype t n a => OK t
+| _ => Error (msg "Not an array type")
+end.
 
-Section beepl_type_ind.
-Context (Pt : BeeTypes.type -> Prop).
-Context (Pts : list BeeTypes.type -> Prop).
-Context (Pptr : BeeTypes.ptr_type -> Prop).
-Context (Href : forall i bt a, Pptr (Reftype i bt a)).
-Context (Hvptr : forall pt, Pptr (Vptype pt)).
-Context (Hoptr : forall ptr, Pptr ptr -> Pptr (Otype ptr)).
-Context (Hfptr : forall ts e t, Pts ts -> Pt t -> Pptr (Fptype ts e t)).
-Context (Hsptr : forall i a, Pptr (Sptype i a)).
-Context (Haptr : forall t n a, Pt t -> Pptr (Aptype t n a)).
-Context (Hunot : Pt (Utype)).
-Context (Hv : forall pt, Pt (Vtype pt)).
-Context (Hptr : forall ptr, Pptr ptr -> Pt (Ptrtype ptr)).
-Context (Hs : forall i a, Pt (Stype i a)).
-Context (Ha : forall t n a, Pt t -> Pt (Atype t n a)).
-Context (Hf : forall ts e t, Pts ts -> Pt t -> Pt (Ftype ts e t)).
-Context (Hb : Pt Bytes).
-Context (Hnil : Pts nil).
-Context (Hcons : forall t ts, Pt t -> Pts ts -> Pts (t :: ts)).
-
-Lemma beepl_type_ind_mut : 
-  (forall t, Pt t) /\ (forall ts, Pts ts) /\ (forall ptr, Pptr ptr).
-Proof.
-  assert (forall t, Pt t) as Htype.
-  - fix IHt 1.
-    destruct t.
-    + apply Hunot.
-    + apply Hv.
-    + apply Hptr.
-      revert p.
-      fix IHp 1.
-      destruct p.
-      * apply Href.
-      * apply Hvptr.
-      * apply Hoptr. apply IHp.
-      * apply Hfptr.
-        -- revert l.
-          fix IHl 1.
-          destruct l.
-          ++ apply Hnil.
-          ++ apply Hcons. apply IHt. apply IHl.
-        -- apply IHt.
-      * apply Hsptr.
-      * apply Haptr. apply IHt.
-    + apply Hs.
-    + apply Ha. apply IHt.
-    + apply Hf.
-      * revert l.
-        fix IHl 1.
-        destruct l.
-        -- apply Hnil.
-        -- apply Hcons. apply IHt. apply IHl.
-      * apply IHt.
-    + apply Hb.
-  assert (forall ts, Pts ts) as Htypes.
-  - fix IHts 1.
-    destruct ts.
-    + apply Hnil.
-    + apply Hcons.
-      * apply Htype.
-      * apply IHts.
-  assert (forall ptr, Pptr ptr) as Hpptr.
-  - fix IHp 1.
-    destruct ptr.
-    + apply Href.
-    + apply Hvptr.
-    + apply Hoptr. apply IHp.
-    + apply Hfptr.
-      * apply Htypes.
-      * apply Htype.
-    + apply Hsptr.
-    + apply Haptr. apply Htype.
-  split; try split; assumption.
-Qed.
-
-End beepl_type_ind.
+Definition get_array_len (t : type) : mon Z :=
+match t with 
+| Atype t n a => ret n
+| _ => error (msg "Not an array type")
+end.
 
 Definition allowed_cast (t1 t2 : primitive_type) : res primitive_type :=
 match t1, t2 with 
@@ -156,11 +87,8 @@ match pt with
                     | Bstruct s a => Stype s a 
                     | Barray p z a => Atype (Vtype p) z a
                     end
-| Vptype pt => Vtype pt
 | Otype pt => get_data_type pt
 | Fptype ts ef t => Ftype ts ef t
-| Sptype s a => Stype s a
-| Aptype t z a => Atype t z a
 end.
 
 Definition construct_type_btype (bt : basic_type) : type :=
@@ -200,11 +128,8 @@ end.
 Fixpoint attr_of_ptr_type (t : ptr_type) : attr :=
 match t with 
 | Reftype h bt a => a
-| Vptype pt => attr_of_primitive_type pt
 | Otype t => attr_of_ptr_type t
 | Fptype ts ef t => noattr
-| Sptype h a => a
-| Aptype t z a => a
 end.
 
 Definition attr_of_type (t : type) : attr :=
@@ -266,7 +191,7 @@ Definition mem_ident : ident := $"mem_ident".
 Definition bytes_t : ident := $"bytes_t".
 
 Fixpoint transBeePL_type (t : BeeTypes.type) : Ctypes.type :=
-match t with
+  match t with
   | Utype => Ctypes.Tvoid
   | Vtype vt => match vt with  
                 | Tbool => (Ctypes.Tint I8 Unsigned noattr)
@@ -280,7 +205,7 @@ match t with
       let cts := transBeePL_types transBeePL_type ts in 
       let ct := transBeePL_type t' in 
       (Tfunction cts ct
-        {| cc_vararg := Some (Z.of_nat (length ts));
+        {| cc_vararg := None;
            cc_unproto := false;
            cc_structret := false |})
   | Bytes => (Tstruct bytes_t noattr)
@@ -299,11 +224,6 @@ with transBeePL_ptr_type (pt : ptr_type) : Ctypes.type :=
                            | Tlong s al => Ctypes.Tpointer (Tarray (Ctypes.Tlong s al) z a') a
                            end
       end
-  | Vptype pt => match pt with 
-                 | Tbool => Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr
-                 | (Tint sz s a') => Ctypes.Tpointer (Ctypes.Tint sz s a') a'
-                 | (Tlong s a') => Ctypes.Tpointer (Ctypes.Tlong s a') a' (*tptr tvoid*)
-                 end
   | Otype t => (transBeePL_ptr_type t)
   | Fptype ts ef t =>
       let cts := transBeePL_types transBeePL_type ts in 
@@ -314,24 +234,7 @@ with transBeePL_ptr_type (pt : ptr_type) : Ctypes.type :=
              cc_unproto := false;
              cc_structret := false |})
         noattr)
-  | Sptype s a => (Ctypes.Tpointer (Tstruct s a) a)
-  | Aptype t' z a => (Ctypes.Tpointer (Tarray (transBeePL_type t') z a) a)
   end.
-
-Lemma transBeePL_types_length : forall ts cts,
-  transBeePL_types transBeePL_type ts = cts ->
-  length ts = length cts.
-Proof.
-  induction ts; intros.
-  - inversion H. subst. reflexivity.
-  - simpl in *.
-    destruct cts.
-    + discriminate.
-    + injection H as H.
-      simpl.
-      f_equal.
-      auto.
-Qed.
 
 (*** Composite Definitions related to BeePL ***)
 Definition bmember_cmember (b : bmember) : member :=
@@ -482,12 +385,6 @@ match t with
 | Bytes => false
 end. 
 
-Definition is_ptrtype_stype (t : type) : bool :=
-match t with 
-| Ptrtype (Sptype x a) => true
-| _ => false
-end. 
-
 Definition is_ref_ptr_type (pt : ptr_type) : bool :=
 match pt with 
 | Reftype _ _ _ => true 
@@ -635,11 +532,8 @@ Definition signedness_of_basic (bt : basic_type) : option signedness :=
 Fixpoint signedness_of_ptr_type (pt : ptr_type) : option signedness :=
   match pt with
   | Reftype _ bt _ => signedness_of_basic bt
-  | Vptype pt => signedness_of_primitive pt
   | Otype pt' => signedness_of_ptr_type pt'
   | Fptype _ _ _=> None
-  | Sptype _ _ => None
-  | Aptype _ _ _ => None
   end.
 
 Definition signedness_of_type (t : type) : option signedness :=
@@ -668,11 +562,8 @@ Definition wtype_of_ptr_type (pt : ptr_type) : wtype :=
       | Bstruct _ _ => Twpst
       | Barray _ _ _ => Twpa
       end
-  | Vptype _ => Twpv
   | Otype _ => Twot
   | Fptype _ _ _ => Twfunptr
-  | Sptype _ _ => Twptr
-  | Aptype _ _ _ => Twpa
   end.
 
 Definition wtype_of_type (t : type) : wtype :=
@@ -815,7 +706,7 @@ Definition access_mode_type (t : type) : mode :=
   match t with
   | Utype => By_nothing
   | Vtype pt => access_mode_prim pt
-  | Ptrtype _ => By_value Mptr
+  | Ptrtype _ => By_reference
   | Stype _ _ => By_reference
   | Atype t z a => By_reference
   | Ftype _ _ _ => By_reference
@@ -825,6 +716,7 @@ Definition access_mode_type (t : type) : mode :=
 
 (** The chunk that is appropriate to store and reload a value of
   the given type, without losing information. *)
+
 Definition chunk_of_ptype (ty: primitive_type) :=
 match ty with
 | Tbool => (*BMint8signed*) BMint32
@@ -837,8 +729,6 @@ match ty with
 | Tlong _ _ => BMint64
 end.
 
-
-
 Definition chunk_of_type (ty : type) : option bmemory_chunk :=
 match ty with
 | Vtype pt => Some (chunk_of_ptype pt)
@@ -850,15 +740,6 @@ match ty with
 | Ftype _ _ _ => None
 | Utype => None
 end.
-
-Print typ. 
-Print AST.chunk_of_type. 
-Definition get_chunk (t : typ) : memory_chunk :=
-  match t with
-  | Tbool | AST.Tint | Tint32 => Mint32
-  | _ => AST.chunk_of_type t
-  end.
-                                    
 
 Section Eq_basic_types.
 
@@ -904,8 +785,8 @@ Fixpoint eq_type (t1 t2 : type) : bool :=
   | Ftype ts1 ef1 t1', Ftype ts2 ef2 t2' =>
       eq_types eq_type ts1 ts2 && eq_effect ef1 ef2 && eq_type t1' t2'
   | Bytes, Bytes => true
-  | Atype t1 z1 a1, trint8s => true (* special case because of bpf_printk *)
-  | trint8s, Atype t2 z2 a2 => true (* special case because of bpf_printk *)
+  (*| Atype t1 z1 a1, trint8s => true (* special case because of bpf_printk *)
+  | trint8s, Atype t2 z2 a2 => true (* special case because of bpf_printk *)*)
   | _, _ => false
   end
 
@@ -913,14 +794,11 @@ with eq_ptr_type (p1 p2 : ptr_type) : bool :=
   match p1, p2 with
   | Reftype h1 b1 a1, Reftype h2 b2 a2 =>
       (h1 =? h2)%positive && eq_basic_type b1 b2 && attr_eq a1 a2
-  | Vptype pt1, Vptype pt2 => eq_primitive_type pt1 pt2
   | Otype t1, Otype t2 => eq_ptr_type t1 t2
   | Fptype ts1 ef1 t1, Fptype ts2 ef2 t2 =>
       eq_types eq_type ts1 ts2 && eq_effect ef1 ef2 && eq_type t1 t2
-  | Sptype id1 a1, Sptype id2 a2 => (id1 =? id2)%positive && attr_eq a1 a2
-  | Otype t1, _ => true   (* we need this special case: all pointer type can be void * *)
-  | _, Otype t1 => true   (* we need this special case: all pointer type can be void * *)
-  | Aptype t1 z1 a1, Aptype t2 z2 a2 => eq_type t1 t2 && (z1 =? z2)%Z && attr_eq a1 a2
+  (*| Otype t1, _ => true   (* we need this special case: all pointer type can be void * *)
+  | _, Otype t1 => true   (* we need this special case: all pointer type can be void * *)*)
   | _, _ => false
   end.
 
@@ -947,6 +825,12 @@ Definition eq_wtype (w1 w2 : wtype) : bool :=
   | Twmap, Twmap => true
   | _, _ => false
   end.
+
+Fixpoint all_eq_type (t : type) (ts : list type) : bool :=
+match ts with 
+| nil => true 
+| t' :: ts' => eq_type t t' && all_eq_type t ts'
+end.
 
 Definition sizeof_ptype (t : primitive_type) : Z :=
 match t with 

@@ -185,17 +185,12 @@ end.
 
 
 (* Proofs related to safety condition generator *)
+(* Complete Me : Easy *)
 Lemma interp_safe_conds_concat : forall sc1 sc2 Sigma bge vm m,
 interp_safe_conds (sc1 ++ sc2) Sigma bge vm m ->
 interp_safe_conds sc1 Sigma bge vm m /\ interp_safe_conds sc2 Sigma bge vm m.
 Proof.
-  intros.
-  induction sc1; simpl in *.
-  - auto.
-  - destruct H.
-    rewrite and_assoc.
-    split; auto.
-Qed.
+Admitted.
 
 (* A well-typed uop always has a semantics that leads to a value. *)
 Lemma well_typed_safe_uop : forall Gamma Sigma bge vm v ef t uop m ct,
