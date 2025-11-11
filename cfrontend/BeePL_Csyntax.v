@@ -1361,13 +1361,30 @@ Definition program_uses_ebpf_ctx (p : BeePL.program) : bool :=
        end)
     (prog_defs p).
 
-Definition have_xdp_md (cs : list composite_definition) : bool :=
+(* Safe lookup: first key with equality A_eqb in (key * value) list *)
+Fixpoint assoc_opt {A B : Type}
+         (A_eqb : A -> A -> bool)
+         (k : A) (xs : list (A * B)) : option B :=
+  match xs with
+  | nil => None
+  | (k', v) :: tl =>
+      if A_eqb k k' then Some v else assoc_opt A_eqb k tl
+  end.
+
+Definition have_xdp_md_aux
+           (cs : list composite_definition)
+           (id2string : list (ident * string)) : bool :=
   existsb
     (fun c =>
        match c with
-       | Composite id _ _ _ => if ident_eq id _xdp_md then true else false
+       | Composite id _ _ _ =>
+           match assoc_opt ident_eq id id2string with
+           | Some s => if String.eqb s "xdp_md" then true else false
+           | None   => false
+           end
        end)
     cs.
+
 
 (* Missing list of public functions *) 
 (*Definition BeePL_compcert (p : BeePL.program) : res (Csyntax.program * list (ident * string) * list (ident * csyntax_atom_info)) :=
@@ -1443,9 +1460,10 @@ Definition BeePL_compcert
 
   let needs_ebpf_ctx := program_uses_ebpf_ctx p in
 
-  
+  let has_xdp_md := have_xdp_md_aux base_mcs id2string in
+
   let mcs : list composite_definition :=
-    if needs_ebpf_ctx && negb (have_xdp_md base_mcs)
+    if needs_ebpf_ctx && negb has_xdp_md
     then xdp_md_ccomposite :: base_mcs    (* always add xdp_md *)
     else base_mcs in
   (* 8. Build final C program *)
