@@ -580,37 +580,44 @@ end.
 Definition set_bytes_from_ctx
            (p    : ident)           (* local "p" : struct bytes_t *)
            (ctx  : ident)           (* function parameter "ctx" *)
-           (tctx : Ctypes.type)     (* type of [ctx], e.g. Tpointer (Tstruct _xdp_md noattr) ... *)
+           (tctx : Ctypes.type)     (* type of [ctx], e.g. Tpointer (Tstruct _xdp_md noattr) noattr *)
   : Csyntax.statement :=
+  let t_xdp   := Tstruct _xdp_md noattr in
+  let t_u32   := Ctypes.Tint I32 Unsigned noattr in
+  let t_pchar := tptr tuchar in
   Ssequence
+    (* p.bytes_start = (unsigned char  ctx->data; *)
     (Sdo
        (Eassign
-          (Efield (Evalof (Evar p (Tstruct bytes_t noattr))
-                          (Tstruct bytes_t noattr))
-                  bytes_start (tptr tuchar))
+          (Efield
+             (Evalof (Evar p (Tstruct bytes_t noattr))
+                     (Tstruct bytes_t noattr))
+             bytes_start t_pchar)
           (Ecast
              (Evalof
                 (Efield
-                   (Evalof (Ederef (Evalof (Evar ctx tctx) tctx) tctx)
-                           tctx)
-                   _data tulong)
-                tulong)
-             (tptr tuchar))
-          (tptr tuchar)))
+                   (Ederef (Evalof (Evar ctx tctx) tctx)
+                           t_xdp)
+                   _data t_u32)
+                t_u32)
+             t_pchar)
+          t_pchar))
+    (* p.bytes_end = (unsigned char  ctx->data_end; *)
     (Sdo
        (Eassign
-          (Efield (Evalof (Evar p (Tstruct bytes_t noattr))
-                          (Tstruct bytes_t noattr))
-                  bytes_end (tptr tuchar))
+          (Efield
+             (Evalof (Evar p (Tstruct bytes_t noattr))
+                     (Tstruct bytes_t noattr))
+             bytes_end t_pchar)
           (Ecast
              (Evalof
                 (Efield
-                   (Evalof (Ederef (Evalof (Evar ctx tctx) tctx) tctx)
-                           tctx)
-                   _data_end tulong)
-                tulong)
-             (tptr tuchar))
-          (tptr tuchar))).
+                   (Ederef (Evalof (Evar ctx tctx) tctx)
+                           t_xdp)
+                   _data_end t_u32)
+                t_u32)
+             t_pchar)
+          t_pchar)).
 
 
 (* if (xdp_md_wrapper.data.start + sizeof(struct ethhdr) > xdp_md_wrapper.data.end) then ee else se *)
@@ -633,19 +640,21 @@ Definition bound_check_bytes
            (hdr_ty : Ctypes.type)
            (ee se  : Csyntax.statement)
   : Csyntax.statement :=
+  let t_pchar := tptr tuchar in
   Sifthenelse
     (Ebinop Cop.Ogt
        (Ebinop Cop.Oadd
           (Efield (Evalof (Evar p (Tstruct bytes_t noattr))
                           (Tstruct bytes_t noattr))
-                  bytes_start (tptr tuchar))
+                  bytes_start t_pchar)
           (Esizeof hdr_ty tulong)
-          (tptr tuchar))
+          t_pchar)
        (Efield (Evalof (Evar p (Tstruct bytes_t noattr))
                        (Tstruct bytes_t noattr))
-               bytes_end (tptr tuchar))
+               bytes_end t_pchar)
        tint)
     ee se.
+
 
 (*Definition set_temp_for_copy (temp : ident) (t : Ctypes.type) (from: ident) (t' : Ctypes.type) : Csyntax.statement :=
 (Sdo (Eassign (Evar temp t) (Ecast (Evalof (Efield (Evalof (Efield (Evalof (Evar from t') t') _data_bee
@@ -659,6 +668,7 @@ Definition set_temp_for_copy
            (t_tmp : Ctypes.type)    (* usually tptr (Tstruct s noattr) *)
            (p     : ident)
   : Csyntax.statement :=
+  let t_pchar := tptr tuchar in
   Sdo
     (Eassign
        (Evar tmp t_tmp)
@@ -666,22 +676,44 @@ Definition set_temp_for_copy
           (Evalof
              (Efield (Evalof (Evar p (Tstruct bytes_t noattr))
                              (Tstruct bytes_t noattr))
-                     bytes_start (tptr tuchar))
-             (tptr tuchar))
+                     bytes_start t_pchar)
+             t_pchar)
           t_tmp)
        t_tmp).
 
-Fixpoint copy_buffer (to : ident) (sto : ident) (t : Ctypes.type) (xts : list (ident * Ctypes.type)) (from : ident) : Csyntax.statement :=
-match xts with 
-| nil => Sskip
-| x :: xs => let bs :=  copy_buffer to sto t xs from in
-             (Ssequence (Sdo (Eassign (Efield (Evalof (Evar to (Tstruct sto noattr))
-                                       (Tstruct sto noattr)) (fst x) (snd x))
-                 (Evalof (Efield (Evalof (Ederef (Evalof (Evar from (tptr (Tstruct sto noattr)))
-                                                  (tptr (Tstruct sto noattr)))
-                         (Tstruct sto noattr)) (Tstruct sto noattr))
-                     (fst x) (snd x)) (snd x)) (snd x))) bs)
-end.
+Fixpoint copy_buffer
+         (to   : ident)
+         (sto  : ident)
+         (tsto : Ctypes.type) (* usually tptr (Tstruct sto noattr) or similar *)
+         (xts  : list (ident * Ctypes.type))
+         (from : ident)
+  : Csyntax.statement :=
+  match xts with 
+  | nil => Sskip
+  | x :: xs =>
+      let bs := copy_buffer to sto tsto xs from in
+      let f  := fst x in
+      let tf := snd x in
+      Ssequence
+        (Sdo
+           (Eassign
+              (Efield
+                 (Evalof (Evar to (Tstruct sto noattr))
+                         (Tstruct sto noattr))
+                 f tf)
+              (Evalof
+                 (Efield
+                    (Evalof
+                       (Ederef (Evalof (Evar from (tptr (Tstruct sto noattr)))
+                                       (tptr (Tstruct sto noattr)))
+                               (Tstruct sto noattr))
+                       (Tstruct sto noattr))
+                    f tf)
+                 tf)
+              tf))
+        bs
+  end.
+
 
 (*Definition incr_data_ptr (wv : ident) (s : ident) (bv : ident) : Csyntax.statement :=
 (Sdo (Eassign (Efield (Evalof (Efield (Evalof
@@ -703,18 +735,19 @@ Definition incr_bytes_ptr
            (p   : ident)
            (hdr : ident)            (* struct name, e.g. ethhdr *)
   : Csyntax.statement :=
+  let t_pchar := tptr tuchar in
   Sdo
     (Eassign
        (Efield (Evalof (Evar p (Tstruct bytes_t noattr))
                        (Tstruct bytes_t noattr))
-               bytes_start (tptr tuchar))
+               bytes_start t_pchar)
        (Ebinop Cop.Oadd
           (Efield (Evalof (Evar p (Tstruct bytes_t noattr))
                           (Tstruct bytes_t noattr))
-                  bytes_start (tptr tuchar))
+                  bytes_start t_pchar)
           (Esizeof (Tstruct hdr noattr) tulong)
-          (tptr tuchar))
-       (tptr tuchar)).
+          t_pchar)
+       t_pchar).
 
 Definition get_carray_elm_ty (t : Ctypes.type) : mon Ctypes.type :=
 match t with 
