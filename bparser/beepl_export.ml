@@ -427,23 +427,65 @@ let rec export_expr_to_coq (ee : Beepl_ast_typechecker.efenv) (senv : Beepl_ast_
         (export_typ_to_coq t)
         n
         ty 
-  | Match (e, patterns, exprs) ->
-      let patterns_str = List.map (function
-        | Psome id -> Printf.sprintf "Psome _%s" id
-        | Pnone -> "Pnone"
-        | Pbytes (id, t, fields) ->
-            let field_strs = List.map (fun (fid, fty) -> Printf.sprintf "(_%s, %s)" fid (export_typ_to_coq fty)) fields in
-            Printf.sprintf "Pbytes (_%s) (%s) (%s)" id (export_typ_to_coq t) (export_coq_list field_strs)
-      ) patterns in
-      let exprs_str = List.map (export_expr_to_coq ee senv env) exprs in
-      let ty = export_typ_to_coq (infer_expr ee senv (list_to_env env) e) in
-      Printf.sprintf 
+  | Match (scrut, patterns, exprs) ->
+    (* 1. Export patterns as before *)
+    let patterns_str =
+      List.map
+        (function
+          | Psome id ->
+              Printf.sprintf "Psome _%s" id
+          | Pnone ->
+              "Pnone"
+          | Pbytes (id, t, fields) ->
+              let field_strs =
+                List.map
+                  (fun (fid, fty) ->
+                      Printf.sprintf "(_%s, %s)" fid (export_typ_to_coq fty))
+                  fields
+              in
+              Printf.sprintf
+                "Pbytes (_%s) (%s) (%s)"
+                id
+                (export_typ_to_coq t)
+                (export_coq_list field_strs))
+        patterns
+    in
+
+    (* 2. For each branch, extend env with the variables bound by that pattern *)
+    let exprs_str =
+      List.map2
+        (fun pat branch ->
+            let env' =
+              match pat with
+              | Psome id ->
+                  (* If you don’t care about Psome right now, you can leave it as [env].
+                    Here we conservatively bind it with the scrutinee's type. *)
+                  let scrut_ty = infer_expr ee senv (list_to_env env) scrut in
+                  (id, scrut_ty) :: env
+              | Pnone ->
+                  env
+              | Pbytes (id, t, fields) ->
+                  (* bytes-binding id : t, and each (fid, fty) from [fields] *)
+                  (id, t) :: (fields @ env)
+            in
+            export_expr_to_coq ee senv env' branch)
+        patterns exprs
+    in
+
+    (* 3. Type of the whole match expression, not just the scrutinee *)
+    let ty =
+      export_typ_to_coq
+        (infer_expr ee senv (list_to_env env)
+            (Match (scrut, patterns, exprs)))
+    in
+
+    Printf.sprintf 
       "(Match (%s)\n                  (%s)\n                  (%s)\n                  (%s))"
-        (export_expr_to_coq ee senv env e)
-        (export_coq_list patterns_str)
-        (export_coq_list exprs_str)
-        ty
-  (* e : Beepl_ast.expr is the whole node you’re exporting *)
+      (export_expr_to_coq ee senv env scrut)
+      (export_coq_list patterns_str)
+      (export_coq_list exprs_str)
+      ty
+
 
 | Esome e1 ->
   (* 1) infer the child’s type *)

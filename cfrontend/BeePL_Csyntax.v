@@ -8,6 +8,12 @@ From mathcomp Require Import ssreflect seq.
 
 Local Open Scope string_scope.
 Local Open Scope gensym_monad_scope.
+Import Csyntaxdefs.CsyntaxNotations.
+Local Open Scope string_scope.
+Local Open Scope gensym_monad_scope.
+Local Open Scope list_scope.
+Local Open Scope string_scope.
+Local Open Scope csyntax_scope.
 
 (**** BeePL Compiler *****)
 
@@ -1194,8 +1200,21 @@ Fixpoint get_section_info (glob_defs : list (ident * AST.globdef BeePL.fundef ty
       end
   end.
 
+(* Local mapping of idents to strings that we always want exported *)
+Definition ident_to_string_ctx_xdp : list (ident * string) :=
+  (_ctx,        "ctx")
+  :: (_xdp_md,    "xdp_md")
+  :: (_data,      "data")
+  :: (_data_end,  "data_end")
+  :: (_xdp_md_bee,"_xdp_md_bee")
+  :: (_data_bee,  "_data_bee")
+  :: (bytes_t,    "bytes_t")
+  :: (bytes_start,"bytes_start")
+  :: (bytes_end,  "bytes_end")
+  :: nil.
+
 (* Missing list of public functions *) 
-Definition BeePL_compcert (p : BeePL.program) : res (Csyntax.program * list (ident * string) * list (ident * csyntax_atom_info)) :=
+(*Definition BeePL_compcert (p : BeePL.program) : res (Csyntax.program * list (ident * string) * list (ident * csyntax_atom_info)) :=
   (* Extract section information from BeePL.program *)  
   let section_info := get_section_info (prog_defs p) (prog_comp_env p) in
   let defs := map (fun '(id, gd, _) => (id, gd)) p.(prog_defs) in
@@ -1207,5 +1226,71 @@ Definition BeePL_compcert (p : BeePL.program) : res (Csyntax.program * list (ide
   let cs := (map bcomposite_ccomposite_definition p.(prog_types)) in 
   let mcs := (ncs ++ snd pds ++ wrapper_beepl_struct_ebpf_struct cs)%list in
   do cprog <- make_program mcs (zip (unzip1 defs) (fst (fst pds))) (prog_public p) (prog_main p);
-  OK (cprog, snd (fst pds), section_info).
+  OK (cprog, snd (fst pds), section_info).*)
+
+
+
+(* Missing list of public functions *) 
+Definition BeePL_compcert
+           (p : BeePL.program)
+  : res (Csyntax.program
+         * list (ident * string)
+         * list (ident * csyntax_atom_info)) :=
+  (* 1. Extract section information from BeePL.program *)  
+  let section_info :=
+    get_section_info (prog_defs p) (prog_comp_env p) in
+
+  (* 2. Extract (id, globdef) pairs from prog_defs *)
+  let defs :=
+    map (fun '(id, gd, _) => (id, gd)) p.(prog_defs) in
+
+  (* 3. Build BeePL compiler context *)
+  let bctx : bcompiler_ctx :=
+    {| arg_ctx := get_args_ebpf_gbdefs (unzip2 defs);
+       benv    := prog_comp_env p |} in 
+
+  (* 4. Sanity-check structs in the BeePL program *)
+  do cp <- check_struct_from_program p;
+
+  (* 5. Translate BeePL globdefs to C globdefs, ident_to_string, and extra composites *)
+  do (pds, is') <-
+       transBeePL_globdefs_globdefs
+         (prog_comp_env p)
+         (unzip2 defs)
+         (prog_ident_to_string p)
+         bctx;
+
+  (* pds : seq (globdef fundef Ctypes.type)
+           * seq (ident * string)
+           * seq composite_definition *)
+  let '(cdefs, id2string0, extra_cs) := pds in
+
+  (* 6. Compute extra composite definitions for bytes_t etc. *)
+  let ncs :=
+    get_bcs_from_globdefs (unzip2 defs) in (* adds bytes_t composite *)
+
+  let cs :=
+    map bcomposite_ccomposite_definition p.(prog_types) in 
+
+  (* Final composite list for make_program:
+     - ncs:      composites deduced from bytes usage in globals/functions
+     - extra_cs: composites produced by transBeePL_globdefs_globdefs
+     - wrapper_beepl_struct_ebpf_struct cs: xdp_md wrapper composites, etc.
+   *)
+  let mcs : list composite_definition :=
+    (ncs ++ extra_cs ++ wrapper_beepl_struct_ebpf_struct cs)%list in
+
+  (* 7. Build final C program *)
+  do cprog <-
+       make_program
+         mcs
+         (zip (unzip1 defs) cdefs)
+         (prog_public p)
+         (prog_main p);
+
+  (* 8. Return program + ident_to_string + section info *)
+  OK (cprog, id2string0, section_info).
+
+
+
 

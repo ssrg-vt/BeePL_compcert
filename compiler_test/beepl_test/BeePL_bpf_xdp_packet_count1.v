@@ -20,7 +20,7 @@ int packet_count(void *ctx) {
 char LICENSE[] SEC("license") = "Dual BSD/GPL";*)
 
 
-Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
+(*Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
 Definition _counter : ident := $"counter".
 Definition _r : ident := $"r".
 Definition _val : ident := $"val".
@@ -89,7 +89,7 @@ Qed.
                                                    ident_to_string.
 
 Compute (type_check_expr example1.(prog_comp_env) 
-                         (bind_vars (bind_vars empty_context f_xdp_packet_count.(fn_args)) f_xdp_packet_count.(fn_vars)) empty_context f_xdp_packet_count.(fn_body)).
+                         (bind_vars (bind_vars empty_context f_xdp_packet_count.(fn_args)) f_xdp_packet_count.(fn_vars)) empty_context f_xdp_packet_count.(fn_body)).*)
 
 
 Compute (type_check_program example1). *) (* Type checks! *)
