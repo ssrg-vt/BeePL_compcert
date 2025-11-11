@@ -17,7 +17,11 @@ Local Open Scope csyntax_scope.
 (* These should normally live with your other global idents,
    or in Csyntaxdefs-style files, and be added to ident_to_string. *)
 
+Definition _xdp_md_bee : ident := $"_xdp_md_bee".
+Definition _data_bee   : ident := $"_data_bee".
+
 Definition _ctx        : ident := $"ctx".
+
 Definition _xdp_md     : ident := $"xdp_md".
 Definition _data       : ident := $"_data".
 Definition _data_end   : ident := $"_data_end".
@@ -25,8 +29,21 @@ Definition _data_meta   : ident := $"_data_meta".
 Definition _ingress_ifindex  : ident := $"_ingress_ifindex".
 Definition _rx_queue_index  : ident := $"_rx_queue_index".
 Definition _egress_ifindex  : ident := $"_egress_ifindex".
-Definition _data_bee   : ident := $"_data_bee".
-Definition _xdp_md_bee : ident := $"_xdp_md_bee".
+
+(* Local mapping of idents to strings that we always want exported *)
+Definition ident_to_string_ctx_xdp : list (ident * string) :=
+  (_ctx,        "ctx")
+  :: (_xdp_md,    "xdp_md")
+  :: (_data,      "_data")
+  :: (_data_end,  "_data_end")
+  :: (_data_meta, "_data_meta")
+  :: (_ingress_ifindex, "_ingress_ifindex")
+  :: (_rx_queue_index, "_rx_queue_index")
+  :: (_egress_ifindex, "_egress_ifindex")
+  :: (_xdp_md_bee,"_xdp_md_bee")
+  :: (_data_bee,  "_data_bee") :: nil
+  ++ ident_to_string_bytes.
+
 
 (* A concrete C composite for the real eBPF xdp_md context *)
 Definition xdp_md_ccomposite : composite_definition :=

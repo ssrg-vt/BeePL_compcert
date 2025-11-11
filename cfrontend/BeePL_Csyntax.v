@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx Coq.Strings.BinaryString.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Coq.Lists.List.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Ctypes Coqlib SimplExpr Csyntaxdefs BeePL_notations.
-Require Import BeePL_aux BeePL BeeTypes Csyntax Errors SimplExpr BeePL_values DecimalString BeePL_Bytes_Struct BeePL_Check_Reserved_Struct BeePL_bpf.
+Require Import BeePL_aux BeePL BeeTypes Csyntax Errors SimplExpr BeePL_values DecimalString BeePL_Bytes_Struct BeePL_Check_Reserved_Struct.
 Require Import BeePL_Wrapper_Pass.
 From mathcomp Require Import ssreflect seq. 
 
@@ -1316,20 +1316,6 @@ Fixpoint get_section_info (glob_defs : list (ident * AST.globdef BeePL.fundef ty
       | None => tail
       end
   end.
-
-(* Local mapping of idents to strings that we always want exported *)
-Definition ident_to_string_ctx_xdp : list (ident * string) :=
-  (_ctx,        "ctx")
-  :: (_xdp_md,    "xdp_md")
-  :: (_data,      "_data")
-  :: (_data_end,  "_data_end")
-  :: (_data_meta, "_data_meta")
-  :: (_ingress_ifindex, "_ingress_ifindex")
-  :: (_rx_queue_index, "_rx_queue_index")
-  :: (_egress_ifindex, "_egress_ifindex")
-  :: (_xdp_md_bee,"_xdp_md_bee")
-  :: (_data_bee,  "_data_bee") :: nil
-  ++ ident_to_string_bytes.
 
 (* Missing list of public functions *) 
 (*Definition BeePL_compcert (p : BeePL.program) : res (Csyntax.program * list (ident * string) * list (ident * csyntax_atom_info)) :=
