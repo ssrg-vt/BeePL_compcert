@@ -1,3 +1,17 @@
+(*struct xdp_md {
+  _data             : uint32,
+  _data_end         : uint32,
+  _data_meta        : uint32,
+  _ingress_ifindex  : uint32,
+  _rx_queue_index   : uint32,
+  _egress_ifindex   : uint32
+}
+
+struct bytes_t {
+  bytes_start : uint8*,
+  bytes_end : uint8*
+}*)
+
 struct _xdp_md_bee {
   _data_bee : bytes,
   _data_meta : uint32,

@@ -565,7 +565,7 @@ end.
 (* struct xdp_md_wrapper xdp_md_wrapper;
     xdp_md_wrapper.data.start = (\* char)ctx->data;
     xdp_md_wrapper.data.end = (\* char)ctx->data_end; *)
-Definition set_ebpf_struct_bee_struct (beei : ident) (t : Ctypes.type) (fdata : ident) (t' : Ctypes.type) :=
+(* Definition set_ebpf_struct_bee_struct (beei : ident) (t : Ctypes.type) (fdata : ident) (t' : Ctypes.type) :=
            (Ssequence (Sdo (Eassign (Efield (Evalof (Efield (Evalof (Evar beei t) t)
                                                             _data_bee (Tstruct bytes_t noattr)) (Tstruct bytes_t noattr)) (* bees.data *)
                                              bytes_start (tptr tuchar)) (* bees.data.start *)
@@ -573,10 +573,48 @@ Definition set_ebpf_struct_bee_struct (beei : ident) (t : Ctypes.type) (fdata : 
                       (Sdo (Eassign (Efield (Evalof (Efield (Evalof (Evar beei t) t)
                                                             _data_bee (Tstruct bytes_t noattr)) (Tstruct bytes_t noattr)) (* bees.data *)
                                              bytes_end (tptr tuchar)) (* bees.data.end *)
-                                    (Ecast (Evalof (Efield (Evalof (Ederef (Evalof (Evar fdata t') t') t') t') _data_end tulong) tulong) (tptr tuchar)) (tptr tuchar)))). (* (star char)ctx->data_end *)
+                                    (Ecast (Evalof (Efield (Evalof (Ederef (Evalof (Evar fdata t') t') t') t') _data_end tulong) tulong) (tptr tuchar)) (tptr tuchar)))). (* (star char)ctx->data_end *) *)
+
+(* p.bytes_start = (unsigned char  ctx->data; 
+   p.bytes_end   = (unsigned char ctx->data_end; *)
+Definition set_bytes_from_ctx
+           (p    : ident)           (* local "p" : struct bytes_t *)
+           (ctx  : ident)           (* function parameter "ctx" *)
+           (tctx : Ctypes.type)     (* type of [ctx], e.g. Tpointer (Tstruct _xdp_md noattr) ... *)
+  : Csyntax.statement :=
+  Ssequence
+    (Sdo
+       (Eassign
+          (Efield (Evalof (Evar p (Tstruct bytes_t noattr))
+                          (Tstruct bytes_t noattr))
+                  bytes_start (tptr tuchar))
+          (Ecast
+             (Evalof
+                (Efield
+                   (Evalof (Ederef (Evalof (Evar ctx tctx) tctx) tctx)
+                           tctx)
+                   _data tulong)
+                tulong)
+             (tptr tuchar))
+          (tptr tuchar)))
+    (Sdo
+       (Eassign
+          (Efield (Evalof (Evar p (Tstruct bytes_t noattr))
+                          (Tstruct bytes_t noattr))
+                  bytes_end (tptr tuchar))
+          (Ecast
+             (Evalof
+                (Efield
+                   (Evalof (Ederef (Evalof (Evar ctx tctx) tctx) tctx)
+                           tctx)
+                   _data_end tulong)
+                tulong)
+             (tptr tuchar))
+          (tptr tuchar))).
+
 
 (* if (xdp_md_wrapper.data.start + sizeof(struct ethhdr) > xdp_md_wrapper.data.end) then ee else se *)
-Definition bound_check (input : ident) (t : Ctypes.type) (t' : Ctypes.type) (ee se : Csyntax.statement) := 
+(*Definition bound_check (input : ident) (t : Ctypes.type) (t' : Ctypes.type) (ee se : Csyntax.statement) := 
 (Sifthenelse (Ebinop Cop.Ogt
                      (Ebinop Cop.Oadd
                        (Efield (Evalof (Efield (Evalof (Evar input t) t)
@@ -587,13 +625,51 @@ Definition bound_check (input : ident) (t : Ctypes.type) (t' : Ctypes.type) (ee 
                                              _data_bee (Tstruct bytes_t noattr)) (Tstruct bytes_t noattr)) 
                                bytes_end (tptr tuchar)) tint) (* xdp_md_bee.data.end *)
              ee 
-             se).
+             se).*)
 
-Definition set_temp_for_copy (temp : ident) (t : Ctypes.type) (from: ident) (t' : Ctypes.type) : Csyntax.statement :=
+(* if (p.bytes_start + sizeof(hdr_ty) > p.bytes_end) ... *)
+Definition bound_check_bytes
+           (p      : ident)
+           (hdr_ty : Ctypes.type)
+           (ee se  : Csyntax.statement)
+  : Csyntax.statement :=
+  Sifthenelse
+    (Ebinop Cop.Ogt
+       (Ebinop Cop.Oadd
+          (Efield (Evalof (Evar p (Tstruct bytes_t noattr))
+                          (Tstruct bytes_t noattr))
+                  bytes_start (tptr tuchar))
+          (Esizeof hdr_ty tulong)
+          (tptr tuchar))
+       (Efield (Evalof (Evar p (Tstruct bytes_t noattr))
+                       (Tstruct bytes_t noattr))
+               bytes_end (tptr tuchar))
+       tint)
+    ee se.
+
+(*Definition set_temp_for_copy (temp : ident) (t : Ctypes.type) (from: ident) (t' : Ctypes.type) : Csyntax.statement :=
 (Sdo (Eassign (Evar temp t) (Ecast (Evalof (Efield (Evalof (Efield (Evalof (Evar from t') t') _data_bee
                                            (Tstruct bytes_t noattr)) 
                                             (Tstruct bytes_t noattr)) bytes_start
-                                                      (tptr tuchar)) (tptr tuchar)) t) t)).
+                                                      (tptr tuchar)) (tptr tuchar)) t) t)).*)
+
+(* tmp = (struct hdr p.bytes_start; *)
+Definition set_temp_for_copy
+           (tmp   : ident)
+           (t_tmp : Ctypes.type)    (* usually tptr (Tstruct s noattr) *)
+           (p     : ident)
+  : Csyntax.statement :=
+  Sdo
+    (Eassign
+       (Evar tmp t_tmp)
+       (Ecast
+          (Evalof
+             (Efield (Evalof (Evar p (Tstruct bytes_t noattr))
+                             (Tstruct bytes_t noattr))
+                     bytes_start (tptr tuchar))
+             (tptr tuchar))
+          t_tmp)
+       t_tmp).
 
 Fixpoint copy_buffer (to : ident) (sto : ident) (t : Ctypes.type) (xts : list (ident * Ctypes.type)) (from : ident) : Csyntax.statement :=
 match xts with 
@@ -607,7 +683,7 @@ match xts with
                      (fst x) (snd x)) (snd x)) (snd x))) bs)
 end.
 
-Definition incr_data_ptr (wv : ident) (s : ident) (bv : ident) : Csyntax.statement :=
+(*Definition incr_data_ptr (wv : ident) (s : ident) (bv : ident) : Csyntax.statement :=
 (Sdo (Eassign (Efield (Evalof (Efield (Evalof
                              (Evar wv (Tstruct s noattr))
                              (Tstruct s noattr)) _data_bee
@@ -620,7 +696,25 @@ Definition incr_data_ptr (wv : ident) (s : ident) (bv : ident) : Csyntax.stateme
                              (Tstruct bytes_t noattr)) bytes_start (tptr tuchar))
                          (tptr tuchar))
                        (Esizeof (Tstruct bv noattr) tulong)
-                       (tptr tuchar)) (tptr tuchar))).
+                       (tptr tuchar)) (tptr tuchar))).*)
+
+(* p.bytes_start += sizeof(struct hdr); *)
+Definition incr_bytes_ptr
+           (p   : ident)
+           (hdr : ident)            (* struct name, e.g. ethhdr *)
+  : Csyntax.statement :=
+  Sdo
+    (Eassign
+       (Efield (Evalof (Evar p (Tstruct bytes_t noattr))
+                       (Tstruct bytes_t noattr))
+               bytes_start (tptr tuchar))
+       (Ebinop Cop.Oadd
+          (Efield (Evalof (Evar p (Tstruct bytes_t noattr))
+                          (Tstruct bytes_t noattr))
+                  bytes_start (tptr tuchar))
+          (Esizeof (Tstruct hdr noattr) tulong)
+          (tptr tuchar))
+       (tptr tuchar)).
 
 Definition get_carray_elm_ty (t : Ctypes.type) : mon Ctypes.type :=
 match t with 
@@ -922,35 +1016,58 @@ match e with
                          else
                            error (msg "COMPILER ERROR: Match expression must be an option pointer")
                      | Bytes => match ps, es with 
-                                | (Pbytes x (Stype s noattr) xts :: p2), (e1 :: e2 :: nil) => 
-                                    let cxts := zip (unzip1 xts) (transBeePL_types transBeePL_type (unzip2 xts)) in 
-                                    do (ce1, bctx1) <- transBeePL_expr_st cenv e1 venv (snd ce) bctx';
-                                    do (ce2, bctx2) <- transBeePL_expr_st cenv e2 venv (snd ce1) bctx1;
-                                    match bctx.(arg_ctx) with 
-                                    | (argi, (Ptrtype (Otype (Reftype mem_ident (Bstruct istruct _) _)))) :: nil =>
-                                        do (i, str) <- (fresh_ident (List.map unzip_ident (snd ce)) max_fresh);
-                                        let ctx'' := (i, Stype istruct noattr, str) :: snd ce in
-                                        do (i', str') <- (fresh_ident (List.map unzip_ident ctx'') max_fresh);
-                                        let ctx''' := (i', (Ptrtype (Otype (Reftype mem_ident (Bstruct s noattr) noattr))), str') :: ctx'' in
-                                        match transform_ctx_ebpf_ctx bctx.(arg_ctx) with 
-                                        | OK narg =>
-                                        match narg with 
-                                        | (argi', (Tpointer (Tstruct istruct' noattr) {|attr_volatile := false;attr_alignas := None|})) :: nil =>
-                                          ret (Ssequence (set_ebpf_struct_bee_struct i (transBeePL_type (Stype istruct noattr)) argi' (tptr (Tstruct istruct' noattr)))
-                                                            (bound_check i (transBeePL_type (Stype istruct noattr)) (Tstruct s noattr) (fst ce2)
-                                                              (Ssequence (set_temp_for_copy i' (tptr (Tstruct s noattr)) i (transBeePL_type (Stype istruct noattr)))
-                                                                (Ssequence (copy_buffer x s (tptr (Tstruct s noattr)) cxts i')
-                                                                   (Ssequence (incr_data_ptr i istruct s) (fst ce1))))),  
-                                              ctx''', bctx2) 
-                                        | _ => error (msg "COMPILER ERROR: eBPF program supports only one argument")
-                                        end
-                                       | Error msg => error (msg)
-                                       end
-                                    | _ => error (msg "COMPILER ERROR: For now we assume this match is used in only eBPF programs where first argument 
-                                                       is some eBPF context ")
-                                    end
-                                | _, _ => error (msg "COMPILER ERROR: Match on bytes only pattern match on Pbytes pattern")
-                                end
+                       | (Pbytes x (Stype s noattr) xts :: _), (e1 :: e2 :: nil) => 
+                           (* struct fields we copy from header *)
+                           let cxts :=
+                             zip (unzip1 xts)
+                                 (transBeePL_types transBeePL_type (unzip2 xts)) in 
+
+                           (* translate branches first *)
+                           do (ce1, bctx1) <- transBeePL_expr_st cenv e1 venv (snd ce) bctx';
+                           do (ce2, bctx2) <- transBeePL_expr_st cenv e2 venv (snd ce1) bctx1;
+
+                           (* we assume first argument is an eBPF ctx: ostruct _xdp_md_bee* *)
+                           match bctx.(arg_ctx) with 
+                           | (argi, (Ptrtype (Otype (Reftype mem_ident (Bstruct istruct _) _)))) :: nil =>
+                               (* fresh local: struct bytes_t p; *)
+                               do (p, strp) <- fresh_ident (List.map unzip_ident (snd ce)) max_fresh;
+                               let ctx'' := (p, Stype bytes_t noattr, strp) :: snd ce in
+
+                               (* fresh local: struct s *tmp; *)
+                               do (tmp, strtmp) <- fresh_ident (List.map unzip_ident ctx'') max_fresh;
+                               let ctx''' :=
+                                 (tmp, (Ptrtype (Otype (Reftype mem_ident (Bstruct s noattr) noattr))), strtmp)
+                                   :: ctx'' in
+
+                               (* transform ctx type for eBPF: struct xdp_md *ctx *)
+                               match transform_ctx_ebpf_ctx bctx.(arg_ctx) with 
+                               | OK ((argi', Tpointer (Tstruct istruct' noattr) a) :: nil) =>
+                                   let t_ctx_ptr := Tpointer (Tstruct istruct' noattr) a in
+                                   let t_hdr_ptr := tptr (Tstruct s noattr) in
+
+                                   ret 
+                                     ( Ssequence
+                                         (* p.bytes_start/end = (unsigned char ctx->data/data_end; *)
+                                         (set_bytes_from_ctx p argi' t_ctx_ptr)
+                                         (bound_check_bytes p (Tstruct s noattr) (fst ce2)
+                                            (Ssequence
+                                               (* tmp = (struct s p.bytes_start; *)
+                                               (set_temp_for_copy tmp t_hdr_ptr p)
+                                               (Ssequence
+                                                  (copy_buffer x s t_hdr_ptr cxts tmp)
+                                                  (Ssequence
+                                                     (incr_bytes_ptr p s)
+                                                     (fst ce1))))),
+                                       ctx''', bctx2)
+                               | _ =>
+                                   error (msg "COMPILER ERROR: eBPF program supports only one argument")
+                               end
+                           | _ =>
+                               error (msg "COMPILER ERROR: For now we assume this match is used only in eBPF programs where first argument is an eBPF context")
+                           end
+                       | _, _ =>
+                           error (msg "COMPILER ERROR: Match on bytes only pattern match on Pbytes pattern")
+                       end
                      | _ =>  error (msg "COMPILER ERROR: Match can be only performed on option and bytes type")
                      end
 | Ebytes es t => do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es venv ctx bctx); 
@@ -1204,14 +1321,15 @@ Fixpoint get_section_info (glob_defs : list (ident * AST.globdef BeePL.fundef ty
 Definition ident_to_string_ctx_xdp : list (ident * string) :=
   (_ctx,        "ctx")
   :: (_xdp_md,    "xdp_md")
-  :: (_data,      "data")
-  :: (_data_end,  "data_end")
+  :: (_data,      "_data")
+  :: (_data_end,  "_data_end")
+  :: (_data_meta, "_data_meta")
+  :: (_ingress_ifindex, "_ingress_ifindex")
+  :: (_rx_queue_index, "_rx_queue_index")
+  :: (_egress_ifindex, "_egress_ifindex")
   :: (_xdp_md_bee,"_xdp_md_bee")
-  :: (_data_bee,  "_data_bee")
-  :: (bytes_t,    "bytes_t")
-  :: (bytes_start,"bytes_start")
-  :: (bytes_end,  "bytes_end")
-  :: nil.
+  :: (_data_bee,  "_data_bee") :: nil
+  ++ ident_to_string_bytes.
 
 (* Missing list of public functions *) 
 (*Definition BeePL_compcert (p : BeePL.program) : res (Csyntax.program * list (ident * string) * list (ident * csyntax_atom_info)) :=
@@ -1229,7 +1347,6 @@ Definition ident_to_string_ctx_xdp : list (ident * string) :=
   OK (cprog, snd (fst pds), section_info).*)
 
 
-
 (* Missing list of public functions *) 
 Definition BeePL_compcert
            (p : BeePL.program)
@@ -1244,28 +1361,34 @@ Definition BeePL_compcert
   let defs :=
     map (fun '(id, gd, _) => (id, gd)) p.(prog_defs) in
 
-  (* 3. Build BeePL compiler context *)
+  (* 3. Seed ident->string with our reserved ctx/xdp/bytes names,
+        then extend with the program’s own ident_to_string *)
+  let iss0 : list (ident * string) :=
+    (ident_to_string_ctx_xdp ++ prog_ident_to_string p)%list in
+
+  (* 4. Build BeePL compiler context *)
   let bctx : bcompiler_ctx :=
     {| arg_ctx := get_args_ebpf_gbdefs (unzip2 defs);
        benv    := prog_comp_env p |} in 
 
-  (* 4. Sanity-check structs in the BeePL program *)
+  (* 5. Sanity-check structs in the BeePL program *)
   do cp <- check_struct_from_program p;
 
-  (* 5. Translate BeePL globdefs to C globdefs, ident_to_string, and extra composites *)
-  do (pds, is') <-
+  (* 6. Translate BeePL globdefs to C globdefs, updated ident_to_string,
+        extra composites, and updated compiler context *)
+  do (pds, bctx') <-
        transBeePL_globdefs_globdefs
          (prog_comp_env p)
          (unzip2 defs)
-         (prog_ident_to_string p)
+         iss0
          bctx;
 
-  (* pds : seq (globdef fundef Ctypes.type)
-           * seq (ident * string)
-           * seq composite_definition *)
-  let '(cdefs, id2string0, extra_cs) := pds in
+  (* pds : list (globdef fundef Ctypes.type)
+           * list (ident * string)
+           * list composite_definition *)
+  let '(cdefs, id2string, extra_cs) := pds in
 
-  (* 6. Compute extra composite definitions for bytes_t etc. *)
+  (* 7. Compute extra composite definitions for bytes_t etc. *)
   let ncs :=
     get_bcs_from_globdefs (unzip2 defs) in (* adds bytes_t composite *)
 
@@ -1277,10 +1400,12 @@ Definition BeePL_compcert
      - extra_cs: composites produced by transBeePL_globdefs_globdefs
      - wrapper_beepl_struct_ebpf_struct cs: xdp_md wrapper composites, etc.
    *)
+  let base_mcs : list composite_definition :=
+    (ncs ++ extra_cs ++ cs)%list in
   let mcs : list composite_definition :=
-    (ncs ++ extra_cs ++ wrapper_beepl_struct_ebpf_struct cs)%list in
+    xdp_md_ccomposite :: base_mcs in    (* always add xdp_md *)
 
-  (* 7. Build final C program *)
+  (* 8. Build final C program *)
   do cprog <-
        make_program
          mcs
@@ -1288,8 +1413,11 @@ Definition BeePL_compcert
          (prog_public p)
          (prog_main p);
 
-  (* 8. Return program + ident_to_string + section info *)
-  OK (cprog, id2string0, section_info).
+  (* 9. Return program + final ident_to_string + section info *)
+  OK (cprog, id2string, section_info).
+
+
+
 
 
 

@@ -538,9 +538,15 @@ let export_transform_function ~ee ~senv ~globals (Tfundecl (name, ret, eff, args
           
 
 let export_transform_struct (name : string) (fields : (string * typ) list) : string =
-  let members = List.map (fun (id, t) -> Printf.sprintf "Member_plain _%s (%s)" id (export_typ_to_coq t)) fields in
+  let members =
+    List.map
+      (fun (id, t) ->
+          Printf.sprintf "Member_plain _%s (%s)" id (export_typ_to_coq t))
+      fields
+  in
   Printf.sprintf
-    "Definition bcomposites : list bcomposite_definition :=\n(Bcomposite _%s Struct\n   (%s :: nil)\n   noattr :: nil)." name (String.concat " ::\n    " members)
+    "Bcomposite _%s Struct\n   (%s :: nil)\n   noattr"
+    name (String.concat " ::\n    " members)
 
 let export_starts_with ~prefix s =
   let plen = String.length prefix in
@@ -675,7 +681,7 @@ let export_coq_program_wrapper ?(name="example1") (entry : string) : string =
 let export_transform_toplevel ~ee ~senv ~globals = function
 | Internal(f, _) -> export_transform_function ee senv globals f false
 | EBPFInternal(f, _) -> export_transform_function ee senv globals f true
-| StructDecl (name, fields) -> export_transform_struct name fields
+| StructDecl (name, fields) -> ""
 | GlobalLet (name, t, e, _) ->
     let env = globals in
     let body_str = export_expr_to_coq ee senv env e in
@@ -708,21 +714,56 @@ let export_collect_globals (prog : program) : (string * typ) list =
     let externs    = extern_bindings_of_efenv ee in
     let global_env = externs @ export_collect_globals prog in
   
-    let defs = List.map (export_transform_toplevel ~ee ~senv ~globals:global_env) prog in
-    let stringlit_defs =
-      Hashtbl.fold (fun id s acc -> export_stringlit_def id s :: acc) string_global_table [] in
-  
-    (* include extern DEFs here *)
-    let defs = stringlit_defs @ ext_defs @ defs in
-  
-    (* pass extern ENTRIES to globals table *)
-    let globals = export_coq_globals prog ext_entries in
-  
-    let publics = export_coq_public_idents prog in
-    let entry   = export_find_main_or_fallback prog in
-    let wrapper = export_coq_program_wrapper ~name:"bprogram" entry in
-    coq_header ^ String.concat "\n\n" defs ^ "\n\n" ^ globals ^ "\n" ^ publics
-    ^ "\n" ^ coq_bcomposite_correct_lemma ^ "\n\n" ^ wrapper
+    (* Split structs vs other toplevels *)
+  let struct_frags =
+    List.filter_map
+      (function
+        | StructDecl (name, fields) -> Some (export_transform_struct name fields)
+        | _ -> None)
+      prog
+  in
+  let other_defs =
+    List.map
+      (export_transform_toplevel ~ee ~senv ~globals:global_env)
+      prog
+  in
+
+  (* Single bcomposites definition containing all structs *)
+  let bcomposites_def =
+    match struct_frags with
+    | [] ->
+        "Definition bcomposites : list bcomposite_definition := nil.\n"
+    | _ ->
+        "Definition bcomposites : list bcomposite_definition :=\n(" ^
+        String.concat " ::\n" struct_frags ^
+        " :: nil).\n"
+  in
+  let stringlit_defs =
+    Hashtbl.fold (fun id s acc -> export_stringlit_def id s :: acc) string_global_table [] in
+
+  (* include extern DEFs here *)
+  let defs = stringlit_defs @ ext_defs @ other_defs in
+
+  (* pass extern ENTRIES to globals table *)
+  let globals = export_coq_globals prog ext_entries in
+
+  let publics = export_coq_public_idents prog in
+  let entry   = export_find_main_or_fallback prog in
+  let wrapper = export_coq_program_wrapper ~name:"bprogram" entry in
+  coq_header
+  ^ "\n\n"
+  ^ bcomposites_def
+  ^ "\n\n"
+  ^ String.concat "\n\n" defs
+  ^ "\n\n"
+  ^ globals
+  ^ "\n"
+  ^ publics
+  ^ "\n"
+  ^ coq_bcomposite_correct_lemma
+  ^ "\n\n"
+  ^ wrapper
+
   
 let export_parse_file (filename : string) : program =
   let ch = open_in filename in

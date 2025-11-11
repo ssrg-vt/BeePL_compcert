@@ -19,10 +19,26 @@ Local Open Scope csyntax_scope.
 
 Definition _ctx        : ident := $"ctx".
 Definition _xdp_md     : ident := $"xdp_md".
-Definition _data       : ident := $"data".
-Definition _data_end   : ident := $"data_end".
+Definition _data       : ident := $"_data".
+Definition _data_end   : ident := $"_data_end".
+Definition _data_meta   : ident := $"_data_meta".
+Definition _ingress_ifindex  : ident := $"_ingress_ifindex".
+Definition _rx_queue_index  : ident := $"_rx_queue_index".
+Definition _egress_ifindex  : ident := $"_egress_ifindex".
 Definition _data_bee   : ident := $"_data_bee".
 Definition _xdp_md_bee : ident := $"_xdp_md_bee".
+
+(* A concrete C composite for the real eBPF xdp_md context *)
+Definition xdp_md_ccomposite : composite_definition :=
+  Composite _xdp_md Struct
+    (  Ctypes.Member_plain _data       (Ctypes.Tint I32 Unsigned noattr)
+    :: Ctypes.Member_plain _data_end  (Ctypes.Tint I32 Unsigned noattr)
+    :: Ctypes.Member_plain _data_meta (Ctypes.Tint I32 Unsigned noattr)
+    :: Ctypes.Member_plain _ingress_ifindex (Ctypes.Tint I32 Unsigned noattr)
+    :: Ctypes.Member_plain _rx_queue_index  (Ctypes.Tint I32 Unsigned noattr)
+    :: Ctypes.Member_plain _egress_ifindex  (Ctypes.Tint I32 Unsigned noattr)
+    :: nil)
+    noattr.
 
 (* ---------------------------------------------------------------------- *)
 (*  Utilities on composites                                               *)
@@ -60,7 +76,7 @@ Fixpoint transform_bytes_data_data_end (ms : members) : members :=
 
 (* Given the BeePL struct [_xdp_md_bee], generate a **new** eBPF struct
    [struct xdp_md { data; data_end; ... }] but keep the original _xdp_md_bee. *)
-Definition transform_struct_bee_decl_ebpf_decl
+(*Definition transform_struct_bee_decl_ebpf_decl
            (c : composite_definition)
   : list composite_definition :=
   match c with
@@ -72,16 +88,16 @@ Definition transform_struct_bee_decl_ebpf_decl
         :: c :: nil
       else
         c :: nil
-  end.
+  end.*)
 
 Fixpoint wrapper_beepl_struct_ebpf_struct
-         (cs : list composite_definition) : list composite_definition :=
-  match cs with
+         (cs : list composite_definition) : list composite_definition := cs.
+  (*match cs with
   | nil => nil
   | c1 :: cs1 =>
       transform_struct_bee_decl_ebpf_decl c1
       ++ wrapper_beepl_struct_ebpf_struct cs1
-  end.
+  end.*)
 
 (* ---------------------------------------------------------------------- *)
 (*  Transform ctx argument type from BeePL _xdp_md_bee* to eBPF xdp_md*   *)
@@ -90,28 +106,21 @@ Fixpoint wrapper_beepl_struct_ebpf_struct
 Definition transform_ctx_ebpf_ctx
            (args : list (ident * type))
   : res (list (ident * Ctypes.type)) :=
-  (* We want the argument name to be [ctx] as in eBPF. *)
+  (* For eBPF functions, we force the C signature to be:
+       int foo(struct xdp_md *ctx);
+     regardless of the BeePL type we saw. *)
   match args with
-  | nil => OK nil
-  | (arg_id, t) :: nil =>
-      (* Case 1: it is exactly the BeePL context:
-            ostruct _xdp_md_bee* ctx
-      *)
-      if eq_type t
-           (Ptrtype (Otype (Reftype mem_ident (Bstruct _xdp_md_bee noattr) noattr)))
-      then
-        (* Turn it into: struct xdp_md *ctx *)
-        OK (( _ctx
-            , Tpointer (Tstruct _xdp_md noattr) noattr
-            ) :: nil)
-      else
-        (* Any other single argument: just translate normally. *)
-        OK (( arg_id
-            , transBeePL_type t
-            ) :: nil)
-  | _ =>
+  | (arg_id, _t) :: nil =>
+      (* Ignore BeePL's type, standardize on xdp_md *ctx *)
+      OK (( _ctx
+          , Tpointer (Tstruct _xdp_md noattr) noattr
+          ) :: nil)
+  | nil =>
+      Error (msg "COMPILER ERROR: eBPF program must take exactly one argument (context)")
+  | _ :: _ :: _ =>
       Error (msg "COMPILER ERROR: eBPF program should take only one argument (context)")
   end.
+
 
 
 

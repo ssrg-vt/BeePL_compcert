@@ -46,7 +46,6 @@ Definition unique_bytes_types (l : list type) : list type :=
 (* ---------------------------------------------------------------------- *)
 
 (* Identifiers reserved for bytes *)
-Definition bytes_t     : ident := $"bytes_t".
 Definition bytes_start : ident := $"bytes_start".
 Definition bytes_end   : ident := $"bytes_end".
 
