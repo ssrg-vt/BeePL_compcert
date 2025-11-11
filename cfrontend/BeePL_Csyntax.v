@@ -1350,6 +1350,25 @@ Fixpoint get_section_info (glob_defs : list (ident * AST.globdef BeePL.fundef ty
       end
   end.
 
+(* Does this BeePL program contain any eBPF function? *)
+Definition program_uses_ebpf_ctx (p : BeePL.program) : bool :=
+  existsb
+    (fun '(_, gd, _) =>
+       match gd with
+       | AST.Gfun (BeePL.Internal f) =>
+           if BeePL.is_ebpf f then true else false
+       | _ => false
+       end)
+    (prog_defs p).
+
+Definition have_xdp_md (cs : list composite_definition) : bool :=
+  existsb
+    (fun c =>
+       match c with
+       | Composite id _ _ _ => if ident_eq id _xdp_md then true else false
+       end)
+    cs.
+
 (* Missing list of public functions *) 
 (*Definition BeePL_compcert (p : BeePL.program) : res (Csyntax.program * list (ident * string) * list (ident * csyntax_atom_info)) :=
   (* Extract section information from BeePL.program *)  
@@ -1421,9 +1440,14 @@ Definition BeePL_compcert
    *)
   let base_mcs : list composite_definition :=
     (ncs ++ extra_cs ++ cs)%list in
-  let mcs : list composite_definition :=
-    xdp_md_ccomposite :: base_mcs in    (* always add xdp_md *)
 
+  let needs_ebpf_ctx := program_uses_ebpf_ctx p in
+
+  
+  let mcs : list composite_definition :=
+    if needs_ebpf_ctx && negb (have_xdp_md base_mcs)
+    then xdp_md_ccomposite :: base_mcs    (* always add xdp_md *)
+    else base_mcs in
   (* 8. Build final C program *)
   do cprog <-
        make_program
