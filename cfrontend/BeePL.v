@@ -1,7 +1,7 @@
 Require Import String ZArith Coq.FSets.FMapAVL Coq.Structures.OrderedTypeEx.
 Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat PeanoNat Coq.Numbers.DecimalString.
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Globalenvs compcert.lib.Coqlib Ctypes.
-Require Import BeePL_aux Axioms Memory Int Cop Memtype Errors Csem SimplExpr Events BeeTypes BeePL_values.
+Require Import BeePL_aux Axioms Memory Int Cop Memtype Errors Csem SimplExpr Events BeeTypes BeePL_values Coq.Lists.ListDec.
 From mathcomp Require Import all_ssreflect. 
 
 Set Implicit Arguments.
@@ -109,7 +109,7 @@ Inductive expr : Type :=
 | Unit : type -> expr                                                   (* unit *)
 | Addr : linfo -> ptrofs -> type -> expr                                (* address: Addr: not intended to be written by programmers: *)
 | Eapp : external_function -> list type -> list expr -> type -> expr    (* external function *)
-| Sinit : ident -> list ident -> list expr -> type -> expr                (* struct creation *)
+| Sinit : ident -> list ident -> list expr -> type -> expr              (* struct creation *)
 | Sfield : expr -> ident -> type -> expr                                (* access to a member of struct *)
 | For : expr -> expr -> dir -> expr -> type -> expr                     (* for loop - constant bound *)
 | Enone : type -> expr                                                  (* none: option *)
@@ -118,6 +118,90 @@ Inductive expr : Type :=
 | Ebytes : list expr -> type -> expr                                    (* bitstrings *)
 | Ainit : ident -> type -> list expr -> type -> expr                    (* array initialization *)
 | Aaccess : ident -> type -> nat -> type -> expr.                       (* array access *)
+
+Section Expr_Ind.
+Context 
+  (P : expr -> Prop)
+  (Hval : forall t v, P (Val v t))
+  (Hvar : forall t x, P (Var x t))
+  (Hconst : forall t c, P (Const c t))
+  (Happ : forall t e, P e -> forall es, (forall e, List.In e es -> P e) -> P (App e es t))
+  (Hprim : forall b t es, (forall e, List.In e es -> P e) -> P (Prim b es t))
+  (Hbind : forall x t t' e1, P e1 -> forall e2, P e2 -> P (Bind x t e1 e2 t')) 
+  (Hcond : forall t e1, P e1 -> forall e2, P e2 -> forall e3, P e3 -> P (Cond e1 e2 e3 t))
+  (Hunit : forall t, P (Unit t))
+  (Haddr : forall l o t, P (Addr l o t))
+  (Heapp : forall t ef ts es, (forall e, List.In e es -> P e) -> P (Eapp ef ts es t))
+  (Hsinit : forall t h ids es, (forall e, List.In e es -> P e) -> P (Sinit h ids es t))
+  (Hsfield : forall t h e, P e -> P (Sfield e h t))
+  (Hfor : forall t d e1, P e1 -> forall e2, P e2 -> forall e3, P e3 -> P (For e1 e2 d e3 t))
+  (Hnone : forall t, P (Enone t))
+  (Hsome : forall t e, P e -> P (Esome e t))
+  (Hmatch : forall t ps e, P e -> forall es, (forall e, List.In e es -> P e) -> P (Match e ps es t))
+  (Hbytes : forall t es, (forall e, List.In e es -> P e) -> P (Ebytes es t))
+  (Hainit : forall a t t' es, (forall e, List.In e es -> P e) -> P (Ainit a t es t'))
+  (Haccess : forall a t n t', P (Aaccess a t n t')). 
+
+
+Definition exprs_ind_rec (f : forall e, P e)
+  : forall es : list expr, forall e, List.In e es -> P e :=
+  fix loop es :=
+    match es with
+    | e' :: es' =>
+        fun e k =>
+          match List.in_inv k with
+          | or_introl a  => ecast x (P x) a (f e')
+          | or_intror b  => loop es' e b
+          end
+    | [::] =>
+        fun e k =>
+          False_ind _ (List.in_nil k)
+    end.
+
+Fixpoint expr_ind_rec (e : expr) : P e :=
+match e with 
+| Val v t => Hval t v
+| Var x t => Hvar t x
+| Const c t => Hconst t c
+| App e es t => Happ t (@expr_ind_rec e) (@exprs_ind_rec expr_ind_rec es)
+| Prim b es t => Hprim b t (@exprs_ind_rec expr_ind_rec es)
+| Cond e1 e2 e3 t => Hcond t (expr_ind_rec e1) (expr_ind_rec e2) (expr_ind_rec e3)
+| Bind x t e1 e2 t' => Hbind x t t' (expr_ind_rec e1) (expr_ind_rec e2) 
+| Unit t => Hunit t
+| Addr l o t => Haddr l o t
+| Eapp ef ts es t => Heapp t ef ts (@exprs_ind_rec expr_ind_rec es)
+| Sinit s ids es t => Hsinit t s ids (@exprs_ind_rec expr_ind_rec es)
+| Sfield e id t => Hsfield t id (expr_ind_rec e)
+| For e1 e2 d e3 t => Hfor t d (expr_ind_rec e1) (expr_ind_rec e2) (expr_ind_rec e3)
+| Enone t => Hnone t
+| Esome e t => Hsome t (expr_ind_rec e)
+| Match e ps es t => Hmatch t ps (expr_ind_rec e) (@exprs_ind_rec expr_ind_rec es)
+| Ebytes es t => Hbytes t (@exprs_ind_rec expr_ind_rec es)
+| Ainit a t es t' => Hainit a t t' (@exprs_ind_rec expr_ind_rec es)
+| Aaccess a t n t' => Haccess a t n t'
+end.
+
+End Expr_Ind.
+
+(* Mutual induction Scheme for expr and list expr *)
+Section Exprs_Ind.
+Context (P : expr -> Prop)
+        (Ps : list expr -> Prop).
+
+Record expr_ind_hypotheses : Prop := {
+    exprs_nil : Ps nil;
+    exprs_cons : forall e, P e -> forall es, Ps es -> Ps (e :: es);
+    expr_val : forall t v, P (Val v t);
+    expr_var : forall t x, P (Var x t);
+    expr_const : forall t c, P (Const c t);
+    expr_app : forall t e es, P e -> Ps es -> P (App e es t);
+    expr_prim : forall b t es, Ps es -> P (Prim b es t);
+    expr_cond : forall t e1, P e1 -> forall e2, P e2 -> forall e3, P e3 -> P (Cond e1 e2 e3 t);
+    expr_bind : forall x t t' e1, P e1 -> forall e2, P e2 -> P (Bind x t e1 e2 t');
+    expr_unit : forall t, P (Unit t)}.
+
+End Exprs_Ind.
+
 
 (* Size of the expression to help termination checker of Rocq *)
 Fixpoint size_e (e : expr) : nat :=
@@ -137,11 +221,14 @@ match e with
 | For e1 e2 d e3 t => size_e e1 + size_e e2 + size_e e3 + 1
 | Enone t => 1
 | Esome e t => size_e e + 1
-| Match e ps es t => foldr (fun e acc => (size_e e + acc)%nat) O es + 1
+| Match e ps es t => size_e e + foldr (fun e acc => (size_e e + acc)%nat) O es + 1
 | Ebytes es t => foldr (fun e acc => (size_e e + acc)%nat) O es + 1
 | Ainit a t es t' => foldr (fun e acc => (size_e e + acc)%nat) O es + 1
 | Aaccess a t n t' => 1
 end.
+
+Definition size_es (es : list BeePL.expr) := foldr (fun e acc => (BeePL.size_e e + acc)%nat) O es.
+
 
 (* Free variables *) 
 Fixpoint free_variables (e : expr) : list ident  :=
@@ -504,13 +591,18 @@ Inductive assign_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : 
    declared in [vars], and associates the variable name with this block. 
    [vm1] and [m1] are the initial local environment and memory state.
    [e2] and [m2] are the final local environment and memory state *) 
-Inductive alloc_variables : vmap -> Memory.mem -> list (ident * type) -> vmap -> Memory.mem -> Prop :=
-| alloc_variables_nil : forall vm hm, 
-  alloc_variables vm hm nil vm hm
-| alloc_variables_con : forall e m id ty vars m1 l1 m2 e2,
-  Mem.alloc m 0 (sizeof_type (genv_cenv ge) ty) = (m1, l1) ->
-  alloc_variables (PTree.set id (l1, ty) e) m1 vars e2 m2 ->
-  alloc_variables e m ((id, ty) :: vars) e2 m2.
+Definition balloc (Sigma : store_context) (m : Memory.mem) (ty : type) (lo hi: Z) : Mem.mem' * Values.block * store_context :=
+let (m1, l1) := Mem.alloc m 0 (sizeof_type (genv_cenv ge) ty) in 
+let Sigma' := PTree.set l1 ty Sigma in
+(m1, l1, Sigma').
+
+Inductive alloc_variables : store_context -> vmap -> Memory.mem -> list (ident * type) -> vmap -> Memory.mem -> store_context -> Prop :=
+| alloc_variables_nil : forall Sigma vm hm, 
+  alloc_variables Sigma vm hm nil vm hm Sigma
+| alloc_variables_con : forall Sigma e m id ty vars m1 l1 m2 e2 Sigma',
+  balloc Sigma m ty 0 (sizeof_type (genv_cenv ge) ty) = (m1, l1, Sigma') ->
+  alloc_variables Sigma (PTree.set id (l1, ty) e) m1 vars e2 m2 Sigma' ->
+  alloc_variables Sigma e m ((id, ty) :: vars) e2 m2 Sigma'.
 
 (** Initialization of local variables that are parameters to a function.
   [bind_parameters e m1 params args m2] stores the values [args]

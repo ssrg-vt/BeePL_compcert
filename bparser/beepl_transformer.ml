@@ -12,6 +12,22 @@ let string_globals : (string, string) Hashtbl.t = Hashtbl.create 17
 let gensym_string_literal s =
   let id = "__stringlit_" ^ string_of_int (Hashtbl.length string_globals) in
   id
+
+(* --- Section name normalization helpers --- *)
+let unquote (s : string) : string =
+  let s = String.trim s in
+  let n = String.length s in
+  if n >= 2 && s.[0] = '"' && s.[n-1] = '"' then
+  String.sub s 1 (n - 2)
+  else s
+  
+let normalize_section (s : string) : string =
+  (* Accept "#section foo", "#section \"foo\"", or just "foo" *)
+ let s' = if String.length s >= 8 && String.sub s 0 8 = "#section" then
+        String.trim (String.sub s 8 (String.length s - 8))
+        else s
+ in unquote s'
+
 let string_to_char_list s =
   let rec aux i acc =
     if i < 0 then acc
@@ -297,7 +313,7 @@ let rec transform_expr (ee: Beepl_ast_typechecker.efenv) (senv : Beepl_ast_typec
       BeePL.Var (Camlcoq.intern_string x, t')
       | Beepl_ast.Const c ->
         (match c with
-         | Cstring s ->
+         (*| Cstring s ->
             let id_str = gensym_string_literal s in
             Hashtbl.replace string_globals id_str s;
             let id = Camlcoq.intern_string id_str in
@@ -311,7 +327,18 @@ let rec transform_expr (ee: Beepl_ast_typechecker.efenv) (senv : Beepl_ast_typec
                   Ctypes.noattr
                 )
               )
-            )
+            )*)
+            | Cstring s ->
+              let id_str = gensym_string_literal s in
+              Hashtbl.replace string_globals id_str s;
+              let id = Camlcoq.intern_string id_str in
+              let arr_t =
+                BeeTypes.Atype (
+                  BeeTypes.Vtype (BeeTypes.Tint (Ctypes.I8, Ctypes.Signed, Ctypes.noattr)),
+                  int_to_coq_z (String.length s + 1),
+                  Ctypes.noattr)
+              in
+              BeePL.Var (id, arr_t)
          | _ -> BeePL.Const (transform_constant c typ, t'))
     
     
@@ -645,22 +672,18 @@ let init_data_of_string (s : string) : AST.init_data list =
   
     let defs =
       List.filter_map (function
-        | `Fun (id, f, section) ->
-            let sec =
-              match section with
-              | Some s when String.length s > 8 && String.sub s 0 8 = "#section" ->
-                  let raw = String.trim (String.sub s 8 (String.length s - 8)) in
-                  Some (string_to_char_list ("\"" ^ raw ^ "\""))
-              | Some s -> Some (string_to_char_list ("\"" ^ s ^ "\""))
-              | None -> None
+        | `Fun (id, f, section) -> 
+          let sec =
+            match section with
+                      | Some s ->let sec = normalize_section s in
+                                 Some (string_to_char_list sec)   (* bare: no extra quotes *)
+                      | None -> None
             in Some ((id, AST.Gfun (BeePL.Internal f)), sec)
         | `Global (id, t, v, section) ->
           let sec =
             match section with
-            | Some s when String.length s > 8 && String.sub s 0 8 = "#section" ->
-                let raw = String.trim (String.sub s 8 (String.length s - 8)) in
-                Some (string_to_char_list ("\"" ^ raw ^ "\""))
-            | Some s -> Some (string_to_char_list ("\"" ^ s ^ "\""))
+            | Some s -> let sec = normalize_section s in
+                        Some (string_to_char_list sec)     (* bare: no extra quotes *)
             | None -> None
             in Some ((id, AST.Gvar {
               AST.gvar_info = t; AST.gvar_init = eval_const_expr v;

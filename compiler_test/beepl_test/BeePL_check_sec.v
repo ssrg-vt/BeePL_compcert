@@ -20,7 +20,7 @@ int packet_count(void *ctx) {
 char LICENSE[] SEC("license") = "Dual BSD/GPL";*)
 
 
-Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
+(*Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
 Definition _counter : ident := $"counter".
 Definition _r : ident := $"r".
 Definition _val : ident := $"val".
@@ -81,7 +81,7 @@ Lemma bcomposite_correct :
 Proof.
   unfold wf_bcomposites.
   unfold build_bcomposite_env; simpl; constructor. 
-Qed.
+Qed.*)
 
 (*Definition example1 : BeePL.program := @mkbprogram bcomposites 
                                                    global_definitions 

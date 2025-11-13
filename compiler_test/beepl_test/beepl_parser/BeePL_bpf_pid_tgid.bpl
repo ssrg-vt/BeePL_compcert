@@ -16,12 +16,12 @@ int xdp_prog(struct xdp_md *ctx) {
 } *)
 
 struct xdp_md {
-    _data : uint32,
-    _data_end : uint32,
-    _data_meta : uint32,
-    _ingress_ifindex : uint32,
-    _rx_queue_index : uint32,
-    _egress_ifindex : uint32
+  _data            : uint32,
+  _data_end        : uint32,
+  _data_meta       : uint32,
+  _ingress_ifindex : uint32,
+  _rx_queue_index  : uint32,
+  _egress_ifindex  : uint32
 }
 
 #section license
@@ -30,10 +30,16 @@ let _license : int8[4] = "GPL\0"
 #ebpf
 #section xdp
 fun xdp_prog (struct xdp_md* p) : int32, [] {
-    let pid_tgid : ulong = bpf_get_current_pid_tgid() in 
-    let pid : int32 = (int32) (pid_tgid & (ulong)4294967295) in 
-    let tgid : int32 = (int32) (pid_tgid >> (ulong)32) in 
-    let r : int32 = bpf_printk("PID: %d, TGID: %d\n", pid, tgid) in 
-    2
+  let pid_tgid  : ulong = bpf_get_current_pid_tgid() in
+
+  (* Keep all bit ops in 64-bit space so operand types match. *)
+  let ONE64      : ulong = (ulong)1 in
+  let THIRTYTWO  : ulong = (ulong)32 in
+  let MASK32     : ulong = (ONE64 << THIRTYTWO) - ONE64 in
+
+  let pid  : int32 = (int32) (pid_tgid & MASK32) in
+  let tgid : int32 = (int32) (pid_tgid >> THIRTYTWO) in 
+  let r : int32 = bpf_printk("PID: %d, TGID: %d\n", pid, tgid) in
+  2
 }
 	

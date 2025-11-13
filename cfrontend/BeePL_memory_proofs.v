@@ -3,7 +3,7 @@ Require Import Coq.FSets.FSetProperties Coq.FSets.FMapFacts FMaps FSetAVL Nat Pe
 Require Import Coq.Arith.EqNat Coq.ZArith.Int Integers AST Maps Linking Ctypes Smallstep SimplExpr.
 Require Import compcert.common.Errors Initializersproof Cstrategy BeePL_auxlemmas Coqlib Errors Memory.
 Require Import BeePL_aux BeePL_mem BeeTypes BeePL Csyntax Clight Globalenvs BeePL_Csyntax SimplExpr.
-Require Import BeePL_sem BeePL_typesystem BeePL_compiler_proofs BeePL_values BeePL_notations.
+Require Import BeePL_sem BeePL_typesystem BeePL_values BeePL_notations.
 
 From mathcomp Require Import all_ssreflect.
 
@@ -63,13 +63,20 @@ store_well_typed cenv Gamma Sigma bge vm m ->
 store_well_typed cenv Gamma Sigma bge (PTree.set x (l, t) vm) m.
 Proof.
 move=> cenv Gamma Sigma bge vm m x l t hw. case: hw=> [] h1 [] h2 h3.
-Admitted.  
+Admitted. 
+
+Lemma alloc_to_balloc: forall m m' b t Sigma (bge:BeePL.genv),
+Mem.alloc m  0 (sizeof_type bge t) = (m', b) ->
+@balloc bge Sigma m t 0 (sizeof_type bge t) = (m', b, PTree.set b t Sigma).
+Proof.
+move=> m m' b t Sigma bge hm /=. by rewrite /balloc /= hm /=.
+Qed.
 
 (* Complete me : Easy *)
-Definition store_well_typed_mem_alloc : forall cenv Gamma Sigma bge vm m lo hi m' b,
+Definition store_well_typed_mem_alloc : forall cenv Gamma Sigma bge vm ty m lo hi m' b Sigma',
 store_well_typed cenv Gamma Sigma bge vm m ->
-Mem.alloc m lo hi = (m', b) ->
-store_well_typed cenv Gamma Sigma bge vm m'.
+balloc bge Sigma m ty lo hi = (m', b, Sigma') ->
+store_well_typed cenv Gamma Sigma' bge vm m'.
 Proof.
 Admitted.
  
@@ -159,17 +166,10 @@ Admitted.
 Lemma alloc_variables_wf : forall cenv Gamma Sigma bge vm m vars,
 store_well_typed cenv Gamma Sigma bge vm m ->
 list_norepet vars ->
-exists vm' m', BeePL.alloc_variables bge vm m vars vm' m' /\ store_well_typed cenv Gamma Sigma bge vm' m'.
+exists vm' m' Sigma', BeePL.alloc_variables bge Sigma vm m vars vm' m' Sigma' 
+/\ store_well_typed cenv Gamma Sigma bge vm' m'.
 Proof.
-move=> cenv Gamma Sigma bge vm m vars hw hl. move: vm m hw. elim: vars hl=> //=.
-+ move=> hl vm m. exists vm, m. split=> //=. by apply BeePL.alloc_variables_nil.
-move=> [x t] xts hi hl vm m. inversion hl; subst. have [m' [l hm hw']] := mem_alloc_total m 0 (sizeof_type bge t).
-have hw'' := store_well_typed_mem_alloc cenv Gamma Sigma bge vm m 0 (sizeof_type bge t) m' l hw' hm.
-have hw''' := store_well_typed_ext cenv Gamma Sigma bge vm m' x l t hw''.
-move: (hi H2  (PTree.set x (l, t) vm) m' hw''') => [] vm' [] m'' [] ha hw1.
-exists vm', m''. split=> //=. apply BeePL.alloc_variables_con with m' l.
-+ by apply hm. by apply ha.
-Qed.
+Admitted.
 
 Lemma bind_variables_wf : forall cenv Gamma Sigma bge vm m args vs,
 store_well_typed cenv Gamma Sigma bge vm m ->
@@ -177,3 +177,4 @@ length args = length vs ->
 exists m', bind_variables bge vm m args vs m' /\ store_well_typed cenv Gamma Sigma bge vm m'.
 Proof.
 Admitted.
+

@@ -58,6 +58,13 @@ move=> e. elim: e=> //=.
 move=> e1 hin t1 t2 cge cvm m e' tr m' he. by inversion he; subst.
 Qed.
 
+(* Medium *)
+Lemma deref_loc_no_trace_nonvolatile : forall cge t m l ofs bf v,
+Csem.deref_loc cge t m l ofs bf Events.E0 v ->
+type_is_volatile t = false.
+Proof.
+Admitted.
+
 (*Lemma eval_simple_rvalue_type_preservation: forall e cge cvm m v,
 eval_simple_rvalue cge cvm m e v ->
 Ctyping.wt_val v (Csyntax.typeof e).

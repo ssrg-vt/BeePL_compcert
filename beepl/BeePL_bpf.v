@@ -8,7 +8,7 @@ Local Open Scope csyntax_scope.
 
 (***** eBPF contexts ******)
 
-Definition _pt_regs : ident := $"pt_regs".
+(*Definition _pt_regs : ident := $"pt_regs".
 Definition _r15 : ident := $"r15".
 Definition _r14 : ident := $"r14".
 Definition _r13 : ident := $"r13".
@@ -278,4 +278,4 @@ Definition htons_ef : BeePL.external_function
          bsig_ef := nil;
          bsig_res := tint16u;
          bsig_cc := cc_default
-      |}.
+      |}.*)

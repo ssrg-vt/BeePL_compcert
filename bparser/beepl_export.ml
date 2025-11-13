@@ -235,6 +235,17 @@ let export_const_to_coq c =
     let id = lift_string_constant s in
     Printf.sprintf "(ConsPtr _%s)" id
 
+    let rec take n xs =
+      match n, xs with
+      | 0, _ | _, [] -> []
+      | n, x :: xs -> x :: take (n - 1) xs
+    
+    let rec drop n xs =
+      match n, xs with
+      | 0, _ -> xs
+      | _, [] -> []
+      | n, _::tl -> drop (n-1) tl
+
 let rec export_expr_to_coq (ee : Beepl_ast_typechecker.efenv) (senv : Beepl_ast_typechecker.Senv.t) (env : (string * typ) list) (e : expr) : string =
   match e with
   | Var id ->
@@ -254,15 +265,35 @@ let rec export_expr_to_coq (ee : Beepl_ast_typechecker.efenv) (senv : Beepl_ast_
     | _ ->
         let ty = export_typ_to_coq (infer_expr ee senv (list_to_env env) e) in
         Printf.sprintf "(Const %s (%s))" (export_const_to_coq c) ty)
-  | App (e1, args) ->
-      let e1_str = export_expr_to_coq ee senv env e1 in
-      let args_str = List.map (export_expr_to_coq ee senv env) args in
-      let ty1   = export_typ_to_coq (infer_expr ee senv (list_to_env env) (App (e1, args))) in
-      Printf.sprintf 
-      "(App (%s)\n                  (%s)\n                  (%s))"
-        e1_str
-        (export_coq_list args_str)
-        ty1
+        | App (e1, args) ->
+          let ty1   = infer_expr ee senv (list_to_env env) (App (e1, args)) in
+          let e1_str = export_expr_to_coq ee senv env e1 in
+        
+          (* detect bpf_printk and cast vararg tail to u64 *)
+          let args_str =
+            match e1 with
+            | Var "bpf_printk" ->
+                let fixed = List.map (export_expr_to_coq ee senv env) (take 2 args) in
+                let tail  =
+                  List.map
+                    (fun a ->
+                       let a_coq = export_expr_to_coq ee senv env a in
+                       (* wrap: (Prim (Cast (Vtype Tulong)) [a]) with its resulting type *)
+                       Printf.sprintf
+                         "(Prim (Cast %s) (%s :: nil) (%s))"
+                         (export_typ_to_coq (Vtype Tulong))
+                         a_coq
+                         (export_typ_to_coq (Vtype Tulong)))
+                    (drop 2 args)
+                in
+                fixed @ tail
+            | _ ->
+                List.map (export_expr_to_coq ee senv env) args
+          in
+        
+          let ty1_s = export_typ_to_coq ty1 in
+          Printf.sprintf "(App (%s)\n                  (%s)\n                  (%s))"
+            e1_str (export_coq_list args_str) ty1_s
   (* Note: The type of the function is inferred from the environment *)
   | Prim (Uop uop, args) ->
       let args_str = List.map (export_expr_to_coq ee senv env) args in
@@ -396,23 +427,65 @@ let rec export_expr_to_coq (ee : Beepl_ast_typechecker.efenv) (senv : Beepl_ast_
         (export_typ_to_coq t)
         n
         ty 
-  | Match (e, patterns, exprs) ->
-      let patterns_str = List.map (function
-        | Psome id -> Printf.sprintf "Psome _%s" id
-        | Pnone -> "Pnone"
-        | Pbytes (id, t, fields) ->
-            let field_strs = List.map (fun (fid, fty) -> Printf.sprintf "(_%s, %s)" fid (export_typ_to_coq fty)) fields in
-            Printf.sprintf "Pbytes (_%s) (%s) (%s)" id (export_typ_to_coq t) (export_coq_list field_strs)
-      ) patterns in
-      let exprs_str = List.map (export_expr_to_coq ee senv env) exprs in
-      let ty = export_typ_to_coq (infer_expr ee senv (list_to_env env) e) in
-      Printf.sprintf 
+  | Match (scrut, patterns, exprs) ->
+    (* 1. Export patterns as before *)
+    let patterns_str =
+      List.map
+        (function
+          | Psome id ->
+              Printf.sprintf "Psome _%s" id
+          | Pnone ->
+              "Pnone"
+          | Pbytes (id, t, fields) ->
+              let field_strs =
+                List.map
+                  (fun (fid, fty) ->
+                      Printf.sprintf "(_%s, %s)" fid (export_typ_to_coq fty))
+                  fields
+              in
+              Printf.sprintf
+                "Pbytes (_%s) (%s) (%s)"
+                id
+                (export_typ_to_coq t)
+                (export_coq_list field_strs))
+        patterns
+    in
+
+    (* 2. For each branch, extend env with the variables bound by that pattern *)
+    let exprs_str =
+      List.map2
+        (fun pat branch ->
+            let env' =
+              match pat with
+              | Psome id ->
+                  (* If you don’t care about Psome right now, you can leave it as [env].
+                    Here we conservatively bind it with the scrutinee's type. *)
+                  let scrut_ty = infer_expr ee senv (list_to_env env) scrut in
+                  (id, scrut_ty) :: env
+              | Pnone ->
+                  env
+              | Pbytes (id, t, fields) ->
+                  (* bytes-binding id : t, and each (fid, fty) from [fields] *)
+                  (id, t) :: (fields @ env)
+            in
+            export_expr_to_coq ee senv env' branch)
+        patterns exprs
+    in
+
+    (* 3. Type of the whole match expression, not just the scrutinee *)
+    let ty =
+      export_typ_to_coq
+        (infer_expr ee senv (list_to_env env)
+            (Match (scrut, patterns, exprs)))
+    in
+
+    Printf.sprintf 
       "(Match (%s)\n                  (%s)\n                  (%s)\n                  (%s))"
-        (export_expr_to_coq ee senv env e)
-        (export_coq_list patterns_str)
-        (export_coq_list exprs_str)
-        ty
-  (* e : Beepl_ast.expr is the whole node you’re exporting *)
+      (export_expr_to_coq ee senv env scrut)
+      (export_coq_list patterns_str)
+      (export_coq_list exprs_str)
+      ty
+
 
 | Esome e1 ->
   (* 1) infer the child’s type *)
@@ -465,9 +538,15 @@ let export_transform_function ~ee ~senv ~globals (Tfundecl (name, ret, eff, args
           
 
 let export_transform_struct (name : string) (fields : (string * typ) list) : string =
-  let members = List.map (fun (id, t) -> Printf.sprintf "Member_plain _%s (%s)" id (export_typ_to_coq t)) fields in
+  let members =
+    List.map
+      (fun (id, t) ->
+          Printf.sprintf "Member_plain _%s (%s)" id (export_typ_to_coq t))
+      fields
+  in
   Printf.sprintf
-    "Definition bcomposites : list bcomposite_definition :=\n(Bcomposite _%s Struct\n   (%s :: nil)\n   noattr :: nil)." name (String.concat " ::\n    " members)
+    "Bcomposite _%s Struct\n   (%s :: nil)\n   noattr"
+    name (String.concat " ::\n    " members)
 
 let export_starts_with ~prefix s =
   let plen = String.length prefix in
@@ -507,27 +586,43 @@ let export_cc_of_efinfo (variadic : bool) (fixed_arity : int) : string =
          (def, entry))
     |> List.split
   
-    
+let unquote s =
+  let s = String.trim s in
+  let n = String.length s in
+  if n >= 2 && s.[0] = '"' && s.[n-1] = '"' then
+    String.sub s 1 (n - 2)
+  else s
+
+let assert_unquoted (name : string) : unit =
+  if String.contains name '"' then
+  failwith ("internal error: quoted section name leaked: " ^ name)
 let export_coq_globals prog ext_entries =
   let clean_section s =
     let prefix = "#section " in
-    if export_starts_with ~prefix s then
-      String.sub s (String.length prefix) (String.length s - String.length prefix)
-    else s
+    let s' =
+      if export_starts_with ~prefix s then
+        String.sub s (String.length prefix) (String.length s - String.length prefix)
+      else s
+    in
+    unquote s'
   in
   let fun_and_global_entries =
     List.filter_map (function
       | Internal (Tfundecl (name, _, _, _, _, _), section)
       | EBPFInternal (Tfundecl (name, _, _, _, _, _), section) ->
-          let sec_str = match section with
-            | Some s -> Printf.sprintf "Some \"%s\"" (clean_section s)
-            | None -> "None"
+        let sec_str = match section with
+                      | Some s -> let sec = clean_section s in
+                                  assert_unquoted sec;
+                                  Printf.sprintf "Some \"%s\"" sec
+                      | None -> "None"
           in
           Some (Printf.sprintf "(_%s, AST.Gfun (BeePL.Internal f_%s), %s)" name name sec_str)
       | GlobalLet (name, _, _, section) ->
         let sec_str = match section with
-            | Some s -> Printf.sprintf "Some \"%s\"" (clean_section s)
-            | None -> "None"
+                      | Some s -> let sec = clean_section s in
+                                  assert_unquoted sec;
+                                  Printf.sprintf "Some \"%s\"" sec
+                      | None -> "None"
           in
           Some (Printf.sprintf "(_%s, AST.Gvar v_%s, %s)" name name sec_str)
       | _ -> None) prog
@@ -586,7 +681,7 @@ let export_coq_program_wrapper ?(name="example1") (entry : string) : string =
 let export_transform_toplevel ~ee ~senv ~globals = function
 | Internal(f, _) -> export_transform_function ee senv globals f false
 | EBPFInternal(f, _) -> export_transform_function ee senv globals f true
-| StructDecl (name, fields) -> export_transform_struct name fields
+| StructDecl (name, fields) -> ""
 | GlobalLet (name, t, e, _) ->
     let env = globals in
     let body_str = export_expr_to_coq ee senv env e in
@@ -619,21 +714,56 @@ let export_collect_globals (prog : program) : (string * typ) list =
     let externs    = extern_bindings_of_efenv ee in
     let global_env = externs @ export_collect_globals prog in
   
-    let defs = List.map (export_transform_toplevel ~ee ~senv ~globals:global_env) prog in
-    let stringlit_defs =
-      Hashtbl.fold (fun id s acc -> export_stringlit_def id s :: acc) string_global_table [] in
-  
-    (* include extern DEFs here *)
-    let defs = stringlit_defs @ ext_defs @ defs in
-  
-    (* pass extern ENTRIES to globals table *)
-    let globals = export_coq_globals prog ext_entries in
-  
-    let publics = export_coq_public_idents prog in
-    let entry   = export_find_main_or_fallback prog in
-    let wrapper = export_coq_program_wrapper ~name:"bprogram" entry in
-    coq_header ^ String.concat "\n\n" defs ^ "\n\n" ^ globals ^ "\n" ^ publics
-    ^ "\n" ^ coq_bcomposite_correct_lemma ^ "\n\n" ^ wrapper
+    (* Split structs vs other toplevels *)
+  let struct_frags =
+    List.filter_map
+      (function
+        | StructDecl (name, fields) -> Some (export_transform_struct name fields)
+        | _ -> None)
+      prog
+  in
+  let other_defs =
+    List.map
+      (export_transform_toplevel ~ee ~senv ~globals:global_env)
+      prog
+  in
+
+  (* Single bcomposites definition containing all structs *)
+  let bcomposites_def =
+    match struct_frags with
+    | [] ->
+        "Definition bcomposites : list bcomposite_definition := nil.\n"
+    | _ ->
+        "Definition bcomposites : list bcomposite_definition :=\n(" ^
+        String.concat " ::\n" struct_frags ^
+        " :: nil).\n"
+  in
+  let stringlit_defs =
+    Hashtbl.fold (fun id s acc -> export_stringlit_def id s :: acc) string_global_table [] in
+
+  (* include extern DEFs here *)
+  let defs = stringlit_defs @ ext_defs @ other_defs in
+
+  (* pass extern ENTRIES to globals table *)
+  let globals = export_coq_globals prog ext_entries in
+
+  let publics = export_coq_public_idents prog in
+  let entry   = export_find_main_or_fallback prog in
+  let wrapper = export_coq_program_wrapper ~name:"bprogram" entry in
+  coq_header
+  ^ "\n\n"
+  ^ bcomposites_def
+  ^ "\n\n"
+  ^ String.concat "\n\n" defs
+  ^ "\n\n"
+  ^ globals
+  ^ "\n"
+  ^ publics
+  ^ "\n"
+  ^ coq_bcomposite_correct_lemma
+  ^ "\n\n"
+  ^ wrapper
+
   
 let export_parse_file (filename : string) : program =
   let ch = open_in filename in

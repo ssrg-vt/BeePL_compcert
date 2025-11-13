@@ -102,7 +102,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
         rewrite /store_well_typed in hw. case: hw=> [] hw1 [] hw2 hw3.
         inversion hw3. have [h [bt [a [h1 [h2 h3]]]]] := type_infer_loc cenv Gamma Sigma l o ef t te hte; subst.
         move: (H l o ef (Ptrtype (Reftype h bt a)) ts efs rt es efs' hte hteq htes)=> [] fd [] hg [] hl [] hd [] h1 h2.
-        have [vm' [m' [ha hwa]]] := alloc_variables_wf cenv Gamma Sigma bge vm m (fn_args fd ++ BeePL.fn_vars fd) hsw hl.
+        have [vm' [m' [Sigma' [ha hwa]]]] := alloc_variables_wf cenv Gamma Sigma bge vm m (fn_args fd ++ BeePL.fn_vars fd) hsw hl.
         have [m'' [hb hwb]]:= bind_variables_wf cenv Gamma Sigma bge vm' m' (fn_args fd) (extract_values_exprs es) hwa hd.
         right. exists m''. exists vm'. exists fd.(BeePL.fn_body). by split=> //=. 
      (* es not a value *)
@@ -119,7 +119,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
   + right. case: e hte hin he=> //= v t hte hin _.
     have hvt := type_rel_typeof_val cenv Gamma Sigma v ef t (construct_type_btype bt) hte.
     have [m' [b] ha] := mem_alloc_total m 0 (sizeof_type (prog_comp_env p) t).
-    have hw'' := store_well_typed_mem_alloc cenv Gamma Sigma bge vm m 0 (sizeof_type (prog_comp_env p) t) m' b hw ha. 
+    have hw'' := store_well_typed_mem_alloc cenv Gamma Sigma bge vm t m 0 (sizeof_type (prog_comp_env p) t) m' b (PTree.set b t Sigma) hw. 
     have [m'' [] chunk [] v' [] htv [] hc [] hs hws] := ref_allocation_succeeds cenv Gamma Sigma p bge vm m v t (m', b) hw hvt ha. 
     exists m''. exists vm. 
     exists (Val (Vloc (Mem.alloc m 0 (sizeof_type (prog_comp_env p) (construct_type_btype bt))).2 Ptrofs.zero) 
