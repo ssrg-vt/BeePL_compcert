@@ -12,14 +12,13 @@ let _license : int8[4] = "GPL"
 
 #ebpf
 #section xdp
-fun xdp_prog (ostruct xdp_md* ctx) : int32, [] {
-  match ctx with
-  | some d -> let ds : uint32  = d._data in  
-              let de : uint32 = d._data_end in 
-	      let pz : uint32 = ds - de in 
-              if (pz > (uint32)70) 
-	      then bpf_printk ("The packet size is greater than 70", 35)
-              else bpf_printk ("The packet size is smaller than 70", 35)
-  | none -> bpf_printk ("No xdp context at the pointer", 29) 
+fun xdp_prog (struct xdp_md* ctx) : int32, [] {
+let ds : uint32  = ctx._data in  
+(* let de : uint32 = ctx._data_end in 
+let pz : uint32 = de - ds in *)
+if (ds > (uint32)70) 
+then let r : int32 = bpf_printk ("Hello!", 6) in 
+     2
+else 1
 }
 

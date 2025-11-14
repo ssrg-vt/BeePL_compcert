@@ -16,6 +16,9 @@ module Senv = struct
     try M.find sname m with Not_found ->
       raise (TypeError (Printf.sprintf "Unknown struct %s" sname))
 
+  (* Turn a source name like "xdp_md" or "_data" into the Coq variable
+   that holds its ident: e.g., "_xdp_md" or "__data". *)
+
   let find_field (sname : string) (fname : string) (m : t) =
     let fields = find sname m in
     match List.assoc_opt fname fields with

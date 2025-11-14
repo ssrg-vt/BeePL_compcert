@@ -935,10 +935,10 @@ move=> e. elim: e=> //=.
 (* Sinit *)
 + admit.
 (* Sfield *)
-+ move=> e hin i t venv fctx bctx ce fctx' bctx' g g' i'.
++ (*move=> e hin i t venv fctx bctx ce fctx' bctx' g g' i'.
   rewrite /SimplExpr.bind2 /SimplExpr.bind /=.
   case he: (transBeePL_expr_expr e venv fctx bctx g)=> [err1 | ce1 g1 i1] //=.
-  by move=> [] h1 h2 h3 h4; subst.
+  by move=> [] h1 h2 h3 h4; subst.*) admit.
 (* None *)
 + move=> t venv fctx bctx ce fctx' bctx' g g' i'. case: t=> //= p.
   case: ifP=> //= hot. move=> [] h1 h2 h3 h4 /=; subst.

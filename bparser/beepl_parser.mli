@@ -48,7 +48,6 @@ type token =
   | RABOOL
   | PLUS
   | PBYTES
-  | OSTRUCT
   | OSOME
   | ORULONGTYPE
   | ORUINT8TYPE
