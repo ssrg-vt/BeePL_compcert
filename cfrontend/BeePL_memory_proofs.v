@@ -144,8 +144,6 @@ Proof.
   reflexivity.
 Qed.
 
-Locate Events.volatile_load.
-Print eq_type. Search Mem.valid_access.
 Lemma valid_access_valid_block2:
   forall m chunk b ofs p,
   Mem.valid_access m chunk b ofs p ->
@@ -159,10 +157,12 @@ Qed.
 (* I don't think you can say that,
   At least because the only condition is that it was allocated before.
  It can still be valid after free'ing which would make dereferencing impossible*)
-Lemma deref_valid_block: forall bge t m b ofs p v,
-  deref_addr bge t m b ofs p v ->
+Print deref_addr.
+Lemma deref_valid_block: forall bge t m b ofs addr v,
+  deref_addr bge t m b ofs addr v ->
   Mem.valid_block m b.
 Proof.
+  (*
   intros. inv H.
   -  Search Mem.valid_block. Search access_mode_type.
      simpl in H2. Search Mem.load. apply Mem.load_valid_access in H2.
@@ -173,9 +173,10 @@ Proof.
       apply H4.
   - admit. (* Will need to add an assumption for this point *)
   - admit. (* Will need to add an assumption for this point *)
-  - admit.
+  - admit.*)
 Admitted.
 
+(* I can always add that it's always non-volatile *)
 (* Complete me : Easy *)
 Definition store_well_typed_mem_alloc : forall cenv Gamma Sigma bge vm ty m lo hi m' b Sigma',
 store_well_typed cenv Gamma Sigma bge vm m ->
@@ -211,7 +212,9 @@ Proof.
       intros x t Hx.
       destruct (H x t Hx) as [l' [v [Hvm [Heq [HSigma Hderef]]]]].
       exists l', v. repeat split; try assumption.
-      * admit.
+      * apply extract_sigma in Hballoc. subst. rewrite <-  HSigma.
+        apply PTree.gso.  intro.  subst. apply Mem.fresh_block_alloc in Halloc.
+        apply deref_valid_block in Hderef. contradiction.
       * inv Hderef.
         -- eapply deref_addr_value; eauto.
            eapply Mem.load_alloc_other with (chunk:= (transl_bchunk_cchunk chunk)) (b' :=l') (v:=v0) in Halloc.
@@ -315,9 +318,6 @@ Definition get_chunk (t : type) : option bmemory_chunk :=
   | _ => chunk_of_type t
   end.
 
-
-Print chunk_of_type.
-
 Lemma load_not_error :
   forall v e c m x ofs,
     trans_cvalue_bvalue v = Errors.Error e ->
@@ -331,7 +331,16 @@ induction v; try inv H.
   admit.
 Admitted.
 
-Lemma store_well_typed_preserve : forall cenv Gamma Sigma bge vm m b m',
+Lemma store_well_typed_preserve : forall cenv Gamma Sigma bge vm m chunk b v t m',
+store_well_typed cenv Gamma Sigma bge vm m ->
+typeof_value v t ->
+chunk_of_type t = Some chunk ->
+Mem.storev (transl_bchunk_cchunk chunk) m (Values.Vptr b Ptrofs.zero) (trans_bvalue_cvalue v) = Some m' ->
+store_well_typed cenv Gamma Sigma bge vm m'.
+Proof.
+Admitted.
+
+Lemma store_well_typed_preserve_gc : forall cenv Gamma Sigma bge vm m b m',
 store_well_typed cenv Gamma Sigma bge vm m ->
 (forall v chunk t ofs, typeof_value v t /\
 get_chunk t = Some chunk /\
@@ -368,12 +377,37 @@ Proof.
         simpl in *. 
 Admitted.
 
+Lemma safe_deref_valid_pointers : forall bge Sigma m x ofs pt chunk, 
+PTree.get x Sigma = Some (Ptrtype pt) ->
+chunk_of_type (get_data_type pt) = Some chunk ->
+Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
+exists v, deref_addr bge (get_data_type pt) m x ofs Full v. 
+Proof.
+move=> Sigma m x ofs pt chunk hs htv hc hl. 
+(*Mem.valid_access_freeable_any*)
+(*have [v hload] := Mem.valid_access_load m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) hl. 
+eexists. apply deref_addr_value with chunk v.*)
+Admitted.
+
+
+(* I think we can prove this and make the well formedness definition simpler *)
+Lemma safe_assgn_valid_pointers : forall cenv Gamma Sigma bge vm m x ofs pt v chunk, 
+store_well_typed cenv Gamma Sigma bge vm m ->
+PTree.get x Sigma = Some (Ptrtype pt) ->
+chunk_of_type (get_data_type pt) = Some chunk ->
+Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
+exists bf m', assign_addr bge (get_data_type pt) m x ofs bf v m' v /\ store_well_typed cenv Gamma Sigma bge vm m'.
+Proof.
+move=> cenv Sigma bge vm m x ofs h bt a hs hv. 
+Admitted.
+
+
 (*
   access_mode_type (get_data_type pt) =
   By_value (transl_bchunk_cchunk chunk)
 *)
 (* I think we can prove this and make the well formedness definition simpler *)
-Lemma safe_deref_valid_pointers : forall bge Sigma m x ofs pt chunk,
+Lemma safe_deref_valid_pointers_gc : forall bge Sigma m x ofs pt chunk,
 PTree.get x Sigma = Some (Ptrtype pt) ->
 get_chunk (get_data_type pt) = Some chunk ->
 Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
@@ -406,7 +440,7 @@ Admitted.
 
 (* I think we can prove this and make the well formedness definition simpler *)
 (* I think we can prove this and make the well formedness definition simpler *)
-Lemma safe_assgn_valid_pointers : forall cenv Gamma Sigma bge vm m x ofs pt v chunk,
+Lemma safe_assgn_valid_pointers_gc : forall cenv Gamma Sigma bge vm m x ofs pt v chunk,
 store_well_typed cenv Gamma Sigma bge vm m ->
 PTree.get x Sigma = Some (Ptrtype pt) ->
 get_chunk (get_data_type pt) = Some chunk ->
@@ -418,9 +452,7 @@ Proof.
   apply safe_deref_valid_pointers with (Sigma := Sigma) (chunk := chunk); auto.
   apply Mem.valid_access_freeable_any with (p:= Writable) in H2.
   eapply Mem.valid_access_store with (v := trans_bvalue_cvalue v) in H2.
-  destruct H2 as [m' Hstore]. exists m'. split.
-  - Locate assign_addr. 
-
+  destruct H2 as [m' Hstore]. 
 (*exists m'.
   split.
   - set (v' := trans_bvalue_cvalue v).
@@ -468,9 +500,28 @@ Proof.
 
 Admitted.
 
+
+(* Allocation through ref should be successful in getting space in memory and storing value v to it *)
+Lemma ref_allocation_succeeds : forall cenv Gamma Sigma (p : BeePL.program) (bge : BeePL.genv) (vm : vmap) 
+(m : Memory.mem) (v : BeePL_values.value) (t : type) ml,
+store_well_typed cenv Gamma Sigma bge vm m ->
+typeof_value v t ->
+Mem.alloc m 0 (sizeof_type p.(prog_comp_env) t) = ml ->
+exists m' chunk v', 
+trans_bvalue_cvalue v = v' /\
+chunk_of_type t = Some chunk /\
+Mem.storev (transl_bchunk_cchunk chunk) ml.1 (trans_bvalue_cvalue (Vloc ml.2 Ptrofs.zero)) v' = Some m' /\
+store_well_typed cenv Gamma Sigma bge vm m'. 
+Proof.
+move=> cenv Gamma Sigma p bge vm m v t [m1 b] he ht ha.
+case hc: (chunk_of_type t)=> [chunk | ] //=.
++ set (v' := trans_bvalue_cvalue v).
+  have hs : size_chunk (transl_bchunk_cchunk chunk) <= sizeof_type (p.(prog_comp_env)) t.
+Admitted.
+
 (* Allocation through ref should be successful in getting space in memory and storing value v to it *)
 (* Not true, if t = Utype and v = Vunit then typeof_value v t holds but chunk_of_type t = None *)
-Lemma ref_allocation_succeeds : forall cenv Gamma Sigma (p : BeePL.program) (bge : BeePL.genv) (vm : vmap)
+Lemma ref_allocation_succeeds_gc : forall cenv Gamma Sigma (p : BeePL.program) (bge : BeePL.genv) (vm : vmap)
 (m : Memory.mem) (v : BeePL_values.value) (t : type) ml,
 store_well_typed cenv Gamma Sigma bge vm m ->
 typeof_value v t ->
