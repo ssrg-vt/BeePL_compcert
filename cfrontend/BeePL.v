@@ -536,12 +536,12 @@ Inductive deref_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : p
   Mem.loadv (transl_bchunk_cchunk chunk) m (trans_bvalue_cvalue (Vloc addr ofs)) = Some v ->
   trans_cvalue_bvalue v = OK v' ->
   deref_addr ty m addr ofs Full v'
-| deref_loc_volatile: forall chunk tr v v',
+(*| deref_loc_volatile: forall chunk tr v v',
   access_mode_type ty = By_value (transl_bchunk_cchunk chunk) -> 
   type_is_volatile (transBeePL_type ty) = true ->
   volatile_load ge (transl_bchunk_cchunk chunk) m addr ofs tr v ->
   trans_cvalue_bvalue v = OK v' ->
-  deref_addr ty m addr ofs Full v'
+  deref_addr ty m addr ofs Full v'*)
 | deref_addr_reference:
   access_mode_type ty = By_reference ->
   deref_addr ty m addr ofs Full (Vloc addr ofs) 
@@ -564,12 +564,12 @@ Inductive assign_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : 
   Mem.storev (transl_bchunk_cchunk chunk) m (trans_bvalue_cvalue (Vloc addr ofs)) v = Some m' ->
   trans_cvalue_bvalue v = OK v' ->
   assign_addr ty m addr ofs Full v' m' v'
-| assign_loc_volatile: forall v chunk tr m' v',
+(*| assign_loc_volatile: forall v chunk tr m' v',
   access_mode_type ty = By_value (transl_bchunk_cchunk chunk) -> 
   type_is_volatile (transBeePL_type ty) = true ->
   volatile_store ge (transl_bchunk_cchunk chunk) m addr ofs v tr m' ->
   trans_cvalue_bvalue v = OK v' ->
-  assign_addr ty m addr ofs Full v' m' v'
+  assign_addr ty m addr ofs Full v' m' v'*)
 | assign_addr_copy: forall b' ofs' bytes m',
   access_mode_type ty = By_copy ->
   (alignof_blockcopy (bcomposite_composite_env (genv_cenv ge)) (transBeePL_type ty) | Ptrofs.unsigned ofs') ->

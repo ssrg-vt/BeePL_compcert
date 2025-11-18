@@ -159,12 +159,12 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                bsem_expr p vm m (Val v t) m vm v
 | bsem_lvar : forall p vm m x t l v,
               vm!x = Some (l, t) -> 
-              deref_addr ge t m l Ptrofs.zero Full v ->
+              deref_addr t m l Ptrofs.zero Full v ->
               bsem_expr p vm m (Var x t) m vm v
 | bsem_gbvar : forall p vm m x t l v,
                vm!x = None ->
                Genv.find_symbol ge x = Some l -> 
-               deref_addr ge t m l Ptrofs.zero Full v ->
+               deref_addr t m l Ptrofs.zero Full v ->
                bsem_expr p vm m (Var x t) m vm v
 | bsem_consti : forall p vm m i t,
                 bsem_expr p vm m (Const (ConsInt i) t) m vm (Vint i)
@@ -199,7 +199,7 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
              bsem_expr p vm m (Prim Ref [:: e] (Ptrtype (Reftype h (Bprim t) a))) m'' vm (Vloc l Ptrofs.zero)
 | bsem_deref : forall p vm m e m' l ofs v,
                bsem_expr p vm m e m' vm (Vloc l ofs) ->
-               deref_addr ge (typeof_expr e) m' l ofs Full v ->
+               deref_addr (typeof_expr e) m' l ofs Full v ->
                bsem_expr p vm m (Prim Deref (e :: nil) (typeof_expr e)) m' vm v
 | bsem_massgn : forall p vm m e1 m' l ofs bf e2 m'' v v' pt ct1 ct2,  
                 bsem_expr p vm m e1 m' vm (Vloc l ofs) ->
@@ -325,7 +325,7 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
 | bsem_aaccess : forall p vm m arr t n t' loc aty v,
                  vm ! arr = Some (loc, t) ->
                  get_array_elm_ty t = OK aty ->
-                 deref_addr ge aty m loc (Ptrofs.repr (Z.of_nat n)) Full v ->
+                 deref_addr aty m loc (Ptrofs.repr (Z.of_nat n)) Full v ->
                  bsem_expr p vm m (Aaccess arr t n t') m vm v
 (* fix me : add semantics for hexpr *)
 with bsem_exprs : program -> vmap -> Memory.mem -> list BeePL.expr -> Memory.mem -> vmap -> list value -> Prop :=
@@ -372,12 +372,12 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                ssem_expr p vm m (Val v t) m vm (Val v t)*)
 | ssem_lvar : forall p vm m x t l v,
               vm!x = Some (l, t) -> 
-              deref_addr ge t m l Ptrofs.zero Full v ->
+              deref_addr t m l Ptrofs.zero Full v ->
               ssem_expr p vm m (Var x t) m vm (Val v t)
 | ssem_gbvar : forall p vm m x t l v,
                vm!x = None ->
                Genv.find_symbol ge x = Some l -> 
-               deref_addr ge t m l Ptrofs.zero Full v ->
+               deref_addr t m l Ptrofs.zero Full v ->
                ssem_expr p vm m (Var x t) m vm (Val v t)
 | ssem_consti : forall p vm m i t,
                 ssem_expr p vm m (Const (ConsInt i) t) m vm (Val (Vint i) t)
@@ -423,7 +423,7 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                 ssem_expr p vm m (Prim Deref (e :: nil) t) m' vm' 
                                  (Prim Deref (e' :: nil) t)
 | ssem_deref2 : forall p vm m l ofs v t,
-                deref_addr ge (get_data_type t) m l ofs Full v ->
+                deref_addr (get_data_type t) m l ofs Full v ->
                 ssem_expr p vm m (Prim Deref [:: Val (Vloc l ofs) (Ptrtype t)] (get_data_type t)) m vm 
                                (Val v (get_data_type t))
 | ssem_massgn1 : forall p vm m e1 e2 m' vm' e1',  
@@ -564,7 +564,7 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
 | ssem_array_access : forall p vm m arr t n t' loc aty v,
                       vm ! arr = Some (loc, t) ->
                       get_array_elm_ty t = OK aty ->
-                      deref_addr ge aty m loc (Ptrofs.repr (Z.of_nat n)) Full v ->
+                      deref_addr aty m loc (Ptrofs.repr (Z.of_nat n)) Full v ->
                       ssem_expr p vm m (Aaccess arr t n t') m vm (Val v aty)
 with ssem_exprs : program -> vmap -> Memory.mem -> list BeePL.expr -> Memory.mem -> vmap -> list BeePL.expr -> Prop :=
 | ssem_nil : forall p vm m,

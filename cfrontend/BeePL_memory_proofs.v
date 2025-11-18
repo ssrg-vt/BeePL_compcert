@@ -116,13 +116,12 @@ Proof.
 Admitted.
 
 (* I think we can prove this and make the well formedness definition simpler *)
-Lemma safe_deref_valid_pointers : forall bge Sigma m x ofs pt chunk, 
+Lemma safe_deref_valid_pointers : forall Sigma m x ofs pt chunk, 
 PTree.get x Sigma = Some (Ptrtype pt) ->
 chunk_of_type (get_data_type pt) = Some chunk ->
 Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
-exists v, deref_addr bge (get_data_type pt) m x ofs Full v. 
+exists v, deref_addr (get_data_type pt) m x ofs Full v. 
 Proof.
-move=> Sigma m x ofs pt chunk hs htv hc hl. 
 (*Mem.valid_access_freeable_any*)
 (*have [v hload] := Mem.valid_access_load m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) hl. 
 eexists. apply deref_addr_value with chunk v.*)
