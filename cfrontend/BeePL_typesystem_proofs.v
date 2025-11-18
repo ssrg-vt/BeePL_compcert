@@ -158,7 +158,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
                                                 ef t (Ptrtype pt) hte; subst.
       inversion hw2. case: hpt=> [] hpteq; subst.
       case: H=> H1 H2. move: (H1 l ofs (Reftype h' bt a) hl)=> [] chunk [] hvl hc.
-      have [v hd] := safe_deref_valid_pointers bge Sigma m l ofs (Reftype h' bt a) chunk hl hc hvl.
+      have [v hd] := safe_deref_valid_pointers Sigma m l ofs (Reftype h' bt a) chunk hl hc hvl.
       exists m. exists vm. exists (Val v (get_data_type (Reftype h' bt a))). split.
       by apply ssem_deref2. by apply hsw.
     (* option *) (* deref does not allow pointer coming from option type until it is gone through match *)
@@ -513,7 +513,7 @@ Admitted.
 (* we need extra assertion that value cannot be a pointer because 
    in C, they allow it and we use deref_addr from CompCert *)
 Lemma well_typed_val_expr : forall cenv Gamma Sigma v t ef bf m l ofs,
-deref_addr cenv t m l ofs bf v ->
+deref_addr t m l ofs bf v ->
 type_expr cenv Gamma Sigma (Val v t) ef t.
 Proof.
 (*move=> cenv Gamma Sigma v t ef bf m l ofs hd.

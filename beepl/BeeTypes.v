@@ -91,6 +91,13 @@ match pt with
 | Fptype ts ef t => Ftype ts ef t
 end.
 
+(* Extract the inner pointer type from an option pointer (Otype pt). *)
+Definition inner_ptr_of_option (t : ptr_type) : mon ptr_type :=
+  match t with
+  | Otype pt => ret pt
+  | _ => error (msg "inner_ptr_of_option: expected Otype pt")
+  end.
+
 Definition construct_type_btype (bt : basic_type) : type :=
 match bt with 
 | Bprim pt => Vtype pt

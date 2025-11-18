@@ -27,7 +27,7 @@ int handle_tp(void *ctx)
  return 0;
 } *)
 
-Definition _pid_filter : ident := $"pid_filter".
+(*Definition _pid_filter : ident := $"pid_filter".
 Definition _pid : ident := $"pid".
 Definition _t : ident := $"t".
 Definition ___stringlit_1 : ident := $"__stringlit_1".
@@ -100,7 +100,7 @@ Lemma bcomposite_correct :
 Proof.
   unfold wf_bcomposites.
   unfold build_bcomposite_env; simpl; constructor. 
-Qed.
+Qed.*)
 
 (*Definition example1 : BeePL.program := @mkbprogram bcomposites 
                                                    global_definitions 

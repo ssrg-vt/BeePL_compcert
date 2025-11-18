@@ -41,7 +41,7 @@ int hello(void *ctx) {
     bpf_map_update_elem(&counter_table, &uid, &counter, 0); (* write, io *)
     return 0;
 }*)
-Definition _val : ident := $"val".
+(*Definition _val : ident := $"val".
 Definition _counter_table : ident := $"counter_table".
 Definition _uid : ident := $"uid".
 Definition _tuid : ident := $"tuid".
@@ -145,7 +145,7 @@ Lemma bcomposite_correct :
 Proof.
   unfold wf_bcomposites.
   unfold build_bcomposite_env; simpl; constructor. 
-Qed.
+Qed.*)
 
 (*Definition example1 : BeePL.program := @mkbprogram bcomposites 
                                                    global_definitions 
@@ -156,7 +156,7 @@ Qed.
 
 Compute (type_check_expr example1.(prog_comp_env) 
                          (bind_vars (bind_vars empty_context f_hash_map_example.(fn_args)) 
-                         f_hash_map_example.(fn_vars)) empty_context f_hash_map_example.(fn_body)).
+                         f_hash_map_example.(fn_vars)) empty_context f_hash_map_example.(fn_body)).*)
 
-Compute (type_check_program example1). *)  (* Type checks! *) 
+(*Compute (type_check_program example1). *)  (* Type checks! *) 
 

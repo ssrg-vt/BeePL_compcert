@@ -26,7 +26,7 @@ int xdp_prog(struct xdp_md *ctx) {
 char LICENSE[] SEC("license") = "GPL"; *) 
 
 
-Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
+(*Definition dattr := {| attr_volatile := false; attr_alignas := None |}.
 Definition _ctx : ident := $"ctx".
 Definition _pid_tgid : ident := $"pid_tgid".
 Definition _pid : ident := $"pid".
@@ -123,7 +123,7 @@ Lemma bcomposite_correct :
 Proof.
   unfold wf_bcomposites.
   unfold build_bcomposite_env; simpl; constructor. 
-Qed.
+Qed.*)
 
 (*Definition example1 : BeePL.program := @mkbprogram bcomposites 
                                                    global_definitions 

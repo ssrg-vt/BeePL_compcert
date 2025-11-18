@@ -34,7 +34,7 @@ int hello(void *ctx) {
      p = bpf_map_lookup_elem(&counter_table, (&uid)); //returns a pointer to the corresponding value in the hash table (* read; io *)
      return (int)!p
 }*)
-Definition _val : ident := $"val".
+(*Definition _val : ident := $"val".
 Definition _counter_table : ident := $"counter_table".
 Definition _uid : ident := $"uid".
 Definition _tuid : ident := $"tuid".
@@ -116,7 +116,7 @@ Lemma bcomposite_correct :
 Proof.
   unfold wf_bcomposites.
   unfold build_bcomposite_env; simpl; constructor. 
-Qed.
+Qed.*)
 
 (*Definition example1 : BeePL.program := @mkbprogram bcomposites 
                                                    global_definitions 

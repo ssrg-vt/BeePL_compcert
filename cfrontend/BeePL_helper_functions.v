@@ -29,7 +29,7 @@ ef_empty_map ["bpf_get_prandom_u32" <- (nil, (tint32u, (Io :: nil)))]
              ["bpf_map_update_elem" <- ((tostruct (ident_of_string "bpf_map_type_hash") noattr :: tolongu :: tolongu :: tlongu :: nil), 
                                            (tlongu, (Write mem_ident :: Io :: nil)))]
              ["bpf_printk" <- ((trint8s :: tint32s :: nil), (tint32s, (Io :: nil)))].
-
+             
 Definition get_ef_type (efenv : ef_env) (s : string) : res ef_info :=
 match efenv[s] with 
 | Some t => OK t
