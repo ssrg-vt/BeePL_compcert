@@ -24,9 +24,10 @@ let export_coq_list (elems : string list) : string =
   | [] -> "nil"
   | _ -> String.concat " :: " elems ^ " :: nil"
 
-let string_constant_counter = ref 0
-let string_global_table = Beepl_transformer.string_globals
+(* Local table: id -> string contents, for Coq/BeePL export only *)
+let string_global_table : (string, string) Hashtbl.t = Hashtbl.create 17
 
+(* Map: string contents -> id *)
 let string_to_id : (string, string) Hashtbl.t = Hashtbl.create 17
 
 let lift_string_constant (s : string) : string =
@@ -35,90 +36,105 @@ let lift_string_constant (s : string) : string =
   | None ->
       let id = "___stringlit_" ^ string_of_int (Hashtbl.length string_to_id) in
       Hashtbl.add string_to_id s id;
-      Hashtbl.add string_global_table id s;   (* keep id -> string for globals emission *)
+      Hashtbl.add string_global_table id s;   (* id -> contents *)
       id
-    
+
+(* Collect all identifiers from the program *)
 let export_collect_idents (prog : program) : string list  =
-let add_var acc (x, _) = if List.mem x acc then acc else x :: acc in
-let rec from_expr acc e =
-  match e with
-  | Var x -> if List.mem x acc then acc else x :: acc
-  | Const (Cstring s) ->
-      let id = lift_string_constant s in
-      if List.mem id acc then acc else id :: acc
-  | Const _ -> acc
-  | Prim (Uop _, args) ->
-      List.fold_left from_expr acc args
-  | Prim (Bop _, args) ->
-      List.fold_left from_expr acc args
-  | Prim (Cast _, args) ->
-      List.fold_left from_expr acc args
-  | Prim (Ref, args) ->
-      List.fold_left from_expr acc args
-  | Prim (Deref, args) ->
-      List.fold_left from_expr acc args
-  | Prim (Massgn, args) ->
-      List.fold_left from_expr acc args
-  | App (e1, args) ->
-      let acc = from_expr acc e1 in
-      List.fold_left from_expr acc args
-  | Let (x, _, e1, e2) ->
-      from_expr (from_expr (if List.mem x acc then acc else x :: acc) e1) e2
-  | If (e1, e2, e3) ->
-      List.fold_left from_expr acc [e1; e2; e3]
-  | For (e1, e2, _, e3) ->
-      List.fold_left from_expr acc [e1; e2; e3]
-  | Sinit (_, _, args) ->
-      List.fold_left from_expr acc args
-  | Fget (e, _) ->
-      from_expr acc e
-  | Ainit (arr, args) ->
-    if List.mem arr acc 
-    then List.fold_left from_expr acc args
-    else arr :: List.fold_left from_expr acc args
-  | Aaccess (arr, _) ->
-      if List.mem arr acc then acc else arr :: acc
-  | Match (e, patterns, exprs) ->
-      let acc = from_expr acc e in
-      let acc = List.fold_left (fun a p ->
-        match p with
-        | Psome x -> if List.mem x a then a else x :: a
-        | Pnone -> a
-        | Pbytes (id, _, fields) ->
-            let a = if List.mem id a then a else id :: a in
-            List.fold_left add_var a fields
-      ) acc patterns in
-      List.fold_left from_expr acc exprs
-  | Esome e1 ->
-      from_expr acc e1
-  | Enone t -> acc
-in
-let idents_from_prog =
-  List.fold_left (fun acc top ->
-    match top with
-    | Internal (Tfundecl (name, _, _, args, _, body), _)
-    | EBPFInternal (Tfundecl (name, _, _, args, _, body), _) ->
-        let acc = if List.mem name acc then acc else name :: acc in
-        let acc = List.fold_left add_var acc args in
-        from_expr acc body
-    | StructDecl (sname, fields) ->
-        let acc = if List.mem sname acc then acc else sname :: acc in
-        List.fold_left add_var acc fields 
-    | GlobalLet (name, _, body, _) ->
-        let acc = if List.mem name acc then acc else name :: acc in
-        from_expr acc body     
-  ) [] prog
-in
+  let add_var acc (x, _) =
+    if List.mem x acc then acc else x :: acc
+  in
 
-(* Add all string global keys *)
-let string_idents =
-  Hashtbl.fold (fun _ id acc ->
-  if List.mem id acc then acc else id :: acc
-) Beepl_transformer.string_globals []
-in
+  let rec from_expr acc e =
+    match e with
+    | Var x ->
+        if List.mem x acc then acc else x :: acc
 
-idents_from_prog @ string_idents
-    
+    | Const (Cstring s) ->
+        (* Allocate/reuse a stable id for this string *)
+        let id = lift_string_constant s in
+        if List.mem id acc then acc else id :: acc
+
+    | Const _ ->
+        acc
+
+    | Prim (Uop _, args)
+    | Prim (Bop _, args)
+    | Prim (Cast _, args)
+    | Prim (Ref, args)
+    | Prim (Deref, args)
+    | Prim (Massgn, args) ->
+        List.fold_left from_expr acc args
+
+    | App (e1, args) ->
+        let acc = from_expr acc e1 in
+        List.fold_left from_expr acc args
+
+    | Let (x, _, e1, e2) ->
+        let acc = if List.mem x acc then acc else x :: acc in
+        let acc = from_expr acc e1 in
+        from_expr acc e2
+
+    | If (e1, e2, e3) ->
+        List.fold_left from_expr acc [e1; e2; e3]
+
+    | For (e1, e2, _, e3) ->
+        List.fold_left from_expr acc [e1; e2; e3]
+
+    | Sinit (_, _, args) ->
+        List.fold_left from_expr acc args
+
+    | Fget (e, _) ->
+        from_expr acc e
+
+    | Ainit (arr, args) ->
+        let acc = if List.mem arr acc then acc else arr :: acc in
+        List.fold_left from_expr acc args
+
+    | Aaccess (arr, _) ->
+        if List.mem arr acc then acc else arr :: acc
+
+    | Match (scrut, patterns, exprs) ->
+        let acc = from_expr acc scrut in
+        let acc =
+          List.fold_left
+            (fun a p ->
+               match p with
+               | Psome x ->
+                   if List.mem x a then a else x :: a
+               | Pnone ->
+                   a
+               | Pbytes (id, _, fields) ->
+                   let a = if List.mem id a then a else id :: a in
+                   List.fold_left add_var a fields)
+            acc patterns
+        in
+        List.fold_left from_expr acc exprs
+
+    | Esome e1 ->
+        from_expr acc e1
+
+    | Enone _ ->
+        acc
+  in
+
+  List.fold_left
+    (fun acc top ->
+       match top with
+       | Internal (Tfundecl (name, _, _, args, _, body), _)
+       | EBPFInternal (Tfundecl (name, _, _, args, _, body), _) ->
+           let acc = if List.mem name acc then acc else name :: acc in
+           let acc = List.fold_left add_var acc args in
+           from_expr acc body
+
+       | StructDecl (sname, fields) ->
+           let acc = if List.mem sname acc then acc else sname :: acc in
+           List.fold_left add_var acc fields
+
+       | GlobalLet (name, _, body, _) ->
+           let acc = if List.mem name acc then acc else name :: acc in
+           from_expr acc body)
+    [] prog
 
 (* Generate Coq identifier declarations *)
 let export_coq_idents (idents : string list) : string =
@@ -246,6 +262,9 @@ let export_const_to_coq c =
       | _, [] -> []
       | n, _::tl -> drop (n-1) tl
 
+let coq_ident_var_of_string (s : string) : string =
+  if String.length s > 0 && s.[0] = '_' then "__" ^ String.sub s 1 (String.length s - 1)
+  else "_" ^ s
 let rec export_expr_to_coq (ee : Beepl_ast_typechecker.efenv) (senv : Beepl_ast_typechecker.Senv.t) (env : (string * typ) list) (e : expr) : string =
   match e with
   | Var id ->
@@ -400,13 +419,40 @@ let rec export_expr_to_coq (ee : Beepl_ast_typechecker.efenv) (senv : Beepl_ast_
         (export_coq_list (List.map (fun f -> Printf.sprintf "_%s" f) fnames))
         (export_coq_list exprs_str)
         ty
-  | Fget (e, field_name) ->
-      let ret_ty = export_typ_to_coq (infer_expr ee senv (list_to_env env) e) in
-      Printf.sprintf 
-      "(Fget (%s)\n                  _%s\n                  (%s))"
-        (export_expr_to_coq ee senv env e)
-        field_name
-        ret_ty
+        | Fget (e_base, field_name) ->
+          (* 1) print base expression *)
+          let e_coq = export_expr_to_coq ee senv env e_base in
+      
+          (* 2) figure out the struct name from the base’s type *)
+          let base_ty = infer_expr ee senv (list_to_env env) e_base in
+          let struct_name =
+            match base_ty with
+            | Stype s -> s
+            | Ptr (Reftype (_, Bstruct s)) -> s
+            | Ptr (Otype (Reftype (_, Bstruct s))) -> s
+            | _ ->
+                failwith ("export Fget: base is not a struct or ptr-to-struct (got: "
+                          ^ Beepl_ast_typechecker.string_of_typ base_ty ^ ")")
+          in
+      
+          (* 3) look up the FIELD type from the struct env (pretty types) *)
+          let field_ty_pretty =
+            Beepl_ast_typechecker.Senv.find_field struct_name field_name senv
+          in
+      
+          (* 4) export the field type to Coq *)
+          let field_ty_coq = export_typ_to_coq field_ty_pretty in
+      
+          (* 5) print the Coq ident variable for the FIELD name *)
+          let field_ident_var = coq_ident_var_of_string field_name in
+      
+          (* 6) build Coq term: Sfield expects the FIELD IDENT and the FIELD TYPE *)
+          Printf.sprintf
+            "(Fget (%s)\n        %s\n        (%s))"
+            e_coq
+            field_ident_var
+            field_ty_coq
+      
   | Ainit (arr, args) ->
       let args_str = List.map (export_expr_to_coq ee senv env) args in
       let ty = export_typ_to_coq (infer_expr ee senv (list_to_env env) e) in
@@ -628,9 +674,14 @@ let export_coq_globals prog ext_entries =
       | _ -> None) prog
   in
   let string_entries =
-    Hashtbl.fold (fun id _ acc ->
-      let def = Printf.sprintf "(_%s, AST.Gvar v_%s, None)" id id in
-      def :: acc) Beepl_transformer.string_globals []
+    Hashtbl.fold
+      (fun id _ acc ->
+         let def =
+           Printf.sprintf "(_%s, AST.Gvar v_%s, None)" id id
+         in
+         def :: acc)
+      string_global_table
+      []
   in
   let entries = ext_entries @ string_entries @ fun_and_global_entries in
   if entries = [] then ""
@@ -704,6 +755,10 @@ let export_collect_globals (prog : program) : (string * typ) list =
   ) prog
 
   let export_transform_program prog =
+    (* reset string globals per compilation unit *)
+    Hashtbl.reset string_global_table;
+    Hashtbl.reset string_to_id;
+    (* then proceed *)
     let coq_header = generate_coq_prelude prog in
     let senv       = build_senv prog in
     let ee         = Beepl_ast_typechecker.build_efenv () in

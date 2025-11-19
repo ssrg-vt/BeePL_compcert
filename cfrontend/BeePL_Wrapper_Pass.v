@@ -31,7 +31,7 @@ Definition _rx_queue_index  : ident := $"_rx_queue_index".
 Definition _egress_ifindex  : ident := $"_egress_ifindex".
 
 (* Local mapping of idents to strings that we always want exported *)
-Definition ident_to_string_ctx_xdp : list (ident * string) :=
+Definition ident_to_string_ctx_xdp : list (ident * string) := 
   (_ctx,        "ctx")
   :: (_xdp_md,    "xdp_md")
   :: (_data,      "_data")
@@ -137,7 +137,6 @@ Definition transform_ctx_ebpf_ctx
   | _ :: _ :: _ =>
       Error (msg "COMPILER ERROR: eBPF program should take only one argument (context)")
   end.
-
 
 
 
