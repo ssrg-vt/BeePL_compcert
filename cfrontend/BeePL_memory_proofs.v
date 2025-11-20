@@ -158,8 +158,8 @@ Qed.
   At least because the only condition is that it was allocated before.
  It can still be valid after free'ing which would make dereferencing impossible*)
 Print deref_addr.
-Lemma deref_valid_block: forall bge t m b ofs addr v,
-  deref_addr bge t m b ofs addr v ->
+Lemma deref_valid_block: forall t m b ofs addr v,
+  deref_addr t m b ofs addr v ->
   Mem.valid_block m b.
 Proof.
   (*
@@ -203,7 +203,9 @@ Proof.
            ++  eapply Mem.load_alloc_other with (chunk:= (transl_bchunk_cchunk chunk)) (b' :=l')  (v:=v0) in Halloc.
            rewrite <- H2 in Halloc. rewrite <- Halloc in H2. apply H2.
            simpl in *. auto.
-        -- apply deref_loc_volatile with chunk tr v0; auto.
+        --
+(*
+          apply deref_loc_volatile with chunk tr v0; auto.
           ++ apply extract_sigma in Hballoc. subst. Print primitive_type.
              Print basic_type. admit.
         -- eapply deref_addr_reference; eauto.
@@ -242,7 +244,7 @@ Proof.
     split; [exact Hnorepet|].
     split; [exact Hlen|].
     split; [exact Hargs|].
-    exact Hrt.
+    exact Hrt.*)
 Admitted.
 
  
@@ -377,13 +379,12 @@ Proof.
         simpl in *. 
 Admitted.
 
-Lemma safe_deref_valid_pointers : forall bge Sigma m x ofs pt chunk, 
+Lemma safe_deref_valid_pointers : forall Sigma m x ofs pt chunk, 
 PTree.get x Sigma = Some (Ptrtype pt) ->
 chunk_of_type (get_data_type pt) = Some chunk ->
 Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
-exists v, deref_addr bge (get_data_type pt) m x ofs Full v. 
+exists v, deref_addr (get_data_type pt) m x ofs Full v. 
 Proof.
-move=> Sigma m x ofs pt chunk hs htv hc hl. 
 (*Mem.valid_access_freeable_any*)
 (*have [v hload] := Mem.valid_access_load m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) hl. 
 eexists. apply deref_addr_value with chunk v.*)
@@ -407,11 +408,11 @@ Admitted.
   By_value (transl_bchunk_cchunk chunk)
 *)
 (* I think we can prove this and make the well formedness definition simpler *)
-Lemma safe_deref_valid_pointers_gc : forall bge Sigma m x ofs pt chunk,
+Lemma safe_deref_valid_pointers_gc : forall Sigma m x ofs pt chunk,
 PTree.get x Sigma = Some (Ptrtype pt) ->
 get_chunk (get_data_type pt) = Some chunk ->
 Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
-exists (v : value), deref_addr bge (get_data_type pt) m x ofs Full v.
+exists (v : value), deref_addr (get_data_type pt) m x ofs Full v.
 Proof.
 intros.
 apply Mem.valid_access_freeable_any with (p:= Readable) in H1.
@@ -448,7 +449,7 @@ Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable
 exists bf m', assign_addr bge (get_data_type pt) m x ofs bf v m' v /\ store_well_typed cenv Gamma Sigma bge vm m'.
 Proof.
   intros. exists Full.
-  assert(exists v : value, deref_addr bge (get_data_type pt) m x ofs Full v).
+  assert(exists v : value, deref_addr (get_data_type pt) m x ofs Full v).
   apply safe_deref_valid_pointers with (Sigma := Sigma) (chunk := chunk); auto.
   apply Mem.valid_access_freeable_any with (p:= Writable) in H2.
   eapply Mem.valid_access_store with (v := trans_bvalue_cvalue v) in H2.
@@ -610,7 +611,8 @@ move=> cenv Gamma Sigma bge vm m vars hw hl. move: vm m hw. elim: vars hl=> //=.
           ++ inv Hderef. eapply deref_addr_value; auto.
              apply H1. Search Mem.loadv. admit.
           ++ apply H6.
-       ** apply deref_loc_volatile with chunk tr v; auto.
+       ** (*
+           apply deref_loc_volatile with tr v; auto.
           Search Events.volatile_load. admit.
         ** apply deref_addr_reference; auto.
         ** apply deref_addr_copy; auto.
@@ -623,7 +625,7 @@ move=> cenv Gamma Sigma bge vm m vars hw hl. move: vm m hw. elim: vars hl=> //=.
            admit.
    * split. destruct H2. inv H2.
      constructor.
-     -- intros.
+     -- intros.*)
 Admitted.
 
 Lemma bind_variables_wf : forall cenv Gamma Sigma bge vm m args vs,
