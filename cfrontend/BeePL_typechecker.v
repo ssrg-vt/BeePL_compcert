@@ -292,7 +292,7 @@ match e with
                    | Some _ => Error (msg "TYPE ERROR: Wrong type inferred for location")
                    | None => Error (msg "TYPE ERROR: Location not found")
                    end
-| Eapp ef ts es t => Error (msg "TYPE ERROR: We have no use case of builtin function as of now")
+(*| Eapp ef ts es t => Error (msg "TYPE ERROR: We have no use case of builtin function as of now")*)
 | Sinit x ids es t => do (tes, efs) <- type_check_exprs type_check_expr cenv Gamma Sigma es;
                         match t with 
                         | Stype id a => match cenv!id with 

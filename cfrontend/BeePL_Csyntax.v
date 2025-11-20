@@ -411,11 +411,11 @@ end
            ret (Eval (trans_bvalue_cvalue Vunit) ct, fn_ctx, bctx) (* Fix me *)
 | Addr l ofs t => let ct := transBeePL_type t in
                   ret (Eloc l.(lname) ofs l.(lbitfield) ct, fn_ctx, bctx)
-| Eapp ef ts es t => let cef := befunction_to_cefunction ef in
+(*| Eapp ef ts es t => let cef := befunction_to_cefunction ef in
                      let cts := (transBeePL_types transBeePL_type ts) in
                      let ct := (transBeePL_type t) in
                      do (ces, bctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es venv fn_ctx bctx);
-                     ret (Ebuiltin cef cts (fst ces) ct, snd ces, bctx')
+                     ret (Ebuiltin cef cts (fst ces) ct, snd ces, bctx')*)
 | Sinit sid fnames es t => (* translate constructor arguments *)
                            do (ces, bctx') <- transBeePL_expr_exprs transBeePL_expr_expr es venv fn_ctx bctx;
                            do (tmp, tag)   <- fresh_ident (List.map unzip_ident (snd ces)) max_fresh;
@@ -967,17 +967,15 @@ match e with
                       do (ce', ctx'') <- (transBeePL_expr_st cenv e' venv (snd ce) ctx');
                       do (ce'', ctx''') <- (transBeePL_expr_st cenv e'' venv (snd ce') ctx'');
                       let ct' := (transBeePL_type t') in
-                      if eq_type t' (typeof_expr e') && eq_type t' (typeof_expr e'') 
-                      then ret (Sifthenelse (fst ce) (fst ce') (fst ce''), snd ce'', ctx''')
-                      else error (msg "Then and else branch should be of same type as return type")
+                      ret (Sifthenelse (fst ce) (fst ce') (fst ce''), snd ce'', ctx''')
 | Unit t=> ret (Sskip, ctx, bctx) (*Sreturn (Some (Eval (Values.Vint (Int.repr 0)) (Ctypes.Tint I32 Unsigned noattr)))*) (* In case of unit, we return 0 *)
 | Addr l ofs t => let ct := (transBeePL_type t) in
                   ret (Sdo (Eloc l.(lname) ofs l.(lbitfield) ct), ctx, bctx)                    
-| Eapp ef ts es t => let cef := befunction_to_cefunction ef in
+(*| Eapp ef ts es t => let cef := befunction_to_cefunction ef in
                      let cts := (transBeePL_types transBeePL_type ts) in
                      let ct := (transBeePL_type t) in
                      do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es venv ctx bctx);
-                     ret (Sdo (Ebuiltin cef cts (fst ces) ct), snd ces, ctx')
+                     ret (Sdo (Ebuiltin cef cts (fst ces) ct), snd ces, ctx')*)
 | Sinit sx ids es t => error (msg "COMPILER ERROR: Struct creation should be done inside a let-binding") 
 | Sfield e x t =>
     do (ce, ctx') <- transBeePL_expr_expr e venv ctx bctx;
