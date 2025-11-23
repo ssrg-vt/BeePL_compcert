@@ -239,13 +239,16 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                sem_cast (trans_bvalue_cvalue v) (transBeePL_type (typeof_expr e)) (transBeePL_type t2) m' = Some v' ->
                trans_cvalue_bvalue v' = OK v'' ->
                bsem_expr p vm m (Prim (Cast t2) (e:: nil) t2) m' vm v''
-| bsem_bind_subst : forall p vm m x e1 m' m'' v e2 e2' v' tx,
+| bsem_bind_subst : forall bge p vm m x e1 m' m'' m''' v e2 l v' tx,
                     bsem_expr p vm m e1 m' vm v -> 
                     not (x =? Ctypesdefs.ident_of_string "_")%positive ->
-                    
-                    SubstE x (Val v (typeof_expr e1)) e2 e2' ->
-                    bsem_expr p vm m' e2' m'' vm v' ->
-                    bsem_expr p vm m (Bind x tx e1 e2 (typeof_expr e2)) m'' vm v'
+                    vm!x = Some (l, tx) ->
+                    chunk_for_volatile_type (transBeePL_type tx) Full = None ->
+                    assign_addr bge tx m' l Ptrofs.zero Full v m'' v -> 
+                    (* vm <- (x, v) ==> vm'; [e2]vm'--> v'*)
+                    (*SubstE x (Val v (typeof_expr e1)) e2 e2' ->*)
+                    bsem_expr p vm m'' e2 m''' vm v' ->
+                    bsem_expr p vm m (Bind x tx e1 e2 (typeof_expr e2)) m''' vm v'
 | bsem_bind_no_subst : forall p vm m x e1 m' m'' v e2 v' tx,
                        bsem_expr p vm m e1 m' vm v -> 
                        (x =? Ctypesdefs.ident_of_string "_")%positive ->

@@ -80,15 +80,22 @@ Definition default_expr := (Eval (Values.Vint (Int.repr 0)) Tvoid).
    
    FIXME: There really shouldn't be a limited number of fresh identifiers *)
 
+Fixpoint in_idents (x : positive) (l : seq positive) : bool :=
+  match l with
+  | [::] => false
+  | y :: ys => if Pos.eq_dec x y then true else in_idents x ys
+  end.
+
 Fixpoint fresh_ident (used : list ident) (n : nat) : mon (ident * string) :=
   let candidate_str := "__fresh__" ++ NilZero.string_of_uint (Nat.to_uint n) in
   let candidate := ident_of_string candidate_str in
-  if existsb (fun id => Pos.eqb candidate id) used then
+  if in_idents candidate used then
     match n with
-    | O => error (msg "Ran out of fresh identifiers: all __fresh__n from 1000 to 0 are taken.")
+    | O => error (msg "Ran out of fresh identifiers")
     | S n' => fresh_ident used n'
     end
-  else ret (candidate, candidate_str).
+  else
+    ret (candidate, candidate_str).
 
 (* These are helpers to deal with fn_ctx in transBeePL_expr_expr and transBeePL_expr_st *)
 Definition unzip_ident {A B C} (p : A * B * C) : A :=

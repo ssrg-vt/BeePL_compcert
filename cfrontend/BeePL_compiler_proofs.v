@@ -339,6 +339,123 @@ mk_match_env {
 
 End specifications.
 
+Lemma extend_cvm_lookup_success
+  (cvm  : PTree.t (bool * type))
+  (venv : renv)
+  (id x : ident) cx
+  (b    : bool)
+  (ct   : type) :
+  id <> x ->
+  cvm ! (resolve venv id) = Some (b, ct) ->
+  cvm ! (resolve (extend venv x cx) id) = Some (b, ct).
+Proof.
+move=> hx hcvm. rewrite /extend /resolve /=. 
+by have -> := PTree.gso cx venv hx.
+Qed.
+
+Lemma extend_cvm_lookup_nosuccess
+  (cvm  : PTree.t (bool * type))
+  (venv : renv)
+  (id x : ident) cx
+  (b    : bool)
+  (ct   : type) :
+  id <> x ->
+  cvm ! (resolve venv id) = None ->
+  cvm ! (resolve (extend venv x cx) id) = None.
+Proof.
+move=> hx hcvm. rewrite /extend /resolve /=. 
+by have -> := PTree.gso cx venv hx.
+Qed.
+
+Lemma in_dec_false_not_in :
+  forall (x : positive) (used : list positive),
+    in_idents x used = false ->
+    ~ In x used.
+Proof.
+intros x l Hdec. revert x Hdec.
+induction l as [| y ys IH]; intros x Hdec Hin; simpl in *.
+- (* l = [::] *) inversion Hin.
+- (* l = y :: ys *)
+  destruct (Pos.eq_dec x y) as [Heq | Hneq].
+  + (* if x = y, then in_dec x (y :: ys) = true, contradicting Hdec *)
+    subst.
+    simpl in Hdec.
+    destruct (Pos.eq_dec y y) as [_ | Hneq']; [discriminate Hdec|contradiction].
+  + (* x <> y, so in_dec x (y :: ys) = in_dec x ys *)
+    simpl in Hdec.
+    destruct (Pos.eq_dec x y) as [Heq' | Hneq']; [contradiction|].
+    destruct Hin as [Hin | Hin].
+    * subst; contradiction.
+    * eapply IH; eauto.
+Qed.
+
+(* You will fill in this proof from the definition of [fresh_ident]. *)
+Lemma fresh_ident_in_dec_false :
+  forall used n id s g g' i',
+    fresh_ident used n g = Res (id, s) g' i' ->
+    in_idents id used = false.
+Proof.
+  intros.
+  induction n as [| n IH].
+  - (* Base case: n = 0 *)
+    simpl in H.
+    (* After [simpl], we have:
+
+       let candidate_str := "__fresh__" ++ ... in
+       let candidate := ident_of_string candidate_str in
+       if in_idents candidate used then
+         error ...
+       else
+         ret (candidate, candidate_str) = ret (id, s)
+    *)
+    (* Name the candidate so we can reuse its [in_idents] test easily. *)
+    set (candidate :=
+           ident_of_string
+             ("__fresh__" ++ DecimalString.NilZero.string_of_uint (Nat.to_uint 0))) in *.
+    destruct (in_idents candidate used) eqn:Hin.
+    + (* then-branch: in_idents candidate used = true *)
+      (* Here fresh_ident used 0 = error ..., so it can't equal [ret (id,s)]. *)
+      move: H. by case: ifP=> //= h [] h1 h2 h3; subst. 
+    + (* else-branch: in_idents candidate used = false *)
+      (* Here fresh_ident used 0 = ret (candidate, candidate_str). *)
+      inversion H; subst; clear H.
+      (* So id = candidate; rewrite and use Hin. *)
+      move: H1. by case: ifP=> //= hf [] h1 h2 h3; subst. 
+
+  - simpl in H.
+    (* Now [match n with O => _ | S n' => fresh_ident used n' end]
+       simplifies to [fresh_ident used n], so we get:
+
+       let candidate_str := "__fresh__" ++ ... in
+       let candidate := ident_of_string candidate_str in
+       if in_idents candidate used then
+         fresh_ident used n
+       else
+         ret (candidate, candidate_str) = ret (id, s)
+    *)
+    set (candidate :=
+           ident_of_string
+             ("__fresh__" ++ DecimalString.NilZero.string_of_uint (Nat.to_uint (S n)))) in *.
+    destruct (in_idents candidate used) eqn:Hin.
+    + (* then-branch: in_idents candidate used = true *)
+      (* Here [fresh_ident used (S n)] = fresh_ident used n. *)
+      move: H. case: ifP=> //= hf [] h1 h2 h3; subst. rewrite /= in candidate Hin.
+      exact hf.
+    + (* else-branch: in_idents candidate used = false *)
+      (* Here fresh_ident used (S n) = ret (candidate, candidate_str). *)
+      move: H. case: ifP=> //= hf [] h1 h2 h3; subst. rewrite /= in candidate Hin.
+      exact hf.
+Qed.
+
+(* Need to add condition that cx is the fresh variable *)
+Lemma extend_match_env : forall x cx venv vm cvm,
+match_env venv vm cvm ->
+match_env (extend venv x cx) vm cvm.
+Proof.
+move=> x cx venv vm cvm [] hl hg. constructor.
++ move=> id b t ct hvm ht; subst.
+Admitted.
+
 (* Preservation of composite env *) 
 (* Medium *)
 Lemma comp_env_preserved : forall bge cge, 
@@ -585,8 +702,31 @@ match e with
                      transBeePL_expr_expr e1 venv fctx bctx g = Res (ce1, fctx1, bctx1) g1 i1 /\
                      transBeePL_expr_expr e2 venv fctx1 bctx1 g1 = Res (ce2, fctx2, bctx2) g2 i2 /\
                      transBeePL_expr_expr e3 venv fctx2 bctx2 g2 = Res (ce3, f, b) g3 i3 /\
-                     (*eq_type t (typeof_expr e2) && eq_type t (typeof_expr e3) /\*)
                      ce = Econdition ce1 ce2 ce3 (transBeePL_type t)
+| Unit t => ce = Eval (trans_bvalue_cvalue Vunit) (transBeePL_type t) /\ f = fctx /\ b = bctx 
+| Addr l ofs t => ce = Eloc l.(lname) ofs l.(lbitfield) (transBeePL_type t) /\ f = fctx /\ b = bctx
+| Sinit sid fnames es t => match t with 
+                           | BeeTypes.Stype sid' noattr => 
+                             exists ces f1 b1 g1 i1 tmp tag g2 i2,
+                             transBeePL_expr_exprs transBeePL_expr_expr es venv fctx bctx g = Res (ces, f1, b1) g1 i1 /\
+                             fresh_ident (List.map unzip_ident f1) max_fresh g1 = Res (tmp, tag) g2 i2 /\
+                             ce = assign_struct_fields_chain (Csyntax.Evar tmp (Ctypes.Tstruct sid Ctypes.noattr)) 
+                                                             (combine fnames (exprlist_list_expr ces)) 
+                                                             (Csyntax.Evar tmp (Ctypes.Tstruct sid Ctypes.noattr)) 
+                                                             (Ctypes.Tstruct sid Ctypes.noattr) /\
+                             f = (tmp, BeeTypes.Stype sid' noattr, tag) :: f1 /\ b = b1
+                           | BeeTypes.Ptrtype (BeeTypes.Reftype _ (BeeTypes.Bstruct sid' _) _) =>
+                             exists ces f1 b1 g1 i1 tmp tag g2 i2,
+                             transBeePL_expr_exprs transBeePL_expr_expr es venv fctx bctx g = Res (ces, f1, b1) g1 i1 /\
+                             fresh_ident (List.map unzip_ident f1) max_fresh g1 = Res (tmp, tag) g2 i2 /\
+                             ce = assign_struct_fields_chain (Csyntax.Evar tmp (Ctypes.Tstruct sid Ctypes.noattr))
+                                                             (combine fnames (exprlist_list_expr ces)) 
+                                                             (Csyntax.Eaddrof (Csyntax.Evar tmp (Ctypes.Tstruct sid Ctypes.noattr)) 
+                                                                      (Ctypes.Tpointer (Ctypes.Tstruct sid Ctypes.noattr) Ctypes.noattr))
+                                                             (Ctypes.Tpointer (Ctypes.Tstruct sid Ctypes.noattr) Ctypes.noattr) /\
+                             f = (tmp, BeeTypes.Stype sid' noattr, tag) :: f1 /\ b = b1 
+                           | _ => False
+                            end
 | _ => True
 end) /\
 (forall es venv fctx bctx ces f b g g' i',
@@ -723,6 +863,23 @@ split.
   split=> //=.
   + by case: (ce2) he2=> [[a b] c].
   split=> //=. by case: (ce3) he3=> [[a b] c].
+(* unit *)
++ move=> t hte. by inversion hte; subst.
+(* addr *)
++ move=> l ofs t hte. by inversion hte; subst.
+(* sinit *)
++ move=> i ls l' t hte. inversion hte; subst.
+  move: H0. rewrite /SimplExpr.bind2 /SimplExpr.bind.
+  case hes : (transBeePL_expr_exprs transBeePL_expr_expr l' venv fctx bctx g)=> [errs | [[ces f1] b1] g1 i1] //=. 
+  case hf : (fresh_ident (List.map unzip_ident f1) max_fresh g1)=> [errf | [fv f2] g2 i2] //=.
+  case: t hte=> //=.
+  + move=> p /=; case: p=> //= h b' a'; case: b'=> //= h' a''.
+    rewrite /SimplExpr.bind2 /SimplExpr.bind. rewrite hes /= hf /=. move=> [] h1 h2 h3 h4 [] h5 h6 h7 h8; subst.
+    by exists ces, f1, b, g1, i1, fv, f2, g', i2; split=> //=.
+  move=> h' a. rewrite /SimplExpr.bind2 /SimplExpr.bind. rewrite hes /= hf /=.
+  move=> [] h1 h2 h3 h4 [] h5 h6 h7 h8; subst.
+  by exists ces, f1, b, g1, i1, fv, f2, g', i2; split=> //=.
+
 Admitted.
 
 Definition is_lvalue (e : Csyntax.expr) : bool :=
@@ -735,6 +892,8 @@ end.
    In Cstrategy, a bare variable (Evar) is never evaluated as a value; 
    we always need Evalof (Evar …) to turn it into an r-value and then load its contents. 
    A big-step semantics produces a value, only by treating l-value as r-value using Evalof *) 
+(* Lifts arbitrary C expressions into the “pure rvalue” fragment that matches our BeePL semantics, 
+   which always returns a value *)
 Fixpoint convert_to_rval (e : Csyntax.expr) : Csyntax.expr :=
 match e with 
 | Csyntax.Evar x t => Evalof (Csyntax.Evar x t) t
@@ -743,10 +902,19 @@ match e with
 | Csyntax.Eunop op e t => Csyntax.Eunop op (convert_to_rval e) t
 | Csyntax.Ecast e t => Csyntax.Ecast (convert_to_rval e) t
 | Csyntax.Econdition e1 e2 e3 t => Csyntax.Econdition (convert_to_rval e1) (convert_to_rval e2) (convert_to_rval e3) t
-| Csyntax.Eassign e1 e2 t => Csyntax.Eassign (convert_to_rval e1) (convert_to_rval e2) t
+| Csyntax.Eassign e1 e2 t => Csyntax.Eassign e1 (convert_to_rval e2) t
 | Csyntax.Ecomma e1 e2 t => Csyntax.Ecomma (convert_to_rval e1) (convert_to_rval e2) t
 | _ => e
 end.
+
+(* if C can evaluate e to v, then it also evaluates convert_to_rval e to the same value with the same trace. 
+   For lvalue-ish e like Evar, convert_to_rval is the canonical way to turn it into something evaluable as an expression. *)
+Lemma eval_convert_to_rval :
+  forall ge env m e tr m' v,
+    eval_expression ge env m e tr m' v ->
+    eval_expression ge env m (convert_to_rval e) tr m' v.
+Proof.
+Admitted.
 
 Fixpoint convert_to_rvals (es : Csyntax.exprlist) : Csyntax.exprlist :=
 match es with 
@@ -1057,90 +1225,19 @@ move=> h [] //=.
 by move=> [] //=.
 Qed.
 
-Definition Subst_e (e : BeePL.expr) : Prop :=
-  forall venv x se e' fctx bctx g ce cse fctx' bctx' g' i' fctx'' bctx'' g'' i'',
-    SubstE x se e e' ->
-    transBeePL_expr_expr se venv fctx bctx g = Res (cse, fctx', bctx') g' i' ->
-    transBeePL_expr_expr e venv fctx' bctx' g' = Res (ce, fctx'', bctx'') g'' i'' ->
-    exists ce' fctx1 bctx1 g1 fctx2 bctx2 g2 i2,
-      transBeePL_expr_expr e' venv fctx1 bctx1 g1
-        = Res (ce', fctx2, bctx2) g2 i2.
-
-Definition Subst_es (es : list BeePL.expr) : Prop :=
-  forall venv x se es' fctx bctx g ce fctx' bctx' g' i',
-    SubstEs x se es es' ->
-    transBeePL_expr_exprs transBeePL_expr_expr es venv fctx bctx g
-      = Res (ce, fctx', bctx') g' i' ->
-    exists ces' fctx1 bctx1 g1 fctx2 bctx2 g2 i2,
-      transBeePL_expr_exprs transBeePL_expr_expr es' venv fctx1 bctx1 g1
-        = Res (ces', fctx2, bctx2) g2 i2.
-
-
-Lemma subst_progress_rel : (forall e, Subst_e e) /\ (forall es, Subst_es es).
-Proof.
-apply: exprs_ind_pair; subst; split=> //=. 
-+ admit.
-+ admit.
-(* Val *)
-+ move=> t v. rewrite /Subst_e /=.
-  move=> venc x se e' fctx bctx g ce cse fctx' bctx' g' i' fctx'' bctx'' g'' i'' hs ht [] h1 h2 h3 h4 /=; subst.
-  inversion hs; subst. rewrite /transBeePL_expr_expr /ret /=. 
-  have hg: Ple (gen_next g'') (gen_next g''). + by apply Ple_refl. 
-  exists (Eval (trans_bvalue_cvalue v) (transBeePL_type t)).
-  by exists fctx'', bctx'', g'', fctx'', bctx'', g'', (Ple_refl (gen_next g'')).
-(* Var *)
-+ move=> t x. rewrite /Subst_e /=.
-  move=> venv x' se e' fctx bctx g ce cse fctx' bctx' g' i' fctx'' bctx'' g'' i'' hs ht /=; subst.
-  inversion hs; subst.
-  + move=> [] h1 h2 h3 h4; subst.
-    by exists cse, fctx, bctx, g, fctx'', bctx'', g'', i'.
-  move=> [] h1 h2 h3 h4; subst. 
-  exists (Csyntax.Evar (resolve venv x) (transBeePL_type t)). 
-  by exists fctx'', bctx'', g'', fctx'', bctx'', g'', (Ple_refl (gen_next g'')).
-(* Const *)
-+ move=> t c. rewrite /Subst_e /=.
-  move=> venv x se e' fctx bctx g ce cse fctx' bctx' g' i' fctx'' bctx'' g'' i''.
-  case: c=> //=.
-  (* bool *)
-  + move=> b hs ht /=. inversion hs; subst. case: ifP=> //= hb; subst; rewrite /=.
-    + move=> [] h1 h2 h3 h4; subst. rewrite hb /=.
-      by exists (Eval (Values.Vint (Int.repr 1)) (transBeePL_type t)), fctx, bctx, g, fctx, bctx, g, 
-      (Ple_refl (gen_next g)).
-     move=> [] h1 h2 h3 h4; subst. rewrite hb /=.
-     by exists (Eval (Values.Vint (Int.repr 0)) (transBeePL_type t)), fctx, bctx, g, fctx, bctx, g, 
-     (Ple_refl (gen_next g)).
-  (* int *)
-  + move=> i hs ht /=. inversion hs; subst. move=> [] h1 h2 h3 h4; subst.
-    rewrite /transBeePL_expr_expr /=. 
-    by exists (Eval (Values.Vint i) (transBeePL_type t)), fctx, bctx, g, fctx, bctx, g,
-    (Ple_refl (gen_next g)).
-  (* int64 *)
-  + move=> i hs ht /=. inversion hs; subst. move=> [] h1 h2 h3 h4; subst.
-    rewrite /transBeePL_expr_expr /=. 
-    by exists (Eval (Values.Vlong i) (transBeePL_type t)), fctx, bctx, g, fctx, bctx, g,
-    (Ple_refl (gen_next g)).
-  (* unit *)
-  move=> hs ht /=. inversion hs; subst. move=> [] h1 h2 h3 h4; subst. rewrite /transBeePL_expr_expr /=.
-  by exists (Eval (Values.Vint (Int.repr 0)) (transBeePL_type t)), fctx, bctx, g, fctx, bctx, g,
-    (Ple_refl (gen_next g)).
-(* App *)
-+ move=> t e es. rewrite /Subst_e /Subst_es /=. move => hs hss /=. 
-  move=> vnev x se e' fctx bctx g ce cse fctx' bctx' g' i' fctx'' bctx'' g'' i'' has hts.
-  inversion has; subst. rewrite /SimplExpr.bind2 /SimplExpr.bind /=.
-  case hte : (transBeePL_expr_expr e vnev fctx' bctx' g')=> [err | [[ce' f1] b1 g1 i1]] //=.
-  case htes : (transBeePL_expr_exprs transBeePL_expr_expr es vnev f1 b1 g1)=> [err' | [[ces' f2] b2 g2 i2]] //=.
-  move=> [] h1 h2 h3 h4; subst. rewrite /SimplExpr.bind2 /SimplExpr.bind /=.
-  move: (hs vnev x se e0' fctx bctx g ce' cse fctx' bctx' g' i' f1 b1 g1 i1 H4 hts hte).
-  move=> [] ce'' [] fctx1 [] bctx1 [] g3 [] fctx2 [] bctx2 [] g4 [] i4 h1.
-  move: (hss vnev x se es' f1 b1 g1 ces' fctx'' bctx'' g'' i2 Hes htes). 
-  move=> [] ces'' [] fctx3 [] bctx3 [] g2 [] fctx4 [] bctx4 [] g5 [] i3 h2.
-  exists (Ecall ce'' ces'' (transBeePL_type t)), fctx1, bctx1, g3, fctx4, bctx4, g5.
-Admitted.
-
-
-
-
 (***** Comparing BeePL big-step semantics with Csyntax big-step semantics *****)
+(* BeePL’s big-step semantics is always about values, but Csyntax’s big-step semantics 
+  (Cstrategy) distinguishes lvalues from rvalues. *)
+(* BeePL’s big-step semantics is an rvalue semantics: every expression evaluates directly to a value.
+   In contrast, the Csyntax semantics (Cstrategy) distinguishes lvalues and rvalues: expressions 
+   like Evar and Efield denote locations, and must be wrapped in Evalof to produce values.
+   Our compiler sometimes produces such lvalue expressions when compiling BeePL variables or field accesses. 
+   To compare BeePL evaluation with C evaluation, we therefore compose the translator with a standard 
+   “rvalue interpretation” convert_to_rval that systematically inserts Evalof at the right places.
+   We prove that convert_to_rval is semantics-preserving in the sense that whenever C evaluates an 
+   expression ce to a value v, it also evaluates convert_to_rval ce to the same value and trace. 
+   Thus, our main equivalence theorem is naturally stated in terms of convert_to_rval ce, 
+   which aligns the C semantics with BeePL’s rvalue semantics.*)
 Lemma bsem_csem_expr_equiv : forall bge cp,
 (forall bp bvm m es m' bvm' bv cge venv fctx bctx ce cvm fctx' bctx' g g' i',
 bsem_exprs bge bp bvm m es m' bvm' bv ->
@@ -1408,14 +1505,37 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
   have := sem_equiv_cast venv v e (transBeePL_type t2) m' v' fctx bctx g (hd default_expr (exprlist_list_expr ces)) fctx' bctx' g2 i2 v'' hc hce hv.
   by rewrite htce.
 (* bind *)
-+ move=> p vm m x e1 m' m'' v e2 e2' v' tx he1 hin1 hx hst he2 hin2 cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' hp hte hm.
++ move=> bge' p vm m x e1 m' m'' m''' v e2 l v' tx he1 hin1 hx hxt hvo ha he2 hin2 cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' hp hte hm.
   have [htr1 htr2] := trans_expr_expr_ind.
   move: (htr1 (Bind x tx e1 e2 (typeof_expr e2)) venv fctx bctx ce fctx' bctx' g g' i' hte). case: ifP=> //= hxeq.
   (* !x = _ *)
   + move=> [] ce1 [] fctx1 [] bctx1 [] g1 [] i1 [] ce2 [] cx [] tag [] g2 [] i2 [] g3 [] i3 [] hce1 [] hf [] hce2 heq /=; subst.
     rewrite /=. move: (hin1 cp cge fctx bctx ce1 cvm venv fctx1 bctx1 g g1 i1 hp hce1 hm)=> [] tr1 hc1.
-    move: (hin2 cp cge  ((cx, tx, tag) :: fctx1) bctx1 ce2 cvm venv fctx' bctx' g2 g3 i3 hp). 
-    have hg: Ple (gen_next g) (gen_next g). + by apply Ple_refl. admit.
+    have := assign_addr_translated bge' cge tx m' l Ptrofs.zero Full v m'' (transBeePL_type tx) 
+            (trans_bvalue_cvalue v) v (trans_bvalue_cvalue v) ha erefl erefl erefl. 
+    rewrite hvo /=. move=> hca.
+    have hm' : match_env (extend venv x cx) vm cvm. + admit.
+    move: (hin2 cp cge ((cx, tx, tag) :: fctx1) bctx1 ce2 cvm (extend venv x cx) fctx' bctx' g2 g3 i3 hp hce2 hm').
+    move=> [] tr3 hc2. inversion hc1; subst; inversion hc2; subst. exists ((Events.E0 ++ tr1 ++ Events.E0) ++ tr3).
+    apply eval_expression_intro with a'0.
+    + apply eval_comma with m'' 
+      (Eval (trans_bvalue_cvalue v) (transBeePL_type tx)) (trans_bvalue_cvalue v).
+      + apply eval_assign with m (Csyntax.Evar cx (transBeePL_type tx)) m' a'
+                                l Ptrofs.zero Full 
+         (trans_bvalue_cvalue v) (trans_bvalue_cvalue v).
+        + by apply eval_var.
+        + by apply H.
+        + apply esl_var_local. 
+          have hcm := equiv_local_benv_cenv (extend venv x cx) vm cvm x l tx (transBeePL_type tx) hm' erefl hxt.
+          admit.
+        + by apply H0.
+        admit.
+        + by apply hca.
+        + admit.
+        + by apply esr_val.
+        + by apply H1.
+        + admit.
+       by apply H2.
   (* x = _ *) (* bind as seq *) (* done *)
   move=> p vm m x e1 m' m'' v e2 v' tx he1 hin1 hx he2 hin2 cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' hp hte hm.
   have [htr1 htr2] := trans_expr_expr_ind.
