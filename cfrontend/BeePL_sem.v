@@ -244,6 +244,8 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                     not (x =? Ctypesdefs.ident_of_string "_")%positive ->
                     vm!x = Some (l, tx) ->
                     chunk_for_volatile_type (transBeePL_type tx) Full = None ->
+                    Cop.sem_cast (trans_bvalue_cvalue v) (transBeePL_type (typeof_expr e1))
+                      (transBeePL_type tx) m' = Some (trans_bvalue_cvalue v) ->
                     assign_addr bge tx m' l Ptrofs.zero Full v m'' v -> 
                     (* vm <- (x, v) ==> vm'; [e2]vm'--> v'*)
                     (*SubstE x (Val v (typeof_expr e1)) e2 e2' ->*)

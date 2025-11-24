@@ -318,7 +318,7 @@ rewrite /transBeePL_globdef_globdef in EQ. case: gd EQ=> //=.
   case ht: (transBeePL_type t (initial_generator tt))=> [er2 | ct g4 i4] //=.
   move=> [] heq; subst. by apply match_fundef_external with (initial_generator tt) g3 i3 
   (initial_generator tt) g4 i4 (initial_generator tt) g1 i1; auto. 
-move=> gv h. monadInv h. apply match_gvar. case: gv EQ=> //= gi i r v.
+.move=> gv h. monadInv h. apply match_gvar. case: gv EQ=> //= gi i r v.
 case: x1=> //= gi' i' r' v'. rewrite /transBeePLglobvar_globvar /=. move=> h.
 move: h. case ht: (transBeePL_type gi (initial_generator tt))=> [er | r1 g1 i1] //=.
 move=> [] h1 h2 h3 h4; subst. apply match_globvar_intro with (initial_generator tt) g1 i1; auto.
@@ -339,12 +339,28 @@ mk_match_env {
 
 End specifications.
 
+Lemma resolve_extend_other :
+  forall venv x cx id,
+    id <> x ->
+    resolve (extend venv x cx) id = resolve venv id.
+Proof.
+move=> venv x cx id hneq. rewrite /resolve /extend.
+by rewrite PTree.gso.
+Qed.
+
+Lemma resolve_extend_self :
+  forall venv x cx,
+    resolve (extend venv x cx) x = cx.
+Proof.
+move=> venv x cx. rewrite /extend /resolve. by rewrite PTree.gss.
+Qed.
+
 Lemma extend_cvm_lookup_success
-  (cvm  : PTree.t (bool * type))
+  (cvm  : env)
   (venv : renv)
   (id x : ident) cx
-  (b    : bool)
-  (ct   : type) :
+  (b    : Values.block)
+  (ct   : Ctypes.type) :
   id <> x ->
   cvm ! (resolve venv id) = Some (b, ct) ->
   cvm ! (resolve (extend venv x cx) id) = Some (b, ct).
@@ -354,11 +370,11 @@ by have -> := PTree.gso cx venv hx.
 Qed.
 
 Lemma extend_cvm_lookup_nosuccess
-  (cvm  : PTree.t (bool * type))
+  (cvm  : env)
   (venv : renv)
   (id x : ident) cx
-  (b    : bool)
-  (ct   : type) :
+  (b    : Values.block)
+  (ct   : Ctypes.type) :
   id <> x ->
   cvm ! (resolve venv id) = None ->
   cvm ! (resolve (extend venv x cx) id) = None.
@@ -389,7 +405,6 @@ induction l as [| y ys IH]; intros x Hdec Hin; simpl in *.
     * eapply IH; eauto.
 Qed.
 
-(* You will fill in this proof from the definition of [fresh_ident]. *)
 Lemma fresh_ident_in_dec_false :
   forall used n id s g g' i',
     fresh_ident used n g = Res (id, s) g' i' ->
@@ -447,14 +462,69 @@ Proof.
       exact hf.
 Qed.
 
-(* Need to add condition that cx is the fresh variable *)
-Lemma extend_match_env : forall x cx venv vm cvm,
-match_env venv vm cvm ->
-match_env (extend venv x cx) vm cvm.
+Lemma cvm_extend_get : forall (cvm  : env) venv x cx l t,
+cvm ! (resolve (extend venv x cx) x) = Some (l, t) ->
+cvm ! cx = Some (l, t).
 Proof.
-move=> x cx venv vm cvm [] hl hg. constructor.
-+ move=> id b t ct hvm ht; subst.
-Admitted.
+move=> cvm venv x cx l t. rewrite /resolve /= /extend.
+by rewrite PTree.gss.
+Qed.
+
+Definition fresh_for_env (cx : ident) (venv : renv) : Prop :=
+  forall x cy, venv ! x = Some cy -> cx <> cy.
+
+Lemma fresh_ident_fresh_for_env :
+  forall vars max_fresh g1 cx tag g2 i2 venv,
+    fresh_ident vars max_fresh g1 = Res (cx, tag) g2 i2 ->
+    (forall x cy, venv ! x = Some cy -> In cy vars) ->
+    fresh_for_env cx venv.
+Proof.
+move=> vars max_fresh g1 cx tag g2 i2 venv hf hin.
+have hf' := fresh_ident_in_dec_false vars max_fresh cx tag g1 g2 i2 hf.
+rewrite /fresh_for_env /=. move=> x cy hin'. move: (hin x cy hin')=> hin''.
+elim: vars hf hin hf' hin''=> //=.
+move=> id ids hfin hf hf'. case: ifP=> //= hneq hin1 hin2.
+case: hin2=> //= h1; subst.
++ by case : (Pos.eq_dec cx cy) hneq=> //=.
+have hneq' := in_dec_false_not_in cx ids hin1. 
+move=> Heq; subst cy. by apply hneq'.
+Qed.
+
+Lemma extend_match_env_let :
+  forall x cx venv vm cvm l tx ct,
+    match_env venv vm cvm ->
+    vm!x = Some (l, tx) ->
+    transBeePL_type tx = ct ->
+    cvm!cx = Some (l, ct) ->
+    fresh_for_env cx venv ->
+    match_env (extend venv x cx) vm cvm.
+Proof.
+  intros x cx venv vm cvm l tx ct Hme Hvmx Htrans Hcvmcx Hfresh. 
+  destruct Hme as [Hloc Hglob].
+  constructor.
+  - (* local_match for the extended env *)
+    intros id b t ct' Hvm Htrans'.
+    destruct (Pos.eq_dec id x) as [Heq | Hneq].
+    + (* Case id = x: use the special info we have about x *)
+      subst id.
+      (* Compare vm!x from Hvmx and Hvm *)
+      rewrite Hvmx in Hvm. inversion Hvm; subst b t.
+      (* ct' is determined by transBeePL_type tx and Htrans' *)
+      assert (ct' = ct).
+      { rewrite <- Htrans, <- Htrans'. reflexivity. }
+      subst ct'.
+      rewrite resolve_extend_self /=. by rewrite Htrans.
+    + (* Case id <> x: resolve behaves like the old venv *)
+      rewrite resolve_extend_other.
+      by eapply Hloc; eauto. by apply Hneq.
+  - (* global_match for the extended env *)
+    intros id Hvm_none.
+    destruct (Pos.eq_dec id x) as [Heq | Hneq].
+    + (* id = x: contradiction with vm!x = Some _ *)
+      subst id. rewrite Hvmx in Hvm_none. discriminate.
+    + (* id <> x: resolve unchanged, reuse old global_match *)
+      rewrite resolve_extend_other. by apply Hglob; auto. by apply Hneq.
+Qed.
 
 (* Preservation of composite env *) 
 (* Medium *)
@@ -1505,7 +1575,7 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
   have := sem_equiv_cast venv v e (transBeePL_type t2) m' v' fctx bctx g (hd default_expr (exprlist_list_expr ces)) fctx' bctx' g2 i2 v'' hc hce hv.
   by rewrite htce.
 (* bind *)
-+ move=> bge' p vm m x e1 m' m'' m''' v e2 l v' tx he1 hin1 hx hxt hvo ha he2 hin2 cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' hp hte hm.
++ move=> bge' p vm m x e1 m' m'' m''' v e2 l v' tx he1 hin1 hx hxt hvo hca ha he2 hin2 cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' hp hte hm.
   have [htr1 htr2] := trans_expr_expr_ind.
   move: (htr1 (Bind x tx e1 e2 (typeof_expr e2)) venv fctx bctx ce fctx' bctx' g g' i' hte). case: ifP=> //= hxeq.
   (* !x = _ *)
@@ -1513,7 +1583,7 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
     rewrite /=. move: (hin1 cp cge fctx bctx ce1 cvm venv fctx1 bctx1 g g1 i1 hp hce1 hm)=> [] tr1 hc1.
     have := assign_addr_translated bge' cge tx m' l Ptrofs.zero Full v m'' (transBeePL_type tx) 
             (trans_bvalue_cvalue v) v (trans_bvalue_cvalue v) ha erefl erefl erefl. 
-    rewrite hvo /=. move=> hca.
+    rewrite hvo /=. move=> hca'. 
     have hm' : match_env (extend venv x cx) vm cvm. + admit.
     move: (hin2 cp cge ((cx, tx, tag) :: fctx1) bctx1 ce2 cvm (extend venv x cx) fctx' bctx' g2 g3 i3 hp hce2 hm').
     move=> [] tr3 hc2. inversion hc1; subst; inversion hc2; subst. exists ((Events.E0 ++ tr1 ++ Events.E0) ++ tr3).
@@ -1527,15 +1597,18 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
         + by apply H.
         + apply esl_var_local. 
           have hcm := equiv_local_benv_cenv (extend venv x cx) vm cvm x l tx (transBeePL_type tx) hm' erefl hxt.
-          admit.
+          by have := cvm_extend_get cvm venv x cx l (transBeePL_type tx) hcm.
         + by apply H0.
-        admit.
-        + by apply hca.
-        + admit.
-        + by apply esr_val.
-        + by apply H1.
-        + admit.
-       by apply H2.
+        + have ht1 := compilation_preserve_type e1 venv fctx bctx ce1 fctx1 bctx1 g g1 i1 hce1.
+          have -> := convert_rval_type_eq ce1. by rewrite -ht1 /=. 
+        by apply hca'.
+      + by auto.
+      + by apply esr_val.
+      + by apply H1.
+      + have htce2 := compilation_preserve_type e2 (extend venv x cx) ((cx, tx, tag) :: fctx1) 
+                      bctx1 ce2 fctx' bctx' g2 g3 i3 hce2.
+        by have -> := convert_rval_type_eq ce2.
+      by apply H2.
   (* x = _ *) (* bind as seq *) (* done *)
   move=> p vm m x e1 m' m'' v e2 v' tx he1 hin1 hx he2 hin2 cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' hp hte hm.
   have [htr1 htr2] := trans_expr_expr_ind.
