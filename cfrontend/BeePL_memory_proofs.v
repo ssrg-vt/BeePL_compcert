@@ -157,27 +157,23 @@ Qed.
 (* I don't think you can say that,
   At least because the only condition is that it was allocated before.
  It can still be valid after free'ing which would make dereferencing impossible*)
-Print deref_addr.
+Print deref_addr. Locate deref_addr.
 Lemma deref_valid_block: forall t m b ofs addr v,
   deref_addr t m b ofs addr v ->
   Mem.valid_block m b.
 Proof.
-  (*
   intros. inv H.
-  -  Search Mem.valid_block. Search access_mode_type.
-     simpl in H2. Search Mem.load. apply Mem.load_valid_access in H2.
-     apply valid_access_valid_block2 in H2. apply H2.
-  - Search Events.volatile_load. inv H2.
-    + admit.
-    + apply Mem.load_valid_access in H4. apply valid_access_valid_block2 in H4.
-      apply H4.
-  - admit. (* Will need to add an assumption for this point *)
-  - admit. (* Will need to add an assumption for this point *)
-  - admit.*)
+  - simpl in H2. apply Mem.load_valid_access in H2.
+     apply valid_access_valid_block2 in H2. apply H2. Print deref_addr.
+  - admit. (* Will need to add an assumption for this point w/i deref_addr *)
+  - admit. (* Will need to add an assumption for this point w/i deref_addr*)
+  - inv H1. simpl in *. apply Mem.load_valid_access in H6.
+    apply valid_access_valid_block2 in H6. apply H6.
 Admitted.
 
 (* I can always add that it's always non-volatile *)
 (* Complete me : Easy *)
+Print type_is_volatile.
 Definition store_well_typed_mem_alloc : forall cenv Gamma Sigma bge vm ty m lo hi m' b Sigma',
 store_well_typed cenv Gamma Sigma bge vm m ->
 balloc bge Sigma m ty lo hi = (m', b, Sigma') ->
@@ -203,11 +199,6 @@ Proof.
            ++  eapply Mem.load_alloc_other with (chunk:= (transl_bchunk_cchunk chunk)) (b' :=l')  (v:=v0) in Halloc.
            rewrite <- H2 in Halloc. rewrite <- Halloc in H2. apply H2.
            simpl in *. auto.
-        --
-(*
-          apply deref_loc_volatile with chunk tr v0; auto.
-          ++ apply extract_sigma in Hballoc. subst. Print primitive_type.
-             Print basic_type. admit.
         -- eapply deref_addr_reference; eauto.
         -- eapply deref_addr_copy; eauto.
     + constructor 2.
@@ -222,29 +213,34 @@ Proof.
            eapply Mem.load_alloc_other with (chunk:= (transl_bchunk_cchunk chunk)) (b' :=l') (v:=v0) in Halloc.
            rewrite <- H2 in Halloc. rewrite <- Halloc in H2. apply H2.
            simpl in H2. auto.
-        -- eapply deref_loc_volatile; eauto.
-           ++ admit.
         -- eapply deref_addr_reference; eauto.
         -- eapply deref_addr_copy; eauto.
   - inv Hloc. destruct H as [H1 H2].
     constructor. split.
     + intros x ofs t Hsigma.
       destruct (H1 x ofs t) as [chunk [Hvalid Hchunk]]; auto.
-      -- admit.
+      -- destruct (chunk_of_type (get_data_type t)) eqn:Eqtyp.
+         specialize H2 with b0 x ofs t. apply H2. split; auto.
+         apply extract_sigma in Hballoc. subst. admit.
+      -- destruct (Pos.eq_dec x b) as [Heq | Hneq]; subst. admit.
+         eapply PTree.gso in Hneq. symmetry. apply extract_sigma in Hballoc. rewrite Hballoc in Hsigma.
+         rewrite <- Hsigma. apply Hneq.
       -- exists chunk. split; [|exact Hchunk].
       eapply Mem.valid_access_alloc_other; eauto.
-     intros. destruct H. admit.
+     intros. destruct H. apply extract_sigma in Hballoc. subst.
+     admit.
   - inv Hfun.
     constructor.
     intros l o ef te ts efs rt vs efs' Hte Heq_type Htes.
     destruct (H l o ef te ts efs rt vs efs') as [fd [Hfind [Hnorepet [Hlen [Hargs Hrt]]]]]; auto.
+    apply extract_sigma in Hballoc. subst. Search type_expr. Print type_expr.
     admit. admit.
     exists fd.
     split; [exact Hfind|].
     split; [exact Hnorepet|].
     split; [exact Hlen|].
     split; [exact Hargs|].
-    exact Hrt.*)
+    exact Hrt.
 Admitted.
 
  
@@ -319,6 +315,10 @@ Definition get_chunk (t : type) : option bmemory_chunk :=
                end
   | _ => chunk_of_type t
   end.
+Print get_chunk.
+Search memory_chunk.
+
+Search Values.Vundef.
 
 Lemma load_not_error :
   forall v e c m x ofs,
@@ -328,9 +328,9 @@ Lemma load_not_error :
 Proof.
   intros.
 induction v; try inv H.
-- admit.
-- apply Mem.load_type in H0. simpl in H0. destruct c; simpl in H0; try inv H0.
-  admit.
+  - admit.
+  - apply Mem.load_type in H0. simpl in H0. destruct c; simpl in H0; try inv H0.
+  - apply Mem.load_type in H0. simpl in H0. destruct c; simpl in H0; try inv H0.
 Admitted.
 
 Lemma store_well_typed_preserve : forall cenv Gamma Sigma bge vm m chunk b v t m',
@@ -376,7 +376,7 @@ Proof.
         eapply Mem.load_type. apply H2.
         assert (Hval: (Values.Val.load_result (transl_bchunk_cchunk chunk) v) = v).
         apply Values.Val.load_result_same in Hht.
-        simpl in *. 
+        simpl in *.  rewrite <- Hht. f_equal. 
 Admitted.
 
 Lemma safe_deref_valid_pointers : forall Sigma m x ofs pt chunk, 
@@ -408,38 +408,32 @@ Admitted.
   By_value (transl_bchunk_cchunk chunk)
 *)
 (* I think we can prove this and make the well formedness definition simpler *)
+Print type_is_volatile.  
 Lemma safe_deref_valid_pointers_gc : forall Sigma m x ofs pt chunk,
 PTree.get x Sigma = Some (Ptrtype pt) ->
 get_chunk (get_data_type pt) = Some chunk ->
+type_is_volatile (transBeePL_type (get_data_type pt)) = false ->
 Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
 exists (v : value), deref_addr (get_data_type pt) m x ofs Full v.
 Proof.
 intros.
-apply Mem.valid_access_freeable_any with (p:= Readable) in H1.
-have [v hload] := Mem.valid_access_load m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) H1.
+apply Mem.valid_access_freeable_any with (p:= Readable) in H2.
+have [v hload] := Mem.valid_access_load m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) H2.
 destruct (trans_cvalue_bvalue (v : Values.val)) eqn:resbv.
-exists v0. Search deref_loc. Print deref_loc. Locate deref_loc.
-Print type_is_volatile.
-apply deref_addr_value with chunk v; auto.
-- induction (get_data_type pt) eqn:Eqpt; simpl in *; try congruence.
+exists v0. 
+apply deref_addr_value with chunk v; auto. Locate access_mode_type.
+- induction (get_data_type pt) eqn:Eqpt; simpl in *; try congruence.  
     + unfold access_mode_prim. 
       induction p eqn:Eqp. simpl in *; try congruence; try (injection H0; intros).
       subst.  auto.
     + destruct i; destruct s; injection H0; intros; subst; auto.
       injection H0; intros; subst; auto. 
-unfold Mptr. Transparent Archi.ptr64. unfold Archi.ptr64.
+injection H0. intros. unfold Mptr. Transparent Archi.ptr64. unfold Archi.ptr64.
 injection H0. intros. subst. auto. 
-admit.
-destruct (type_is_volatile (transBeePL_type (get_data_type pt))) eqn:Eqdt; auto.
-unfold type_is_volatile in Eqdt. 
-apply Mem.load_valid_access in hload. admit.
-eapply load_not_error in resbv. inv resbv. apply hload.
-Admitted.
+eapply load_not_error in resbv. inv resbv. apply hload. 
+Qed.
 
-
-
-
-(* I think we can prove this and make the well formedness definition simpler *)
+Print deref_addr.
 (* I think we can prove this and make the well formedness definition simpler *)
 Lemma safe_assgn_valid_pointers_gc : forall cenv Gamma Sigma bge vm m x ofs pt v chunk,
 store_well_typed cenv Gamma Sigma bge vm m ->

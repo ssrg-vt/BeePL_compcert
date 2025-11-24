@@ -811,6 +811,43 @@ move=> [].
           by move=> hs hsz /andP  [] /andP [] hh1 //=.
         by move=> hsz /andP [] /andP [] hh //=.
       by move=> s1 a3 z1 a4 a5 /andP [] /andP [] hh //=.
+      + move=> s a3 p z1 a4 a5 /andP [] /andP [] hh //=.
+        + destruct p eqn:Eqp.
+          + move => /andP [] /andP [] hh1 //=.
+          + move => /andP [] /andP [] hh1 //=.
+          + case: ifP=> //=.
+          + case: ifP=> //=.
+            intros. apply andb_prop in b. destruct b.
+            destruct (attr_eq a1 a4) eqn:Heqa1; try discriminate; auto.
+            destruct (attr_eq a2 a5) eqn:Heqa2; try discriminate; auto.
+            inv i.
+            destruct (attr_eq a3 a) eqn:Heqa3; try discriminate; auto.
+            apply Z.eqb_eq in H.
+            destruct (Ctyping.signedness_eq s s0) eqn:Heqs; try discriminate; auto.
+            subst. auto.
++ move=> [] //=.
+  + move=> h [] //=.
+    + move=> p a [] //= p0. case: p0=> //=.
+       move=> h' [] //=. 
+      +
+(*
+        move=> [] //=.
+        + case: p=> //=.
+          case: h'=> //=. intros i b. case:b=> //=. intro. case:p=> //=.
+          move=> sz s a1 a2 /andP [] /andP [] hh1 //=.
+          move=> s a1 a2 /andP [] /andP [] hh1 //=.
+          move=> i0 a1 a2 /andP [] /andP [] hh1 //=.
+          move=> p z a0 a1 /andP [] /andP [] hh1 //=.
+          move=> sz s a0.
+          case: h'=> //=. intros i b. case:b=> //=. intro. case:p=> //=.
+          move=> a1 /andP [] /andP [] hh1 //=.
+          move=> sz1 s0 a1 a2 /andP [] /andP [] hh1 //=.
+          case: ifP=> //=. destruct (proj_sumbool (Ctyping.signedness_eq s s0)); try discriminate.
+          destruct (proj_sumbool (attr_eq a0 a1)); try discriminate. intros.
+          destruct (attr_eq a a2) eqn:Heqa1; try discriminate; auto.
+          destruct (Ctyping.intsize_eq sz sz1) eqn:Heqsz; try discriminate; auto.
+          apply Pos.eqb_eq in hh1.  subst. auto.          
+*)        
 Admitted.
 
 

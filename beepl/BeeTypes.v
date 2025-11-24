@@ -713,7 +713,7 @@ Definition access_mode_type (t : type) : mode :=
   match t with
   | Utype => By_nothing
   | Vtype pt => access_mode_prim pt
-  | Ptrtype _ => By_reference
+  | Ptrtype _ => By_value Mptr
   | Stype _ _ => By_reference
   | Atype t z a => By_reference
   | Ftype _ _ _ => By_reference
