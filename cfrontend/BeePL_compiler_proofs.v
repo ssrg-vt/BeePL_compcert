@@ -13,6 +13,12 @@ Section specifications.
 Definition fresh_for_env (cx : ident) (venv : renv) : Prop :=
   forall x cy, venv ! x = Some cy -> cx <> cy.
 
+Definition fctx_subset
+           (fctx_small fctx_big : list (ident * type * string)) : Prop :=
+  forall id ty tag,
+    In (id, ty, tag) fctx_small ->
+    In (id, ty, tag) fctx_big.
+
 (* Relation between BeePL vmap and Csyntax local env *)
 Record match_env (venv : renv) (vm : BeePL.vmap) (cvm : env) : Prop := {
   mlocal :
@@ -32,6 +38,11 @@ Definition venv_injective (venv : renv) : Prop :=
     venv!x = Some cx ->
     venv!y = Some cx ->
     x = y.
+
+Definition ctx_env_ok (cvm : env) (fctx : list (ident * type * string)) : Prop :=
+  forall id ty tag,
+    In (id, ty, tag) fctx ->
+    exists b, cvm ! id = Some (b, transBeePL_type ty).
 
 (* ---------------------------------------------------------------------- *)
 (* Well-formed env: adds fctx + injectivity guarantees                    *)
@@ -57,10 +68,7 @@ Definition wf_env
       vm ! x = Some (b, tx) ->
       exists tag,
         In (resolve venv x, tx, tag) fctx
-        /\ cvm ! (resolve venv x) = Some (b, transBeePL_type tx))
-  /\
-  (* 3. venv doesn’t map two BeePL vars to the same C id *)
-  venv_injective venv.
+        /\ cvm ! (resolve venv x) = Some (b, transBeePL_type tx)).
 
 (* Specification for expressions translations *) 
 (* Complete me *)
@@ -404,11 +412,10 @@ Lemma extend_wf_env :
     wf_env venv vm cvm fctx ->
     vm ! x = Some (b, tx) ->
     cvm ! cx = Some (b, transBeePL_type tx) ->
-    fresh_for_env cx venv ->
     wf_env (extend venv x cx) vm cvm ((cx, tx, tag) :: fctx).
 Proof.
-move=> venv vm cvm fctx x cx tag b tx Hwf Hvm Hcvm Hfresh.
-case: Hwf => [Hme [Hdecls Hinj]] //=.
+move=> venv vm cvm fctx x cx tag b tx Hwf Hvm Hcvm.
+case: Hwf => [Hme Hdecls] //=.
 case: Hme => [Hloc Hglob]. rewrite /wf_env.
 (* We must prove: match_env venv', decls in fctx', and injectivity of venv' *)
 split=> //=.
@@ -433,59 +440,64 @@ split=> //=.
         rewrite /resolve PTree.gso. 
         by apply Hglob; assumption. 
       by apply Hneq.
-  + (* second and third components of wf_env *)
-    split=> //=.
-    + (* declared locals part *)
-      move=> y b' ty Hvy.
-      case: (Pos.eq_dec y x)=> [Heq | Hneq].
-      + (* y = x: we use the NEW binding (cx,tx,tag) in (cx,tx,tag)::fctx *)
-        subst y.
-        inversion Hvy; subst.
-        exists tag.
-        split.
-        + simpl. left. rewrite /resolve /= /extend /= PTree.gss. 
-          rewrite Hvm in Hvy. by case: Hvy=> h1 h2 ; subst.
-        rewrite /resolve PTree.gss. rewrite Hvm in Hvy. by case: Hvy=> h1 h2 ; subst.
-    + (* y <> x: reuse old wf_env info *)
-      move: (Hdecls y b' ty Hvy)=> [tag0 [Hin0 Hcvm0]].
-      exists tag0.
+  + (* declared locals part *)
+    move=> y b' ty Hvy.
+    case: (Pos.eq_dec y x)=> [Heq | Hneq].
+    + (* y = x: we use the NEW binding (cx,tx,tag) in (cx,tx,tag)::fctx *)
+      subst y.
+      inversion Hvy; subst.
+      exists tag.
       split.
-      + (* membership in new fctx *)
-         simpl. right.
-         (* resolve venv' y = resolve venv y because y<>x *)
-         rewrite /resolve. rewrite /resolve in Hcvm0.
-         rewrite PTree.gso /=.
-         by exact Hin0. 
-      by apply Hneq.
-      (* same cvm binding, with resolve venv' y = resolve venv y *)
-      rewrite /resolve PTree.gso. 
-      by exact Hcvm0. 
+      + simpl. left. rewrite /resolve /= /extend /= PTree.gss. 
+        rewrite Hvm in Hvy. by case: Hvy=> h1 h2 ; subst.
+        rewrite /resolve PTree.gss. rewrite Hvm in Hvy. by case: Hvy=> h1 h2 ; subst.
+    (* y <> x: reuse old wf_env info *)
+    move: (Hdecls y b' ty Hvy)=> [tag0 [Hin0 Hcvm0]].
+    exists tag0.
+    split.
+    + (* membership in new fctx *)
+      simpl. right.
+      (* resolve venv' y = resolve venv y because y<>x *)
+      rewrite /resolve. rewrite /resolve in Hcvm0.
+      rewrite PTree.gso /=.
+      by exact Hin0. 
     by apply Hneq.
-(* injectivity of venv' := extend venv x cx *)
-unfold venv_injective in *. move=> y1 y2 c Hy1 Hy2.
-(* venv' = extend venv x cx *)
-unfold extend in *.
-(* analyze whether y1,y2 are x or not *)
-case: (Pos.eq_dec y1 x)=> [Hy1x | Hy1x];
-case: (Pos.eq_dec y2 x)=> [Hy2x | Hy2x]; subst.
-+ (* y1 = x, y2 = x: trivial *)
-  by auto.
-+(* y1 = x, y2 <> x *)
- simpl in Hy1. rewrite PTree.gss in Hy1.
- simpl in Hy2. rewrite PTree.gso in Hy2; subst. case: Hy1=> h1; subst. 
- move: (Hfresh y2 c Hy2). contradiction. by apply Hy2x.
-+ (* y1 <> x, y2 = x *)
-  simpl in Hy2. rewrite PTree.gss in Hy2.
-  simpl in Hy1. rewrite PTree.gso in Hy1. 
-  + case: Hy2=> h1; subst. by move: (Hfresh y1 c Hy1). 
-  by apply Hy1x.
-(* y1 <> x, y2 <> x: both lookups come from old venv *)
-simpl in Hy1, Hy2.
-rewrite PTree.gso in Hy1.
-+ rewrite PTree.gso in Hy2. 
-  by eapply Hinj; eauto. 
-+ by apply Hy2x. 
-by apply Hy1x.
+    (* same cvm binding, with resolve venv' y = resolve venv y *)
+  rewrite /resolve PTree.gso. 
+  by exact Hcvm0. 
+by apply Hneq.
+Qed.
+
+Lemma ctx_env_ok_mono :
+  forall cvm fctx_small fctx_big,
+    ctx_env_ok cvm fctx_big ->
+    fctx_subset fctx_small fctx_big ->
+    ctx_env_ok cvm fctx_small.
+Proof.
+move=> cvm fsmall fbig Hok Hsub.
+move=> id ty tag Hin_small.
+have Hin_big : In (id, ty, tag) fbig.
+  by apply: Hsub.
+rewrite /ctx_env_ok in Hok. by move: (Hok id ty tag Hin_big).
+Qed.
+
+Lemma fctx_subset_refl : forall fctx,
+fctx_subset fctx fctx.
+Proof.
+rewrite /fctx_subset. by move=> fctx.
+Qed.
+
+Lemma fctx_subset_cons :
+  forall x fctx fF,
+    fctx_subset fctx fF ->
+    In x fF ->
+    fctx_subset (x :: fctx) fF.
+Proof.
+move=> x fctx fF Hsub HinF id ty tag.
+simpl.
+move=> [Heq | Hin]; subst.
+- exact: HinF.
+- apply: Hsub; exact Hin.
 Qed.
 
 (* Preservation of composite env *) 
@@ -1288,6 +1300,20 @@ move=> bvm cvm.
 apply: exprs_ind_pair; subst; split=> //=. 
 Admitted.
 
+Lemma trans_expr_preserves_fnctx_subset : 
+(forall e venv fctx bctx ce fctx' bctx' g g' i',
+    transBeePL_expr_expr e venv fctx bctx g = Res (ce, fctx', bctx') g' i' ->
+    forall fF,
+      fctx_subset fctx fF ->
+      fctx_subset fctx' fF) /\
+(forall es venv fctx bctx ce fctx' bctx' g g' i',
+   transBeePL_expr_exprs transBeePL_expr_expr es venv fctx bctx g = Res (ce, fctx', bctx') g' i' ->
+   forall fF,
+      fctx_subset fctx fF ->
+      fctx_subset fctx' fF).
+Proof.
+apply: exprs_ind_pair; subst; split=> //=. 
+Admitted.
 
 (***** Comparing BeePL big-step semantics with Csyntax big-step semantics *****)
 (* BeePL’s big-step semantics is always about values, but Csyntax’s big-step semantics 
@@ -1304,12 +1330,14 @@ Admitted.
    which aligns the C semantics with BeePL’s rvalue semantics.*)
 (* Expression correctness assumes a well-formed env;
    function correctness proves the env is well-formed. *)
-Lemma bsem_csem_expr_equiv : forall bge cp,
+Lemma bsem_csem_expr_equiv : forall bge cp fctxf,
 (forall bp bvm m es m' bvm' bv cge venv fctx bctx ce cvm fctx' bctx' g g' i',
 bsem_exprs bge bp bvm m es m' bvm' bv ->
 BeePL_compcert bp = OK cp ->
 transBeePL_expr_exprs transBeePL_expr_expr es venv fctx bctx g = Res (ce, fctx', bctx') g' i' ->
 wf_env venv bvm cvm fctx ->
+fctx_subset fctx fctxf /\
+ctx_env_ok cvm fctxf ->
 exists tr, eval_exprlist cge cvm m (convert_to_rvals ce) tr m' (get_exprlist bv (map typeof_expr es))) /\
 (forall bp bvm m e m' bvm' bv cge venv fctx bctx ce cvm fctx' bctx' g g' i',
 bsem_expr bge bp bvm m e m' bvm' bv ->
@@ -1317,22 +1345,28 @@ BeePL_compcert bp = OK cp ->
 transBeePL_expr_expr e venv fctx bctx g = Res (ce, fctx', bctx') g' i' ->
 match_env venv bvm cvm ->
 wf_env venv bvm cvm fctx ->
+fctx_subset fctx fctxf /\
+ctx_env_ok cvm fctxf ->
 exists tr, eval_expression cge cvm m (convert_to_rval ce) tr m' (trans_bvalue_cvalue bv)).
 Proof.
 move=> bge.
 suff: (forall bp bvm m es m' bvm' bv,
        bsem_exprs bge bp bvm m es m' bvm' bv ->
-       forall cp cge fctx bctx ce cvm venv fctx' bctx' g g' i',
+       forall cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' fctxf,
          BeePL_compcert bp = OK cp ->
          transBeePL_expr_exprs transBeePL_expr_expr es venv fctx bctx g = Res (ce, fctx', bctx') g' i' ->
          wf_env venv bvm cvm fctx ->
+         fctx_subset fctx fctxf ->
+         ctx_env_ok cvm fctxf ->
          exists tr, eval_exprlist cge cvm m (convert_to_rvals ce) tr m' (get_exprlist bv (map typeof_expr es))) /\
       (forall bp bvm m e m' bvm' bv ,
         bsem_expr bge bp bvm m e m' bvm' bv ->
-        forall cp cge fctx bctx ce cvm venv fctx' bctx' g g' i',
+        forall cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' fctxf,
           BeePL_compcert bp = OK cp ->
           transBeePL_expr_expr e venv fctx bctx g = Res (ce, fctx', bctx') g' i' ->
           wf_env venv bvm cvm fctx ->
+          fctx_subset fctx fctxf ->
+          ctx_env_ok cvm fctxf ->
           exists tr, eval_expression cge cvm m (convert_to_rval ce) tr m' (trans_bvalue_cvalue bv)).
 + move=> [] hwt1 hwt2. split=> //=.
   + admit.
@@ -1341,14 +1375,14 @@ suff: (forall bp bvm m es m' bvm' bv,
 Local Opaque transBeePL_expr_expr transBeePL_type trans_bvalue_cvalue ret.
 apply bsem_exprs_bsem_expr_ind_mut=> //=.
 (* val *) (* done *)
-+ move=> p' vm' m'' v t hw cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' hp H hwf.
++ move=> p' vm' m'' v t hw cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' ff hp H hwf hsf hcvm.
   have [htr1 htr2] := trans_expr_expr_ind.
   move: (htr1 (Val v t) venv fctx bctx ce fctx' bctx' g g' i' H)=> [] h1 [] h2 h3; subst.
   exists Events.E0. apply eval_expression_intro with (Eval (trans_bvalue_cvalue v) (transBeePL_type t)).
   + by apply eval_val.
   by apply esr_val.
 (* lvar *) (* done *)
-+ move=> p' vm' m'' x t l v hvm hd cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' hp H hwf.
++ move=> p' vm' m'' x t l v hvm hd cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' ff hp H hwf hsf hcvm.
   have [htr1 htr2] := trans_expr_expr_ind.
   move: (htr1 (Var x t) venv fctx bctx ce fctx' bctx' g g' i' H)=> [] h1 [] h2 h3; subst.
   case hvt : (type_is_volatile (transBeePL_type t))=> //=.
@@ -1384,7 +1418,7 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
   case hc: (chunk_for_volatile_type (transBeePL_type t) Full)=> [c | ] //=.
   move=> [] tr [] _ hvo. by rewrite /chunk_for_volatile_type hvt /= in hc.
 (* gvar *) (* done *)
-+ move=> p' vm' m'' x t l v hvm hg hd cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' hp H hwf.
++ move=> p' vm' m'' x t l v hvm hg hd cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' ff hp H hwf hsf hcvm.
   have [htr1 htr2] := trans_expr_expr_ind.
   move: (htr1 (Var x t) venv fctx bctx ce fctx' bctx' g g' i' H)=> [] h1 [] h2 h3; subst.
   case hvt : (type_is_volatile (transBeePL_type t))=> //=.
@@ -1420,21 +1454,21 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
   case hc: (chunk_for_volatile_type (transBeePL_type t) Full)=> [c | ] //=.
   move=> [] tr [] _ hvo. by rewrite /chunk_for_volatile_type hvt /= in hc.
 (* const int *) (* done *)
-+ move=> p' vm m'' i t cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' hp H hm.
++ move=> p' vm m'' i t cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' ff hp H hwf hsf hcvm.
   have [htr1 htr2] := trans_expr_expr_ind.
   move: (htr1 (Const (ConsInt i) t) venv fctx bctx ce fctx' bctx' g g' i' H)=> [] h1 [] h2 h3; subst.
   exists Events.E0. rewrite /convert_to_rval /=. apply eval_expression_intro with (Eval (Values.Vint i) (transBeePL_type t)).
   + by apply eval_val.
   by apply esr_val.
 (* const long *) (* done *)
-+ move=> p' vm m'' i t cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' hp H hm.
++ move=> p' vm m'' i t cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' ff hp H hwf hsf hcvm.
   have [htr1 htr2] := trans_expr_expr_ind.
   move: (htr1 (Const (ConsLong i) t) venv fctx bctx ce fctx' bctx' g g' i' H)=> [] h1 [] h2 h3; subst.
   exists Events.E0. rewrite /convert_to_rval /=. apply eval_expression_intro with (Eval (Values.Vlong i) (transBeePL_type t)).
   + by apply eval_val.
   by apply esr_val.
 (* const unit *) (* done *)
-+ move=> p' vm m'' cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' hp H hm.
++ move=> p' vm m'' cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' ff hp H hwf hsf hcvm.
   have [htr1 htr2] := trans_expr_expr_ind.
   move: (htr1 (Const ConsUnit Utype) venv fctx bctx ce fctx' bctx' g g' i' H)=> [] h1 [] h2 h3; subst.
   exists Events.E0. rewrite /convert_to_rval /=. apply eval_expression_intro with (Eval (Values.Vint (Int.repr 0)) (transBeePL_type Utype)).
@@ -1453,11 +1487,12 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
 (* ref *)
 + admit.
 (* deref *) (* done *)
-+ move=> p vm m e m' l ofs v he hin hd cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' hp H hwf.
++ move=> p vm m e m' l ofs v he hin hd cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' ff hp H hwf hsf hcvm.
   have [htr1 htr2] := trans_expr_expr_ind.
   move: (htr1 (Prim Deref [:: e] (typeof_expr e)) venv fctx bctx ce fctx' bctx' g g' i' H)=> [] ces [] g1 [] i1 [] htes hceq; subst.
   have [ce [g2 [i2 [he' heq]]]] := trans_exprs_to_trans_expr e venv fctx bctx g ces fctx' bctx' g1 i1 htes. 
-  move: (hin cp cge fctx bctx ce cvm venv fctx' bctx' g g2 i2 hp he' hwf)=> [] tr hce. rewrite -heq.
+  have [hs1 hs2] := trans_expr_preserves_fnctx_subset. move: (hs1 e venv fctx bctx ce fctx' bctx' g g2 i2 he' ff)=> hsf'.
+  move: (hin cp cge fctx bctx ce cvm venv fctx' bctx' g g2 i2 ff hp he' hwf hsf hcvm)=> [] tr hce. rewrite -heq.
   rewrite /convert_to_rval /=. case hvt : (type_is_volatile (transBeePL_type (typeof_expr e)))=> //=.
   + inversion hce; subst. 
     have := deref_addr_translated cge (typeof_expr e) m' l ofs Full v (transBeePL_type (typeof_expr e)) (trans_bvalue_cvalue v) hd erefl erefl. 
@@ -1489,39 +1524,13 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
   case hc: (chunk_for_volatile_type (transBeePL_type (typeof_expr e)) Full)=> [c | ] //=.
   move=> [] tr' [] _ hvo. by rewrite /chunk_for_volatile_type hvt /= in hc.
 (* massgn *)
-+ move=> p vm m e1 m' l ofs bf e2 m'' v v' pt ct1 ct2 he1 hin1 he2 hin2 ht1 ht2 hpt hpvt hcast ha 
-         cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' hp hte hwf.
-  have [htr1 htr2] := trans_expr_expr_ind.
-  move: (htr1 (Prim Massgn [:: e1; e2] Utype) venv fctx bctx ce fctx' bctx' g g' i' hte)=> [] ces [] g1 [] i1 [] htes hce; subst.
-  rewrite /=. move: (htr2 [:: e1; e2] venv fctx bctx ces fctx' bctx' g g1 i1 htes)=> [] ce1 [] fctx1 [] bctx1 [] g2 [] i2 
-                    [] i3 [] ce2 [] fctx2 [] bctx2 [] hce1 [] hce2 [] h1 [] h2 h3; subst.
-  have [ce2' [g3 [i4 [hce2' /= heq']]]] := trans_exprs_to_trans_expr e2 venv fctx1 bctx1 g2 ce2 fctx2 bctx2 g1 i3 hce2; subst.
-  move: (hin1 cp cge fctx bctx ce1 cvm venv fctx1 bctx1 g g2 i2 hp hce1 hwf) => [] tr1 hice1.
-  have hwf' : wf_env venv vm cvm fctx1. admit.
-  move: (hin2 cp cge fctx1 bctx1 (hd default_expr (exprlist_list_expr ce2)) cvm venv fctx2 bctx2 g2 g3 i4 hp hce2' hwf') 
-       => [] tr2 hice2.
-  case hvt : (type_is_volatile (transBeePL_type (typeof_expr e1)))=> //=.
-  (*(* type is volatile *)
-  + have := assign_addr_translated bge cge (typeof_expr e1) m l ofs bf v' m' (transBeePL_type (typeof_expr e1)) (trans_bvalue_cvalue v')
-            v' (trans_bvalue_cvalue v') ha erefl erefl erefl.
-    case hc : (chunk_for_volatile_type (transBeePL_type (typeof_expr e1)) bf)=>[c | ] //=.
-    + move=> [] tr3 [] hbf hv; subst. inversion hice1; subst. inversion hice2; subst.
-      exists (tr1++tr2++tr3). apply eval_expression_intro with (Eval (trans_bvalue_cvalue v) (transBeePL_type Utype)).
-      + apply eval_assign with m' (Csyntax.Ederef a' (Csyntax.typeof ce1)) m'  a'0
-                                l ofs Full (trans_bvalue_cvalue v') (trans_bvalue_cvalue v').
-        + apply eval_deref. admit.
-        + admit.
-        + apply esl_deref. by apply H0. 
-        + admit.
-        + admit.*)
-   + admit. (* volatile case *)
-   admit. (* non-volatile case *)
++ admit.
 (* uop *) (* done *)
-+ move=> p vm m e v uop m' v' ct v'' hse hin he huop hv cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' hp hte hwf.
++ move=> p vm m e v uop m' v' ct v'' hse hin he huop hv cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' ff hp hte hwf hsf hcvm.
   have [htr1 htr2] := trans_expr_expr_ind.
   move: (htr1 (Prim (Uop uop) [:: e] (typeof_expr e)) venv fctx bctx ce fctx' bctx' g g' i' hte)=> [] ces [] g1 [] i1 [] htes h1; subst.
   have [ce [g2 [i2 [hce h]]]] := trans_exprs_to_trans_expr e venv fctx bctx g ces fctx' bctx' g1 i1 htes; subst.
-  move: (hin cp cge fctx bctx (hd default_expr (exprlist_list_expr ces)) cvm venv fctx' bctx' g g2 i2 hp hce hwf)=> [] tr he.
+  move: (hin cp cge fctx bctx (hd default_expr (exprlist_list_expr ces)) cvm venv fctx' bctx' g g2 i2 ff hp hce hwf hsf hcvm)=> [] tr he.
   inversion he; subst.
   exists tr. apply eval_expression_intro with 
              (Csyntax.Eunop uop a' (transBeePL_type (typeof_expr e))).
@@ -1534,40 +1543,14 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
                                   (hd default_expr (exprlist_list_expr ces)) fctx' bctx' g g2 i2 huop hce hv.
   by rewrite hteq.
 (* bop *)
-+ move=> p vm m e1 e2 v1 v2 bop s m' m'' zv he1 hin1 he2 hin2 hs hc hz cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' hp hte hwf.
-  have [htr1 htr2] := trans_expr_expr_ind.
-  move: (htr1 (Prim (Bop bop) [:: e1; e2] (typeof_expr e1)) venv fctx bctx ce fctx' bctx' g g' i' hte)=> [] ces [] g1 [] i1 [] htes h1; subst.
-  move: (htr2 [::e1; e2] venv fctx bctx ces fctx' bctx' g g1 i1 htes)=> [] ce1 [] fctx1 [] bctx1 [] g2 [] i2 [] i3 [] ce' [] f'' [] b'' [] hte1 [] hte2. 
-  have [ce2 [g3 [i4 [hte2' h]]]] := trans_exprs_to_trans_expr e2 venv fctx1 bctx1 g2 ce' f'' b'' g1 i3 hte2; subst. move=> [] h11 [] h2 h3; subst.
-  move: (hin1 cp cge fctx bctx ce1 cvm venv fctx1 bctx1 g g2 i2 hp hte1 hwf)=> [] tr1 hce1.
-  have hwf' : wf_env venv vm cvm fctx1. admit.
-  move: (hin2 cp cge fctx1 bctx1 (hd default_expr (exprlist_list_expr ce')) cvm venv f'' b'' g2 g3 i4 hp hte2' hwf')=> [] tr2 hce2.
-  inversion hce1; subst. inversion hce2; subst. 
-  move: h1. (*case: bop hc hte=> //=.
-  (* Odiv *)
-  + case: s hs=> //=.
-    (* signed div: overflow/zero *)
-    + move=> hs. case: ifP=> //= hzc _ hte. move=> [] zv' [] g4 [] i5 [] rs [] g5 [] i6 [] hr [] hcz heq; subst.
-      have hc := check_div_inv (Econs ce1 ce') zv' (transBeePL_type (typeof_expr e1)) g4 rs g5 i6 hcz.
-      case ht : (transBeePL_type (typeof_expr e1)) hc=> [ | sz s a | s a |  |  | |  |  | ] //=.
-      (* int *)
-      + case: sz ht=> //= ht. case: s ht=> //=.
-        (* signed *)
-        + move=> ht h /=; subst. rewrite ht /= in hcz. exists (tr1 ++ tr2).
-          apply eval_expression_intro with (Eval zv' (Ctypes.Tint I32 Signed a)).
-          + admit.
-          have <- := return_zero_beepl_c (typeof_expr e1) zv zv' g1 g4 i5 hz hr. by apply esr_val.
-        (* unsigned *)
-        move=> ht h; subst. exists (tr1 ++ tr2). admit.
-      (* long *)
-      + admit.
-    admit.*) admit. admit.
++ admit.
+  admit.
 (* cast *) (* done *)
-+ move=> p vm m e m' v t2 v' v'' he hin hc hv cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' hp hte hwf.
++ move=> p vm m e m' v t2 v' v'' he hin hc hv cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' ff hp hte hwf hsf hcvm.
   have [htr1 htr2] := trans_expr_expr_ind.
   move: (htr1 (Prim (Cast t2) [:: e] t2) venv fctx bctx ce fctx' bctx' g g' i' hte)=> [] ces [] g1 [] i1 [] htes heq; subst.
   have [ce [g2 [i2 [hce h]]]] := trans_exprs_to_trans_expr e venv fctx bctx g ces fctx' bctx' g1 i1 htes; subst.
-  move: (hin cp cge fctx bctx (hd default_expr (exprlist_list_expr ces)) cvm venv fctx' bctx' g g2 i2 hp hce hwf)=> [] tr hces.
+  move: (hin cp cge fctx bctx (hd default_expr (exprlist_list_expr ces)) cvm venv fctx' bctx' g g2 i2 ff hp hce hwf hsf hcvm)=> [] tr hces.
   inversion hces; subst.
   exists tr. apply eval_expression_intro with (Csyntax.Ecast a' (transBeePL_type t2)).
   + apply eval_cast. by apply H.
@@ -1580,12 +1563,12 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
   by rewrite htce.
 (* bind *)
 + move=> bge' p vm m x e1 m' m'' m''' v e2 l v' tx he1 hin1 hx hxt hvo hca ha he2 hin2 cp cge fctx bctx 
-         ce cvm venv fctx' bctx' g g' i' hp hte hwf.
+         ce cvm venv fctx' bctx' g g' i' ff hp hte hwf hsf hcvm.
   have [htr1 htr2] := trans_expr_expr_ind.
   move: (htr1 (Bind x tx e1 e2 (typeof_expr e2)) venv fctx bctx ce fctx' bctx' g g' i' hte). case: ifP=> //= hxeq.
   (* !x = _ *)
   + move=> [] ce1 [] fctx1 [] bctx1 [] g1 [] i1 [] ce2 [] cx [] tag [] g2 [] i2 [] g3 [] i3 [] hce1 [] hf [] hce2 heq /=; subst.
-    rewrite /=. move: (hin1 cp cge fctx bctx ce1 cvm venv fctx1 bctx1 g g1 i1 hp hce1 hwf)=> [] tr1 hc1.
+    rewrite /=. move: (hin1 cp cge fctx bctx ce1 cvm venv fctx1 bctx1 g g1 i1 ff hp hce1 hwf hsf hcvm)=> [] tr1 hc1.
     have := assign_addr_translated bge' cge tx m' l Ptrofs.zero Full v m'' (transBeePL_type tx) 
             (trans_bvalue_cvalue v) v (trans_bvalue_cvalue v) ha erefl erefl erefl. 
     rewrite hvo /=. move=> hca'. 
@@ -1593,8 +1576,18 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
     move: (h1 e2 (extend venv x cx) ((cx, tx, tag) :: fctx1) bctx1 ce2 fctx' bctx' g2 g3 i3 hce2)=> hin.
     have hinx : In cx (List.map unzip_ident ((cx, tx, tag) :: fctx1)). + rewrite /=. by left.
     move: (hin cx hinx)=> hcx. 
-    have hwf' : wf_env (extend venv x cx) vm cvm ((cx, tx, tag) :: fctx1). + admit.
-    move: (hin2 cp cge ((cx, tx, tag) :: fctx1) bctx1 ce2 cvm (extend venv x cx) fctx' bctx' g2 g3 i3 hp hce2 hwf').
+    have hinx' : In (cx, tx, tag)((cx, tx, tag) :: fctx1). + rewrite /=. by left.
+    have hwf' := trans_expr_preserves_wf_env. move: (hwf' vm cvm)=> [] hwf1 hwf2.
+    move: (hwf1 e1 venv fctx bctx ce1 fctx1 bctx1 g g1 i1 hwf hce1)=> hwf1'. case: hwf=> [] h11 h12.
+    move: (h12 x l tx hxt)=> [] tag' [] hx1 /= hx2.
+    have [hs1 hs2] := trans_expr_preserves_fnctx_subset. move: (hs1 e1 venv fctx bctx ce1 fctx1 bctx1 g g1 i1 hce1 ff hsf)=> hsf1.
+    have hisub : In (cx, tx, tag) ff. + admit.
+    have hsub := fctx_subset_cons (cx, tx, tag) fctx1 ff hsf1 hisub. 
+    have hcvm'' := ctx_env_ok_mono cvm ((cx, tx, tag) :: fctx1) ff hcvm hsub.
+    have hwf3 : wf_env (extend venv x cx) vm cvm ((cx, tx, tag) :: fctx1). 
+    + have := extend_wf_env venv vm cvm fctx1 x cx tag l tx hwf1' hxt.  admit.
+    move: (hs1 e2 (extend venv x cx) ((cx, tx, tag) :: fctx1) bctx1 ce2 fctx' bctx' g2 g3 i3 hce2 ff hsub)=> hsf''.
+    move: (hin2 cp cge ((cx, tx, tag) :: fctx1) bctx1 ce2 cvm (extend venv x cx) fctx' bctx' g2 g3 i3 ff hp hce2 hwf3 hsub hcvm).
     move=> [] tr3 hc2. inversion hc1; subst; inversion hc2; subst. exists ((Events.E0 ++ tr1 ++ Events.E0) ++ tr3).
     apply eval_expression_intro with a'0.
     + apply eval_comma with m'' 
@@ -1604,7 +1597,7 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
          (trans_bvalue_cvalue v) (trans_bvalue_cvalue v).
         + by apply eval_var.
         + by apply H.
-        + apply esl_var_local. case: hwf=> [] hm1 hm2. case: hwf'=> [] hm1' hm2'.
+        + apply esl_var_local. case: hwf1' => [] hm1 hm2. case: hwf3=> [] hm1' hm2'.
           have hcm := equiv_local_benv_cenv (extend venv x cx) vm cvm x l tx (transBeePL_type tx) hm1' erefl hxt.
           by have := cvm_extend_get cvm venv x cx l (transBeePL_type tx) hcm.
         + by apply H0.
@@ -1619,14 +1612,15 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
         by have -> := convert_rval_type_eq ce2.
       by apply H2. 
   (* x = _ *) (* bind as seq *) (* done *)
-  move=> p vm m x e1 m' m'' v e2 v' tx he1 hin1 hx he2 hin2 cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' hp hte hwf.
+  move=> p vm m x e1 m' m'' v e2 v' tx he1 hin1 hx he2 hin2 cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' ff hp hte hwf hsf hcvm.
   have [htr1 htr2] := trans_expr_expr_ind.
   move: (htr1 (Bind x tx e1 e2 (typeof_expr e2)) venv fctx bctx ce fctx' bctx' g g' i' hte). 
   rewrite /ident_of_string /= hx /=. move=> heq; subst. move: heq. move=> [] ce1 [] fctx1 [] bctx1 [] g1 [] i1 [] ce2 [] g2 [] i2 [] hce1 [] hce2.
-  move: (hin1 cp cge fctx bctx ce1 cvm venv fctx1 bctx1 g g1 i1 hp hce1 hwf)=> [] tr1 hce3; subst.
+  move: (hin1 cp cge fctx bctx ce1 cvm venv fctx1 bctx1 g g1 i1 ff hp hce1 hwf hsf hcvm)=> [] tr1 hce3; subst.
   have hwf' := trans_expr_preserves_wf_env. move: (hwf' vm cvm)=> [] hwf1 hwf2.
   move: (hwf1 e1 venv fctx bctx ce1 fctx1 bctx1 g g1 i1 hwf hce1)=> hwf1'.
-  move: (hin2 cp cge fctx1 bctx1 ce2 cvm venv fctx' bctx' g1 g2 i2 hp hce2 hwf1')=> [] tr2 hce4; subst.
+  have [hs1 hs2] := trans_expr_preserves_fnctx_subset. move: (hs1 e1 venv fctx bctx ce1 fctx1 bctx1 g g1 i1 hce1 ff hsf)=> hsf1.
+  move: (hin2 cp cge fctx1 bctx1 ce2 cvm venv fctx' bctx' g1 g2 i2 ff hp hce2 hwf1' hsf1 hcvm)=> [] tr2 hce4; subst.
   exists (tr1 ++ tr2). rewrite /=. inversion hce3; subst. inversion hce4; subst.
   apply eval_expression_intro with a'0.
   + apply eval_comma with m' a' (trans_bvalue_cvalue v); auto.
@@ -1635,14 +1629,15 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
   by apply H2.
 (* cond *) (* done *)
 + move=> p vm m e1 e2 e3 t m' vb ct1 v' v v'' m'' he1 hin1 ht1 hb he2 hin2 hs hv cp cge fctx bctx ce
-         cvm venv fctx' bctx' g g' i' hp he hwf.
+         cvm venv fctx' bctx' g g' i' ff hp he hwf hsf hcvm.
   have [htr1 htr2] := trans_expr_expr_ind.
   move: (htr1 (Cond e1 e2 e3 t) venv fctx bctx ce fctx' bctx' g g' i' he)=> [] ce1 [] fctx1 [] bctx1 [] g1 [] i1 [] ce2 [] fctx2 [] bctx2 [] g2 [] i2
   [] ce3 [] g3 [] i3 [] hte1 [] hte2 [] hte3 heq; subst. 
-  move: (hin1 cp cge fctx bctx ce1 cvm venv fctx1 bctx1 g g1 i1 hp hte1 hwf)=> [] tr1 hve1.
+  move: (hin1 cp cge fctx bctx ce1 cvm venv fctx1 bctx1 g g1 i1 ff hp hte1 hwf hsf hcvm)=> [] tr1 hve1.
   have hwf' := trans_expr_preserves_wf_env. move: (hwf' vm cvm)=> [] hwf1 hwf2.
   move: (hwf1 e1 venv fctx bctx ce1 fctx1 bctx1 g g1 i1 hwf hte1)=> hwf1'.
-  move: (hin2 cp cge fctx1 bctx1 ce2 cvm venv fctx2 bctx2 g1 g2 i2 hp hte2 hwf1') => [] tr2 hve2.
+  have [hs1 hs2] := trans_expr_preserves_fnctx_subset. move: (hs1 e1 venv fctx bctx ce1 fctx1 bctx1 g g1 i1 hte1 ff hsf)=> hsf1.
+  move: (hin2 cp cge fctx1 bctx1 ce2 cvm venv fctx2 bctx2 g1 g2 i2 ff hp hte2 hwf1' hsf1 hcvm) => [] tr2 hve2.
   (* true *)
   + inversion hve1; subst.  inversion hve2; subst. exists (tr1 ++ tr2). apply eval_expression_intro with (Eval v'' (transBeePL_type t)).
     + rewrite /=. apply eval_condition with m' a' (trans_bvalue_cvalue vb) a'0 (trans_bvalue_cvalue v') true; auto.
@@ -1653,15 +1648,17 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
     have -> := bv_cv_reflex v'' v hv. by apply esr_val.
   (* false *)
   + move=> p vm m e1 e2 e3 t m' vb ct1 v' v v'' m'' he1 hin1 ht1 hb he2 hin2 hs hv cp cge fctx bctx ce
-         cvm venv fctx' bctx' g g' i' hp he hwf.
+         cvm venv fctx' bctx' g g' i' ff hp he hwf hsf hcvm.
   have [htr1 htr2] := trans_expr_expr_ind.
   move: (htr1 (Cond e1 e2 e3 t) venv fctx bctx ce fctx' bctx' g g' i' he)=> [] ce1 [] fctx1 [] bctx1 [] g1 [] i1 [] ce2 [] fctx2 [] bctx2 [] g2 [] i2
   [] ce3 [] g3 [] i3 [] hte1 [] hte2 [] hte3 heq; subst.
-  move: (hin1 cp cge fctx bctx ce1 cvm venv fctx1 bctx1 g g1 i1 hp hte1 hwf)=> [] tr1 hve1.
+  move: (hin1 cp cge fctx bctx ce1 cvm venv fctx1 bctx1 g g1 i1 ff hp hte1 hwf hsf hcvm)=> [] tr1 hve1.
   have hwf' := trans_expr_preserves_wf_env. move: (hwf' vm cvm)=> [] hwf1 hwf2.
   move: (hwf1 e1 venv fctx bctx ce1 fctx1 bctx1 g g1 i1 hwf hte1)=> hwf1'.
   move: (hwf1 e2 venv fctx1 bctx1 ce2 fctx2 bctx2 g1 g2 i2 hwf1' hte2)=> hwf2'.
-  move: (hin2 cp cge fctx2 bctx2 ce3 cvm venv fctx' bctx' g2 g3 i3 hp hte3 hwf2') => [] tr3 hve3.
+  have [hs1 hs2] := trans_expr_preserves_fnctx_subset. move: (hs1 e1 venv fctx bctx ce1 fctx1 bctx1 g g1 i1 hte1 ff hsf)=> hsf1.
+  move: (hs1 e2 venv fctx1 bctx1 ce2 fctx2 bctx2 g1 g2 i2 hte2 ff hsf1)=> hsf2.
+  move: (hin2 cp cge fctx2 bctx2 ce3 cvm venv fctx' bctx' g2 g3 i3 ff hp hte3 hwf2' hsf2 hcvm) => [] tr3 hve3.
   inversion hve1; subst.  inversion hve3; subst. exists (tr1 ++ tr3). apply eval_expression_intro with (Eval v'' (transBeePL_type t)).
   + rewrite /=. apply eval_condition with m' a' (trans_bvalue_cvalue vb) a'0 (trans_bvalue_cvalue v') false; auto.
     + have hteq := compilation_preserve_type e1 venv fctx bctx ce1 fctx1 bctx1 g g1 i1 hte1. 
@@ -1671,7 +1668,7 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
     by apply hs. 
   have -> := bv_cv_reflex v'' v hv. by apply esr_val.
 (* unit *)
-+ move=> p vm m cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' hp hte hwf.
++ move=> p vm m cp cge fctx bctx ce cvm venv fctx' bctx' g g' i' ff hp hte hwf hsf hcvm.
   
 Admitted.
 
@@ -1684,9 +1681,5 @@ match_env venv bvm cvm ->
 exec_stmt cge cvm m ce tr m' o.
 Proof.
 Admitted.
-
-
- 
-
 
 

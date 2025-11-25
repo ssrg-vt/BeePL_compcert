@@ -312,8 +312,7 @@ Fixpoint transBeePL_expr_expr (e : BeePL.expr) (venv : renv) (fn_ctx : list (ide
 mon (Csyntax.expr * (list (ident * BeeTypes.type * string)) * bcompiler_ctx) := 
 match e with 
 | Val v t => ret (Eval (trans_bvalue_cvalue v) (transBeePL_type t), fn_ctx, bctx) 
-| Var x t => let cx := resolve venv x in 
-             ret (Evar cx (transBeePL_type t), fn_ctx, bctx)
+| Var x t => ret (Evar (resolve venv x) (transBeePL_type t), fn_ctx, bctx)
 | Const c t => match c with 
                | ConsInt i => ret (Eval (Values.Vint i) (transBeePL_type t), fn_ctx, bctx)
                | ConsLong i => ret (Eval (Values.Vlong i) (transBeePL_type t), fn_ctx, bctx)
