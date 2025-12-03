@@ -80,15 +80,22 @@ Definition default_expr := (Eval (Values.Vint (Int.repr 0)) Tvoid).
    
    FIXME: There really shouldn't be a limited number of fresh identifiers *)
 
+Fixpoint in_idents (x : positive) (l : seq positive) : bool :=
+  match l with
+  | [::] => false
+  | y :: ys => if Pos.eq_dec x y then true else in_idents x ys
+  end.
+
 Fixpoint fresh_ident (used : list ident) (n : nat) : mon (ident * string) :=
   let candidate_str := "__fresh__" ++ NilZero.string_of_uint (Nat.to_uint n) in
   let candidate := ident_of_string candidate_str in
-  if existsb (fun id => Pos.eqb candidate id) used then
+  if in_idents candidate used then
     match n with
-    | O => error (msg "Ran out of fresh identifiers: all __fresh__n from 1000 to 0 are taken.")
+    | O => error (msg "Ran out of fresh identifiers")
     | S n' => fresh_ident used n'
     end
-  else ret (candidate, candidate_str).
+  else
+    ret (candidate, candidate_str).
 
 (* These are helpers to deal with fn_ctx in transBeePL_expr_expr and transBeePL_expr_st *)
 Definition unzip_ident {A B C} (p : A * B * C) : A :=
@@ -305,8 +312,7 @@ Fixpoint transBeePL_expr_expr (e : BeePL.expr) (venv : renv) (fn_ctx : list (ide
 mon (Csyntax.expr * (list (ident * BeeTypes.type * string)) * bcompiler_ctx) := 
 match e with 
 | Val v t => ret (Eval (trans_bvalue_cvalue v) (transBeePL_type t), fn_ctx, bctx) 
-| Var x t => let cx := resolve venv x in 
-             ret (Evar cx (transBeePL_type t), fn_ctx, bctx)
+| Var x t => ret (Evar (resolve venv x) (transBeePL_type t), fn_ctx, bctx)
 | Const c t => match c with 
                | ConsInt i => ret (Eval (Values.Vint i) (transBeePL_type t), fn_ctx, bctx)
                | ConsLong i => ret (Eval (Values.Vlong i) (transBeePL_type t), fn_ctx, bctx)
@@ -411,11 +417,11 @@ end
            ret (Eval (trans_bvalue_cvalue Vunit) ct, fn_ctx, bctx) (* Fix me *)
 | Addr l ofs t => let ct := transBeePL_type t in
                   ret (Eloc l.(lname) ofs l.(lbitfield) ct, fn_ctx, bctx)
-| Eapp ef ts es t => let cef := befunction_to_cefunction ef in
+(*| Eapp ef ts es t => let cef := befunction_to_cefunction ef in
                      let cts := (transBeePL_types transBeePL_type ts) in
                      let ct := (transBeePL_type t) in
                      do (ces, bctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es venv fn_ctx bctx);
-                     ret (Ebuiltin cef cts (fst ces) ct, snd ces, bctx')
+                     ret (Ebuiltin cef cts (fst ces) ct, snd ces, bctx')*)
 | Sinit sid fnames es t => (* translate constructor arguments *)
                            do (ces, bctx') <- transBeePL_expr_exprs transBeePL_expr_expr es venv fn_ctx bctx;
                            do (tmp, tag)   <- fresh_ident (List.map unzip_ident (snd ces)) max_fresh;
@@ -967,17 +973,15 @@ match e with
                       do (ce', ctx'') <- (transBeePL_expr_st cenv e' venv (snd ce) ctx');
                       do (ce'', ctx''') <- (transBeePL_expr_st cenv e'' venv (snd ce') ctx'');
                       let ct' := (transBeePL_type t') in
-                      if eq_type t' (typeof_expr e') && eq_type t' (typeof_expr e'') 
-                      then ret (Sifthenelse (fst ce) (fst ce') (fst ce''), snd ce'', ctx''')
-                      else error (msg "Then and else branch should be of same type as return type")
+                      ret (Sifthenelse (fst ce) (fst ce') (fst ce''), snd ce'', ctx''')
 | Unit t=> ret (Sskip, ctx, bctx) (*Sreturn (Some (Eval (Values.Vint (Int.repr 0)) (Ctypes.Tint I32 Unsigned noattr)))*) (* In case of unit, we return 0 *)
 | Addr l ofs t => let ct := (transBeePL_type t) in
                   ret (Sdo (Eloc l.(lname) ofs l.(lbitfield) ct), ctx, bctx)                    
-| Eapp ef ts es t => let cef := befunction_to_cefunction ef in
+(*| Eapp ef ts es t => let cef := befunction_to_cefunction ef in
                      let cts := (transBeePL_types transBeePL_type ts) in
                      let ct := (transBeePL_type t) in
                      do (ces, ctx') <- (transBeePL_expr_exprs transBeePL_expr_expr es venv ctx bctx);
-                     ret (Sdo (Ebuiltin cef cts (fst ces) ct), snd ces, ctx')
+                     ret (Sdo (Ebuiltin cef cts (fst ces) ct), snd ces, ctx')*)
 | Sinit sx ids es t => error (msg "COMPILER ERROR: Struct creation should be done inside a let-binding") 
 | Sfield e x t =>
     do (ce, ctx') <- transBeePL_expr_expr e venv ctx bctx;

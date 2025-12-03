@@ -31,7 +31,6 @@ match e with
 | Cond e1 e2 e3 t => is_stateful_expr e1 || is_stateful_expr e2 || is_stateful_expr e3   
 | Unit t => false
 | Addr l ofs t => false
-| BeePL.Eapp ef ts es t => true (* fix me *)
 | Sinit _ _ _ _ => true
 | Sfield _ _ _ => true
 | For e1 e2 d e t => is_stateful_expr e 
@@ -240,13 +239,18 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                sem_cast (trans_bvalue_cvalue v) (transBeePL_type (typeof_expr e)) (transBeePL_type t2) m' = Some v' ->
                trans_cvalue_bvalue v' = OK v'' ->
                bsem_expr p vm m (Prim (Cast t2) (e:: nil) t2) m' vm v''
-| bsem_bind_subst : forall p vm m x e1 m' m'' v e2 e2' v' tx,
+| bsem_bind_subst : forall bge p vm m x e1 m' m'' m''' v e2 l v' tx,
                     bsem_expr p vm m e1 m' vm v -> 
                     not (x =? Ctypesdefs.ident_of_string "_")%positive ->
-                    
-                    SubstE x (Val v (typeof_expr e1)) e2 e2' ->
-                    bsem_expr p vm m' e2' m'' vm v' ->
-                    bsem_expr p vm m (Bind x tx e1 e2 (typeof_expr e2)) m'' vm v'
+                    vm!x = Some (l, tx) ->
+                    chunk_for_volatile_type (transBeePL_type tx) Full = None ->
+                    Cop.sem_cast (trans_bvalue_cvalue v) (transBeePL_type (typeof_expr e1))
+                      (transBeePL_type tx) m' = Some (trans_bvalue_cvalue v) ->
+                    assign_addr bge tx m' l Ptrofs.zero Full v m'' v -> 
+                    (* vm <- (x, v) ==> vm'; [e2]vm'--> v'*)
+                    (*SubstE x (Val v (typeof_expr e1)) e2 e2' ->*)
+                    bsem_expr p vm m'' e2 m''' vm v' ->
+                    bsem_expr p vm m (Bind x tx e1 e2 (typeof_expr e2)) m''' vm v'
 | bsem_bind_no_subst : forall p vm m x e1 m' m'' v e2 v' tx,
                        bsem_expr p vm m e1 m' vm v -> 
                        (x =? Ctypesdefs.ident_of_string "_")%positive ->
@@ -257,7 +261,7 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                transBeePL_type (typeof_expr e1) = ct1 ->
                bool_val (trans_bvalue_cvalue vb) ct1 m' = Some true ->
                bsem_expr p vm m' e2 m'' vm v' ->
-               Cop.sem_cast (trans_bvalue_cvalue v') (transBeePL_type (typeof_expr e2)) (transBeePL_type (typeof_expr e2)) m'' = Some v'' ->
+               Cop.sem_cast (trans_bvalue_cvalue v') (transBeePL_type (typeof_expr e2)) (transBeePL_type t) m'' = Some v'' ->
                trans_cvalue_bvalue v'' = OK v ->
                bsem_expr p vm m (Cond e1 e2 e3 t) m'' vm v
 | bsem_cfalse : forall p vm m e1 e2 e3 t m' vb ct1 v' v v'' m'', 
@@ -265,19 +269,19 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                 transBeePL_type (typeof_expr e1) = ct1 ->
                 bool_val (trans_bvalue_cvalue vb) ct1 m' = Some false ->
                 bsem_expr p vm m' e3 m'' vm v' ->
-                Cop.sem_cast (trans_bvalue_cvalue v') (transBeePL_type (typeof_expr e3)) (transBeePL_type (typeof_expr e3)) m'' = Some v'' ->
+                Cop.sem_cast (trans_bvalue_cvalue v') (transBeePL_type (typeof_expr e3)) (transBeePL_type t) m'' = Some v'' ->
                 trans_cvalue_bvalue v'' = OK v ->
                 bsem_expr p vm m (Cond e1 e2 e3 t) m'' vm v
 | bsem_ut : forall p vm m, 
             bsem_expr p vm m (Unit Utype) m vm Vunit
 | bsem_adr : forall p vm m l ofs t,
              bsem_expr p vm m (Addr l ofs t) m vm (Vloc l.(lname) ofs)
-| bsem_eapp : forall p vm m es vm' m' m'' vs ef cef vres bv ts ty t,
+(*| bsem_eapp : forall p vm m es vm' m' m'' vs ef cef vres bv ts ty t,
               bsem_exprs p vm m es m' vm' vs ->
               befunction_to_cefunction ef = cef ->
               external_call cef ge (trans_bvalues_cvalues vs) m' t vres m'' ->
               trans_cvalue_bvalue vres = OK bv ->
-              bsem_expr p vm m (BeePL.Eapp ef ts es ty) m'' vm' bv
+              bsem_expr p vm m (BeePL.Eapp ef ts es ty) m'' vm' bv*)
 | bsem_screate : forall Sigma p x ids t vm1 m1 es vm2 m2 vm3 m3 m4 vs fid loc ofs st sa Sigma',
                  bsem_exprs p vm1 m1 es m2 vm2 vs ->
                  create_fresh_ident (unzip1 (extract_variables_globdefs (map (fun '(_, gd, _) => gd) p.(prog_defs)))) = fid ->
@@ -496,12 +500,6 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
             ssem_expr p vm m (Unit Utype) m vm (Val Vunit Utype)
 | ssem_adr : forall p vm m l ofs h t a,
              ssem_expr p vm m (Addr l ofs (Ptrtype (Reftype h t a))) m vm (Val (Vloc l.(lname) ofs) (Ptrtype (Reftype h t a)))
-| ssem_eapp : forall p vm m es vm' m' m'' vs ef cef vres bv ts ty t,
-              ssem_exprs p vm m es m' vm' vs ->
-              befunction_to_cefunction ef = cef ->
-              external_call cef ge (trans_bvalues_cvalues (extract_values_exprs vs)) m' t vres m'' ->
-              trans_cvalue_bvalue vres = OK bv ->
-              ssem_expr p vm m (BeePL.Eapp ef ts es ty) m'' vm' (Val bv ty)
 | ssem_sinit1 : forall p x ids t vm1 m1 es vm2 m2 es',
                   ssem_exprs p vm1 m1 es m2 vm2 es' ->
                   ssem_expr p vm1 m1 (Sinit x ids es t) m2 vm2 (Sinit x ids es' t)

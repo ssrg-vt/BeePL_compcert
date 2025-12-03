@@ -108,7 +108,7 @@ Inductive expr : Type :=
 | Cond : expr -> expr -> expr -> type -> expr                           (* if e then e else e *) 
 | Unit : type -> expr                                                   (* unit *)
 | Addr : linfo -> ptrofs -> type -> expr                                (* address: Addr: not intended to be written by programmers: *)
-| Eapp : external_function -> list type -> list expr -> type -> expr    (* external function *)
+(*| Eapp : external_function -> list type -> list expr -> type -> expr    (* external function *)*)
 | Sinit : ident -> list ident -> list expr -> type -> expr              (* struct creation *)
 | Sfield : expr -> ident -> type -> expr                                (* access to a member of struct *)
 | For : expr -> expr -> dir -> expr -> type -> expr                     (* for loop - constant bound *)
@@ -131,7 +131,7 @@ Context
   (Hcond : forall t e1, P e1 -> forall e2, P e2 -> forall e3, P e3 -> P (Cond e1 e2 e3 t))
   (Hunit : forall t, P (Unit t))
   (Haddr : forall l o t, P (Addr l o t))
-  (Heapp : forall t ef ts es, (forall e, List.In e es -> P e) -> P (Eapp ef ts es t))
+  (*(Heapp : forall t ef ts es, (forall e, List.In e es -> P e) -> P (Eapp ef ts es t))*)
   (Hsinit : forall t h ids es, (forall e, List.In e es -> P e) -> P (Sinit h ids es t))
   (Hsfield : forall t h e, P e -> P (Sfield e h t))
   (Hfor : forall t d e1, P e1 -> forall e2, P e2 -> forall e3, P e3 -> P (For e1 e2 d e3 t))
@@ -169,7 +169,7 @@ match e with
 | Bind x t e1 e2 t' => Hbind x t t' (expr_ind_rec e1) (expr_ind_rec e2) 
 | Unit t => Hunit t
 | Addr l o t => Haddr l o t
-| Eapp ef ts es t => Heapp t ef ts (@exprs_ind_rec expr_ind_rec es)
+(*| Eapp ef ts es t => Heapp t ef ts (@exprs_ind_rec expr_ind_rec es)*)
 | Sinit s ids es t => Hsinit t s ids (@exprs_ind_rec expr_ind_rec es)
 | Sfield e id t => Hsfield t id (expr_ind_rec e)
 | For e1 e2 d e3 t => Hfor t d (expr_ind_rec e1) (expr_ind_rec e2) (expr_ind_rec e3)
@@ -198,7 +198,52 @@ Record expr_ind_hypotheses : Prop := {
     expr_prim : forall b t es, Ps es -> P (Prim b es t);
     expr_cond : forall t e1, P e1 -> forall e2, P e2 -> forall e3, P e3 -> P (Cond e1 e2 e3 t);
     expr_bind : forall x t t' e1, P e1 -> forall e2, P e2 -> P (Bind x t e1 e2 t');
-    expr_unit : forall t, P (Unit t)}.
+    expr_unit : forall t, P (Unit t);
+    expr_addr : forall t l o, P (Addr l o t);
+    (*expr_eapp : forall t ef ts es, Ps es -> P (Eapp ef ts es t);*)
+    expr_sinit : forall t s ids es, Ps es -> P (Sinit s ids es t);
+    expr_sfield : forall t id e, P e -> P (Sfield e id t);
+    expr_for : forall t d e1, P e1 -> forall e2, P e2 -> forall e3, P e3 -> P (For e1 e2 d e3 t);
+    expr_enone : forall t, P (Enone t);
+    expr_esome : forall t e, P e -> P (Esome e t);
+    expr_match : forall t ps e es, P e -> Ps es -> P (Match e ps es t);
+    expr_ebytes : forall t es, Ps es -> P (Ebytes es t);
+    expr_ainit : forall a t t' es, Ps es -> P (Ainit a t es t');
+    expr_access : forall a t n t', P (Aaccess a t n t')}.
+
+Context (h: expr_ind_hypotheses).
+
+Definition exprs_ind expr_mut_ind : forall pes, Ps pes :=
+fix exprs_ind pes :=
+    if pes is pe :: pes'
+    then exprs_cons h (expr_mut_ind pe) (exprs_ind pes')
+    else exprs_nil h.
+
+Fixpoint expr_mut_ind e : P e :=
+match e with 
+| Val v t => expr_val h t v
+| Var x t => expr_var h t x
+| Const c t => expr_const h t c
+| App e es t => expr_app h t (expr_mut_ind e) (exprs_ind expr_mut_ind es)
+| Prim b es t => expr_prim h b t (exprs_ind expr_mut_ind es)
+| Cond e1 e2 e3 t => expr_cond h t (expr_mut_ind e1) (expr_mut_ind e2) (expr_mut_ind e3)
+| Bind x t e1 e2 t' => expr_bind h x t t' (expr_mut_ind e1) (expr_mut_ind e2)
+| Unit t => expr_unit h t 
+| Addr l o t => expr_addr h t l o
+(*| Eapp ef ts es t => expr_eapp h t ef ts (exprs_ind expr_mut_ind es)*)
+| Sinit s ids es t => expr_sinit h t s ids (exprs_ind expr_mut_ind es)
+| Sfield e id t => expr_sfield h t id (expr_mut_ind e) 
+| For e1 e2 d e3 t => expr_for h t d (expr_mut_ind e1) (expr_mut_ind e2) (expr_mut_ind e3) 
+| Enone t => expr_enone h t
+| Esome e t => expr_esome h t (expr_mut_ind e) 
+| Match e ps es t => expr_match h t ps (expr_mut_ind e) (exprs_ind expr_mut_ind es)
+| Ebytes es t => expr_ebytes h t (exprs_ind expr_mut_ind es)
+| Ainit a t es t' => expr_ainit h a t t' (exprs_ind expr_mut_ind es)
+| Aaccess a t n t' => expr_access h a t n t'
+end.
+
+Definition exprs_ind_pair :=
+ conj expr_mut_ind (exprs_ind expr_mut_ind).
 
 End Exprs_Ind.
 
@@ -215,7 +260,7 @@ match e with
 | Cond e1 e2 e3 t => size_e e1 + size_e e2 + size_e e3 + 1
 | Unit t => 1
 | Addr l ofs t => 1
-| Eapp ef ts es t => foldr (fun e acc => (size_e e + acc)%nat) O es + 1
+(*| Eapp ef ts es t => foldr (fun e acc => (size_e e + acc)%nat) O es + 1*)
 | Sinit s ids es t => foldr (fun e acc => (size_e e + acc)%nat) O es + 1
 | Sfield e id t => size_e e + 1
 | For e1 e2 d e3 t => size_e e1 + size_e e2 + size_e e3 + 1
@@ -244,7 +289,7 @@ match e with
 | Cond e1 e2 e3 t => free_variables e1 ++ free_variables e2 ++ free_variables e3
 | Unit t => nil
 | Addr l o t => nil
-| Eapp ef ts es t => flatten (map free_variables es)
+(*| Eapp ef ts es t => flatten (map free_variables es)*)
 | Sinit x ids es t => flatten (map free_variables es)
 | Sfield e x t => free_variables e 
 | For e1 e2 d e t => free_variables e1 ++ free_variables e2 ++ free_variables e
@@ -293,7 +338,7 @@ match e with
 | Cond e e' e'' t => t
 | Unit t => t
 | Addr l p t => t
-| Eapp ef ts es t => t
+(*| Eapp ef ts es t => t*)
 | Sinit _ _ _ t => t
 | Sfield e x t => t
 | For e1 e2 d e t => t
@@ -689,7 +734,7 @@ Fixpoint subst (x : ident) (se : expr) (e : expr) {struct e} : expr :=
   | Cond e1 e2 e3 t => Cond (subst x se e1) (subst x se e2) (subst x se e3) t
   | Unit t => Unit t 
   | Addr l p t => Addr l p t
-  | Eapp ef ts es t => Eapp ef ts (substs subst x se es) t
+  (*| Eapp ef ts es t => Eapp ef ts (substs subst x se es) t*)
   | Sinit y ids es t => if (x =? y)%positive then Sinit y ids es t
                         else Sinit y ids (substs subst x se es) t
   | Sfield e fld t => Sfield (subst x se e) fld t
@@ -736,9 +781,9 @@ Inductive SubstE (x:ident) (se:expr) : expr -> expr -> Prop :=
     SubstE x se (Unit t) (Unit t)
 | S_Addr l p t :
     SubstE x se (Addr l p t) (Addr l p t)
-| S_Eapp ef ts es es' t
+(*| S_Eapp ef ts es es' t
     (Hes : SubstEs x se es es') :
-    SubstE x se (Eapp ef ts es t) (Eapp ef ts es' t)
+    SubstE x se (Eapp ef ts es t) (Eapp ef ts es' t)*)
 | S_Sinit_hit y ids es t (Hy : x = y) :
     SubstE x se (Sinit y ids es t) (Sinit y ids es t)
 | S_Sinit_miss y ids es es' t (Hy : x <> y)
@@ -805,70 +850,6 @@ match l with
 | (id, Gvar v) :: l => bind_globdef (PTree.set id v.(gvar_info) Gamma) l
 end.
 
-(*Section Simpl_big_step_semantics.
-
-Variable (vm : vmap).
-
-
-(* Would be useful in proving equivalence with Cstrategy for simpl expressions *)
-(* Simple expressions have interesting properties: their evaluations always
-   terminate, and preserve the memory state.
-   We seize this opportunity to define a big-step semantics for simple
-   expressions. *) 
-Inductive bsem_expr_slv : Memory.mem -> expr -> linfo -> ptrofs -> Prop :=
-| bsem_var : forall hm x t l h t' a, 
-              vm!x = Some (l, Reftype h t' a) ->
-              t = Reftype h t' a ->
-              bsem_expr_slv hm (Var x t) {| lname := l; lbitfield := Full |} Ptrofs.zero
-| bsem_gvar : forall hm x t l h t' a, 
-              vm!x = None ->
-              Genv.find_symbol ge x = Some l ->
-              t = Reftype h (Bprim t') a ->
-              bsem_expr_slv hm (Var x t) {| lname := l; lbitfield := Full |} Ptrofs.zero
-| bsem_addr : forall hm l ofs t,
-              bsem_expr_slv hm (Addr l ofs t) l ofs.
-Inductive bsem_expr_srv : Memory.mem -> expr -> value -> Prop :=
-| bsem_val : forall hm v t,
-             well_formed_value v t ->
-             bsem_expr_srv hm (Val v t) v
-| bsem_prim_deref : forall hm e t l ofs v,
-                    bsem_expr_slv hm e l ofs ->
-                    deref_addr (typeof_expr e) hm l.(lname) ofs l.(lbitfield) v ->
-                    typeof_expr e = t ->
-                    BeeTypes.type_is_volatile t = false ->
-                    bsem_expr_srv hm (Prim Deref (e :: nil) t) v
-| bsem_prim_uop : forall hm e v uop  v' t ct v'' g g' i,
-                  bsem_expr_srv hm e v ->
-                  transBeePL_type (typeof_expr e) g = Res ct g' i ->
-                  t = (typeof_expr e) ->
-                  sem_unary_operation uop (transBeePL_value_cvalue v) ct hm = Some v' ->
-                  transC_val_bplvalue v' = OK v'' ->
-                  bsem_expr_srv hm (Prim (Uop uop) (e :: nil) t) v''
-| bsem_prim_bop : forall hm e1 e2 t v1 v2 bop v ct1 ct2 v' g g' g'' i i',
-                  if (is_bop_undef t bop (e1 :: e2 :: nil)) 
-                  then return_bzero t = Ok v ->
-                       bsem_expr_srv hm (Prim (Bop bop) (e1 :: e2 :: nil) t) v 
-                  else bsem_expr_srv hm e1 v1 ->
-                       bsem_expr_srv hm e2 v2 ->
-                       transBeePL_type (typeof_expr e1) g = Res ct1 g' i ->
-                       transBeePL_type (typeof_expr e2) g' = Res ct2 g'' i'->
-                       t = (typeof_expr e1) /\ t = (typeof_expr e2) ->
-                       sem_binary_operation ge bop (transBeePL_value_cvalue v1) ct1 (transBeePL_value_cvalue v2) ct2 hm = Some v ->
-                       transC_val_bplvalue v = OK v' ->
-                       bsem_expr_srv hm (Prim (Bop bop) (e1 :: e2 :: nil) t) v'
-| bsem_unit : forall hm, 
-              bsem_expr_srv hm (Unit (Ptype Tunit)) Vunit.
-
-
-Inductive bsem_expr_srvs : Memory.mem -> list expr -> list value -> Prop :=
-| bsem_expr_srv_nil : forall hm, 
-                      bsem_expr_srvs hm nil nil
-| bsem_expr_srv_cons : forall hm e es v vs,
-                       bsem_expr_srv hm e v ->
-                       bsem_expr_srvs hm es vs ->
-                       bsem_expr_srvs hm (e :: es) (v :: vs).
-
-End Simpl_big_step_semantics. *)
 
 
 

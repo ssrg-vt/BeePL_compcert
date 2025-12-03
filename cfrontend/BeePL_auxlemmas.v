@@ -6,6 +6,143 @@ Require Import compcert.common.Errors Initializersproof Cstrategy Coqlib Errors.
 
 From mathcomp Require Import all_ssreflect. 
 
+(***** Correctness proof for type transformation from BeePL to Ctypes *****)
+
+(* Easy *)
+Lemma transBeePL_type_int : forall t sz s a,
+transBeePL_type t = (Ctypes.Tint sz s a) ->
+t = Vtype (Tint sz s a) \/ t = Vtype Tbool.
+Proof.
+move=> [].
++ move=> p sz s /=. by case: p=> //= sz' s' a' [] h1 h2 h3 h4; subst.
++ move=> [].
+  + move=> sz s a /= [] h1 h2 h3; subst. by right.
+  + move=> sz s a sz' s' a' /= [] h1 h2 h3; subst. by left.
+  by move=> s a sz s' a' //=.
+Admitted.
+
+(* Easy *)
+Lemma transBeePL_type_long : forall t s a,
+transBeePL_type t = Ctypes.Tlong s a ->
+t = Vtype (Tlong s a).
+Proof. 
+Admitted.
+
+(* Easy *)
+Lemma transBeePL_type_void : forall t,
+transBeePL_type t = Tvoid->
+t = Utype.
+Proof.
+Admitted.
+
+(* Easy *)
+Lemma transBeePL_ptr_ref_bool : forall h bt a,
+transBeePL_ptr_type (Reftype h bt a) = Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr ->
+bt = Bprim Tbool.
+Proof.
+Admitted.
+
+(* Easy *)
+Lemma transBeePL_ptr_ref_int : forall h bt sz s a a',
+transBeePL_ptr_type (Reftype h bt a) = Ctypes.Tpointer (Ctypes.Tint sz s a') a ->
+bt = Bprim (Tint sz s a').
+Proof.
+Admitted.
+
+(* Easy *)
+Lemma transBeePL_ptr_ref_long : forall h bt s a a',
+transBeePL_ptr_type (Reftype h bt a) = Ctypes.Tpointer (Ctypes.Tlong s a') a ->
+bt = Bprim (Tlong s a').
+Proof.
+Admitted.
+
+(* Easy *)
+Lemma transBeePL_ptr_ref_struct : forall h bt s a a',
+transBeePL_ptr_type (Reftype h bt a) = Ctypes.Tpointer (Ctypes.Tstruct s a') a ->
+bt = Bstruct s a'.
+Proof.
+Admitted.
+
+(* Easy *)
+Lemma transBeePL_ptr_ref_array : forall h bt bt' z a a',
+transBeePL_ptr_type (Reftype h bt a) = Ctypes.Tpointer (Ctypes.Tarray (transBeePL_type (Vtype bt')) z a') a ->
+bt = Barray bt' z a'.
+Proof.
+Admitted.
+
+(* Easy *)
+Lemma transBeePL_type_pfunction : forall t cts ct c,
+transBeePL_ptr_type t = (Tfunction cts ct c) ->
+exists bts bef brt, t = Fptype bts bef brt /\ transBeePL_types transBeePL_type bts = cts /\ transBeePL_type brt = ct. 
+Proof.
+Admitted.
+
+(* Easy *)
+Lemma transBeePL_type_ptr : forall t pt,
+transBeePL_type t = transBeePL_ptr_type pt ->
+t = Ptrtype pt.
+Proof.
+Admitted.
+
+(* Easy *)
+Lemma transBeePL_type_stype : forall t s a,
+transBeePL_type t = Tstruct s a ->
+t = Stype s a.
+Proof.
+Admitted.
+
+(* Easy *)
+Lemma transBeePL_type_function : forall t cts ct c,
+transBeePL_type t = (Tfunction cts ct c) ->
+exists bts bef brt, t = Ftype bts bef brt /\ transBeePL_types transBeePL_type bts = cts /\ transBeePL_type t = ct. 
+Proof.
+Admitted.
+
+(* Easy *)
+Lemma transBeePL_type_bytes : forall t,
+transBeePL_type t = Tstruct bytes_t noattr ->
+t = Bytes.
+Proof.
+Admitted.
+
+Lemma no_bptype_to_float : forall pt f a,
+transBeePL_ptr_type pt <> Tfloat f a.
+Proof.
+move=> pt. elim: pt=> //= h b. elim: b=> //=.
++ by move=> [] //=.
+by move=> [] //=.
+Qed.
+
+Lemma no_btype_to_float : forall t f a ,
+transBeePL_type t <> (Tfloat f a).
+Proof.
+move=> t f a /=. case: t=> //=.
++ by move=> p; case: p=> //=.
++ move=> [] //=.
+  + move=> h [] //=. by move=> [] //=.
+  by move=> [] //=.
+move=> p. by apply no_bptype_to_float.
+Qed.
+
+Lemma no_bptype_to_union : forall pt f a,
+transBeePL_ptr_type pt <> Tunion f a.
+Proof.
+move=> pt. elim: pt=> //= h b. elim: b=> //=.
++ by move=> [] //=.
+by move=> [] //=.
+Qed.
+
+Lemma no_btype_to_union : forall t f a ,
+transBeePL_type t <> (Tunion f a).
+Proof.
+move=> t f a /=. case: t=> //=.
++ by move=> p; case: p=> //=.
++ move=> [] //=.
+  + move=> h [] //=. by move=> [] //=.
+  by move=> [] //=.
+move=> p. by apply no_bptype_to_union.
+Qed.
+
 Definition access_modeBC (t : type) : mode :=
   match t with
   | Vtype Tbool => By_value Mint8unsigned
