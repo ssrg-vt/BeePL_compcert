@@ -8,6 +8,7 @@ From mathcomp Require Import all_ssreflect.
 
 (***** Correctness proof for type transformation from BeePL to Ctypes *****)
 
+Print transBeePL_type.
 (* Easy *)
 Lemma transBeePL_type_int : forall t sz s a,
 transBeePL_type t = (Ctypes.Tint sz s a) ->
@@ -19,76 +20,250 @@ move=> [].
   + move=> sz s a /= [] h1 h2 h3; subst. by right.
   + move=> sz s a sz' s' a' /= [] h1 h2 h3; subst. by left.
   by move=> s a sz s' a' //=.
-Admitted.
+  + intros. inv H. induction p; try inv H1.
+    induction b. induction p; try inv H1. inv H0.
+    inv H0. inv H0. inv H0. destruct p; inv H0.  apply IHp in H0. destruct H0.
+    left. inv H.  inv H.
+- intros. inv H.
+- intros. inv H.
+- intros. inv H.
+- intros. inv H.
+Qed.
 
 (* Easy *)
 Lemma transBeePL_type_long : forall t s a,
 transBeePL_type t = Ctypes.Tlong s a ->
 t = Vtype (Tlong s a).
 Proof. 
-Admitted.
+intros. induction t; try inv H.
+- destruct p; try inv H1; auto.
+- induction p; try inv H1.
+  destruct b. destruct p; try inv H0. inv H0.
+  destruct p; try inv H0.
+- apply IHp in H0. inv H0.
+Qed.
 
+Print transBeePL_type.
 (* Easy *)
 Lemma transBeePL_type_void : forall t,
 transBeePL_type t = Tvoid->
 t = Utype.
 Proof.
+  intros. induction t; auto; try inv H.
+  - destruct p. inv H1. inv H1. inv H1.
+  - induction p; auto; try inv H1.
+    + destruct b; try inv H0. induction p; try inv H0.
+      inv H1. inv H1. inv H1.
+      destruct p; try inv H1.
+    + apply IHp in H0.  inv H0. 
+Qed.
+
+Print transBeePL_ptr_type.
+
+(* This is dubious *)
+Lemma bool_int_eq : forall t,
+    transBeePL_type t = Ctypes.Tint I8 Unsigned noattr ->
+    t <> Vtype (Tint I8 Unsigned noattr) -> 
+    Tbool = Tint I8 Unsigned noattr.
+intros.
+induction t; inv H. induction p. inv H2. 
+admit.  inv H2. contradiction. inv H2. induction p.
+inv H2. induction b. induction p; try inv H1.
+inv H1. induction p; try inv H1. inv H2. apply IHp. intro. inv H.
+apply H1. inv H2.
 Admitted.
 
+(* This is dubious *)
+Lemma bprim_bool_int: forall h bt a,
+  transBeePL_ptr_type (Reftype h bt a) = Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr ->
+  bt <> Bprim (Tint I8 Unsigned noattr) ->
+  Bprim (Tint I8 Unsigned noattr) =  Bprim Tbool.
+Proof.
+  intros. induction h. try inv H.
+  induction bt. induction p.  apply IHh.
+  simpl. auto.
+  inv H2. apply IHh. simpl. auto.
+  inv H2.
+  inv H2.
+  destruct p. inv H2.
+  inv H2.
+  inv H2.
+  inv H.  destruct bt. destruct p; inv H2; apply IHh; auto.
+  inv H2. destruct p. inv H2. inv H2. inv H2. simpl in H.
+  destruct bt. destruct p. assert (Tbool = (Tint I8 Unsigned noattr)).
+  apply bool_int_eq with (t := Vtype Tbool). auto. intro. inv H1. inv H1.
+  inv H. contradiction. inv H. inv H.
+  destruct p. inv H. inv H. inv H.
+Qed.
+
+Lemma transBeePL_ptr_ref_bool_int : forall h bt a,
+transBeePL_ptr_type (Reftype h bt a) = Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr ->
+bt = Bprim Tbool \/ bt = Bprim (Tint I8 Unsigned noattr).
+Proof.
+  intros h bt. generalize dependent h. induction bt; intros; try inv H. generalize dependent a.
+  revert h. induction p; intros; try inv H1. left; auto.
+  right.  auto.
+  induction p; try inv H1.
+Qed.
+
 (* Easy *)
+(* Original *)
 Lemma transBeePL_ptr_ref_bool : forall h bt a,
 transBeePL_ptr_type (Reftype h bt a) = Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr ->
 bt = Bprim Tbool.
 Proof.
-Admitted.
+  intros h bt. generalize dependent h. induction bt; intros; try inv H. generalize dependent a.
+  revert h. induction p; intros; try inv H1; auto.
+  - induction h; auto. eapply bprim_bool_int with (h := xH) (bt := Bprim Tbool) (a := noattr). 
+    simpl.  auto.  intro.  inv H. 
+  - destruct p. inv H1. inv H1. inv H1.
+Qed.
 
+Lemma transBeePL_ptr_ref_int_bool : forall h bt sz s a a',
+transBeePL_ptr_type (Reftype h bt a) = Ctypes.Tpointer (Ctypes.Tint sz s a') a ->
+bt = Bprim (Tint sz s a') \/ bt = Bprim Tbool.
+Proof.
+  intro h. induction h; intro bt. induction bt; intros; try inv H. destruct p; try inv H1.
+  destruct IHh with (bt := Bprim Tbool) (sz := I8) (s:= Unsigned) (a':= noattr) (a:= noattr).
+  induction h; auto. left; auto. right; auto. left; auto. destruct p; try inv H1.
+  intros. inv H. destruct bt. destruct p. inv H1.  right; auto.
+  inv H1. left; auto. 
+  inv H1. inv H1. destruct p; try inv H1. 
+  intros. inv H. destruct bt; try inv H1. destruct p; try inv H1; auto. inv H0.
+  left; auto. inv H0. induction p; try inv H0.
+Qed.
+
+
+(* Original *)
 (* Easy *)
 Lemma transBeePL_ptr_ref_int : forall h bt sz s a a',
 transBeePL_ptr_type (Reftype h bt a) = Ctypes.Tpointer (Ctypes.Tint sz s a') a ->
 bt = Bprim (Tint sz s a').
 Proof.
-Admitted.
+  intro h. induction h; intro bt. induction bt; intros; try inv H. destruct p; try inv H1.
+  destruct IHh with (bt := Bprim Tbool) (sz := I8) (s:= Unsigned) (a':= noattr) (a:= noattr).
+  induction h; auto. auto. auto. destruct p; try inv H1.
+  intros. inv H. destruct bt. destruct p. inv H1. symmetry.
+  apply bprim_bool_int with (h:= xH) (bt := Bprim Tbool) (a := noattr).
+  simpl. auto. intro. inv H.
+  inv H1. auto. inv H1. inv H1. destruct p. inv H1. inv H1. inv H1.
+  intros. inv H. destruct bt. destruct p; try inv H1; auto.
+  symmetry. 
+  apply bprim_bool_int with (h:= xH) (bt := Bprim Tbool) (a := noattr).
+  simpl. auto. intro. inv H.
+  inv H1. destruct p. inv H1. inv H1. inv H1.
+Qed.
+
 
 (* Easy *)
 Lemma transBeePL_ptr_ref_long : forall h bt s a a',
 transBeePL_ptr_type (Reftype h bt a) = Ctypes.Tpointer (Ctypes.Tlong s a') a ->
 bt = Bprim (Tlong s a').
 Proof.
-Admitted.
+  intros. simpl in *. induction bt. induction p; try inv H; auto.
+  - inv H.
+  - induction p; try inv H; auto.
+Qed.
 
 (* Easy *)
 Lemma transBeePL_ptr_ref_struct : forall h bt s a a',
 transBeePL_ptr_type (Reftype h bt a) = Ctypes.Tpointer (Ctypes.Tstruct s a') a ->
 bt = Bstruct s a'.
 Proof.
-Admitted.
+intros. inv H. induction bt. induction p; try inv H1; auto.
+inv H1; auto.
+induction p; try inv H1; auto.
+Qed.
 
-(* Easy *)
+
+Lemma transBeePL_ptr_ref_array_bool_int : forall h bt' z z0 a0 a a',
+transBeePL_ptr_type (Reftype h (Barray Tbool z0 a0) a) = Ctypes.Tpointer (Ctypes.Tarray (transBeePL_type (Vtype bt')) z a') a ->
+bt' = Tbool \/ bt' = Tint I8 Unsigned noattr.
+Proof.
+intros. inv H. induction bt'. left; auto.
+right. inv H1. auto. inv H1.
+Qed.
+
+Lemma transBeePL_ptr_ref_array_int_bool : forall h bt' z z0 a0 a a',
+transBeePL_ptr_type (Reftype h (Barray (Tint I8 Unsigned noattr) z0 a0) a) = Tpointer (Tarray (transBeePL_type (Vtype bt')) z a') a ->
+bt' = Tbool \/ bt' = Tint I8 Unsigned noattr.
+Proof.
+intros. inv H. induction bt'. left; auto.
+right. inv H1. auto. inv H1.
+Qed.
+
+(* Definitely wrong but will come back later;
+ still need to deal with bt with Tint and Tbool*)
 Lemma transBeePL_ptr_ref_array : forall h bt bt' z a a',
 transBeePL_ptr_type (Reftype h bt a) = Ctypes.Tpointer (Ctypes.Tarray (transBeePL_type (Vtype bt')) z a') a ->
 bt = Barray bt' z a'.
 Proof.
-Admitted.
+intros. inv H. induction bt; try inv H1. induction p; try inv H1; auto.
+induction bt'; try inv H0. induction bt'; inv H0. induction bt'; inv H0.
+induction p; try inv H0. induction bt'; try inv H0; auto. inv H1. assert (Tbool = (Tint I8 Unsigned noattr)).
+apply bool_int_eq with (t := Vtype Tbool). auto. intro. inv H. 
+assert (Tbool = (Tint I8 Unsigned noattr)).
+apply bool_int_eq with (t := Vtype Tbool). auto. intro. inv H.
+try inv H1; auto. assert (Tbool = (Tint I8 Unsigned noattr)).
+apply bool_int_eq with (t := Vtype Tbool). auto. intro. inv H. inv H.
+inv H1. induction bt'; try inv H1. assert (Tbool = (Tint I8 Unsigned noattr)).
+apply bool_int_eq with (t := Vtype Tbool). auto. intro. inv H. inv H. auto.
+induction bt'; try inv H1; auto.
+Qed.
 
+(* Might have to generalize dependent *)
 (* Easy *)
 Lemma transBeePL_type_pfunction : forall t cts ct c,
 transBeePL_ptr_type t = (Tfunction cts ct c) ->
 exists bts bef brt, t = Fptype bts bef brt /\ transBeePL_types transBeePL_type bts = cts /\ transBeePL_type brt = ct. 
 Proof.
+intro.  induction t. induction b. induction p; intros; try inv H.
+intros. inv H. generalize dependent i. revert a0. revert a. revert z.
+induction p; intros; try inv H. intros. inv H. apply IHt in H1.
+destruct H1. destruct H. destruct H. exists x. exists x0.  exists x1.
+split. destruct H. destruct H0. subst. auto. auto. admit.
+split. destruct H. destruct H0. auto.
+destruct H. destruct H0. auto.
+intros. inv H. 
 Admitted.
 
+(* Might have to generalize dependent *)
 (* Easy *)
 Lemma transBeePL_type_ptr : forall t pt,
 transBeePL_type t = transBeePL_ptr_type pt ->
 t = Ptrtype pt.
 Proof.
+intro t. induction t; induction pt; try inv H.
+induction b; try inv H1. revert i. revert a. induction p; intros; try inv H.
+intros. inv H.
+intros. inv H. revert H1. revert a0 a z i.
+induction p. intros. inv H1.  intros. inv H1.
+intros. inv H1. intros. simpl in *. apply IHpt in H. inv H.
+intros. inv H.
+induction p; try inv H1. induction b; try inv H1.
+induction p; try inv H0.
+intros; inv H. intros; inv H. intros; inv H. intros; inv H. intros; inv H.
+induction p; try inv H1. intros. inv H.
+induction b. induction p; try inv H1. inv H1.
+induction p; try inv H1. intros; inv H.
+induction b; try inv H1. induction p; try inv H0.
+induction p; try inv H0.
+intros. admit.
 Admitted.
+
 
 (* Easy *)
 Lemma transBeePL_type_stype : forall t s a,
 transBeePL_type t = Tstruct s a ->
 t = Stype s a.
 Proof.
+induction t; intros; try inv H; auto.
+induction p; try inv H1.
+induction p. simpl in H1.
+induction b; try inv H1. induction p; try inv H0. 
+induction p; try inv H1.
+inv H0. inv H0. inv H0. inv H1. apply IHp in H0. inv H0. 
+inv H1. admit.
 Admitted.
 
 (* Easy *)
@@ -96,14 +271,39 @@ Lemma transBeePL_type_function : forall t cts ct c,
 transBeePL_type t = (Tfunction cts ct c) ->
 exists bts bef brt, t = Ftype bts bef brt /\ transBeePL_types transBeePL_type bts = cts /\ transBeePL_type t = ct. 
 Proof.
+induction t; intros; try inv H.
+induction p; try inv H.
+inv H1. inv H1. inv H1.
+induction p; try inv H. simpl in H1.
+induction b; try inv H1. induction p; try inv H1.
+inv H0. inv H0. inv H0. revert H0. generalize dependent i. generalize dependent z.
+generalize dependent a0. generalize dependent a.
+generalize dependent cts. generalize dependent ct. generalize dependent c.
+induction p; intros; try inv H0.
+inv H1. apply IHp in H0. destruct H0. destruct H. destruct H.
+destruct H. destruct H0. exists x. exists x0. exists x1.
+split. subst. symmetry in H. admit.
+inv H. inv H1. admit.
 Admitted.
+
 
 (* Easy *)
 Lemma transBeePL_type_bytes : forall t,
 transBeePL_type t = Tstruct bytes_t noattr ->
 t = Bytes.
 Proof.
-Admitted.
+induction t; intros; try inv H.
+induction p; try inv H1.
+inv H1. induction p; try inv H0.
+induction b; try inv H1.
+induction p; try inv H1.
+inv H0. inv H0. inv H0.
+induction p; try inv H1.
+inv H0. inv H0. inv H0. apply IHp in H1. inv H1.
+symmetry. apply transBeePL_type_stype. simpl. auto.
+auto.
+Qed.
+
 
 Lemma no_bptype_to_float : forall pt f a,
 transBeePL_ptr_type pt <> Tfloat f a.
@@ -184,13 +384,16 @@ induction ty.
       inv H. inv H. destruct i; inv H.
       destruct s; inv H2. destruct s; inv H2.
       inv H.
-- simpl. intros. subst.
-  admit.
+- induction md; simpl; intros.
+  induction p; auto; injection H; intros; subst; auto.
+  destruct b; auto. destruct p; auto.
+  destruct p; auto.
+  destruct p; auto. inv H. inv H. inv H. inv H. inv H.
 - simpl. intros. subst. auto.
 - simpl. intros. subst. auto.
 - simpl. intros. subst. auto.
 - simpl. intros. subst. simpl. auto.
-Admitted.
+Qed.
 
 Lemma non_volatile_type_preserved : forall ty cty b,
 type_is_volatile (transBeePL_type ty) = b ->
