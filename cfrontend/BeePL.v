@@ -569,11 +569,14 @@ match Senv.find_symbol ge b with
     | None => (E0, Vundef)
     end.*)
 
+
+(* In BeePL, all pointers come only from trusted helpers or explicit reference creation, 
+   so every dereference is a real memory load and implies a valid memory block. 
+   Allowing deref-by-reference or deref-by-copy would let BeePL fabricate pointers to non-existent memory, 
+   breaking safety. Helpers are trusted but checked via options. 
+   Unlike CompCert, which can produce unchecked Vptr b ofs without a memory read, BeePL disallows such unchecked pointer creation. *)
 (* [deref_addr ty m addr ofs] computes the value of type [ty] residing in 
-    memory [m] at address [addr], offset [ofs] and bitfield designation [bf]:
-    if the access mode is by value then the value is returned by performing memory load 
-    if the access mode is by reference then the pointer [Vloc addr ofs] is returned *)
-(* Add rest like copy, bitfield, volatile, etc once we add arrays and structs *) 
+    memory [m] at address [addr], offset [ofs] and bitfield designation bf *)
 Inductive deref_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : ptrofs) : bitfield -> value -> Prop :=
 | deref_addr_value : forall chunk v v',
   access_mode_type ty = By_value (transl_bchunk_cchunk chunk) ->
@@ -581,18 +584,6 @@ Inductive deref_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : p
   Mem.loadv (transl_bchunk_cchunk chunk) m (trans_bvalue_cvalue (Vloc addr ofs)) = Some v ->
   trans_cvalue_bvalue v = OK v' ->
   deref_addr ty m addr ofs Full v'
-(*| deref_loc_volatile: forall chunk tr v v',
-  access_mode_type ty = By_value (transl_bchunk_cchunk chunk) -> 
-  type_is_volatile (transBeePL_type ty) = true ->
-  volatile_load ge (transl_bchunk_cchunk chunk) m addr ofs tr v ->
-  trans_cvalue_bvalue v = OK v' ->
-  deref_addr ty m addr ofs Full v'*)
-| deref_addr_reference:
-  access_mode_type ty = By_reference ->
-  deref_addr ty m addr ofs Full (Vloc addr ofs) 
-| deref_addr_copy:
-  access_mode_type ty = By_copy ->
-  deref_addr ty m addr ofs Full (Vloc addr ofs)
 | deref_addr_bitfield: forall sz sg pos width v v' cty,
   transBeePL_type ty = cty ->
   load_bitfield cty sz sg pos width m (Values.Vptr addr ofs) v ->
