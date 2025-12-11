@@ -371,12 +371,17 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
     | _ ->
         raise (TypeError "Expected a function type in application")
     end
-  | Let (x, ty_ann, e1, e2) ->
-      let ty1 = infer_expr ee senv env e1 in
-      if not (typ_eq ty1 ty_ann) then
-        raise (TypeError ("Let-binding type mismatch for " ^ x));
-      let env' = Env.add x ty1 env in
-      infer_expr ee senv env' e2 
+  | Let (x, ty, e1, e2) ->
+      (* disallow duplicate names *)
+      if Env.mem x env then
+        raise (TypeError (Printf.sprintf "Duplicate variable: %s" x));
+  
+      let t1 = infer_expr ee senv env e1 in
+      if not (typ_eq t1 ty) then
+        raise (TypeError "Type mismatch in let-binding");
+  
+      let env' = Env.add x ty env in
+      infer_expr ee senv env' e2
   | If (e1, e2, e3) ->
       let t1 = infer_expr ee senv env e1 in
       if not (typ_eq t1 (Vtype Tbool)) then
@@ -534,15 +539,54 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
     | _ -> raise (TypeError "none expects a pointer type")
     end
 
+    module StringSet = Set.Make(String)
 
-let infer_fundecl (ee : efenv) (Tfundecl (_name, ret_type, _eff, args, _vars, body))
-(senv : Senv.t) (global_env : tyenv) =
-let env_with_args =
-List.fold_left (fun acc (x, ty) -> Env.add x ty acc) global_env args in
-let inferred_type = infer_expr ee senv env_with_args body in
-if not (typ_eq inferred_type ret_type) then
-raise (TypeError "Return type mismatch");
-()
+    let check_unique (what : string) (name : string) (xs : (string * 'a) list) =
+      let _, dups =
+        List.fold_left
+          (fun (seen, dups) (x, _) ->
+             if StringSet.mem x seen then
+               (seen, x :: dups)
+             else
+               (StringSet.add x seen, dups))
+          (StringSet.empty, [])
+          xs
+      in
+      match dups with
+      | [] -> ()
+      | dups ->
+          let dups = List.rev dups in
+          let msg =
+            Printf.sprintf
+              "Duplicate %s in function %s: %s"
+              what name
+              (String.concat ", " dups)
+          in
+          raise (TypeError msg)
+
+let infer_fundecl (ee : efenv)
+    (Tfundecl (name, ret_type, _eff, args, vars, body))
+    (senv : Senv.t) (global_env : tyenv) =
+  (* 1. Ensure all parameter names and local variable names are unique *)
+  check_unique "parameters" name args;
+  check_unique "locals"     name vars;
+  (* also ensure no overlap between params and locals *)
+  check_unique "parameters/locals" name (args @ vars);
+
+  (* 2. Build env with args + locals *)
+  let env_with_args_and_vars =
+    List.fold_left
+      (fun acc (x, ty) -> Env.add x ty acc)
+      global_env
+      (args @ vars)
+  in
+
+  (* 3. Infer and check return type *)
+  let inferred_type = infer_expr ee senv env_with_args_and_vars body in
+  if not (typ_eq inferred_type ret_type) then
+    raise (TypeError "Return type mismatch");
+  ()
+
 
 let infer_program (prog : program) =
   let senv = build_senv prog in  
