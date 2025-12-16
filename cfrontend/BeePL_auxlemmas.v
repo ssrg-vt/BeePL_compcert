@@ -8,7 +8,6 @@ From mathcomp Require Import all_ssreflect.
 
 (***** Correctness proof for type transformation from BeePL to Ctypes *****)
 
-Print transBeePL_type.
 (* Easy *)
 Lemma transBeePL_type_int : forall t sz s a,
 transBeePL_type t = (Ctypes.Tint sz s a) ->
@@ -43,7 +42,6 @@ intros. induction t; try inv H.
 - apply IHp in H0. inv H0.
 Qed.
 
-Print transBeePL_type.
 (* Easy *)
 Lemma transBeePL_type_void : forall t,
 transBeePL_type t = Tvoid->
@@ -57,8 +55,6 @@ Proof.
       destruct p; try inv H1.
     + apply IHp in H0.  inv H0. 
 Qed.
-
-Print transBeePL_ptr_type.
 
 (* This is dubious *)
 Lemma bool_int_eq : forall t,
@@ -400,7 +396,7 @@ type_is_volatile (transBeePL_type ty) = b ->
 transBeePL_type ty = cty ->
 Ctypes.type_is_volatile cty = b.
 Proof.
-intros. Search type_is_volatile.
+intros.
 induction ty.
 - induction cty; simpl in *; try (rewrite <- H0; auto).
   + auto.
@@ -433,7 +429,7 @@ trans_cvalue_bvalue (trans_bvalue_cvalue v) = OK v.
 Proof.
 intros.
 induction v eqn:?.
-- Locate trans_cvalue_bvalue.
+- 
   (* Can't be proved without fixing Vunit issue in trans_bvalue_cvalue*)
 Admitted.
 
@@ -700,7 +696,7 @@ Lemma sub_effect_1c : forall ef1 ef2 ef3,
 Proof.
   intros. induction ef3.
   - auto.
-  - Search cat. rewrite cat_cons. apply sub_effect_1s. auto.
+  - rewrite cat_cons. apply sub_effect_1s. auto.
 Qed.
 
 Lemma eq_effect_trans: forall a a0 a1,
