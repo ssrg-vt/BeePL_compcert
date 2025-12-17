@@ -1,0 +1,1033 @@
+
+** Conflict (shift/reduce) in state 316.
+** Tokens involved: LPAREN DOT
+** The following explanations concentrate on token LPAREN.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ TILDE expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 316, looking ahead at LPAREN, reducing production
+** expr -> TILDE expr
+** is permitted because of the following sub-derivation:
+
+expr LPAREN separated_nonempty_list(COMMA,expr) RPAREN // lookahead token appears
+TILDE expr . 
+
+** In state 316, looking ahead at LPAREN, shifting is permitted
+** because of the following sub-derivation:
+
+TILDE expr 
+      expr . LPAREN separated_nonempty_list(COMMA,expr) RPAREN 
+
+** Conflict (shift/reduce) in state 313.
+** Tokens involved: LPAREN DOT
+** The following explanations concentrate on token LPAREN.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ REF expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 313, looking ahead at LPAREN, reducing production
+** expr -> REF expr
+** is permitted because of the following sub-derivation:
+
+expr LPAREN separated_nonempty_list(COMMA,expr) RPAREN // lookahead token appears
+REF expr . 
+
+** In state 313, looking ahead at LPAREN, shifting is permitted
+** because of the following sub-derivation:
+
+REF expr 
+    expr . LPAREN separated_nonempty_list(COMMA,expr) RPAREN 
+
+** Conflict (shift/reduce) in state 312.
+** Tokens involved: XOR SHR SHL PLUS OR OEQ NEQ MUL MOD MINUS MASSGN LT LPAREN LE GT GE DOT DIV AND
+** The following explanations concentrate on token XOR.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ OSOME expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 312, looking ahead at XOR, shifting is permitted
+** because of the following sub-derivation:
+
+OSOME expr 
+      expr . XOR expr 
+
+** In state 312, looking ahead at XOR, reducing production
+** expr -> OSOME expr
+** is permitted because of the following sub-derivation:
+
+expr XOR expr // lookahead token appears
+OSOME expr . 
+
+** Conflict (shift/reduce) in state 311.
+** Tokens involved: LPAREN DOT
+** The following explanations concentrate on token LPAREN.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ MINUS expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 311, looking ahead at LPAREN, reducing production
+** expr -> MINUS expr
+** is permitted because of the following sub-derivation:
+
+expr LPAREN separated_nonempty_list(COMMA,expr) RPAREN // lookahead token appears
+MINUS expr . 
+
+** In state 311, looking ahead at LPAREN, shifting is permitted
+** because of the following sub-derivation:
+
+MINUS expr 
+      expr . LPAREN separated_nonempty_list(COMMA,expr) RPAREN 
+
+** Conflict (shift/reduce) in state 308.
+** Token involved: BAR
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ MATCH expr WITH option(BAR) ONONE ARROW MATCH expr WITH option(BAR) clause
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   MATCH expr WITH option(BAR) separated_nonempty_list(BAR,clause) 
+                                                               (?)
+
+** In state 308, looking ahead at BAR, reducing production
+** separated_nonempty_list(BAR,clause) -> clause
+** is permitted because of the following sub-derivation:
+
+clause BAR separated_nonempty_list(BAR,clause) // lookahead token appears
+ONONE ARROW expr // lookahead token is inherited
+            MATCH expr WITH option(BAR) separated_nonempty_list(BAR,clause) // lookahead token is inherited
+                                        clause . 
+
+** In state 308, looking ahead at BAR, shifting is permitted
+** because of the following sub-derivation:
+
+clause 
+ONONE ARROW expr 
+            MATCH expr WITH option(BAR) separated_nonempty_list(BAR,clause) 
+                                        clause . BAR separated_nonempty_list(BAR,clause) 
+
+** Conflict (shift/reduce) in state 306.
+** Tokens involved: XOR SHR SHL PLUS OR OEQ NEQ MUL MOD MINUS MASSGN LT LPAREN LE GT GE DOT DIV AND
+** The following explanations concentrate on token XOR.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ MATCH expr WITH option(BAR) ONONE ARROW expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 306, looking ahead at XOR, reducing production
+** clause -> ONONE ARROW expr
+** is permitted because of the following sub-derivation:
+
+expr XOR expr // lookahead token appears
+MATCH expr WITH option(BAR) separated_nonempty_list(BAR,clause) // lookahead token is inherited
+                            clause // lookahead token is inherited
+                            ONONE ARROW expr . 
+
+** In state 306, looking ahead at XOR, shifting is permitted
+** because of the following sub-derivation:
+
+MATCH expr WITH option(BAR) separated_nonempty_list(BAR,clause) 
+                            clause 
+                            ONONE ARROW expr 
+                                        expr . XOR expr 
+
+** Conflict (shift/reduce) in state 303.
+** Tokens involved: XOR SHR SHL PLUS OR OEQ NEQ MUL MOD MINUS MASSGN LT LPAREN LE GT GE DOT DIV AND
+** The following explanations concentrate on token XOR.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ MATCH expr WITH option(BAR) OSOME IDENT ARROW expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 303, looking ahead at XOR, reducing production
+** clause -> OSOME IDENT ARROW expr
+** is permitted because of the following sub-derivation:
+
+expr XOR expr // lookahead token appears
+MATCH expr WITH option(BAR) separated_nonempty_list(BAR,clause) // lookahead token is inherited
+                            clause // lookahead token is inherited
+                            OSOME IDENT ARROW expr . 
+
+** In state 303, looking ahead at XOR, shifting is permitted
+** because of the following sub-derivation:
+
+MATCH expr WITH option(BAR) separated_nonempty_list(BAR,clause) 
+                            clause 
+                            OSOME IDENT ARROW expr 
+                                              expr . XOR expr 
+
+** Conflict (shift/reduce) in state 299.
+** Tokens involved: XOR SHR SHL PLUS OR OEQ NEQ MUL MOD MINUS MASSGN LT LPAREN LE GT GE DOT DIV AND
+** The following explanations concentrate on token XOR.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ MATCH expr WITH option(BAR) PBYTES IDENT COLON typ bytes_fields ARROW expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 299, looking ahead at XOR, reducing production
+** clause -> PBYTES IDENT COLON typ bytes_fields ARROW expr
+** is permitted because of the following sub-derivation:
+
+expr XOR expr // lookahead token appears
+MATCH expr WITH option(BAR) separated_nonempty_list(BAR,clause) // lookahead token is inherited
+                            clause // lookahead token is inherited
+                            PBYTES IDENT COLON typ bytes_fields ARROW expr . 
+
+** In state 299, looking ahead at XOR, shifting is permitted
+** because of the following sub-derivation:
+
+MATCH expr WITH option(BAR) separated_nonempty_list(BAR,clause) 
+                            clause 
+                            PBYTES IDENT COLON typ bytes_fields ARROW expr 
+                                                                      expr . XOR expr 
+
+** Conflict (shift/reduce) in state 285.
+** Token involved: RBRACK
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ MATCH expr WITH option(BAR) PBYTES IDENT COLON typ LBRACK
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   MATCH expr WITH option(BAR) separated_nonempty_list(BAR,clause) 
+                                                               clause 
+                                                               PBYTES IDENT COLON typ bytes_fields ARROW expr 
+                                                                                      (?)
+
+** In state 285, looking ahead at RBRACK, shifting is permitted
+** because of the following sub-derivation:
+
+LBRACK . RBRACK 
+
+** In state 285, looking ahead at RBRACK, reducing production
+** loption(separated_nonempty_list(COMMA,bytes_field)) ->
+** is permitted because of the following sub-derivation:
+
+LBRACK loption(separated_nonempty_list(COMMA,bytes_field)) RBRACK // lookahead token appears
+       . 
+
+** Conflict (shift/reduce) in state 274.
+** Tokens involved: XOR SHR SHL PLUS OR OEQ NEQ MUL MOD MINUS MASSGN LT LPAREN LE GT GE DOT DIV AND
+** The following explanations concentrate on token XOR.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ LPAREN typ RPAREN expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 274, looking ahead at XOR, shifting is permitted
+** because of the following sub-derivation:
+
+LPAREN typ RPAREN expr 
+                  expr . XOR expr 
+
+** In state 274, looking ahead at XOR, reducing production
+** expr -> LPAREN typ RPAREN expr
+** is permitted because of the following sub-derivation:
+
+expr XOR expr // lookahead token appears
+LPAREN typ RPAREN expr . 
+
+** Conflict (shift/reduce) in state 271.
+** Tokens involved: XOR SHR SHL PLUS OR OEQ NEQ MUL MOD MINUS MASSGN LT LPAREN LE GT GE DOT DIV AND
+** The following explanations concentrate on token XOR.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ LET IDENT COLON typ EQ array_elems IN expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 271, looking ahead at XOR, shifting is permitted
+** because of the following sub-derivation:
+
+LET IDENT COLON typ EQ array_elems IN expr 
+                                      expr . XOR expr 
+
+** In state 271, looking ahead at XOR, reducing production
+** expr -> LET IDENT COLON typ EQ array_elems IN expr
+** is permitted because of the following sub-derivation:
+
+expr XOR expr // lookahead token appears
+LET IDENT COLON typ EQ array_elems IN expr . 
+
+** Conflict (shift/reduce) in state 268.
+** Tokens involved: XOR SHR SHL PLUS OR OEQ NEQ MUL MOD MINUS MASSGN LT LPAREN LE GT GE DOT DIV AND
+** The following explanations concentrate on token XOR.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ LET IDENT COLON typ EQ expr IN expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 268, looking ahead at XOR, shifting is permitted
+** because of the following sub-derivation:
+
+LET IDENT COLON typ EQ expr IN expr 
+                               expr . XOR expr 
+
+** In state 268, looking ahead at XOR, reducing production
+** expr -> LET IDENT COLON typ EQ expr IN expr
+** is permitted because of the following sub-derivation:
+
+expr XOR expr // lookahead token appears
+LET IDENT COLON typ EQ expr IN expr . 
+
+** Conflict (shift/reduce) in state 262.
+** Tokens involved: XOR SHR SHL PLUS OR OEQ NEQ MUL MOD MINUS MASSGN LT LPAREN LE GT GE DOT DIV AND
+** The following explanations concentrate on token XOR.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ IF expr THEN expr ELSE expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 262, looking ahead at XOR, shifting is permitted
+** because of the following sub-derivation:
+
+IF expr THEN expr ELSE expr 
+                       expr . XOR expr 
+
+** In state 262, looking ahead at XOR, reducing production
+** expr -> IF expr THEN expr ELSE expr
+** is permitted because of the following sub-derivation:
+
+expr XOR expr // lookahead token appears
+IF expr THEN expr ELSE expr . 
+
+** Conflict (shift/reduce) in state 245.
+** Tokens involved: LPAREN DOT
+** The following explanations concentrate on token LPAREN.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ expr MASSGN expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 245, looking ahead at LPAREN, reducing production
+** expr -> expr MASSGN expr
+** is permitted because of the following sub-derivation:
+
+expr LPAREN separated_nonempty_list(COMMA,expr) RPAREN // lookahead token appears
+expr MASSGN expr . 
+
+** In state 245, looking ahead at LPAREN, shifting is permitted
+** because of the following sub-derivation:
+
+expr MASSGN expr 
+            expr . LPAREN separated_nonempty_list(COMMA,expr) RPAREN 
+
+** Conflict (shift/reduce) in state 243.
+** Tokens involved: LPAREN DOT
+** The following explanations concentrate on token LPAREN.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ expr OR expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 243, looking ahead at LPAREN, reducing production
+** expr -> expr OR expr
+** is permitted because of the following sub-derivation:
+
+expr LPAREN separated_nonempty_list(COMMA,expr) RPAREN // lookahead token appears
+expr OR expr . 
+
+** In state 243, looking ahead at LPAREN, shifting is permitted
+** because of the following sub-derivation:
+
+expr OR expr 
+        expr . LPAREN separated_nonempty_list(COMMA,expr) RPAREN 
+
+** Conflict (shift/reduce) in state 241.
+** Tokens involved: LPAREN DOT
+** The following explanations concentrate on token LPAREN.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ expr AND expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 241, looking ahead at LPAREN, reducing production
+** expr -> expr AND expr
+** is permitted because of the following sub-derivation:
+
+expr LPAREN separated_nonempty_list(COMMA,expr) RPAREN // lookahead token appears
+expr AND expr . 
+
+** In state 241, looking ahead at LPAREN, shifting is permitted
+** because of the following sub-derivation:
+
+expr AND expr 
+         expr . LPAREN separated_nonempty_list(COMMA,expr) RPAREN 
+
+** Conflict (shift/reduce) in state 239.
+** Tokens involved: LPAREN DOT
+** The following explanations concentrate on token LPAREN.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ expr NEQ expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 239, looking ahead at LPAREN, reducing production
+** expr -> expr NEQ expr
+** is permitted because of the following sub-derivation:
+
+expr LPAREN separated_nonempty_list(COMMA,expr) RPAREN // lookahead token appears
+expr NEQ expr . 
+
+** In state 239, looking ahead at LPAREN, shifting is permitted
+** because of the following sub-derivation:
+
+expr NEQ expr 
+         expr . LPAREN separated_nonempty_list(COMMA,expr) RPAREN 
+
+** Conflict (shift/reduce) in state 237.
+** Tokens involved: LPAREN DOT
+** The following explanations concentrate on token LPAREN.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ expr GE expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 237, looking ahead at LPAREN, reducing production
+** expr -> expr GE expr
+** is permitted because of the following sub-derivation:
+
+expr LPAREN separated_nonempty_list(COMMA,expr) RPAREN // lookahead token appears
+expr GE expr . 
+
+** In state 237, looking ahead at LPAREN, shifting is permitted
+** because of the following sub-derivation:
+
+expr GE expr 
+        expr . LPAREN separated_nonempty_list(COMMA,expr) RPAREN 
+
+** Conflict (shift/reduce) in state 235.
+** Tokens involved: LPAREN DOT
+** The following explanations concentrate on token LPAREN.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ expr GT expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 235, looking ahead at LPAREN, reducing production
+** expr -> expr GT expr
+** is permitted because of the following sub-derivation:
+
+expr LPAREN separated_nonempty_list(COMMA,expr) RPAREN // lookahead token appears
+expr GT expr . 
+
+** In state 235, looking ahead at LPAREN, shifting is permitted
+** because of the following sub-derivation:
+
+expr GT expr 
+        expr . LPAREN separated_nonempty_list(COMMA,expr) RPAREN 
+
+** Conflict (shift/reduce) in state 233.
+** Tokens involved: LPAREN DOT
+** The following explanations concentrate on token LPAREN.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ expr LE expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 233, looking ahead at LPAREN, reducing production
+** expr -> expr LE expr
+** is permitted because of the following sub-derivation:
+
+expr LPAREN separated_nonempty_list(COMMA,expr) RPAREN // lookahead token appears
+expr LE expr . 
+
+** In state 233, looking ahead at LPAREN, shifting is permitted
+** because of the following sub-derivation:
+
+expr LE expr 
+        expr . LPAREN separated_nonempty_list(COMMA,expr) RPAREN 
+
+** Conflict (shift/reduce) in state 231.
+** Tokens involved: LPAREN DOT
+** The following explanations concentrate on token LPAREN.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ expr LT expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 231, looking ahead at LPAREN, reducing production
+** expr -> expr LT expr
+** is permitted because of the following sub-derivation:
+
+expr LPAREN separated_nonempty_list(COMMA,expr) RPAREN // lookahead token appears
+expr LT expr . 
+
+** In state 231, looking ahead at LPAREN, shifting is permitted
+** because of the following sub-derivation:
+
+expr LT expr 
+        expr . LPAREN separated_nonempty_list(COMMA,expr) RPAREN 
+
+** Conflict (shift/reduce) in state 229.
+** Tokens involved: LPAREN DOT
+** The following explanations concentrate on token LPAREN.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ expr OEQ expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 229, looking ahead at LPAREN, reducing production
+** expr -> expr OEQ expr
+** is permitted because of the following sub-derivation:
+
+expr LPAREN separated_nonempty_list(COMMA,expr) RPAREN // lookahead token appears
+expr OEQ expr . 
+
+** In state 229, looking ahead at LPAREN, shifting is permitted
+** because of the following sub-derivation:
+
+expr OEQ expr 
+         expr . LPAREN separated_nonempty_list(COMMA,expr) RPAREN 
+
+** Conflict (shift/reduce) in state 227.
+** Tokens involved: LPAREN DOT
+** The following explanations concentrate on token LPAREN.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ expr SHL expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 227, looking ahead at LPAREN, reducing production
+** expr -> expr SHL expr
+** is permitted because of the following sub-derivation:
+
+expr LPAREN separated_nonempty_list(COMMA,expr) RPAREN // lookahead token appears
+expr SHL expr . 
+
+** In state 227, looking ahead at LPAREN, shifting is permitted
+** because of the following sub-derivation:
+
+expr SHL expr 
+         expr . LPAREN separated_nonempty_list(COMMA,expr) RPAREN 
+
+** Conflict (shift/reduce) in state 225.
+** Tokens involved: LPAREN DOT
+** The following explanations concentrate on token LPAREN.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ expr MINUS expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 225, looking ahead at LPAREN, reducing production
+** expr -> expr MINUS expr
+** is permitted because of the following sub-derivation:
+
+expr LPAREN separated_nonempty_list(COMMA,expr) RPAREN // lookahead token appears
+expr MINUS expr . 
+
+** In state 225, looking ahead at LPAREN, shifting is permitted
+** because of the following sub-derivation:
+
+expr MINUS expr 
+           expr . LPAREN separated_nonempty_list(COMMA,expr) RPAREN 
+
+** Conflict (shift/reduce) in state 223.
+** Tokens involved: LPAREN DOT
+** The following explanations concentrate on token LPAREN.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ expr DIV expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 223, looking ahead at LPAREN, reducing production
+** expr -> expr DIV expr
+** is permitted because of the following sub-derivation:
+
+expr LPAREN separated_nonempty_list(COMMA,expr) RPAREN // lookahead token appears
+expr DIV expr . 
+
+** In state 223, looking ahead at LPAREN, shifting is permitted
+** because of the following sub-derivation:
+
+expr DIV expr 
+         expr . LPAREN separated_nonempty_list(COMMA,expr) RPAREN 
+
+** Conflict (shift/reduce) in state 221.
+** Tokens involved: LPAREN DOT
+** The following explanations concentrate on token LPAREN.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ expr MOD expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 221, looking ahead at LPAREN, reducing production
+** expr -> expr MOD expr
+** is permitted because of the following sub-derivation:
+
+expr LPAREN separated_nonempty_list(COMMA,expr) RPAREN // lookahead token appears
+expr MOD expr . 
+
+** In state 221, looking ahead at LPAREN, shifting is permitted
+** because of the following sub-derivation:
+
+expr MOD expr 
+         expr . LPAREN separated_nonempty_list(COMMA,expr) RPAREN 
+
+** Conflict (shift/reduce) in state 216.
+** Tokens involved: LPAREN DOT
+** The following explanations concentrate on token LPAREN.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ expr MUL expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 216, looking ahead at LPAREN, reducing production
+** expr -> expr MUL expr
+** is permitted because of the following sub-derivation:
+
+expr LPAREN separated_nonempty_list(COMMA,expr) RPAREN // lookahead token appears
+expr MUL expr . 
+
+** In state 216, looking ahead at LPAREN, shifting is permitted
+** because of the following sub-derivation:
+
+expr MUL expr 
+         expr . LPAREN separated_nonempty_list(COMMA,expr) RPAREN 
+
+** Conflict (shift/reduce) in state 214.
+** Tokens involved: LPAREN DOT
+** The following explanations concentrate on token LPAREN.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ expr PLUS expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 214, looking ahead at LPAREN, reducing production
+** expr -> expr PLUS expr
+** is permitted because of the following sub-derivation:
+
+expr LPAREN separated_nonempty_list(COMMA,expr) RPAREN // lookahead token appears
+expr PLUS expr . 
+
+** In state 214, looking ahead at LPAREN, shifting is permitted
+** because of the following sub-derivation:
+
+expr PLUS expr 
+          expr . LPAREN separated_nonempty_list(COMMA,expr) RPAREN 
+
+** Conflict (shift/reduce) in state 212.
+** Tokens involved: LPAREN DOT
+** The following explanations concentrate on token LPAREN.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ expr SHR expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 212, looking ahead at LPAREN, reducing production
+** expr -> expr SHR expr
+** is permitted because of the following sub-derivation:
+
+expr LPAREN separated_nonempty_list(COMMA,expr) RPAREN // lookahead token appears
+expr SHR expr . 
+
+** In state 212, looking ahead at LPAREN, shifting is permitted
+** because of the following sub-derivation:
+
+expr SHR expr 
+         expr . LPAREN separated_nonempty_list(COMMA,expr) RPAREN 
+
+** Conflict (shift/reduce) in state 210.
+** Tokens involved: LPAREN DOT
+** The following explanations concentrate on token LPAREN.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ expr XOR expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 210, looking ahead at LPAREN, reducing production
+** expr -> expr XOR expr
+** is permitted because of the following sub-derivation:
+
+expr LPAREN separated_nonempty_list(COMMA,expr) RPAREN // lookahead token appears
+expr XOR expr . 
+
+** In state 210, looking ahead at LPAREN, shifting is permitted
+** because of the following sub-derivation:
+
+expr XOR expr 
+         expr . LPAREN separated_nonempty_list(COMMA,expr) RPAREN 
+
+** Conflict (shift/reduce) in state 203.
+** Tokens involved: LPAREN DOT
+** The following explanations concentrate on token LPAREN.
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ DEREF expr
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 203, looking ahead at LPAREN, reducing production
+** expr -> DEREF expr
+** is permitted because of the following sub-derivation:
+
+expr LPAREN separated_nonempty_list(COMMA,expr) RPAREN // lookahead token appears
+DEREF expr . 
+
+** In state 203, looking ahead at LPAREN, shifting is permitted
+** because of the following sub-derivation:
+
+DEREF expr 
+      expr . LPAREN separated_nonempty_list(COMMA,expr) RPAREN 
+
+** Conflict (reduce/reduce) in state 182.
+** Token involved: RPAREN
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ LPAREN UNIT
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 182, looking ahead at RPAREN, reducing production
+** const -> UNIT
+** is permitted because of the following sub-derivation:
+
+LPAREN expr RPAREN // lookahead token appears
+       const // lookahead token is inherited
+       UNIT . 
+
+** In state 182, looking ahead at RPAREN, reducing production
+** typ -> UNIT
+** is permitted because of the following sub-derivation:
+
+LPAREN typ RPAREN expr // lookahead token appears
+       UNIT . 
+
+** Conflict (shift/reduce) in state 139.
+** Token involved: COMMA
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON FUNTYPE LPAREN loption(separated_nonempty_list(COMMA,typ)) RPAREN COLON effect
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                            (?)
+
+** In state 139, looking ahead at COMMA, reducing production
+** separated_nonempty_list(COMMA,effect) -> effect
+** is permitted because of the following sub-derivation:
+
+FUNTYPE LPAREN loption(separated_nonempty_list(COMMA,typ)) RPAREN COLON loption(separated_nonempty_list(COMMA,effect)) COMMA typ // lookahead token appears
+                                                                        separated_nonempty_list(COMMA,effect) // lookahead token is inherited
+                                                                        effect . 
+
+** In state 139, looking ahead at COMMA, shifting is permitted
+** because of the following sub-derivation:
+
+FUNTYPE LPAREN loption(separated_nonempty_list(COMMA,typ)) RPAREN COLON loption(separated_nonempty_list(COMMA,effect)) COMMA typ 
+                                                                        separated_nonempty_list(COMMA,effect) 
+                                                                        effect . COMMA separated_nonempty_list(COMMA,effect) 
+
+** Conflict (shift/reduce) in state 138.
+** Token involved: LBRACK
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON FUNTYPE LPAREN loption(separated_nonempty_list(COMMA,typ)) RPAREN COLON loption(separated_nonempty_list(COMMA,effect)) COMMA typ
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                            (?)
+
+** In state 138, looking ahead at LBRACK, shifting is permitted
+** because of the following sub-derivation:
+
+FUNTYPE LPAREN loption(separated_nonempty_list(COMMA,typ)) RPAREN COLON loption(separated_nonempty_list(COMMA,effect)) COMMA typ 
+                                                                                                                             typ . LBRACK INT32 RBRACK 
+
+** In state 138, looking ahead at LBRACK, reducing production
+** typ -> FUNTYPE LPAREN loption(separated_nonempty_list(COMMA,typ)) RPAREN COLON loption(separated_nonempty_list(COMMA,effect)) COMMA typ
+** is permitted because of the following sub-derivation:
+
+typ LBRACK INT32 RBRACK // lookahead token appears
+FUNTYPE LPAREN loption(separated_nonempty_list(COMMA,typ)) RPAREN COLON loption(separated_nonempty_list(COMMA,effect)) COMMA typ . 
+
+** Conflict (shift/reduce) in state 12.
+** Token involved: MUL
+** This state is reached from prog after reading:
+
+annotations LET IDENT COLON typ EQ ONONE STRUCT IDENT
+
+** The derivations that appear below have the following common factor:
+** (The question mark symbol (?) represents the spot where the derivations begin to differ.)
+
+prog 
+toplevel_list EOF 
+toplevel 
+annotations LET IDENT COLON typ EQ expr 
+                                   (?)
+
+** In state 12, looking ahead at MUL, shifting is permitted
+** because of the following sub-derivation:
+
+ONONE typ 
+      STRUCT IDENT . MUL 
+
+** In state 12, looking ahead at MUL, reducing production
+** typ -> STRUCT IDENT
+** is permitted because of the following sub-derivation:
+
+expr MUL expr // lookahead token appears
+ONONE typ // lookahead token is inherited
+      STRUCT IDENT . 

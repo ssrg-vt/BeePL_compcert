@@ -864,8 +864,8 @@ let export_coq_program_wrapper ?(name="example1") (entry : string) : string =
         name entry
                       
 let export_transform_toplevel ~ee ~senv ~globals = function
-| Internal(f, _) -> export_transform_function ee senv globals f false
-| EBPFInternal(f, _) -> export_transform_function ee senv globals f true
+| Internal(f, _) -> export_transform_function ~ee ~senv ~globals f false
+| EBPFInternal(f, _) -> export_transform_function ~ee ~senv ~globals f true
 | StructDecl (name, fields) -> ""
 | GlobalLet (name, t, e, _) ->
     let env = globals in
