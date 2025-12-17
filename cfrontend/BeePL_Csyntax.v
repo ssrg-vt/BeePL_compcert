@@ -412,8 +412,11 @@ end
                      ret (Econdition (fst ce) (fst ce') (fst ce'') ct, snd ce'', bctx''')  
 | Unit t=> let ct := (transBeePL_type t) in
            ret (Eval (trans_bvalue_cvalue Vunit) ct, fn_ctx, bctx) (* Fix me *)
-| Addr l ofs t => let ct := transBeePL_type t in
-                  ret (Eloc l.(lname) ofs l.(lbitfield) ct, fn_ctx, bctx)
+| Addr l ofs t =>  (*let ct := transBeePL_type t in
+                   let lval := Eloc l.(lname) ofs l.(lbitfield) ct in
+                   (*let pty  := Ctypes.Tpointer ct Ctypes.noattr in*)
+                   ret (Eaddrof lval ct, fn_ctx, bctx)*) 
+                   error (msg "Programmers are never allowed to use raw address")
 (*| Eapp ef ts es t => let cef := befunction_to_cefunction ef in
                      let cts := (transBeePL_types transBeePL_type ts) in
                      let ct := (transBeePL_type t) in
@@ -953,8 +956,11 @@ match e with
                       let ct' := (transBeePL_type t') in
                       ret (Sifthenelse (fst ce) (fst ce') (fst ce''), snd ce'', ctx''')
 | Unit t=> ret (Sskip, ctx, bctx) (*Sreturn (Some (Eval (Values.Vint (Int.repr 0)) (Ctypes.Tint I32 Unsigned noattr)))*) (* In case of unit, we return 0 *)
-| Addr l ofs t => let ct := (transBeePL_type t) in
-                  ret (Sdo (Eloc l.(lname) ofs l.(lbitfield) ct), ctx, bctx)                    
+| Addr l ofs t =>  (*let ct := transBeePL_type t in
+                   let lval := Eloc l.(lname) ofs l.(lbitfield) ct in
+                   let pty  := Ctypes.Tpointer ct Ctypes.noattr in
+                   ret ((Sdo (Eaddrof lval pty)), ctx, bctx) *)
+                   error (msg "Programmers are never allowed to use raw address")
 (*| Eapp ef ts es t => let cef := befunction_to_cefunction ef in
                      let cts := (transBeePL_types transBeePL_type ts) in
                      let ct := (transBeePL_type t) in

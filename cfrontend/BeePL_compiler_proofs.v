@@ -628,7 +628,6 @@ match e with
                      transBeePL_expr_expr e3 fctx2 bctx2 g2 = Res (ce3, f, b) g3 i3 /\
                      ce = Econdition ce1 ce2 ce3 (transBeePL_type t)
 | Unit t => ce = Eval (trans_bvalue_cvalue Vunit) (transBeePL_type t) /\ f = fctx /\ b = bctx 
-| Addr l ofs t => ce = Eloc l.(lname) ofs l.(lbitfield) (transBeePL_type t) /\ f = fctx /\ b = bctx
 | Sinit sid fnames es t => match t with 
                            | BeeTypes.Stype sid' noattr => 
                              exists ces f1 b1 g1 i1 tmp tag g2 i2,
@@ -651,6 +650,7 @@ match e with
                              f = (tmp, BeeTypes.Stype sid' noattr, tag) :: f1 /\ b = b1 
                            | _ => False
                             end
+| Addr _ _ _  => False
 | _ => True
 end) /\
 (forall es fctx bctx ces f b g g' i',
@@ -789,7 +789,7 @@ split.
 (* unit *)
 + move=> t hte. by inversion hte; subst.
 (* addr *)
-+ move=> l ofs t hte. by inversion hte; subst.
++ by auto.
 (* sinit *)
 + move=> i ls l' t hte. inversion hte; subst.
   move: H0. rewrite /SimplExpr.bind2 /SimplExpr.bind.
@@ -820,6 +820,7 @@ end.
 Fixpoint convert_to_rval (e : Csyntax.expr) : Csyntax.expr :=
 match e with 
 | Csyntax.Evar x t => Evalof (Csyntax.Evar x t) t
+| Csyntax.Eloc l ofs bf t => Evalof (Csyntax.Eloc l ofs bf t) t
 | Csyntax.Ederef e t => Evalof (Csyntax.Ederef (convert_to_rval e) t) t
 | Csyntax.Efield a f t => Csyntax.Evalof (Csyntax.Efield (convert_to_rval a) f t) t
 | Csyntax.Eunop op e t => Csyntax.Eunop op (convert_to_rval e) t
@@ -1015,8 +1016,6 @@ move=> e. elim: e=> //=.
   by move=> [] h1 h2 h3 h4; subst.
 (* Unit *)
 + move=> t fctx bctx ce fctx' bctx' g g' i'. by move=> [] h1 h2 h3 h4; subst.
-(* Addr *)
-+ move=> l i t fctx bctx ce fctx' bctx' g g' i'. by move=> [] h1 h2 h3 h4; subst.
 (* Sinit *)
 + admit.
 (* Sfield *)
@@ -1478,7 +1477,9 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
   have -> := bv_cv_reflex v'' v hv. by apply esr_val.
 (* unit *)
 + move=> p vm m cp cge fctx bctx ce cvm fctx' bctx' g g' i' ff hp hte hwf hsf.
-  
+  rewrite /=. admit.
+(* sinit *)
++ 
 Admitted.
 
 (***** Comparing BeePL big-step semantics with Csyntax big-step semantics *****)
