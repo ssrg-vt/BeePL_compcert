@@ -100,9 +100,9 @@ field_decl:
 
 effect:
   | DIVERGENCE { Divergence }
-  | READ id = IDENT { Read id }
-  | WRITE id = IDENT { Write id }
-  | ALLOC id = IDENT { Alloc id }
+  | READ { Read }
+  | WRITE { Write }
+  | ALLOC { Alloc }
   | IO { Io }
 
 typ:
@@ -117,44 +117,44 @@ typ:
   | LONGTYPE  { Vtype Tlong }
   | LPAREN RPAREN { Utype }   (* Allow () to mean unit *)
   | UNIT      { Utype }
-  | RBOOLTYPE  { Ptr (Reftype ("h", (Bprim Tbool))) }
-  | RINT8TYPE  { Ptr (Reftype ("h", (Bprim Tint8))) }
-  | RUINT8TYPE { Ptr (Reftype ("h", (Bprim Tuint8))) }
-  | RINT16TYPE { Ptr (Reftype ("h", (Bprim Tint16))) }
-  | RUINT16TYPE { Ptr (Reftype ("h", (Bprim Tuint16))) }
-  | RINT32TYPE { Ptr (Reftype ("h", (Bprim Tint32))) }
-  | RUINT32TYPE { Ptr (Reftype ("h", (Bprim Tuint32))) }
-  | RLONGTYPE { Ptr (Reftype ("h", (Bprim Tlong))) }
-  | RULONGTYPE { Ptr (Reftype ("h", (Bprim Tulong))) }
-  | STRUCT IDENT MUL { Ptr (Reftype ("h", (Bstruct $2))) }
-  | RABOOL LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tbool, Int32.to_int n)))) }
-  | RAINT8 LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tint8, Int32.to_int n)))) }
-  | RAUINT8 LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tuint8, Int32.to_int n)))) }
-  | RAINT16 LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tint16, Int32.to_int n)))) }
-  | RAUINT16 LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tuint16, Int32.to_int n)))) }
-  | RAINT32 LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tint32, Int32.to_int n)))) }
-  | RAUINT32 LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tuint32, Int32.to_int n)))) }
-  | RALONG LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tlong, Int32.to_int n)))) }
-  | RAULONG LBRACE n = INT32 RBRACE { Ptr (Reftype ("h", (Barray (Tulong, Int32.to_int n)))) }
-  | ORBOOLTYPE  { Ptr (Otype (Reftype ("h", (Bprim Tbool)))) }
-  | ORINT8TYPE  { Ptr (Otype (Reftype ("h", (Bprim Tint8)))) }
-  | ORUINT8TYPE { Ptr (Otype (Reftype ("h", (Bprim Tuint8)))) }
-  | ORINT16TYPE { Ptr (Otype (Reftype ("h", (Bprim Tint16)))) }
-  | ORUINT16TYPE { Ptr (Otype (Reftype ("h", (Bprim Tuint16)))) }
-  | ORINT32TYPE { Ptr (Otype (Reftype ("h", (Bprim Tint32)))) }
-  | ORUINT32TYPE { Ptr (Otype (Reftype ("h", (Bprim Tuint32)))) }
-  | ORLONGTYPE { Ptr (Otype (Reftype ("h", (Bprim Tlong)))) }
-  | ORULONGTYPE { Ptr (Otype (Reftype ("h", (Bprim Tulong)))) }
-  | ORSTRUCT IDENT MUL { Ptr (Otype (Reftype ("h", (Bstruct $2)))) }
-  | ORABOOL LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ("h", (Barray (Tbool, Int32.to_int n))))) }
-  | ORAINT8 LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ("h", (Barray (Tint8, Int32.to_int n))))) }
-  | ORAUINT8 LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ("h", (Barray (Tuint8, Int32.to_int n))))) }
-  | ORAINT16 LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ("h", (Barray (Tint16, Int32.to_int n))))) }
-  | ORAUINT16 LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ("h", (Barray (Tuint16, Int32.to_int n))))) }
-  | ORAINT32 LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ("h", (Barray (Tint32, Int32.to_int n))))) }
-  | ORAUINT32 LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ("h", (Barray (Tuint32, Int32.to_int n))))) }
-  | ORALONG LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ("h", (Barray (Tlong, Int32.to_int n))))) }
-  | ORAULONG LBRACE n = INT32 RBRACE { Ptr (Otype ((Reftype ("h", (Barray (Tulong, Int32.to_int n)))))) }
+  | RBOOLTYPE  { Ptr (Reftype ((Bprim Tbool))) }
+  | RINT8TYPE  { Ptr (Reftype ((Bprim Tint8))) }
+  | RUINT8TYPE { Ptr (Reftype ((Bprim Tuint8))) }
+  | RINT16TYPE { Ptr (Reftype ((Bprim Tint16))) }
+  | RUINT16TYPE { Ptr (Reftype ((Bprim Tuint16))) }
+  | RINT32TYPE { Ptr (Reftype ((Bprim Tint32))) }
+  | RUINT32TYPE { Ptr (Reftype ((Bprim Tuint32))) }
+  | RLONGTYPE { Ptr (Reftype ((Bprim Tlong))) }
+  | RULONGTYPE { Ptr (Reftype ((Bprim Tulong))) }
+  | STRUCT IDENT MUL { Ptr (Reftype ((Bstruct $2))) }
+  | RABOOL LBRACE n = INT32 RBRACE { Ptr (Reftype ((Barray (Tbool, Int32.to_int n)))) }
+  | RAINT8 LBRACE n = INT32 RBRACE { Ptr (Reftype ((Barray (Tint8, Int32.to_int n)))) }
+  | RAUINT8 LBRACE n = INT32 RBRACE { Ptr (Reftype ((Barray (Tuint8, Int32.to_int n)))) }
+  | RAINT16 LBRACE n = INT32 RBRACE { Ptr (Reftype ((Barray (Tint16, Int32.to_int n)))) }
+  | RAUINT16 LBRACE n = INT32 RBRACE { Ptr (Reftype ((Barray (Tuint16, Int32.to_int n)))) }
+  | RAINT32 LBRACE n = INT32 RBRACE { Ptr (Reftype ((Barray (Tint32, Int32.to_int n)))) }
+  | RAUINT32 LBRACE n = INT32 RBRACE { Ptr (Reftype ((Barray (Tuint32, Int32.to_int n)))) }
+  | RALONG LBRACE n = INT32 RBRACE { Ptr (Reftype ((Barray (Tlong, Int32.to_int n)))) }
+  | RAULONG LBRACE n = INT32 RBRACE { Ptr (Reftype ((Barray (Tulong, Int32.to_int n)))) }
+  | ORBOOLTYPE  { Ptr (Otype (Reftype ((Bprim Tbool)))) }
+  | ORINT8TYPE  { Ptr (Otype (Reftype ((Bprim Tint8)))) }
+  | ORUINT8TYPE { Ptr (Otype (Reftype ((Bprim Tuint8)))) }
+  | ORINT16TYPE { Ptr (Otype (Reftype ((Bprim Tint16)))) }
+  | ORUINT16TYPE { Ptr (Otype (Reftype ((Bprim Tuint16)))) }
+  | ORINT32TYPE { Ptr (Otype (Reftype ((Bprim Tint32)))) }
+  | ORUINT32TYPE { Ptr (Otype (Reftype ((Bprim Tuint32)))) }
+  | ORLONGTYPE { Ptr (Otype (Reftype ((Bprim Tlong)))) }
+  | ORULONGTYPE { Ptr (Otype (Reftype ((Bprim Tulong)))) }
+  | ORSTRUCT IDENT MUL { Ptr (Otype (Reftype ((Bstruct $2)))) }
+  | ORABOOL LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ((Barray (Tbool, Int32.to_int n))))) }
+  | ORAINT8 LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ((Barray (Tint8, Int32.to_int n))))) }
+  | ORAUINT8 LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ((Barray (Tuint8, Int32.to_int n))))) }
+  | ORAINT16 LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ((Barray (Tint16, Int32.to_int n))))) }
+  | ORAUINT16 LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ((Barray (Tuint16, Int32.to_int n))))) }
+  | ORAINT32 LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ((Barray (Tint32, Int32.to_int n))))) }
+  | ORAUINT32 LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ((Barray (Tuint32, Int32.to_int n))))) }
+  | ORALONG LBRACE n = INT32 RBRACE { Ptr (Otype (Reftype ((Barray (Tlong, Int32.to_int n))))) }
+  | ORAULONG LBRACE n = INT32 RBRACE { Ptr (Otype ((Reftype ((Barray (Tulong, Int32.to_int n)))))) }
   | STRUCT id = IDENT { Stype id }
   | t = typ LBRACK n = INT32 RBRACK { Atype(t, Int32.to_int n) }
   | FUNTYPE LPAREN args = separated_list(COMMA, typ) RPAREN

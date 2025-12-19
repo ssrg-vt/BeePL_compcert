@@ -13,9 +13,9 @@ Local Open Scope csyntax_scope.
 Inductive effect_label : Type :=
 | Panic : effect_label               (* exception effect *)
 | Divergence : effect_label          (* divergence effect *)
-| Read : ident -> effect_label       (* read heap effect *)
-| Write : ident -> effect_label      (* write heap effect *)
-| Alloc : ident -> effect_label      (* allocation heap effect *)
+| Read : effect_label                (* read heap effect *)
+| Write : effect_label               (* write heap effect *)
+| Alloc : effect_label               (* allocation heap effect *)
 | Io : effect_label                  (* input/output unsafe effect *).
 
 Definition effect := list effect_label.  (* row of effects *)
@@ -24,9 +24,9 @@ Definition is_stateful_effectlabel (ef : effect_label) : bool :=
 match ef with 
 | Panic => false
 | Divergence => false
-| Read h => true 
-| Write h => true 
-| Alloc h => true 
+| Read => true 
+| Write => true 
+| Alloc => true 
 | Io => true
 end.
 
@@ -47,7 +47,7 @@ Inductive basic_type : Type :=
 | Barray : primitive_type -> Z -> attr -> basic_type.
 
 Inductive ptr_type : Type :=
-| Reftype : ident -> basic_type -> attr -> ptr_type       (* Pointer to primitive types and struct : box - introduced in prog *)
+| Reftype : basic_type -> attr -> ptr_type                (* Pointer to primitive types and struct : box - introduced in prog *)
 | Otype : ptr_type -> ptr_type                            (* Option type *)          
 | Fptype : list type -> effect -> type -> ptr_type        (* function/arrow pointer type *)
 with type : Type :=
@@ -82,7 +82,7 @@ end.
 
 Fixpoint get_data_type (pt : ptr_type) : type :=
 match pt with 
-| Reftype h bt a => match bt with 
+| Reftype bt a => match bt with 
                     | Bprim p => Vtype p
                     | Bstruct s a => Stype s a 
                     | Barray p z a => Atype (Vtype p) z a
@@ -134,7 +134,7 @@ end.
 
 Fixpoint attr_of_ptr_type (t : ptr_type) : attr :=
 match t with 
-| Reftype h bt a => a
+| Reftype bt a => a
 | Otype t => attr_of_ptr_type t
 | Fptype ts ef t => noattr
 end.
@@ -219,7 +219,7 @@ Fixpoint transBeePL_type (t : BeeTypes.type) : Ctypes.type :=
   end
 with transBeePL_ptr_type (pt : ptr_type) : Ctypes.type :=
   match pt with 
-  | Reftype h bt a =>  
+  | Reftype bt a =>  
       match bt with 
       | Bprim Tbool => Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr
       | Bprim (Tint sz s a') => Ctypes.Tpointer (Ctypes.Tint sz s a') a
@@ -394,7 +394,7 @@ end.
 
 Definition is_ref_ptr_type (pt : ptr_type) : bool :=
 match pt with 
-| Reftype _ _ _ => true 
+| Reftype _ _ => true 
 | _ => false
 end.
 
@@ -538,7 +538,7 @@ Definition signedness_of_basic (bt : basic_type) : option signedness :=
 
 Fixpoint signedness_of_ptr_type (pt : ptr_type) : option signedness :=
   match pt with
-  | Reftype _ bt _ => signedness_of_basic bt
+  | Reftype bt _ => signedness_of_basic bt
   | Otype pt' => signedness_of_ptr_type pt'
   | Fptype _ _ _=> None
   end.
@@ -563,7 +563,7 @@ Definition wtype_of_primitive (pt : primitive_type) : wtype :=
 
 Definition wtype_of_ptr_type (pt : ptr_type) : wtype :=
   match pt with
-  | Reftype _ bt _ =>
+  | Reftype bt _ =>
       match bt with
       | Bprim _ => Twref
       | Bstruct _ _ => Twpst
@@ -594,9 +594,9 @@ Definition eq_effect_label (e1 e2 : effect_label) : bool :=
 match e1, e2 with 
 | Panic, Panic => true 
 | Divergence, Divergence => true 
-| Read id1, Read id2 => (id1 =? id2)%positive
-| Write id1, Write id2 => (id1 =? id2)%positive
-| Alloc id1, Alloc id2 => (id1 =? id2)%positive
+| Read, Read  => true
+| Write, Write => true
+| Alloc, Alloc => true
 | Io, Io => true
 | _, _ => false
 end.
@@ -799,8 +799,8 @@ Fixpoint eq_type (t1 t2 : type) : bool :=
 
 with eq_ptr_type (p1 p2 : ptr_type) : bool :=
   match p1, p2 with
-  | Reftype h1 b1 a1, Reftype h2 b2 a2 =>
-      (h1 =? h2)%positive && eq_basic_type b1 b2 && attr_eq a1 a2
+  | Reftype b1 a1, Reftype b2 a2 =>
+      eq_basic_type b1 b2 && attr_eq a1 a2
   | Otype t1, Otype t2 => eq_ptr_type t1 t2
   | Fptype ts1 ef1 t1, Fptype ts2 ef2 t2 =>
       eq_types eq_type ts1 ts2 && eq_effect ef1 ef2 && eq_type t1 t2
@@ -891,8 +891,8 @@ Fixpoint alignof_type (env : bcomposite_env) (t : BeeTypes.type) : Z :=
 (* Used for extracting the correct type for a Ref's fresh variable *)
 Definition ref_to_prim (ty : type) : mon type :=
   match ty with
-  | Ptrtype (Reftype _ (Bprim pt) _) => ret (Vtype pt)
-  | Ptrtype (Reftype _ (Bstruct s a) _) => ret (Stype s a)
+  | Ptrtype (Reftype (Bprim pt) _) => ret (Vtype pt)
+  | Ptrtype (Reftype (Bstruct s a) _) => ret (Stype s a)
   | _ => error (msg "ref_to_prim: expected only reftype")
   end.
 
@@ -931,8 +931,8 @@ match ct with
 | Ctypes.Tfloat _ _ => Error (msg "TYPE ERROR: Float is not supported in BeePL")
 | Ctypes.Tpointer t a => match t with 
                   | Ctypes.Tvoid => Error (msg "TYPE ERROR: Void* is not supported in BeePL")
-                  | Ctypes.Tint sz s a => OK (Ptrtype (Reftype mem_ident (Bprim (Tint sz s a)) a))
-                  | Ctypes.Tlong s a => OK (Ptrtype (Reftype mem_ident (Bprim (Tlong s a)) a))
+                  | Ctypes.Tint sz s a => OK (Ptrtype (Reftype (Bprim (Tint sz s a)) a))
+                  | Ctypes.Tlong s a => OK (Ptrtype (Reftype (Bprim (Tlong s a)) a))
                   | _ => Error (msg "TYPE ERROR: Not supported in ref type")
                   end 
 | Tarray t z a => Error (msg "TYPE ERROR: Array is not supported in BeePL")
@@ -986,14 +986,14 @@ end.
 
 Definition construct_ef_gvar (gi : init_data) : res effect := 
 match gi with  
-| Init_int8 _ => OK (Alloc mem_ident :: Write mem_ident :: nil)
-| Init_int16 _ => OK (Alloc mem_ident :: Write mem_ident :: nil)
-| Init_int32 _ => OK (Alloc mem_ident :: Write mem_ident :: nil)
-| Init_int64 _ => OK (Alloc mem_ident :: Write mem_ident :: nil)
+| Init_int8 _ => OK (Alloc:: Write :: nil)
+| Init_int16 _ => OK (Alloc:: Write :: nil)
+| Init_int32 _ => OK (Alloc :: Write :: nil)
+| Init_int64 _ => OK (Alloc :: Write :: nil)
 | Init_float32 _ => Error (msg "TYPE ERROR: Float global variable not supported in BeePL")
 | Init_float64 _ => Error (msg "TYPE ERROR: Float global variable not supported in BeePL")
-| Init_space _ => OK (Alloc mem_ident :: nil)
-| Init_addrof _ _ => OK (Alloc mem_ident :: Write mem_ident :: Read mem_ident :: nil)
+| Init_space _ => OK (Alloc :: nil)
+| Init_addrof _ _ => OK (Alloc :: Write :: Read :: nil)
 end.
 
 Fixpoint construct_ef_gvars (gis : list init_data) : res effect :=

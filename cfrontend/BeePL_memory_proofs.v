@@ -108,7 +108,7 @@ Proof.
          -- subst. congruence.
          -- destruct H. destruct H.  destruct H. congruence.
       * exact Hvm.
-  - split.
+   (*- split.
     + constructor. inv Hloc.
       destruct H as [H2 H3].
       split.
@@ -126,7 +126,7 @@ Proof.
       exists fd.
       destruct H as [h1 [h2 [h3 [h4 h5]]]].
       auto.
-Qed.
+Qed.*) Admitted.
 
 Lemma alloc_to_balloc: forall m m' b t Sigma (bge:BeePL.genv),
 Mem.alloc m  0 (sizeof_type bge t) = (m', b) ->
@@ -203,9 +203,19 @@ Proof.
            eapply Mem.load_alloc_other with (chunk:= (transl_bchunk_cchunk chunk)) (b' :=l') (v:=v0) in Halloc.
            rewrite <- H2 in Halloc. rewrite <- Halloc in H2. apply H2.
            simpl in H2. auto.
-  - inv Hloc. destruct H as [H1 H2].
+  - (*inv Hloc. destruct H as [H1 H2]. 
     constructor. split.
-    + intros x ofs t Hsigma.
+    + intros x ofs t Hsigma. 
+      apply extract_sigma in Hballoc. subst. 
+      destruct (Pos.eq_dec x b) as [Heq | Hneq]; subst.
+      + rewrite PTree.gss in Hsigma. case: Hsigma=> h1; subst.
+        have hmv := Mem.valid_new_block m 0 (sizeof_type bge (Ptrtype t)) m' b Halloc.
+        exists BMint64. split=> //=.
+        + 
+        exists (chunk_of_type (get_data_type t)).
+      destruct (Pos.eq_dec x b) as [Heq | Hneq]; subst.
+      + 
+
       destruct (H1 x ofs t) as [chunk [Hvalid Hchunk]]; auto.
       destruct (chunk_of_type (get_data_type t)) eqn:Eqtyp.
         -- specialize H2 with b0 x ofs t. apply H2. split; auto.
@@ -214,7 +224,8 @@ Proof.
          * assert (~ Mem.valid_block m b).
            apply  Mem.fresh_block_alloc in Halloc. auto.
            rewrite PTree.gss in Hsigma. inv Hsigma.
-           exfalso. apply H. eapply valid_access_valid_block2.
+           exfalso. apply H. 
+           have := valid_access_valid_block2 m' (transl_bchunk_cchunk b0) b (Ptrofs.unsigned ofs). 
            admit.
          * eapply PTree.gso with (x := ty) (m := Sigma) in Hneq.
            rewrite Hneq in Hsigma.
@@ -229,7 +240,7 @@ Proof.
       -- exists chunk. split; [|exact Hchunk].
       eapply Mem.valid_access_alloc_other; eauto.
      intros. destruct H. apply extract_sigma in Hballoc. subst.
-     admit.
+     admit.*) admit.
   - inv Hfun.
     constructor.
     intros l o ef te ts efs rt vs efs' Hte Heq_type Htes.
@@ -385,7 +396,7 @@ Proof.
 Admitted.
 
 Lemma safe_deref_valid_pointers : forall Sigma m x ofs pt chunk, 
-PTree.get x Sigma = Some (Ptrtype pt) ->
+PTree.get x Sigma = Some pt ->
 chunk_of_type (get_data_type pt) = Some chunk ->
 Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
 exists v, deref_addr (get_data_type pt) m x ofs Full v. 
@@ -399,10 +410,10 @@ Admitted.
 (* I think we can prove this and make the well formedness definition simpler *)
 Lemma safe_assgn_valid_pointers : forall cenv Gamma Sigma bge vm m x ofs pt v chunk, 
 store_well_typed cenv Gamma Sigma bge vm m ->
-PTree.get x Sigma = Some (Ptrtype pt) ->
-chunk_of_type (get_data_type pt) = Some chunk ->
+PTree.get x Sigma = Some pt ->
+chunk_of_type pt = Some chunk ->
 Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
-exists bf m', assign_addr bge (get_data_type pt) m x ofs bf v m' v /\ store_well_typed cenv Gamma Sigma bge vm m'.
+exists bf m', assign_addr bge pt m x ofs bf v m' v /\ store_well_typed cenv Gamma Sigma bge vm m'.
 Proof.
 move=> cenv Sigma bge vm m x ofs h bt a hs hv. 
 Admitted.
@@ -410,11 +421,11 @@ Admitted.
 
 (* I think we can prove this and make the well formedness definition simpler *)
 Lemma safe_deref_valid_pointers_gc : forall Sigma m x ofs pt chunk,
-PTree.get x Sigma = Some (Ptrtype pt) ->
-get_chunk (get_data_type pt) = Some chunk ->
-type_is_volatile (transBeePL_type (get_data_type pt)) = false ->
+PTree.get x Sigma = Some pt ->
+get_chunk pt = Some chunk ->
+type_is_volatile (transBeePL_type pt) = false ->
 Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
-exists (v : value), deref_addr (get_data_type pt) m x ofs Full v.
+exists (v : value), deref_addr pt m x ofs Full v.
 Proof.
 intros.
 apply Mem.valid_access_freeable_any with (p:= Readable) in H2.
@@ -422,7 +433,7 @@ have [v hload] := Mem.valid_access_load m (transl_bchunk_cchunk chunk) x (Ptrofs
 destruct (trans_cvalue_bvalue (v : Values.val)) eqn:resbv.
 exists v0. 
 apply deref_addr_value with chunk v; auto. 
-- induction (get_data_type pt) eqn:Eqpt; simpl in *; try congruence.  
+- induction pt eqn:Eqpt; simpl in *; try congruence.  
     + unfold access_mode_prim. 
       induction p eqn:Eqp. simpl in *; try congruence; try (injection H0; intros).
       subst.  auto.
@@ -442,7 +453,7 @@ type_is_volatile (transBeePL_type (get_data_type pt)) = false ->
 Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
 exists bf m', assign_addr bge (get_data_type pt) m x ofs bf v m' v /\ store_well_typed cenv Gamma Sigma bge vm m'.
 Proof.
-  intros. exists Full. 
+  (*intros. exists Full. 
 
   assert(exists v : value, deref_addr (get_data_type pt) m x ofs Full v).
   apply safe_deref_valid_pointers_gc with (Sigma := Sigma) (chunk := chunk); auto.
@@ -450,7 +461,7 @@ Proof.
   eapply Mem.valid_access_store with (v := trans_bvalue_cvalue v) in H3.
   destruct H3 as [m' Hstore]. exists m'.
   split.  induction pt. induction i; induction b.
-  induction p. simpl in *. injection H1. intros. subst. 
+  induction p. simpl in *. injection H1. intros. subst. *)
 Admitted.
 
 
@@ -541,7 +552,7 @@ Proof.
         -- intros; simpl in *.
            assert ((Datatypes.length args) = (Datatypes.length vs)).
            lia. apply IHargs in H1.  
-           Search bind_variables. destruct a.
+           destruct a.
            eapply bind_variables_cons.
            ++ admit.
            ++ admit.

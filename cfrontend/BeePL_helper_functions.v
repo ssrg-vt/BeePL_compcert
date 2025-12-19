@@ -25,9 +25,9 @@ ef_empty_map ["bpf_get_prandom_u32" <- (nil, (tint32u, (Io :: nil)))]
              ["add" <- ((tint32s :: trint32s :: nil), (tint32s, nil))]
              ["bpf_get_current_uid_gid" <- (nil, (tlongu, (Io :: nil)))]
              ["bpf_map_lookup_elem" <- ((tostruct (ident_of_string "bpf_map_type_hash") noattr :: tolongu :: nil), 
-                                            (tolongu, (Read mem_ident :: Io :: nil)))]
+                                            (tolongu, (Read :: Io :: nil)))]
              ["bpf_map_update_elem" <- ((tostruct (ident_of_string "bpf_map_type_hash") noattr :: tolongu :: tolongu :: tlongu :: nil), 
-                                           (tlongu, (Write mem_ident :: Io :: nil)))]
+                                           (tlongu, (Write :: Io :: nil)))]
              ["bpf_printk" <- ((trint8s :: tint32s :: nil), (tint32s, (Io :: nil)))].
              
 Definition get_ef_type (efenv : ef_env) (s : string) : res ef_info :=
@@ -42,21 +42,21 @@ let id1 := ident_of_string "xdp" in
 let id2 := ident_of_string "__sk_buff" in 
 let id3 := ident_of_string "pt_regs" in
 match t, s with 
-| Ptrtype (Reftype mem_ident (Bstruct id1 _) _), "xdp" => true 
+| Ptrtype (Reftype (Bstruct id1 _) _), "xdp" => true 
 | (Stype id1 _), "xdp" => true 
-| Ptrtype (Reftype mem_ident (Bstruct id2 _) _), "socket" => true 
+| Ptrtype (Reftype (Bstruct id2 _) _), "socket" => true 
 | (Stype id2 _), "socket" => true 
-| Ptrtype (Reftype mem_ident (Bstruct id2 _) _), "tc" => true 
+| Ptrtype (Reftype (Bstruct id2 _) _), "tc" => true 
 | (Stype id2 _), "tc" => true 
-| Ptrtype (Reftype mem_ident (Bstruct id2 _) _), "cls" => true 
+| Ptrtype (Reftype (Bstruct id2 _) _), "cls" => true 
 | (Stype id2 _), "cls" => true 
-| Ptrtype (Reftype mem_ident (Bstruct id2 _) _), "act" => true 
+| Ptrtype (Reftype (Bstruct id2 _) _), "act" => true 
 | (Stype id2 _), "act" => true 
-| Ptrtype (Reftype mem_ident (Bstruct id2 _) _), "cgroup/ingress" => true 
+| Ptrtype (Reftype (Bstruct id2 _) _), "cgroup/ingress" => true 
 | (Stype id2 _), "cgroup/ingress" => true 
-| Ptrtype (Reftype mem_ident (Bstruct id2 _) _), "cgroup/skb" => true 
+| Ptrtype (Reftype (Bstruct id2 _) _), "cgroup/skb" => true 
 | (Stype id2 _), "cgroup/skb" => true 
-| Ptrtype (Reftype mem_ident (Bstruct id3 _) _), "kretprobe/do_sys_open" => true 
+| Ptrtype (Reftype (Bstruct id3 _) _), "kretprobe/do_sys_open" => true 
 | (Stype id3 _), "kretprobe/do_sys_open" => true 
 
 | _, _ => false

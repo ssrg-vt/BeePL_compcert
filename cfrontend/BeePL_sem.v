@@ -146,7 +146,7 @@ Inductive sem_array_init : store_context -> ident -> type -> list value -> vmap 
                        get_array_elm_ty t = OK aty ->
                        sem_array_init_helper m' loc (Ptrofs.repr 0) vs aty m'' ->
                        sem_array_init Sigma arr t vs vm m vm' m'' Sigma'.
-                        
+          
 Section Big_Step_Semantics.
 
 Variable (ge : genv).
@@ -191,11 +191,11 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
               t = (get_rt_fundef (Internal fd)) ->
               (* return to the caller: env is vm1 again *)
               bsem_expr p vm1 m1 (App e es t) m6 vm1 rv
-| bsem_ref : forall bge p vm m e m' ml m'' v l h a t,
+| bsem_ref : forall bge p vm m e m' ml m'' v l a t,
              bsem_expr p vm m e m' vm v ->
              Mem.alloc m 0 (sizeof_type p.(prog_comp_env) (Vtype t)) = ml ->
              assign_addr bge (Vtype t) ml.1 ml.2 Ptrofs.zero Full v m'' v -> 
-             bsem_expr p vm m (Prim Ref [:: e] (Ptrtype (Reftype h (Bprim t) a))) m'' vm (Vloc l Ptrofs.zero)
+             bsem_expr p vm m (Prim Ref [:: e] (Ptrtype (Reftype (Bprim t) a))) m'' vm (Vloc l Ptrofs.zero)
 | bsem_deref : forall p vm m e m' l ofs v,
                bsem_expr p vm m e m' vm (Vloc l ofs) ->
                deref_addr (typeof_expr e) m' l ofs Full v ->
@@ -293,7 +293,7 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                  bsem_expr p vm1 m1 (Sinit x ids es t) m2 vm2 (Vloc loc ofs) 
 | bsem_sfield : forall p b ofs id co delta bf f vm m vm' m' e t sid sa, (* bitfield is lost *)
                 bsem_expr p vm m e m' vm' (Vloc b ofs) ->
-                typeof_expr e = (Ptrtype (Reftype mem_ident (Bstruct sid sa) noattr)) ->
+                typeof_expr e = (Ptrtype (Reftype (Bstruct sid sa) noattr)) ->
                 ge.(genv_cenv)!id = Some co ->
                 field_offset (bcomposite_composite_env ge.(genv_cenv)) f (bmembers_cmembers (co_members co)) = OK (delta, bf) ->
                 bsem_expr p vm m (Sfield e f t)  
@@ -410,18 +410,18 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                                                                      (get_effect_fundef (Internal fd)) 
                                                                      (get_rt_fundef (Internal fd)))) es t) m2 vm2
                                fd.(BeePL.fn_body)
-| ssem_ref1 : forall p vm m e m' vm' e' h bt a,
+| ssem_ref1 : forall p vm m e m' vm' e' bt a,
               ssem_expr p vm m e m' vm' e' ->
-              ssem_expr p vm m (Prim Ref [:: e] (Ptrtype (Reftype h bt a))) m' vm' 
-                             (Prim Ref [:: e'] (Ptrtype (Reftype h bt a)))
-| ssem_ref2 : forall p vm m vm' ml m' chunk v l bt h a Sigma Sigma',
+              ssem_expr p vm m (Prim Ref [:: e] (Ptrtype (Reftype bt a))) m' vm' 
+                             (Prim Ref [:: e'] (Ptrtype (Reftype bt a)))
+| ssem_ref2 : forall p vm m vm' ml m' chunk v l bt a Sigma Sigma',
               Mem.alloc m 0 (sizeof_type p.(prog_comp_env) (construct_type_btype bt)) = ml ->
               chunk_of_type (construct_type_btype bt) = Some chunk ->
               Mem.storev (transl_bchunk_cchunk chunk) ml.1 (trans_bvalue_cvalue (Vloc ml.2 Ptrofs.zero)) (trans_bvalue_cvalue v) = Some m' ->
               (*assign_addr bge (construct_type_btype bt) ml.1 ml.2 Ptrofs.zero Full v m'' v -> *)
-              PTree.set l (Ptrtype (Reftype h bt a)) Sigma = Sigma' ->
-              ssem_expr p vm m (Prim Ref [:: (Val v (construct_type_btype bt))] (Ptrtype (Reftype h bt a))) m' vm' 
-                             (Val (Vloc ml.2 Ptrofs.zero) (Ptrtype (Reftype h bt a)))
+              PTree.set l (Ptrtype (Reftype bt a)) Sigma = Sigma' ->
+              ssem_expr p vm m (Prim Ref [:: (Val v (construct_type_btype bt))] (Ptrtype (Reftype bt a))) m' vm' 
+                             (Val (Vloc ml.2 Ptrofs.zero) (Ptrtype (Reftype bt a)))
 | ssem_deref1 : forall p vm m e t m' vm' e',
                 ssem_expr p vm m e m' vm' e' ->
                 ssem_expr p vm m (Prim Deref (e :: nil) t) m' vm' 
@@ -498,12 +498,12 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                 ssem_expr p vm m (Cond (Val (Vbool false) (Vtype Tbool)) e2 e3 (typeof_expr e3)) m vm e3
 | ssem_ut : forall p vm m, 
             ssem_expr p vm m (Unit Utype) m vm (Val Vunit Utype)
-| ssem_adr : forall p vm m l ofs h t a,
-             ssem_expr p vm m (Addr l ofs (Ptrtype (Reftype h t a))) m vm (Val (Vloc l.(lname) ofs) (Ptrtype (Reftype h t a)))
+| ssem_adr : forall p vm m l ofs t a,
+             ssem_expr p vm m (Addr l ofs (Ptrtype (Reftype t a))) m vm (Val (Vloc l.(lname) ofs) (Ptrtype (Reftype t a)))
 | ssem_sinit1 : forall p x ids t vm1 m1 es vm2 m2 es',
                   ssem_exprs p vm1 m1 es m2 vm2 es' ->
                   ssem_expr p vm1 m1 (Sinit x ids es t) m2 vm2 (Sinit x ids es' t)
-| ssem_sinit2 : forall Sigma Sigma' p x ids t vm1 m1 vm2 m2 m3 vs fid loc ofs ts h a st sa,
+| ssem_sinit2 : forall Sigma Sigma' p x ids t vm1 m1 vm2 m2 m3 vs fid loc ofs ts a st sa,
                   create_fresh_ident (unzip1 (extract_variables_globdefs (map (fun '(_, gd, _) => gd) p.(prog_defs)))) = fid ->
                   alloc_variables ge Sigma vm1 m1 ((fid, t) :: nil) vm2 m2 Sigma' ->
                   vm2!fid = Some (loc, t) ->
@@ -511,14 +511,14 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
                   typeof_values (extract_values_exprs vs) ts ->
                   (*bsem_expr vm3 m3 (Var fid (Ptype t)) m'' vm'' (Val (Vloc loc ofs) (Reftype h t a)) -> *)
                   sem_allocate_fields loc ofs x ids (extract_values_exprs vs) ts m2 m3 ->
-                  ssem_expr p vm1 m1 (Sinit x ids vs t) m3 vm2 (Val (Vloc loc ofs) (Ptrtype (Reftype h (Bstruct st sa) a))) 
+                  ssem_expr p vm1 m1 (Sinit x ids vs t) m3 vm2 (Val (Vloc loc ofs) (Ptrtype (Reftype (Bstruct st sa) a))) 
 | ssem_sfield1 : forall p vm m e m' vm' e' f t, 
                  ssem_expr p vm m e m' vm' e' ->
                  ssem_expr p vm m (Sfield e f t) m' vm' (Sfield e' f t) 
 | ssem_sfield2 : forall p b ofs co delta bf f vm m t sid sa, (* bitfield is lost *)
                  ge.(genv_cenv)!sid = Some co ->
                  field_offset (bcomposite_composite_env ge.(genv_cenv)) f (bmembers_cmembers (co_members co)) = OK (delta, bf) ->
-                 ssem_expr p vm m (Sfield (Val (Vloc b ofs) (Ptrtype (Reftype mem_ident (Bstruct sid sa) noattr))) f t)  
+                 ssem_expr p vm m (Sfield (Val (Vloc b ofs) (Ptrtype (Reftype (Bstruct sid sa) noattr))) f t)  
                                m vm (Val (Vloc b (Ptrofs.add ofs (Ptrofs.repr delta))) t) 
 | ssem_for1 : forall p vm m e1 e1' e2 vm' m' d e3 t,
               ssem_expr p vm m e1 m' vm' e1' ->

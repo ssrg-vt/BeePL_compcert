@@ -19,9 +19,9 @@ Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> e
             type_expr cenv Gamma Sigma (Val (Vint i) (Vtype (Tint sz s a))) nil (Vtype (Tint sz s a))
 | ty_vall : forall cenv Gamma Sigma i s a,
             type_expr cenv Gamma Sigma (Val (Vint64 i) (Vtype (Tlong s a))) nil (Vtype (Tlong s a))
-| ty_valloc : forall cenv Gamma Sigma l ofs h t a,
-              PTree.get l Sigma = Some (Ptrtype (Reftype h t a)) ->
-              type_expr cenv Gamma Sigma (Val (Vloc l ofs) (Ptrtype (Reftype h t a))) nil (Ptrtype (Reftype h t a))
+| ty_valloc : forall cenv Gamma Sigma l ofs t a,
+              PTree.get l Sigma = Some (Ptrtype (Reftype t a)) ->
+              type_expr cenv Gamma Sigma (Val (Vloc l ofs) (Ptrtype (Reftype t a))) nil (Ptrtype (Reftype t a))
 | ty_valo : forall cenv Gamma Sigma o t,
             type_expr cenv Gamma Sigma (Val (Voption o) (Ptrtype (Otype t))) nil (Ptrtype (Otype t))
 | ty_var : forall cenv Gamma Sigma x t, 
@@ -38,21 +38,21 @@ Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> e
            eq_type te (Ptrtype (Fptype ts efs rt)) || eq_type te (Ftype ts efs rt) ->
            type_exprs cenv Gamma Sigma es efs' ts -> 
            type_expr cenv Gamma Sigma (App e es rt) (ef ++ efs ++ efs') rt
-| ty_ref : forall cenv Gamma Sigma e ef h bt a, 
+| ty_ref : forall cenv Gamma Sigma e ef bt a, 
            type_expr cenv Gamma Sigma e ef (construct_type_btype bt) ->
            (*type_is_volatile (transBeePL_type (construct_type_btype bt)) = false ->*)
-           type_expr cenv Gamma Sigma (Prim Ref (e::nil) (Ptrtype (Reftype h bt a))) (ef ++ (Alloc h :: nil)) (Ptrtype (Reftype h bt a)) 
-| ty_deref : forall cenv Gamma Sigma e ef pt h, (* inner expression should be unrestricted as it will be used later *)
+           type_expr cenv Gamma Sigma (Prim Ref (e::nil) (Ptrtype (Reftype bt a))) (ef ++ (Alloc :: nil)) (Ptrtype (Reftype bt a)) 
+| ty_deref : forall cenv Gamma Sigma e ef pt, (* inner expression should be unrestricted as it will be used later *)
              type_expr cenv Gamma Sigma e ef (Ptrtype pt) -> 
              is_option_ptr_type pt = false ->
              (*type_is_volatile (transBeePL_type (get_data_type pt)) = false ->*)
-             type_expr cenv Gamma Sigma (Prim Deref (e::nil) (get_data_type pt)) (ef ++ (Read h :: nil)) (get_data_type pt)
-| ty_massgn : forall cenv Gamma Sigma e e' h pt ef ef', 
+             type_expr cenv Gamma Sigma (Prim Deref (e::nil) (get_data_type pt)) (ef ++ (Read :: nil)) (get_data_type pt)
+| ty_massgn : forall cenv Gamma Sigma e e' pt ef ef', 
               type_expr cenv Gamma Sigma e ef (Ptrtype pt) ->
               is_option_ptr_type pt = false ->
               (*type_is_volatile (transBeePL_type (get_data_type pt)) = false ->*)
               type_expr cenv Gamma Sigma e' ef' (get_data_type pt) ->
-              type_expr cenv Gamma Sigma (Prim Massgn (e::e'::nil) tunit) (ef ++ ef' ++ (Write h :: nil)) tunit
+              type_expr cenv Gamma Sigma (Prim Massgn (e::e'::nil) tunit) (ef ++ ef' ++ (Write :: nil)) tunit
 | ty_notbool : forall cenv Gamma Sigma e ef,
                type_expr cenv Gamma Sigma e ef (Vtype Tbool) ->
                type_expr cenv Gamma Sigma (Prim (Uop Cop.Onotbool) (e::nil) (Vtype Tbool)) ef (Vtype Tbool)
@@ -155,10 +155,10 @@ Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> e
             type_expr cenv Gamma Sigma (Cond e1 e2 e3 t) (ef1 ++ ef2) t
 | ty_unit : forall cenv Gamma Sigma,
             type_expr cenv Gamma Sigma (Unit tunit) nil tunit
-| ty_addr : forall cenv Gamma Sigma l ofs h t a,
-            PTree.get l.(lname) Sigma = Some (Ptrtype (Reftype h t a)) ->
+| ty_addr : forall cenv Gamma Sigma l ofs t a,
+            PTree.get l.(lname) Sigma = Some (Ptrtype (Reftype t a)) ->
             (*t' = (Reftype h t a) ->*)
-            type_expr cenv Gamma Sigma (Addr l ofs (Ptrtype (Reftype h t a))) nil (Ptrtype (Reftype h t a)) 
+            type_expr cenv Gamma Sigma (Addr l ofs (Ptrtype (Reftype t a))) nil (Ptrtype (Reftype t a)) 
 (* return type, arg types, and effect must agree with the signature
    eBPF helper functions never return a void type and a function  *)
 (*| ty_ext : forall Gamma Sigma exf ts es ef rt,
@@ -167,17 +167,17 @@ Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> e
            ts = get_at_eapp exf ->
            type_exprs Gamma Sigma es ef ts ->
            type_expr Gamma Sigma (Eapp exf ts es rt) ((get_ef_eapp exf) ++ ef) rt *)
-| ty_sinit : forall cenv Gamma Sigma x es efs h id a a' co ids cts bts, 
+| ty_sinit : forall cenv Gamma Sigma x es efs id a a' co ids cts bts, 
              type_exprs cenv Gamma Sigma es efs bts ->
              PTree.get id cenv = Some co ->
              type_of_members (combine (map Ctypes.attr_of_type (transBeePL_types transBeePL_type bts)) ids) 
                              (bmembers_cmembers co.(co_members)) = OK cts ->
              trans_ctypes_btypes trans_ctype_btype cts = OK bts ->
-             type_expr cenv Gamma Sigma (Sinit x ids es (Ptrtype (Reftype h (Bstruct id a) a'))) efs (Ptrtype (Reftype h (Bstruct id a) a'))
+             type_expr cenv Gamma Sigma (Sinit x ids es (Ptrtype (Reftype (Bstruct id a) a'))) efs (Ptrtype (Reftype (Bstruct id a) a'))
 | ty_sfield : forall cenv Gamma Sigma e x id a te ef co ct bt,
               type_expr cenv Gamma Sigma e ef te ->
-              (eq_type te (Stype id a)) \/ (eq_type te (Ptrtype (Reftype mem_ident (Bstruct id a) noattr))) 
-              \/ (eq_type te (Ptrtype (Otype (Reftype mem_ident (Bstruct id a) noattr)))) ->
+              (eq_type te (Stype id a)) \/ (eq_type te (Ptrtype (Reftype (Bstruct id a) noattr))) 
+              \/ (eq_type te (Ptrtype (Otype (Reftype (Bstruct id a) noattr)))) ->
               PTree.get id cenv = Some co ->
               Ctyping.type_of_member a x (bmembers_cmembers co.(co_members)) = OK ct ->
               trans_ctype_btype ct = OK bt ->
@@ -317,13 +317,12 @@ Inductive well_formed_var (Gamma : ty_context) (Sigma : store_context) (bge : Be
                          well_formed_var Gamma Sigma bge vm m.
 
 (*** Well formed loc (coming from ref, not variables) ***)
+(* Relate chunk and ofs *) 
 Inductive well_formed_loc (Sigma : store_context) (m : Memory.mem)  : Prop :=
-| store_well_typed_loc : (forall x ofs t, PTree.get x Sigma = Some (Ptrtype t) ->
-                          (exists chunk, Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable /\
-                                         chunk_of_type (get_data_type t) = Some chunk)) /\
-                          (forall chunk x ofs t, Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable /\
-                                                 chunk_of_type (get_data_type t) = Some chunk -> 
-                                                 PTree.get x Sigma = Some (Ptrtype t)) ->
+| store_well_typed_loc : (forall x ofs t chunk, PTree.get x Sigma = Some t ->
+                                                chunk_of_type t = Some chunk ->
+                                                0 <= ofs <= (size_chunk (transl_bchunk_cchunk chunk)) ->
+                                                Mem.valid_access m (transl_bchunk_cchunk chunk) x ofs Freeable) -> 
                           well_formed_loc Sigma m.
 
 (*** Well formed function ***)
@@ -336,7 +335,7 @@ Inductive well_formed_function (cenv : bcomposite_env) (Gamma : ty_context) (Sig
                                     list_norepet (fd.(fn_args) ++ fd.(BeePL.fn_vars)) /\ 
                                     length fd.(fn_args) = length (extract_values_exprs vs) /\
                                     ts = (unzip2 fd.(fn_args)) /\ rt = get_rt_fundef (Internal fd)) ->
-                        well_formed_function cenv Gamma Sigma bge vm m.
+                         well_formed_function cenv Gamma Sigma bge vm m.
 
 (** Well-Typed Store **)
 (* A store st is well-typed with respect to a store typing context Sigma if the
@@ -392,7 +391,7 @@ elim: ht eq=> //=.
 + move=> cenv' Gamma' Sigma' b [] h1; subst. by apply ty_valb.
 + move=> cenv' Gamma' Sigma' i sz s a [] h1; subst. by apply ty_vali.
 + move=> cenv' Gamma' Sigma' i s a [] h1; subst. by apply ty_vall.
-+ move=> cenv' Gamma' Sigma' l ofs h bt a hs [] h1; subst. by apply ty_valloc. 
++ move=> cenv' Gamma' Sigma' l ofs bt a hs [] h1; subst. by apply ty_valloc. 
 move=> cenv' Gamma' Sigma' o t' [] h1; subst. by apply ty_valo.
 Qed.
 
@@ -445,14 +444,14 @@ Qed.
 
 Lemma type_infer_loc: forall cenv Gamma Sigma l ofs ef t t', 
 type_expr cenv Gamma Sigma (Val (Vloc l ofs) t) ef t' ->
-(exists h bt a, t = Ptrtype (Reftype h bt a) /\ 
-                t' = Ptrtype (Reftype h bt a) /\ 
-                PTree.get l Sigma = Some (Ptrtype (Reftype h bt a))).
+(exists bt a, t = Ptrtype (Reftype bt a) /\ 
+                t' = Ptrtype (Reftype bt a) /\ 
+                PTree.get l Sigma = Some (Ptrtype (Reftype bt a))).
 Proof.
 move=> cenv Gamma Sigma l ofs ef t t'. 
 move eq : (Val (Vloc l ofs) t)=> v ht. elim: ht eq=>//=.
-move=> cenv' Gamma' Sigma' l' ofs' h' bt' a' hs [] h1 h2 h3; subst. 
-by exists h', bt', a'.
+move=> cenv' Gamma' Sigma' l' ofs' bt' a' hs [] h1 h2 h3; subst. 
+by exists bt', a'.
 Qed.
 
 Lemma type_infer_var : forall cenv Gamma Sigma x t ef t',
@@ -508,13 +507,13 @@ Qed.
 
 Lemma type_infer_ref: forall cenv Gamma Sigma e ef t t',
 type_expr cenv Gamma Sigma (Prim Ref [:: e] t) ef t' ->
-(exists h bt a, t = Ptrtype (Reftype h bt a) /\ t' = Ptrtype (Reftype h bt a)).
+(exists bt a, t = Ptrtype (Reftype bt a) /\ t' = Ptrtype (Reftype bt a)).
 Proof.
 move=> cenv Gamma Sigma e ef t t'.
 move eq: (Prim Ref [:: e] t)=> rv ht.
 elim: ht eq=> //=.
-move=> cenv' Gamma' Sigma' e' ef' h' bt' a' ht hin [] h1 h2; subst.
-by exists h', bt', a'; split=> //=.
+move=> cenv' Gamma' Sigma' e' ef' bt' a' ht hin [] h1 h2; subst.
+by exists bt', a'; split=> //=.
 Qed.
 
 Lemma type_infer_deref: forall cenv Gamma Sigma e ef t t',
@@ -526,7 +525,7 @@ Proof.
 move=> cenv Gamma Sigma e ef t t'.
 move eq: (Prim Deref [:: e] t)=> rv ht.
 elim: ht eq=> //=.
-move=> cenv' Gamma' Sigma' e' ef' pt h ht1 hin1 h1 [] h2 h3; subst.
+move=> cenv' Gamma' Sigma' e' ef' pt ht1 hin1 h1 [] h2 h3; subst.
 by exists pt, ef'; split=>//=. 
 Qed.
 
@@ -540,7 +539,7 @@ Proof.
 move=> cenv Gamma Sigma e e' ef t t'.
 move eq: (Prim Massgn [:: e; e'] t)=> rv ht.
 elim: ht eq=> //=.
-move=> cenv' Gamma' Sigma' e1 e2 h pt ef1 ef2 ht hin ho ht' hin' [] h1 h2 h3; subst; split=> //=.
+move=> cenv' Gamma' Sigma' e1 e2 pt ef1 ef2 ht hin ho ht' hin' [] h1 h2 h3; subst; split=> //=.
 split=> //=. by exists pt, ef1, ef2.
 Qed.
 
@@ -826,21 +825,21 @@ Qed.
 
 Lemma type_infer_addr: forall cenv Gamma Sigma l ofs ef t t',
 type_expr cenv Gamma Sigma (Addr l ofs t) ef t' ->
-(exists h bt a, t = Ptrtype (Reftype h bt a) /\ 
-                t'= Ptrtype (Reftype h bt a) /\ 
-                PTree.get l.(lname) Sigma = Some (Ptrtype (Reftype h bt a))).
+(exists bt a, t = Ptrtype (Reftype bt a) /\ 
+                t'= Ptrtype (Reftype bt a) /\ 
+                PTree.get l.(lname) Sigma = Some (Ptrtype (Reftype bt a))).
 Proof.
 move=> cenv Gamma Sigma l ofs ef t t'.
 move eq: (Addr l ofs t)=> rv ht.
 elim: ht eq=> //=.
-move=> cenv' Gamma' Sigma' l' ofs' h' bt' a' hs [] h1 h2; subst.
-by exists h', bt', a'.
+move=> cenv' Gamma' Sigma' l' ofs' bt' a' hs [] h1 h2; subst.
+by exists bt', a'.
 Qed.
 
 Lemma type_infer_sinit : forall cenv Gamma Sigma x ids es t efs t',
 type_expr cenv Gamma Sigma (Sinit x ids es t) efs t' ->
-exists h id a a' efs bts co cts, 
-t = (Ptrtype (Reftype h (Bstruct id a) a')) /\ t' = (Ptrtype (Reftype h (Bstruct id a) a')) /\
+exists id a a' efs bts co cts, 
+t = (Ptrtype (Reftype (Bstruct id a) a')) /\ t' = (Ptrtype (Reftype (Bstruct id a) a')) /\
 type_exprs cenv Gamma Sigma es efs bts /\ PTree.get id cenv = Some co /\ 
 type_of_members (combine (map Ctypes.attr_of_type (transBeePL_types transBeePL_type bts)) ids) 
 (bmembers_cmembers co.(co_members)) = OK cts /\ trans_ctypes_btypes trans_ctype_btype cts = OK bts.
@@ -848,14 +847,14 @@ Proof.
 move=> cenv Gamma Sigma x ids es t efs t'.
 move eq: (Sinit x ids es t)=> rv ht.
 elim: ht eq=> //=.
-move=> cenv' Gamma' Sigma' x' es' efs' h id a a' co ids' cts bts htes hc htm ht [] h1 h2 h3 h4; subst. 
-by exists h, id, a, a', efs', bts, co, cts; split=> //=.
+move=> cenv' Gamma' Sigma' x' es' efs' id a a' co ids' cts bts htes hc htm ht [] h1 h2 h3 h4; subst. 
+by exists id, a, a', efs', bts, co, cts; split=> //=.
 Qed.
 
 Lemma type_infer_sfield : forall cenv Gamma Sigma e x t ef t',
 type_expr cenv Gamma Sigma (Sfield e x t) ef t' ->
 exists id a co ct ef te, 
-t = (Stype id a) /\ t' = (Ptrtype (Reftype mem_ident (Bstruct id a) noattr)) /\
+t = (Stype id a) /\ t' = (Ptrtype (Reftype (Bstruct id a) noattr)) /\
 type_expr cenv Gamma Sigma e ef te ->
 PTree.get id cenv = Some co /\ 
 Ctyping.type_of_member a x (bmembers_cmembers co.(co_members)) = OK ct /\
@@ -932,7 +931,7 @@ elim: ht eq=> //=.
 + by move=> cenv' Gamma' Sigma' b [] h h'; subst.
 + by move=> cenv' Gamma' Sigma' i sz s a [] h h'; subst.
 + by move=> cenv' Gamma' Sigma' i s a [] h h'; subst.
-+ by move=> cenv' Gamma' Sigma' l ofs h t'' a hs [] h1 h2; subst.
++ by move=> cenv' Gamma' Sigma' l ofs t'' a hs [] h1 h2; subst.
 by move=> cenv' Gamma' Sigma' o pt [] h1 h2.
 Qed.
 

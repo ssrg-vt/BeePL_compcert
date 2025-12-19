@@ -51,12 +51,12 @@ type efenv = efinfo Env.t
 let build_efenv () : efenv =
   Env.empty
   |> Env.add "printf"
-        { formals = [ Ptr (Reftype ("h", Bprim Tint8)) ];
+        { formals = [ Ptr (Reftype (Bprim Tint8)) ];
           effects = [Io];
           ret = Vtype Tint32;
           variadic = true }
   |> Env.add "bpf_printk"
-  { formals = [ Ptr (Reftype ("h", Bprim Tint8)); Vtype Tint32];
+  { formals = [ Ptr (Reftype (Bprim Tint8)); Vtype Tint32];
     effects = [Io];
     ret = Vtype Tint32;
     variadic = true }
@@ -109,13 +109,13 @@ let string_of_ptype = function
   | Tulong -> "ulong"
 
 let rec string_of_ptr_typ = function 
-  | Reftype (s, btype) -> 
+  | Reftype (btype) -> 
     let bstr = match btype with
       | Bprim pt -> string_of_ptype pt
       | Bstruct s -> "struct " ^ s
       | Barray (pt, n) -> Printf.sprintf "array[%d] of %s" n (string_of_ptype pt)
     in
-    Printf.sprintf "ref(%s, %s)" s bstr
+    Printf.sprintf "ref(%s)" bstr
   | Otype pt -> "opaque(" ^ string_of_ptr_typ pt ^ ")"
 
 let rec string_of_typ = function
@@ -151,8 +151,7 @@ let rec typ_eq t1 t2 =
     List.for_all2 typ_eq args1 args2 &&
     List.length effs1 = List.length effs2 && (* optional: more precise effect comparison *)
     typ_eq ret1 ret2
-  | Ptr (Reftype (s1, b1)), Ptr (Reftype (s2, b2)) ->
-    s1 = s2 && 
+  | Ptr (Reftype (b1)), Ptr (Reftype (b2)) ->
     (match b1, b2 with
     | Bprim p1, Bprim p2 -> ptype_eq p1 p2
     | Bstruct s1, Bstruct s2 -> s1 = s2
@@ -177,7 +176,7 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
        | Cbool _ -> Vtype Tbool
        | Cint32 _ -> Vtype Tint32
        | Clong _ -> Vtype Tlong
-       | Cstring s -> Ptr (Reftype ("h", Bprim (Tint8)))) (* Assuming string is a byte array and max length *)
+       | Cstring s -> Ptr (Reftype (Bprim (Tint8)))) (* Assuming string is a byte array and max length *)
   | Prim (Uop uop, args) ->
     (match args with 
     | [arg] -> let arg_ty = infer_expr ee senv env arg in
@@ -254,7 +253,7 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
     begin match args with
     | [arg] ->
         let arg_ty = infer_expr ee senv env arg in
-        Ptr (Reftype ("h", match arg_ty with
+        Ptr (Reftype (match arg_ty with
           | Vtype pt -> Bprim pt
           | Stype s -> Bstruct s
           | Atype (Vtype pt, n) -> Barray (pt, n)  (* Array type with known size *)
@@ -266,7 +265,7 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
     | [arg] ->
         let arg_ty = infer_expr ee senv env arg in
         begin match arg_ty with
-        | Ptr (Reftype (_, btype)) ->
+        | Ptr (Reftype (btype)) ->
             begin match btype with
             | Bprim pt -> Vtype pt
             | Bstruct s -> Stype s
@@ -284,7 +283,7 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
         let t1 = infer_expr ee senv env arg1 in
         let t2 = infer_expr ee senv env arg2 in
         begin match t1 with
-        | Ptr (Reftype (_, btype)) ->
+        | Ptr (Reftype (btype)) ->
             let expected_ty = match btype with
               | Bprim pt -> Vtype pt
               | Bstruct s -> Stype s
@@ -356,7 +355,7 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
           typ_eq formal actual ||
           (* array-to-pointer decay: Vtype pt [n] can be used where Ptr(Reftype(_, Bprim pt)) is expected *)
           match formal, actual with
-          | Ptr (Reftype (_, Bprim ptf)), Atype (Vtype pta, _n) when ptype_eq ptf pta -> true
+          | Ptr (Reftype (Bprim ptf)), Atype (Vtype pta, _n) when ptype_eq ptf pta -> true
           | _ -> false
         in
         
@@ -429,10 +428,10 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
       | Stype struct_name ->
           let field_ty = Senv.find_field struct_name field_name senv in
           field_ty
-      | Ptr (Reftype (_, Bstruct struct_name)) ->
+      | Ptr (Reftype (Bstruct struct_name)) ->
           let field_ty = Senv.find_field struct_name field_name senv in
           field_ty
-      | Ptr (Otype (Reftype (_, Bstruct struct_name))) ->
+      | Ptr (Otype (Reftype (Bstruct struct_name))) ->
           let field_ty = Senv.find_field struct_name field_name senv in
           field_ty
       | _ -> raise (TypeError "Fget can only be applied to struct or pointer to struct types")

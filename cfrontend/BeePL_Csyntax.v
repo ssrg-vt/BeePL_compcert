@@ -440,7 +440,7 @@ end
                                ret (chain, fn_ctx', bctx')
 
                            (* Sinit : pointer to struct *)
-                           | BeeTypes.Ptrtype (BeeTypes.Reftype _ (BeeTypes.Bstruct sid' _) _) =>
+                           | BeeTypes.Ptrtype (BeeTypes.Reftype (BeeTypes.Bstruct sid' _) _) =>
                                let tptr   := Ctypes.Tpointer tstruct Ctypes.noattr in
                                let addr   := Eaddrof base tptr in
                                let chain  := assign_struct_fields_chain base pairs addr tptr in
@@ -461,13 +461,13 @@ end
         ret (Evalof lval ct, snd ce, bctx')
 
     (* ----- pointer to struct: e : &struct s ----- *)
-    | Ptrtype (Reftype _ (Bstruct s _) _) =>
+    | Ptrtype (Reftype (Bstruct s _) _) =>
         let struct_ty := Tstruct s noattr in
         let lval      := Efield (Ederef (fst ce) struct_ty) x ct in
         ret (Evalof lval ct, snd ce, bctx')
 
     (* ----- option pointer to struct: e : ostruct s* ----- *)
-    | Ptrtype (Otype (Reftype _ (Bstruct s _) _)) =>
+    | Ptrtype (Otype (Reftype (Bstruct s _) _)) =>
         (* In the some-branch, we assume e is non-null *)
         let struct_ty := Tstruct s noattr in
         let lval      := Efield (Ederef (fst ce) struct_ty) x ct in
@@ -978,13 +978,13 @@ match e with
         ret (Sreturn (Some (Evalof lval ct)), snd ce, ctx')
 
     (* ----- pointer to struct ----- *)
-    | Ptrtype (Reftype _ (Bstruct s _) _) =>
+    | Ptrtype (Reftype (Bstruct s _) _) =>
         let struct_ty := Tstruct s noattr in
         let lval      := Efield (Ederef (fst ce) struct_ty) x ct in
         ret (Sreturn (Some (Evalof lval ct)), snd ce, ctx')
 
     (* ----- option pointer to struct ----- *)
-    | Ptrtype (Otype (Reftype _ (Bstruct s _) _)) =>
+    | Ptrtype (Otype (Reftype (Bstruct s _) _)) =>
         let struct_ty := Tstruct s noattr in
         let lval      := Efield (Ederef (fst ce) struct_ty) x ct in
         ret (Sreturn (Some (Evalof lval ct)), snd ce, ctx')
@@ -1097,7 +1097,7 @@ match e with
 
             (* we assume first argument is an eBPF ctx: ostruct _xdp_md_bee* *)
             match bctx.(arg_ctx) with 
-            | (argi, (Ptrtype (Otype (Reftype mem_ident (Bstruct istruct _) _)))) :: nil =>
+            | (argi, (Ptrtype (Otype (Reftype (Bstruct istruct _) _)))) :: nil =>
                 (* fresh local: struct bytes_t p; *)
                 do (p, strp) <- fresh_ident (List.map unzip_ident (snd ce)) max_fresh;
                 let ctx'' := (p, Stype bytes_t noattr, strp) :: snd ce in
@@ -1106,7 +1106,7 @@ match e with
                 do (tmp, strtmp) <- fresh_ident (List.map unzip_ident ctx'') max_fresh;
                 let ctx''' :=
                   (tmp,
-                   Ptrtype (Otype (Reftype mem_ident (Bstruct s noattr) noattr)),
+                   Ptrtype (Otype (Reftype (Bstruct s noattr) noattr)),
                    strtmp)
                     :: ctx'' in
 

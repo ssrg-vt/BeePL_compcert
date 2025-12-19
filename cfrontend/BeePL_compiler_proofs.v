@@ -638,7 +638,7 @@ match e with
                                                              (Csyntax.Evar tmp (Ctypes.Tstruct sid Ctypes.noattr)) 
                                                              (Ctypes.Tstruct sid Ctypes.noattr) /\
                              f = (tmp, BeeTypes.Stype sid' noattr, tag) :: f1 /\ b = b1
-                           | BeeTypes.Ptrtype (BeeTypes.Reftype _ (BeeTypes.Bstruct sid' _) _) =>
+                           | BeeTypes.Ptrtype (BeeTypes.Reftype (BeeTypes.Bstruct sid' _) _) =>
                              exists ces f1 b1 g1 i1 tmp tag g2 i2,
                              transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g = Res (ces, f1, b1) g1 i1 /\
                              fresh_ident (List.map unzip_ident f1) max_fresh g1 = Res (tmp, tag) g2 i2 /\
@@ -796,7 +796,7 @@ split.
   case hes : (transBeePL_expr_exprs transBeePL_expr_expr l' fctx bctx g)=> [errs | [[ces f1] b1] g1 i1] //=. 
   case hf : (fresh_ident (List.map unzip_ident f1) max_fresh g1)=> [errf | [fv f2] g2 i2] //=.
   case: t hte=> //=.
-  + move=> p /=; case: p=> //= h b' a'; case: b'=> //= h' a''.
+  + move=> p /=; case: p=> //= b' a'; case: b'=> //= h' a''.
     rewrite /SimplExpr.bind2 /SimplExpr.bind. rewrite hes /= hf /=. move=> [] h1 h2 h3 h4 [] h5 h6 h7 h8; subst.
     by exists ces, f1, b, g1, i1, fv, f2, g', i2; split=> //=.
   move=> h' a. rewrite /SimplExpr.bind2 /SimplExpr.bind. rewrite hes /= hf /=.
@@ -1141,7 +1141,7 @@ Proof.
 move=> t. elim t=> //=.
 + move=> [] //=. by move=> sz s a a' [] h1 h2 h3; subst.
 move=> p a. elim p=> //=.
-move=> h [] //=. 
+move=> [] //=. 
 + by move=> [] //=.
 by move=> [] //=.
 Qed.

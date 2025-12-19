@@ -71,8 +71,8 @@ match e with
                  | Ref => match es with 
                           | e :: nil => do (te, ef) <- type_check_expr cenv Gamma Sigma e;
                                         match te with 
-                                        | Vtype bt => if eq_type t (Ptrtype (Reftype mem_ident (Bprim bt) (attr_of_primitive_type bt))) 
-                                                        then OK (Ptrtype (Reftype mem_ident (Bprim bt) (attr_of_primitive_type bt)), (ef ++ (Alloc mem_ident :: nil)))
+                                        | Vtype bt => if eq_type t (Ptrtype (Reftype (Bprim bt) (attr_of_primitive_type bt))) 
+                                                        then OK (Ptrtype (Reftype (Bprim bt) (attr_of_primitive_type bt)), (ef ++ (Alloc :: nil)))
                                                         else Error (msg "TYPE ERROR: Reftype does not match the inferred type")
                                         | _ => Error (msg "TYPE ERROR: Only primitive types are allowed to be allocated in memory")
                                         end
@@ -83,7 +83,7 @@ match e with
                                           match te with 
                                           | Ptrtype pt => if eq_type t (get_data_type pt) 
                                                           then if (is_option_ptr_type pt == false) 
-                                                               then OK (get_data_type pt, (ef ++ (Read mem_ident :: nil)))
+                                                               then OK (get_data_type pt, (ef ++ (Read :: nil)))
                                                                else Error (msg "Deref is not allowed on option type")
                                                           else Error (msg "Deref type does not match the inferred type")
                                           | _ => Error (msg "TYPE ERROR: Argument of dereferencing should be a ref type")
@@ -98,7 +98,7 @@ match e with
                                                                   match te2 with 
                                                                   | bt => if eq_type t Utype
                                                                           then if (is_option_ptr_type pt == false) 
-                                                                               then OK (Utype, ef1 ++ ef2 ++ (Write mem_ident :: nil))
+                                                                               then OK (Utype, ef1 ++ ef2 ++ (Write :: nil))
                                                                                else Error (msg "Massgntype not allowed on option type")
                                                                           else Error (msg "Massgn type does not match the inferred type")
                                                                   end 
@@ -286,8 +286,8 @@ match e with
                       else Error (msg "TYPE ERROR: Type of cond does not match the inferred type")
 | Unit t => OK (Utype, nil)
 | Addr l ofs t =>  match PTree.get l.(lname) Sigma with 
-                   | Some (Ptrtype (Reftype mem_ident bt a)) => if eq_type t (Ptrtype (Reftype mem_ident bt a))
-                                              then OK (Ptrtype (Reftype mem_ident bt a), nil)
+                   | Some (Ptrtype (Reftype bt a)) => if eq_type t (Ptrtype (Reftype bt a))
+                                              then OK (Ptrtype (Reftype bt a), nil)
                                               else Error (msg "Type of location does not match the inferred type")
                    | Some _ => Error (msg "TYPE ERROR: Wrong type inferred for location")
                    | None => Error (msg "TYPE ERROR: Location not found")
@@ -317,7 +317,7 @@ match e with
                                                else Error (msg "TYPE ERROR: Wrong type inferred for the struct field")
                                   | None => Error (msg "TYPE ERROR: The field accessed from the struct is not found in composite env")
                                   end
-                  | Ptrtype (Reftype mem_ident (Bstruct id a) _) => match cenv!id with 
+                  | Ptrtype (Reftype (Bstruct id a) _) => match cenv!id with 
                                              | Some co => do ct <- type_of_member a x (bmembers_cmembers co.(co_members));
                                                do bt <- trans_ctype_btype ct;
                                                if eq_type t bt 

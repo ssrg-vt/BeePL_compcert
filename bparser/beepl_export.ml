@@ -252,9 +252,9 @@ let export_btype_to_coq (bt : btype) : string =
 
 let export_effect_to_coq (eff : effect) : string =
   match eff with
-  | Read s -> Printf.sprintf "Read \"%s\"" s
-  | Write s -> Printf.sprintf "Write \"%s\"" s
-  | Alloc s -> Printf.sprintf "Alloc \"%s\"" s
+  | Read -> "Read" 
+  | Write -> "Write"
+  | Alloc -> "Alloc"
   | Io -> "Io"
   | Divergence -> "Divergence"
 
@@ -281,10 +281,10 @@ match t with
     Printf.sprintf "Vtype (%s)" (export_prim_to_coq p)
 
 (* pointer to basic type: Reftype _id (Bprim ...) noattr *)
-| Ptr (Reftype (name, btype)) ->
+| Ptr (Reftype (btype)) ->
     Printf.sprintf
-      "Ptrtype (Reftype _%s (%s) noattr)"
-      name (export_btype_to_coq btype)
+      "Ptrtype (Reftype (%s) noattr)"
+      (export_btype_to_coq btype)
 
 (* option pointer *)
 | Ptr (Otype pt) ->
@@ -526,8 +526,8 @@ let rec export_expr_to_coq (ee : Beepl_ast_typechecker.efenv) (senv : Beepl_ast_
           let struct_name =
             match base_ty with
             | Stype s -> s
-            | Ptr (Reftype (_, Bstruct s)) -> s
-            | Ptr (Otype (Reftype (_, Bstruct s))) -> s
+            | Ptr (Reftype (Bstruct s)) -> s
+            | Ptr (Otype (Reftype (Bstruct s))) -> s
             | _ ->
                 failwith ("export Fget: base is not a struct or ptr-to-struct (got: "
                           ^ Beepl_ast_typechecker.string_of_typ base_ty ^ ")")
