@@ -236,13 +236,15 @@ Proof.
     destruct (H l o ef te ts efs rt vs efs') as [fd [Hfind [Hnorepet [Hlen [Hargs Hrt]]]]]; auto.
     apply extract_sigma in Hballoc. subst. inv Hte. constructor.
     destruct (Pos.eq_dec l b) as [Heq | Hneq]; subst.
-    + rewrite PTree.gss in H7.
+    + rewrite PTree.gss in H7.  rewrite <- H7. injection H7.
+      intros. subst. (*Consider ty_valloc*)
       admit.
     + eapply PTree.gso with (x := ty) (m := Sigma) in Hneq.
-      rewrite Hneq in H7. apply H7.
-    (*induction on vs *)
-    inv Htes. constructor. 
-    admit. 
+      symmetry. rewrite  <- H7. auto.
+    (*induction on vs but this doesn't make sense*)
+    apply extract_sigma in Hballoc. subst. inv Htes.
+    + constructor.
+    + admit. (*constructor.*)
     exists fd.
     split; [exact Hfind|].
     split; [exact Hnorepet|].
@@ -347,11 +349,11 @@ store_well_typed cenv Gamma Sigma bge vm m'.
 Proof.
 Admitted.
 
-Lemma store_well_typed_preserve_gc : forall cenv Gamma Sigma bge vm m b m',
+Lemma store_well_typed_preserve_gc : forall cenv Gamma Sigma bge vm m b m' v chunk t ofs,
 store_well_typed cenv Gamma Sigma bge vm m ->
-(forall v chunk t ofs, typeof_value v t /\
+typeof_value v t /\
 get_chunk t = Some chunk /\
-Mem.storev (transl_bchunk_cchunk chunk) m (Values.Vptr b ofs) (trans_bvalue_cvalue v) = Some m') ->
+Mem.storev (transl_bchunk_cchunk chunk) m (Values.Vptr b ofs) (trans_bvalue_cvalue v) = Some m' ->
 store_well_typed cenv Gamma Sigma bge vm m'.
 Proof.
   (*intros cenv Gamma Sigma bge vm m chunk b t m' Hwt Htyv Hchunk Hstore.*)
@@ -366,8 +368,10 @@ Proof.
       exists l', t', v0.
       split; [exact Hvm | split; [exact Heq | split; [exact HSigma |]]].
       inv Hderef.
-      * apply deref_addr_value with chunk v; eauto.
+      * (*  apply deref_addr_value with chunk v; eauto.
         specialize H0 with v0 chunk t' (Ptrofs.zero).  destruct H0 as [Htyv [Hchunk Hstore]]. simpl in *.
+        apply Mem.load_store_same in Hstore. simpl in Hstore.*)
+        (*
         apply Mem.load_store_other with (chunk' := (transl_bchunk_cchunk chunk)) (b' := l') (ofs' := Ptrofs.unsigned (Ptrofs.zero)) in Hstore.
         rewrite Hstore. exact H2.
         left. simpl in *. intro. subst.
@@ -381,7 +385,9 @@ Proof.
         eapply Mem.load_type. apply H2.
         assert (Hval: (Values.Val.load_result (transl_bchunk_cchunk chunk) v) = v).
         apply Values.Val.load_result_same in Hht.
-        simpl in *.  rewrite <- Hht. f_equal. 
+        simpl in *.  rewrite <- Hht. f_equal.  admit.
+        apply Hht. simpl in *.
+        subst.*)
 Admitted.
 
 Lemma safe_deref_valid_pointers : forall Sigma m x ofs pt chunk, 
@@ -431,7 +437,7 @@ apply deref_addr_value with chunk v; auto.
 injection H0. intros. unfold Mptr. Transparent Archi.ptr64. unfold Archi.ptr64.
 injection H0. intros. subst. auto. 
 eapply load_not_error in resbv. inv resbv. apply hload. 
-Qed.
+Qed. 
 
 (* I think we can prove this and make the well formedness definition simpler *)
 Lemma safe_assgn_valid_pointers_gc : forall cenv Gamma Sigma bge vm m x ofs pt v chunk,
@@ -440,18 +446,67 @@ PTree.get x Sigma = Some (Ptrtype pt) ->
 get_chunk (get_data_type pt) = Some chunk ->
 type_is_volatile (transBeePL_type (get_data_type pt)) = false ->
 Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
+(* pt is not an option type *)
 exists bf m', assign_addr bge (get_data_type pt) m x ofs bf v m' v /\ store_well_typed cenv Gamma Sigma bge vm m'.
-Proof.
+Proof. 
   intros. exists Full. 
-
-  assert(exists v : value, deref_addr (get_data_type pt) m x ofs Full v).
+  assert(Hderef: exists v : value, deref_addr (get_data_type pt) m x ofs Full v).
   apply safe_deref_valid_pointers_gc with (Sigma := Sigma) (chunk := chunk); auto.
   apply Mem.valid_access_freeable_any with (p:= Writable) in H3.
   eapply Mem.valid_access_store with (v := trans_bvalue_cvalue v) in H3.
   destruct H3 as [m' Hstore]. exists m'.
-  split.  induction pt. induction i; induction b.
-  induction p. simpl in *. injection H1. intros. subst. 
+  split. Print assign_addr.
+  induction pt. induction b. induction p; simpl in *; try (injection H1; intros; subst; simpl in * ).
+    - apply assign_addr_value with (chunk := BMbool) (v := (trans_bvalue_cvalue v)).
+    destruct Hderef. inv H3. assert (chunk = BMbool). induction chunk; auto; try inv H4.
+    subst. apply H4. apply H2. apply Hstore. apply bc_cv_comp.
+  - induction i0; induction s; injection H1; intro; subst; simpl in *. (* These are all the primitives *)
+    + apply assign_addr_value with (chunk := BMint8signed) (v := (trans_bvalue_cvalue v)).
+      destruct Hderef. inv H3. assert (chunk = BMint8signed). induction chunk; auto; try inv H4.
+      subst. apply H4. apply H2. apply Hstore. apply bc_cv_comp.
+    + apply assign_addr_value with (chunk := BMint8unsigned) (v := (trans_bvalue_cvalue v)).
+    destruct Hderef. inv H3. assert (chunk = BMint8unsigned). induction chunk; auto; try inv H4.
+    subst. apply H4. apply H2. apply Hstore. apply bc_cv_comp.
+    + apply assign_addr_value with (chunk := BMint16signed) (v := (trans_bvalue_cvalue v)).
+    destruct Hderef. inv H3. assert (chunk = BMint16signed). induction chunk; auto; try inv H4.
+    subst. apply H4. apply H2. apply Hstore. apply bc_cv_comp.
+    + apply assign_addr_value with (chunk := BMint16unsigned) (v := (trans_bvalue_cvalue v)).
+    destruct Hderef. inv H3. assert (chunk = BMint16unsigned). induction chunk; auto; try inv H4.
+    subst. apply H4. apply H2. apply Hstore. apply bc_cv_comp.
+    + apply assign_addr_value with (chunk := BMint32) (v := (trans_bvalue_cvalue v)).
+    destruct Hderef. inv H3. assert (chunk = BMint32). induction chunk; auto; try inv H4.
+    subst. apply H4. apply H2. apply Hstore. apply bc_cv_comp.
+    + apply assign_addr_value with (chunk := BMint32) (v := (trans_bvalue_cvalue v)).
+    destruct Hderef. inv H3. assert (chunk = BMint32). induction chunk; auto; try inv H4.
+    subst. apply H4. apply H2. apply Hstore. apply bc_cv_comp.
+    + apply assign_addr_value with (chunk := BMint32) (v := (trans_bvalue_cvalue v)).
+    destruct Hderef. inv H3. assert (chunk = BMint32). induction chunk; auto; try inv H4.
+    subst. apply H4. apply H2. apply Hstore. apply bc_cv_comp.
+    + apply assign_addr_value with (chunk := BMint32) (v := (trans_bvalue_cvalue v)).
+    destruct Hderef. inv H3. assert (chunk = BMint32). induction chunk; auto; try inv H4.
+    subst. apply H4. apply H2. apply Hstore. apply bc_cv_comp.
+    + apply assign_addr_value with (chunk := BMint64) (v := (trans_bvalue_cvalue v)).
+    destruct Hderef. inv H3. assert (chunk = BMint64). induction chunk; auto; try inv H4.
+    subst. apply H4. apply H2. apply Hstore. apply bc_cv_comp.
+  - simpl in *. inv H1.
+  - simpl in *. inv H1.
+  - simpl in *. apply IHpt; auto. (* Should not assign to a NULL pointer; Option should Some *)
+    admit.
+  - simpl in *. inv H1.
+  - simpl in Hstore. Print store_well_typed_preserve_gc.
+    apply store_well_typed_preserve_gc with (b := x) (m' := m') (v := v) (chunk := chunk) (t := get_data_type pt) (ofs := ofs) in H.
+    apply H. split. 
+    (*eapply Mem.load_store_same in Hstore.
+    simpl in *.  (* inside memory, no typing info *)
+    apply Mem.load_type in Hstore.
+    induction v eqn:Eqv ; induction (get_data_type pt) eqn:Eqpt; simpl in *; try inv H1.
+    induction p. injection H4. intros; subst; simpl in *.
+    unfold Values.Val.has_type in Hstore. *)
+    admit.
+    split. auto.
+    auto.
 Admitted.
+
 
 
 (* Allocation through ref should be successful in getting space in memory and storing value v to it *)
