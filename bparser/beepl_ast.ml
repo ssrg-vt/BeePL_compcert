@@ -1,8 +1,8 @@
 type effect = 
   | Divergence 
-  | Read of string 
-  | Write of string 
-  | Alloc of string 
+  | Read  
+  | Write 
+  | Alloc 
   | Io
 
 type ptype = 
@@ -22,7 +22,7 @@ type btype =
   | Barray of ptype * int
 
 type ptrtype =
-  | Reftype of string * btype
+  | Reftype of btype
   | Otype of ptrtype
 
 type typ = 

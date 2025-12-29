@@ -51,12 +51,12 @@ type efenv = efinfo Env.t
 let build_efenv () : efenv =
   Env.empty
   |> Env.add "printf"
-        { formals = [ Ptr (Reftype ("h", Bprim Tint8)) ];
+        { formals = [ Ptr (Reftype (Bprim Tint8)) ];
           effects = [Io];
           ret = Vtype Tint32;
           variadic = true }
   |> Env.add "bpf_printk"
-  { formals = [ Ptr (Reftype ("h", Bprim Tint8)); Vtype Tint32];
+  { formals = [ Ptr (Reftype (Bprim Tint8)); Vtype Tint32];
     effects = [Io];
     ret = Vtype Tint32;
     variadic = true }
@@ -109,13 +109,13 @@ let string_of_ptype = function
   | Tulong -> "ulong"
 
 let rec string_of_ptr_typ = function 
-  | Reftype (s, btype) -> 
+  | Reftype (btype) -> 
     let bstr = match btype with
       | Bprim pt -> string_of_ptype pt
       | Bstruct s -> "struct " ^ s
       | Barray (pt, n) -> Printf.sprintf "array[%d] of %s" n (string_of_ptype pt)
     in
-    Printf.sprintf "ref(%s, %s)" s bstr
+    Printf.sprintf "ref(%s)" bstr
   | Otype pt -> "opaque(" ^ string_of_ptr_typ pt ^ ")"
 
 let rec string_of_typ = function
@@ -151,8 +151,7 @@ let rec typ_eq t1 t2 =
     List.for_all2 typ_eq args1 args2 &&
     List.length effs1 = List.length effs2 && (* optional: more precise effect comparison *)
     typ_eq ret1 ret2
-  | Ptr (Reftype (s1, b1)), Ptr (Reftype (s2, b2)) ->
-    s1 = s2 && 
+  | Ptr (Reftype (b1)), Ptr (Reftype (b2)) ->
     (match b1, b2 with
     | Bprim p1, Bprim p2 -> ptype_eq p1 p2
     | Bstruct s1, Bstruct s2 -> s1 = s2
@@ -177,7 +176,7 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
        | Cbool _ -> Vtype Tbool
        | Cint32 _ -> Vtype Tint32
        | Clong _ -> Vtype Tlong
-       | Cstring s -> Ptr (Reftype ("h", Bprim (Tint8)))) (* Assuming string is a byte array and max length *)
+       | Cstring s -> Ptr (Reftype (Bprim (Tint8)))) (* Assuming string is a byte array and max length *)
   | Prim (Uop uop, args) ->
     (match args with 
     | [arg] -> let arg_ty = infer_expr ee senv env arg in
@@ -254,7 +253,7 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
     begin match args with
     | [arg] ->
         let arg_ty = infer_expr ee senv env arg in
-        Ptr (Reftype ("h", match arg_ty with
+        Ptr (Reftype (match arg_ty with
           | Vtype pt -> Bprim pt
           | Stype s -> Bstruct s
           | Atype (Vtype pt, n) -> Barray (pt, n)  (* Array type with known size *)
@@ -266,7 +265,7 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
     | [arg] ->
         let arg_ty = infer_expr ee senv env arg in
         begin match arg_ty with
-        | Ptr (Reftype (_, btype)) ->
+        | Ptr (Reftype (btype)) ->
             begin match btype with
             | Bprim pt -> Vtype pt
             | Bstruct s -> Stype s
@@ -284,7 +283,7 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
         let t1 = infer_expr ee senv env arg1 in
         let t2 = infer_expr ee senv env arg2 in
         begin match t1 with
-        | Ptr (Reftype (_, btype)) ->
+        | Ptr (Reftype (btype)) ->
             let expected_ty = match btype with
               | Bprim pt -> Vtype pt
               | Bstruct s -> Stype s
@@ -356,7 +355,7 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
           typ_eq formal actual ||
           (* array-to-pointer decay: Vtype pt [n] can be used where Ptr(Reftype(_, Bprim pt)) is expected *)
           match formal, actual with
-          | Ptr (Reftype (_, Bprim ptf)), Atype (Vtype pta, _n) when ptype_eq ptf pta -> true
+          | Ptr (Reftype (Bprim ptf)), Atype (Vtype pta, _n) when ptype_eq ptf pta -> true
           | _ -> false
         in
         
@@ -371,12 +370,17 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
     | _ ->
         raise (TypeError "Expected a function type in application")
     end
-  | Let (x, ty_ann, e1, e2) ->
-      let ty1 = infer_expr ee senv env e1 in
-      if not (typ_eq ty1 ty_ann) then
-        raise (TypeError ("Let-binding type mismatch for " ^ x));
-      let env' = Env.add x ty1 env in
-      infer_expr ee senv env' e2 
+  | Let (x, ty, e1, e2) ->
+      (* disallow duplicate names *)
+      if Env.mem x env then
+        raise (TypeError (Printf.sprintf "Duplicate variable: %s" x));
+  
+      let t1 = infer_expr ee senv env e1 in
+      if not (typ_eq t1 ty) then
+        raise (TypeError "Type mismatch in let-binding");
+  
+      let env' = Env.add x ty env in
+      infer_expr ee senv env' e2
   | If (e1, e2, e3) ->
       let t1 = infer_expr ee senv env e1 in
       if not (typ_eq t1 (Vtype Tbool)) then
@@ -424,10 +428,10 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
       | Stype struct_name ->
           let field_ty = Senv.find_field struct_name field_name senv in
           field_ty
-      | Ptr (Reftype (_, Bstruct struct_name)) ->
+      | Ptr (Reftype (Bstruct struct_name)) ->
           let field_ty = Senv.find_field struct_name field_name senv in
           field_ty
-      | Ptr (Otype (Reftype (_, Bstruct struct_name))) ->
+      | Ptr (Otype (Reftype (Bstruct struct_name))) ->
           let field_ty = Senv.find_field struct_name field_name senv in
           field_ty
       | _ -> raise (TypeError "Fget can only be applied to struct or pointer to struct types")
@@ -534,15 +538,54 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
     | _ -> raise (TypeError "none expects a pointer type")
     end
 
+    module StringSet = Set.Make(String)
 
-let infer_fundecl (ee : efenv) (Tfundecl (_name, ret_type, _eff, args, _vars, body))
-(senv : Senv.t) (global_env : tyenv) =
-let env_with_args =
-List.fold_left (fun acc (x, ty) -> Env.add x ty acc) global_env args in
-let inferred_type = infer_expr ee senv env_with_args body in
-if not (typ_eq inferred_type ret_type) then
-raise (TypeError "Return type mismatch");
-()
+    let check_unique (what : string) (name : string) (xs : (string * 'a) list) =
+      let _, dups =
+        List.fold_left
+          (fun (seen, dups) (x, _) ->
+             if StringSet.mem x seen then
+               (seen, x :: dups)
+             else
+               (StringSet.add x seen, dups))
+          (StringSet.empty, [])
+          xs
+      in
+      match dups with
+      | [] -> ()
+      | dups ->
+          let dups = List.rev dups in
+          let msg =
+            Printf.sprintf
+              "Duplicate %s in function %s: %s"
+              what name
+              (String.concat ", " dups)
+          in
+          raise (TypeError msg)
+
+let infer_fundecl (ee : efenv)
+    (Tfundecl (name, ret_type, _eff, args, vars, body))
+    (senv : Senv.t) (global_env : tyenv) =
+  (* 1. Ensure all parameter names and local variable names are unique *)
+  check_unique "parameters" name args;
+  check_unique "locals"     name vars;
+  (* also ensure no overlap between params and locals *)
+  check_unique "parameters/locals" name (args @ vars);
+
+  (* 2. Build env with args + locals *)
+  let env_with_args_and_vars =
+    List.fold_left
+      (fun acc (x, ty) -> Env.add x ty acc)
+      global_env
+      (args @ vars)
+  in
+
+  (* 3. Infer and check return type *)
+  let inferred_type = infer_expr ee senv env_with_args_and_vars body in
+  if not (typ_eq inferred_type ret_type) then
+    raise (TypeError "Return type mismatch");
+  ()
+
 
 let infer_program (prog : program) =
   let senv = build_senv prog in  

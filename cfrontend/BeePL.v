@@ -119,6 +119,24 @@ Inductive expr : Type :=
 | Ainit : ident -> type -> list expr -> type -> expr                    (* array initialization *)
 | Aaccess : ident -> type -> nat -> type -> expr.                       (* array access *)
 
+(*int x = 2; {
+int x = 3;
+int y = 4; }
+int z = x + y;
+return z; z : 6
+
+let x = 2 in 
+ let x = 3 in 
+  let y = 4 in 
+   let z = x + y in z ==> 7
+
+let x = 2 in 
+ let x1 = 3 in 
+  let y = 4 in 
+   let z = x1 + y in z ==> 
+
+[x : l] ==> [cx : l']*)
+
 Section Expr_Ind.
 Context 
   (P : expr -> Prop)
@@ -627,7 +645,9 @@ Inductive assign_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : 
    declared in [vars], and associates the variable name with this block. 
    [vm1] and [m1] are the initial local environment and memory state.
    [e2] and [m2] are the final local environment and memory state *) 
-Definition balloc (Sigma : store_context) (m : Memory.mem) (ty : type) (lo hi: Z) : Mem.mem' * Values.block * store_context :=
+(* Sigma is a mapping from location to the type of element it holds *)
+Definition balloc (Sigma : store_context) (m : Memory.mem) (ty : type) (lo hi: Z) : 
+Mem.mem' * Values.block * store_context :=
 let (m1, l1) := Mem.alloc m 0 (sizeof_type (genv_cenv ge) ty) in 
 let Sigma' := PTree.set l1 ty Sigma in
 (m1, l1, Sigma').
@@ -824,8 +844,8 @@ Inductive well_formed_value : value -> type -> Prop :=
             well_formed_value (Vint i) (Vtype (Tint sz s a))
 | wf_vlong : forall s a i,
              well_formed_value (Vint64 i) (Vtype (Tlong s a))
-| wf_vloc : forall l ofs h t a,
-            well_formed_value (Vloc l ofs) (Ptrtype (Reftype h t a)).
+| wf_vloc : forall l ofs t a,
+            well_formed_value (Vloc l ofs) (Ptrtype (Reftype t a)).
 
 
 Fixpoint bind_vars (Gamma : ty_context) (l: list (ident * type)) : ty_context :=

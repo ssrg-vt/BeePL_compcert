@@ -40,7 +40,8 @@ let lift_string_constant (s : string) : string =
       id
 
 (* Collect all identifiers from the program *)
-let export_collect_idents (prog : program) : string list  =
+(* Collect all identifiers from the program AND from the external efenv *)
+let export_collect_idents (prog : program) (ee : Beepl_ast_typechecker.efenv) : string list =
   let add_var acc (x, _) =
     if List.mem x acc then acc else x :: acc
   in
@@ -105,7 +106,7 @@ let export_collect_idents (prog : program) : string list  =
                | Pnone ->
                    a
                | Pbytes (id, _, fields) ->
-                   let a = if List.mem id a then a else id :: a in
+                   let a = if List.mem id a then id :: a else a in
                    List.fold_left add_var a fields)
             acc patterns
         in
@@ -118,23 +119,38 @@ let export_collect_idents (prog : program) : string list  =
         acc
   in
 
+  (* First, collect from the program as before *)
+  let from_prog =
+    List.fold_left
+      (fun acc top ->
+         match top with
+         | Internal (Tfundecl (name, _, _, args, _, body), _)
+         | EBPFInternal (Tfundecl (name, _, _, args, _, body), _) ->
+             let acc = if List.mem name acc then acc else name :: acc in
+             let acc = List.fold_left add_var acc args in
+             from_expr acc body
+
+         | StructDecl (sname, fields) ->
+             let acc = if List.mem sname acc then acc else sname :: acc in
+             List.fold_left add_var acc fields
+
+         | GlobalLet (name, _, body, _) ->
+             let acc = if List.mem name acc then acc else name :: acc in
+             from_expr acc body)
+      [] prog
+  in
+
+  (* Then, add all external helper names from efenv, e.g. "bpf_get_prandom_u32" *)
+  let extern_names =
+    Beepl_ast_typechecker.Env.bindings ee
+    |> List.map fst
+  in
+
   List.fold_left
-    (fun acc top ->
-       match top with
-       | Internal (Tfundecl (name, _, _, args, _, body), _)
-       | EBPFInternal (Tfundecl (name, _, _, args, _, body), _) ->
-           let acc = if List.mem name acc then acc else name :: acc in
-           let acc = List.fold_left add_var acc args in
-           from_expr acc body
+    (fun acc nm -> if List.mem nm acc then acc else nm :: acc)
+    from_prog
+    extern_names
 
-       | StructDecl (sname, fields) ->
-           let acc = if List.mem sname acc then acc else sname :: acc in
-           List.fold_left add_var acc fields
-
-       | GlobalLet (name, _, body, _) ->
-           let acc = if List.mem name acc then acc else name :: acc in
-           from_expr acc body)
-    [] prog
 
 (* Generate Coq identifier declarations *)
 let export_coq_idents (idents : string list) : string =
@@ -152,7 +168,7 @@ let export_contains_ebpf prog =
   List.exists (function EBPFInternal _ -> true | _ -> false) prog
 
 (* Final Coq header + idents *)
-let generate_coq_prelude prog =
+let generate_coq_prelude (prog : program) (ee : Beepl_ast_typechecker.efenv) =
   let header = {|
 Require Import Integers AST Ctypes BeePL BeeTypes BeePL_values BeePL_typechecker.
 From Coq Require Import String ZArith Lists.List.
@@ -161,36 +177,84 @@ Import Csyntaxdefs.CsyntaxNotations.
 Local Open Scope string_scope.
 Local Open Scope csyntax_scope.
 |} in
-  let idents = export_collect_idents prog in
-  let defs = export_coq_idents idents in
-  let dattr_def =
-    if export_contains_ebpf prog then
-      "Definition dattr := {| attr_volatile := false; attr_alignas := None |}.\n"
-    else ""
-  in
-  header ^ "\n\n" ^ dattr_def ^ defs ^ "\n\n"
 
-let rec export_btype_to_coq (bt : btype) : string =
+  (* collect program + extern identifiers *)
+  let idents = export_collect_idents prog ee in
+
+  (* ensure "h" is always present *)
+  let idents =
+    if List.mem "h" idents then idents else ("h" :: idents)
+  in
+
+  (* generate: Definition _xyz : ident := $"xyz". *)
+  let ident_defs =
+    List.map
+      (fun id -> Printf.sprintf "Definition _%s : ident := $\"%s\"." id id)
+      idents
+  in
+
+  (* build ident_to_string table including _h *)
+  let ident_to_string_entries =
+    List.map
+      (fun id -> Printf.sprintf "(_%s, \"%s\")" id id)
+      idents
+  in
+
+  let ident_to_string_def =
+    "Definition ident_to_string := (" ^
+    (String.concat " :: " ident_to_string_entries) ^
+    " :: nil)."
+  in
+
+  let dattr_def =
+    "Definition dattr := {| attr_volatile := false; attr_alignas := None |}.\n"
+  in
+
+  header ^ "\n"
+  ^ dattr_def ^ "\n"
+  ^ (String.concat "\n" ident_defs) ^ "\n"
+  ^ ident_to_string_def ^ "\n\n"
+
+
+(* Your surface primitive type: Tuint8, Tint8, ... Tlong, Tbool *)
+let export_prim_to_coq = function
+  | Tbool ->
+      "BeeTypes.Tbool"
+  | Tuint8 ->
+      "BeeTypes.Tint I8 Unsigned dattr"
+  | Tint8 ->
+      "BeeTypes.Tint I8 Signed dattr"
+  | Tuint16 ->
+      "BeeTypes.Tint I16 Unsigned dattr"
+  | Tint16 ->
+      "BeeTypes.Tint I16 Signed dattr"
+  | Tuint32 ->
+      "BeeTypes.Tint I32 Unsigned dattr"
+  | Tint32 ->
+      "BeeTypes.Tint I32 Signed dattr"
+  | Tulong ->
+      "BeeTypes.Tlong Unsigned dattr"
+  | Tlong ->
+      "BeeTypes.Tlong Signed dattr"
+
+let export_btype_to_coq (bt : btype) : string =
   match bt with
-  | Bprim Tbool -> "BeeTypes.Tbool"
-  | Bprim Tuint8 -> "BeeTypes.Tuint8 Unsigned dattr"
-  | Bprim Tint8 -> "BeeTypes.Tint I8 Signed dattr"
-  | Bprim Tuint16 -> "BeeTypes.Tuint I16 Unsigned dattr"
-  | Bprim Tint16 -> "BeeTypes.Tint I16 Signed dattr"
-  | Bprim Tuint32 -> "BeeTypes.Tuint I32 Unsigned dattr"
-  | Bprim Tint32 -> "BeeTypes.Tint I32 Signed dattr"
-  | Bprim Tulong -> "BeeTypes.Tulong Unsigned dattr"
-  | Bprim Tlong -> "BeeTypes.Tlong"
-  | Bstruct name -> Printf.sprintf "(Bstruct _%s noattr)" name
-  | Barray (t, n) ->
-    Printf.sprintf "Barray (%s) %d" (export_btype_to_coq (Bprim t)) n
+  | Bprim p ->
+      Printf.sprintf "Bprim (%s)" (export_prim_to_coq p)
+  | Bstruct name ->
+      Printf.sprintf "Bstruct _%s noattr" name
+  | Barray (p, n) ->
+      Printf.sprintf
+        "Barray (%s) %d noattr"
+        (export_prim_to_coq p) n
+      
 
 
 let export_effect_to_coq (eff : effect) : string =
   match eff with
-  | Read s -> Printf.sprintf "Read \"%s\"" s
-  | Write s -> Printf.sprintf "Write \"%s\"" s
-  | Alloc s -> Printf.sprintf "Alloc \"%s\"" s
+  | Read -> "Read" 
+  | Write -> "Write"
+  | Alloc -> "Alloc"
   | Io -> "Io"
   | Divergence -> "Divergence"
 
@@ -199,33 +263,67 @@ let rec export_effect_to_coq_list (effs : effect list) : string =
   | [] -> "nil"
   | eff :: rest ->
     Printf.sprintf "%s :: %s" (export_effect_to_coq eff) (export_effect_to_coq_list rest)
+let rec export_effect_to_coq_list (effs : effect list) : string =
+match effs with
+| [] -> "nil"
+| eff :: rest ->
+    Printf.sprintf "%s :: %s"
+      (export_effect_to_coq eff)
+      (export_effect_to_coq_list rest)
+
 let rec export_typ_to_coq (t : typ) : string =
-  match t with
-  | Utype -> "Utype"
-  | Vtype Tuint8 -> "Vtype (BeeTypes.Tuint8 Unsigned dattr)"
-  | Vtype Tint8 -> "Vtype (BeeTypes.Tint I8 Signed dattr)"
-  | Vtype Tuint16 -> "Vtype (BeeTypes.Tuint I16 Unsigned dattr)"
-  | Vtype Tint16 -> "Vtype (BeeTypes.Tint I16 Signed dattr)"
-  | Vtype Tuint32 -> "Vtype (BeeTypes.Tuint I32 Unsigned dattr)"
-  | Vtype Tint32 -> "Vtype (BeeTypes.Tint I32 Signed dattr)"
-  | Vtype Tulong -> "Vtype (BeeTypes.Tulong Unsigned dattr)"
-  | Vtype Tbool -> "Vtype Tbool"
-  | Vtype Tlong -> "Vtype Tlong"
-  | Ptr (Reftype (name, btype)) ->
-    Printf.sprintf "Ptrtype (Reftype _%s (%s) noattr)" name (export_btype_to_coq btype)
-  | Ptr (Otype pt) ->
-    Printf.sprintf "Ptrtype (Otype (%s))" (export_typ_to_coq (Ptr pt))
-  | Stype name -> Printf.sprintf "Stype _%s" name
-  | Atype (elem_type, size) ->
-    Printf.sprintf "Atype (%s) %d" (export_typ_to_coq elem_type) size
-  | Ftype (arg_types, effs, ret_type) ->
+match t with
+| Utype ->
+    "Utype"
+
+(* Vtype of primitive maps to Vtype (Tint ...) or Vtype (Tlong ...) or Tbool *)
+| Vtype p ->
+    Printf.sprintf "Vtype (%s)" (export_prim_to_coq p)
+
+(* pointer to basic type: Reftype _id (Bprim ...) noattr *)
+| Ptr (Reftype (btype)) ->
+    Printf.sprintf
+      "Ptrtype (Reftype (%s) noattr)"
+      (export_btype_to_coq btype)
+
+(* option pointer *)
+| Ptr (Otype pt) ->
+    Printf.sprintf
+      "Ptrtype (Otype (%s))"
+      (export_typ_to_coq (Ptr pt))
+
+(* if you ever use function pointers 
+| Ptr (Fptype (args, eff, ret)) ->
+    let args_s =
+      args |> List.map export_typ_to_coq |> export_coq_list
+    in
+    let eff_s = export_effect_to_coq_list eff in
+    let ret_s = export_typ_to_coq ret in
+    Printf.sprintf
+      "Ptrtype (Fptype (%s) (%s) (%s))"
+      args_s eff_s ret_s *)
+
+(* Stype / Atype now carry attr: use noattr *)
+| Stype name ->
+    Printf.sprintf "Stype _%s noattr" name
+
+| Atype (elem_type, size) ->
+    Printf.sprintf
+      "Atype (%s) %d noattr"
+      (export_typ_to_coq elem_type) size
+
+| Ftype (arg_types, effs, ret_type) ->
     let arg_strs = List.map export_typ_to_coq arg_types in
     let eff_strs = export_effect_to_coq_list effs in
-    Printf.sprintf "Ftype (%s) (%s) (%s)"
+    Printf.sprintf
+      "Ftype (%s) (%s) (%s)"
       (export_coq_list arg_strs)
       eff_strs
       (export_typ_to_coq ret_type)
-  | Bytes -> "Bytes"
+
+| Bytes ->
+    "Bytes"
+
 
 let export_arg_to_coq (id, t) =
   Printf.sprintf "(_%s, %s)" id (export_typ_to_coq t)
@@ -318,9 +416,9 @@ let rec export_expr_to_coq (ee : Beepl_ast_typechecker.efenv) (senv : Beepl_ast_
       let args_str = List.map (export_expr_to_coq ee senv env) args in
       let ty = export_typ_to_coq (infer_expr ee senv (list_to_env env) e) in
       let uop_str = match uop with
-        | Onotbool -> "Onotbool"
-        | Onotint -> "Onotint"
-        | Oneg -> "Oneg"
+        | Onotbool -> "Cop.Onotbool"
+        | Onotint -> "Cop.Onotint"
+        | Oneg -> "Cop.Oneg"
         | UOverloadTilde -> "UOverloadTilde"
       in
       Printf.sprintf 
@@ -332,22 +430,22 @@ let rec export_expr_to_coq (ee : Beepl_ast_typechecker.efenv) (senv : Beepl_ast_
       let args_str = List.map (export_expr_to_coq ee senv env) args in
       let ty = export_typ_to_coq (infer_expr ee senv (list_to_env env) e) in
       let bop_str = match bop with
-        | Oadd -> "Oadd"
-        | Osub -> "Osub"
-        | Omul -> "Omul"
-        | Odiv -> "Odiv"
-        | Omod -> "Omod"
-        | Oand -> "Oand"
-        | Oor -> "Oor"
-        | Oxor -> "Oxor"
-        | Oshl -> "Oshl"
-        | Oshr -> "Oshr"
-        | Oeq -> "Oeq"
-        | One -> "One"
-        | Olt -> "Olt"
-        | Ogt -> "Ogt"
-        | Ole -> "Ole"
-        | Oge -> "Oge"
+        | Oadd -> "Cop.Oadd"
+        | Osub -> "Cop.Osub"
+        | Omul -> "Cop.Omul"
+        | Odiv -> "Cop.Odiv"
+        | Omod -> "Cop.Omod"
+        | Oand -> "Cop.Oand"
+        | Oor -> "Cop.Oor"
+        | Oxor -> "Cop.Oxor"
+        | Oshl -> "Cop.Oshl"
+        | Oshr -> "Cop.Oshr"
+        | Oeq -> "Cop.Oeq"
+        | One -> "Cop.One"
+        | Olt -> "Cop.Olt"
+        | Ogt -> "Cop.Ogt"
+        | Ole -> "Cop.Ole"
+        | Oge -> "Cop.Oge"
         (* Add other binary operators here as needed *)
       in
       Printf.sprintf 
@@ -428,8 +526,8 @@ let rec export_expr_to_coq (ee : Beepl_ast_typechecker.efenv) (senv : Beepl_ast_
           let struct_name =
             match base_ty with
             | Stype s -> s
-            | Ptr (Reftype (_, Bstruct s)) -> s
-            | Ptr (Otype (Reftype (_, Bstruct s))) -> s
+            | Ptr (Reftype (Bstruct s)) -> s
+            | Ptr (Otype (Reftype (Bstruct s))) -> s
             | _ ->
                 failwith ("export Fget: base is not a struct or ptr-to-struct (got: "
                           ^ Beepl_ast_typechecker.string_of_typ base_ty ^ ")")
@@ -598,16 +696,16 @@ let export_starts_with ~prefix s =
   let plen = String.length prefix in
   String.length s >= plen && String.sub s 0 plen = prefix
 
-let export_cc_of_efinfo (variadic : bool) (fixed_arity : int) : string =
-  if variadic then
-    Printf.sprintf
-      "{| cc_vararg := Some (Z.of_nat %d); cc_unproto := false; cc_structret := false |}"
-      fixed_arity
-  else
-    "{| cc_vararg := None; cc_unproto := false; cc_structret := false |}"
+  let export_cc_of_efinfo (_variadic : bool) (_fixed_arity : int) : string =
+    "cc_default"
   
-  let export_bsig_of_external (formals : typ list) (effects : effect list) (ret : typ) (variadic : bool) : string =
-    let args = List.map export_typ_to_coq formals |> export_coq_list in
+  let export_bsig_of_external
+      (formals : typ list)
+      (effects : effect list)
+      (ret : typ)
+      (variadic : bool)
+    : string =
+    let args = formals |> List.map export_typ_to_coq |> export_coq_list in
     let res  = export_typ_to_coq ret in
     let ef   = export_effect_to_coq_list effects in
     let cc   = export_cc_of_efinfo variadic (List.length formals) in
@@ -615,23 +713,59 @@ let export_cc_of_efinfo (variadic : bool) (fixed_arity : int) : string =
       "{| bsig_args := %s; bsig_ef := %s; bsig_res := %s; bsig_cc := %s |}"
       args ef res cc
   
-  (* Produce (Coq definitions, entries to splice into global_definitions) *)
-  let export_coq_external_globdefs (ee : Beepl_ast_typechecker.efenv) : string list * string list =
-    Beepl_ast_typechecker.Env.bindings ee
-    |> List.map (fun (name, info) ->
-         let bsig  = export_bsig_of_external info.formals info.effects info.ret info.variadic in
-         let coq_name = "ext_" ^ name in
-         let def =
-           Printf.sprintf
-             "Definition %s : AST.globdef BeePL.fundef type :=\n\
-              AST.Gfun (BeePL.External (BeePL.EF_external \"%s\" %s)\n\
-              \                          (bsig_args %s) (bsig_res %s) (bsig_cc %s))."
-             coq_name name bsig coq_name coq_name coq_name
-         in
-         let entry = Printf.sprintf "(_%s, %s, None)" name coq_name in
-         (def, entry))
-    |> List.split
-  
+
+(* Produce (Coq definitions, entries to splice into global_definitions) *)
+let export_coq_external_globdefs
+    (ee : Beepl_ast_typechecker.efenv)
+  : string list * string list =
+  Beepl_ast_typechecker.Env.bindings ee
+  |> List.map (fun (name, info) ->
+       (* beesig for EF_external *)
+       let bsig =
+         export_bsig_of_external
+           info.formals info.effects info.ret info.variadic
+       in
+
+       (* Coq names *)
+       let ef_name   = name ^ "_ef" in          (* e.g. bpf_get_prandom_u32_ef *)
+       let glob_name = "ext_" ^ name in        (* e.g. ext_bpf_get_prandom_u32 *)
+
+       (* explicit args / result types for BeePL.External *)
+       let args_coq =
+         info.formals
+         |> List.map export_typ_to_coq
+         |> export_coq_list                       (* "nil" or "tint32u :: nil", etc. *)
+       in
+       let res_coq = export_typ_to_coq info.ret in
+
+       (* 1) external_function descriptor *)
+       let ef_def =
+         Printf.sprintf
+           "Definition %s : BeePL.external_function :=\n\
+            \  BeePL.EF_external \"%s\" %s."
+           ef_name name bsig
+       in
+
+       (* 2) globdef wrapping that external_function *)
+       let glob_def =
+         Printf.sprintf
+           "Definition %s : AST.globdef BeePL.fundef type :=\n\
+            \  AST.Gfun (BeePL.External %s\n\
+            \                           (%s)\n\
+            \                           (%s)\n\
+            \                           (cc_default))."
+           glob_name ef_name args_coq res_coq
+       in
+
+       (* 3) entry for global_definitions *)
+       let entry =
+         Printf.sprintf "(_%s, %s, None)" name glob_name
+       in
+
+       (* we return both Coq defs as a single string; caller just concatenates *)
+       (ef_def ^ "\n\n" ^ glob_def, entry))
+  |> List.split
+
 let unquote s =
   let s = String.trim s in
   let n = String.length s in
@@ -805,7 +939,7 @@ let export_collect_globals (prog : program) : (string * typ) list =
   let publics = export_coq_public_idents prog in
   let entry   = export_find_main_or_fallback prog in
   let wrapper = export_coq_program_wrapper ~name:"bprogram" entry in
-  coq_header
+  coq_header ee
   ^ "\n\n"
   ^ bcomposites_def
   ^ "\n\n"

@@ -132,8 +132,8 @@ Qed.
 
 (* Original *)
 (* Easy *)
-Lemma transBeePL_ptr_ref_int : forall h bt sz s a a',
-transBeePL_ptr_type (Reftype h bt a) = Ctypes.Tpointer (Ctypes.Tint sz s a') a ->
+Lemma transBeePL_ptr_ref_int : forall bt sz s a a',
+transBeePL_ptr_type (Reftype bt a) = Ctypes.Tpointer (Ctypes.Tint sz s a') a ->
 bt = Bprim (Tint sz s a').
 Proof.
   intro h. induction h; intro bt. induction bt; intros; try inv H. destruct p; try inv H1.
@@ -152,8 +152,8 @@ Qed.
 
 
 (* Easy *)
-Lemma transBeePL_ptr_ref_long : forall h bt s a a',
-transBeePL_ptr_type (Reftype h bt a) = Ctypes.Tpointer (Ctypes.Tlong s a') a ->
+Lemma transBeePL_ptr_ref_long : forall bt s a a',
+transBeePL_ptr_type (Reftype bt a) = Ctypes.Tpointer (Ctypes.Tlong s a') a ->
 bt = Bprim (Tlong s a').
 Proof.
   intros. simpl in *. induction bt. induction p; try inv H; auto.
@@ -162,8 +162,8 @@ Proof.
 Qed.
 
 (* Easy *)
-Lemma transBeePL_ptr_ref_struct : forall h bt s a a',
-transBeePL_ptr_type (Reftype h bt a) = Ctypes.Tpointer (Ctypes.Tstruct s a') a ->
+Lemma transBeePL_ptr_ref_struct : forall bt s a a',
+transBeePL_ptr_type (Reftype bt a) = Ctypes.Tpointer (Ctypes.Tstruct s a') a ->
 bt = Bstruct s a'.
 Proof.
 intros. inv H. induction bt. induction p; try inv H1; auto.
@@ -174,6 +174,9 @@ Qed.
 
 Lemma transBeePL_ptr_ref_array_bool_int : forall h bt' z z0 a0 a a',
 transBeePL_ptr_type (Reftype h (Barray Tbool z0 a0) a) = Ctypes.Tpointer (Ctypes.Tarray (transBeePL_type (Vtype bt')) z a') a ->
+(*
+Lemma transBeePL_ptr_ref_array_bool_int : forall bt' z z0 a0 a a',
+transBeePL_ptr_type (Reftype (Barray Tbool z0 a0) a) = Ctypes.Tpointer (Ctypes.Tarray (transBeePL_type (Vtype bt')) z a') a ->*)
 bt' = Tbool \/ bt' = Tint I8 Unsigned noattr.
 Proof.
 intros. inv H. induction bt'. left; auto.
@@ -182,6 +185,9 @@ Qed.
 
 Lemma transBeePL_ptr_ref_array_int_bool : forall h bt' z z0 a0 a a',
 transBeePL_ptr_type (Reftype h (Barray (Tint I8 Unsigned noattr) z0 a0) a) = Tpointer (Tarray (transBeePL_type (Vtype bt')) z a') a ->
+(*
+Lemma transBeePL_ptr_ref_array_int_bool : forall bt' z z0 a0 a a',
+transBeePL_ptr_type (Reftype (Barray (Tint I8 Unsigned noattr) z0 a0) a) = Tpointer (Tarray (transBeePL_type (Vtype bt')) z a') a ->*)
 bt' = Tbool \/ bt' = Tint I8 Unsigned noattr.
 Proof.
 intros. inv H. induction bt'. left; auto.
@@ -192,6 +198,9 @@ Qed.
  still need to deal with bt with Tint and Tbool*)
 Lemma transBeePL_ptr_ref_array : forall h bt bt' z a a',
 transBeePL_ptr_type (Reftype h bt a) = Ctypes.Tpointer (Ctypes.Tarray (transBeePL_type (Vtype bt')) z a') a ->
+(*
+Lemma transBeePL_ptr_ref_array : forall bt bt' z a a',
+transBeePL_ptr_type (Reftype bt a) = Ctypes.Tpointer (Ctypes.Tarray (transBeePL_type (Vtype bt')) z a') a ->*)
 bt = Barray bt' z a'.
 Proof.
 intros. inv H. induction bt; try inv H1. induction p; try inv H1; auto.
@@ -304,7 +313,7 @@ Qed.
 Lemma no_bptype_to_float : forall pt f a,
 transBeePL_ptr_type pt <> Tfloat f a.
 Proof.
-move=> pt. elim: pt=> //= h b. elim: b=> //=.
+move=> pt. elim: pt=> //= b. elim: b=> //=.
 + by move=> [] //=.
 by move=> [] //=.
 Qed.
@@ -315,7 +324,7 @@ Proof.
 move=> t f a /=. case: t=> //=.
 + by move=> p; case: p=> //=.
 + move=> [] //=.
-  + move=> h [] //=. by move=> [] //=.
+  + move=> [] //=. by move=> [] //=.
   by move=> [] //=.
 move=> p. by apply no_bptype_to_float.
 Qed.
@@ -323,7 +332,7 @@ Qed.
 Lemma no_bptype_to_union : forall pt f a,
 transBeePL_ptr_type pt <> Tunion f a.
 Proof.
-move=> pt. elim: pt=> //= h b. elim: b=> //=.
+move=> pt. elim: pt=> //= b. elim: b=> //=.
 + by move=> [] //=.
 by move=> [] //=.
 Qed.
@@ -334,7 +343,7 @@ Proof.
 move=> t f a /=. case: t=> //=.
 + by move=> p; case: p=> //=.
 + move=> [] //=.
-  + move=> h [] //=. by move=> [] //=.
+  + move=> [] //=. by move=> [] //=.
   by move=> [] //=.
 move=> p. by apply no_bptype_to_union.
 Qed.
@@ -954,9 +963,9 @@ Lemma ptr_eq_trans : forall p p0,
 eq_ptr_type p p0 -> 
 transBeePL_ptr_type p0 = transBeePL_ptr_type p.
 Proof.
-move=> [].
+(*move=> [].
 + move=> h b a [] //=.
-  + move=> h' [] //=.
+  + move=> [] //=.
     + move=> [] //=.
       + move=> a' /=. case: b=> //=.
         + move=> [] //=.
@@ -1183,7 +1192,7 @@ move=> [].
           destruct (attr_eq a a2) eqn:Heqa1; try discriminate; auto.
           destruct (Ctyping.intsize_eq sz sz1) eqn:Heqsz; try discriminate; auto.
           apply Pos.eqb_eq in hh1.  subst. auto.          
-*)        
+*)  *)      
 Admitted.
 
 

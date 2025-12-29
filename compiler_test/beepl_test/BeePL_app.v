@@ -13,7 +13,6 @@ Definition _c : ident := $"c".
 Definition _x : ident := $"x".
 Definition _y : ident := $"y".
 Definition _r : ident := $"r".
-Definition _h : ident := $"h". (* supposed to represent heap for Reftype *)
 Definition _add : ident := $"add".
 Definition _add_with_one_ref : ident := $"add_with_one_ref".
 Definition _add_with_two_ref : ident := $"add_with_two_ref".
@@ -61,7 +60,7 @@ Definition f_add : BeePL.function := {|
  *)
 Definition f_add_with_one_ref : BeePL.function := {| 
                                    fn_return := tint32s;
-                                   fn_effect := (Read mem_ident :: nil);
+                                   fn_effect := (Read :: nil);
                                    fn_callconv := cc_default;
                                    fn_args := ((_x, tint32s) :: 
                                                (_y, trint32s) :: nil);
@@ -85,7 +84,7 @@ Definition f_add_with_one_ref : BeePL.function := {|
  *)
 Definition f_add_with_two_ref : BeePL.function := {| 
                                    fn_return := tint32s;
-                                   fn_effect := (Read mem_ident :: Read mem_ident :: nil);
+                                   fn_effect := (Read :: Read :: nil);
                                    fn_callconv := cc_default;
                                    fn_args := ((_x, trint32s) :: 
                                                (_y, trint32s):: nil);
@@ -111,9 +110,9 @@ Definition f_add_with_two_ref : BeePL.function := {|
  *)
 Definition f_main : BeePL.function := {| 
                                    fn_return := tint32s;
-                                   fn_effect := (Read mem_ident :: Alloc mem_ident :: 
-                                                 Read mem_ident :: Read mem_ident :: 
-                                                 Alloc mem_ident :: Alloc mem_ident :: nil);
+                                   fn_effect := (Read :: Alloc :: 
+                                                 Read :: Read :: 
+                                                 Alloc :: Alloc :: nil);
                                    fn_callconv := cc_default;
                                    fn_args := nil;
                                    fn_vars := ((_a, tint32s) :: 
@@ -132,7 +131,7 @@ Definition f_main : BeePL.function := {|
                                                       (Bind 
                                                           (_b) tint32s
                                                           (App (Var _add_with_one_ref (tfun (tint32s :: trint32s :: nil) (* type signature *)
-                                                                                       (Read mem_ident :: nil) (* effect *)
+                                                                                       (Read :: nil) (* effect *)
                                                                                        tint32s)) (* return type *)
                                                                (Var _a tint32s :: 
                                                                 Prim (Ref) 
@@ -140,7 +139,7 @@ Definition f_main : BeePL.function := {|
                                                           (Bind 
                                                              (_b) tint32s
                                                              (App (Var _add_with_two_ref (tfun (trint32s :: trint32s :: nil) (* type signature *)
-                                                                                          (Read mem_ident :: Read mem_ident :: nil) (* effect *)
+                                                                                          (Read :: Read :: nil) (* effect *)
                                                                                           tint32s)) (* return type *)
                                                                   (Prim (Ref) 
                                                                         (cint (Int.repr 5) tint32s :: nil) trint32s ::

@@ -130,7 +130,7 @@ let collect_global_env
         | Beepl_ast.Enone _ -> ()
       in
       let from_effect = function
-        | Beepl_ast.Read s | Beepl_ast.Write s | Beepl_ast.Alloc s -> add_ident s
+        | Beepl_ast.Read | Beepl_ast.Write | Beepl_ast.Alloc 
         | Beepl_ast.Io | Beepl_ast.Divergence -> ()
       in
       List.iter (fun top ->
@@ -170,9 +170,9 @@ let transform_basic_type (bt : Beepl_ast.btype) : BeeTypes.basic_type =
 
 let transform_effect (eff : Beepl_ast.effect) : BeeTypes.effect_label =
     match eff with
-    | Beepl_ast.Read s -> BeeTypes.Read (Camlcoq.intern_string s)
-    | Beepl_ast.Write s -> BeeTypes.Write (Camlcoq.intern_string s)
-    | Beepl_ast.Alloc s -> BeeTypes.Alloc (Camlcoq.intern_string s)
+    | Beepl_ast.Read -> BeeTypes.Read 
+    | Beepl_ast.Write -> BeeTypes.Write 
+    | Beepl_ast.Alloc -> BeeTypes.Alloc 
     | Beepl_ast.Io -> BeeTypes.Io
     | Beepl_ast.Divergence -> BeeTypes.Divergence
 
@@ -180,8 +180,8 @@ let transform_effect_list effs = List.map (transform_effect) effs
 
 let rec transform_ptr_type (pt : Beepl_ast.ptrtype) : BeeTypes.ptr_type =
   match pt with
-  | Beepl_ast.Reftype (name, bt) ->
-      BeeTypes.Reftype (Camlcoq.intern_string name, transform_basic_type bt, Ctypes.noattr)
+  | Beepl_ast.Reftype (bt) ->
+      BeeTypes.Reftype (transform_basic_type bt, Ctypes.noattr)
   | Beepl_ast.Otype inner_pt ->
       BeeTypes.Otype (transform_ptr_type inner_pt)
 
@@ -312,8 +312,8 @@ let list_find_opt p xs =
 let struct_name_of_base_ty (ty : Beepl_ast.typ) : string option =
   match ty with
   | Beepl_ast.Stype s -> Some s
-  | Beepl_ast.Ptr (Beepl_ast.Reftype (_, Beepl_ast.Bstruct s)) -> Some s
-  | Beepl_ast.Ptr (Beepl_ast.Otype (Beepl_ast.Reftype (_, Beepl_ast.Bstruct s))) -> Some s
+  | Beepl_ast.Ptr (Beepl_ast.Reftype (Beepl_ast.Bstruct s)) -> Some s
+  | Beepl_ast.Ptr (Beepl_ast.Otype (Beepl_ast.Reftype (Beepl_ast.Bstruct s))) -> Some s
   | _ -> None
 
 let rec transform_expr (ee: Beepl_ast_typechecker.efenv) (senv : Beepl_ast_typechecker.Senv.t) (env : Beepl_ast_typechecker.tyenv) (e : Beepl_ast.expr) : BeePL.expr =

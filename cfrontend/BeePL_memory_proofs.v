@@ -385,13 +385,11 @@ Proof.
         eapply Mem.load_type. apply H2.
         assert (Hval: (Values.Val.load_result (transl_bchunk_cchunk chunk) v) = v).
         apply Values.Val.load_result_same in Hht.
-        simpl in *.  rewrite <- Hht. f_equal.  admit.
-        apply Hht. simpl in *.
-        subst.*)
+        simpl in *.  rewrite <- Hht. f_equal. *)
 Admitted.
 
 Lemma safe_deref_valid_pointers : forall Sigma m x ofs pt chunk, 
-PTree.get x Sigma = Some (Ptrtype pt) ->
+PTree.get x Sigma = Some pt ->
 chunk_of_type (get_data_type pt) = Some chunk ->
 Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
 exists v, deref_addr (get_data_type pt) m x ofs Full v. 
@@ -405,10 +403,10 @@ Admitted.
 (* I think we can prove this and make the well formedness definition simpler *)
 Lemma safe_assgn_valid_pointers : forall cenv Gamma Sigma bge vm m x ofs pt v chunk, 
 store_well_typed cenv Gamma Sigma bge vm m ->
-PTree.get x Sigma = Some (Ptrtype pt) ->
-chunk_of_type (get_data_type pt) = Some chunk ->
+PTree.get x Sigma = Some pt ->
+chunk_of_type pt = Some chunk ->
 Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
-exists bf m', assign_addr bge (get_data_type pt) m x ofs bf v m' v /\ store_well_typed cenv Gamma Sigma bge vm m'.
+exists bf m', assign_addr bge pt m x ofs bf v m' v /\ store_well_typed cenv Gamma Sigma bge vm m'.
 Proof.
 move=> cenv Sigma bge vm m x ofs h bt a hs hv. 
 Admitted.
@@ -416,11 +414,11 @@ Admitted.
 
 (* I think we can prove this and make the well formedness definition simpler *)
 Lemma safe_deref_valid_pointers_gc : forall Sigma m x ofs pt chunk,
-PTree.get x Sigma = Some (Ptrtype pt) ->
-get_chunk (get_data_type pt) = Some chunk ->
-type_is_volatile (transBeePL_type (get_data_type pt)) = false ->
+PTree.get x Sigma = Some pt ->
+get_chunk pt = Some chunk ->
+type_is_volatile (transBeePL_type pt) = false ->
 Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
-exists (v : value), deref_addr (get_data_type pt) m x ofs Full v.
+exists (v : value), deref_addr pt m x ofs Full v.
 Proof.
 intros.
 apply Mem.valid_access_freeable_any with (p:= Readable) in H2.
@@ -428,7 +426,7 @@ have [v hload] := Mem.valid_access_load m (transl_bchunk_cchunk chunk) x (Ptrofs
 destruct (trans_cvalue_bvalue (v : Values.val)) eqn:resbv.
 exists v0. 
 apply deref_addr_value with chunk v; auto. 
-- induction (get_data_type pt) eqn:Eqpt; simpl in *; try congruence.  
+- induction pt eqn:Eqpt; simpl in *; try congruence.  
     + unfold access_mode_prim. 
       induction p eqn:Eqp. simpl in *; try congruence; try (injection H0; intros).
       subst.  auto.
@@ -437,7 +435,7 @@ apply deref_addr_value with chunk v; auto.
 injection H0. intros. unfold Mptr. Transparent Archi.ptr64. unfold Archi.ptr64.
 injection H0. intros. subst. auto. 
 eapply load_not_error in resbv. inv resbv. apply hload. 
-Qed. 
+Qed.
 
 (* I think we can prove this and make the well formedness definition simpler *)
 Lemma safe_assgn_valid_pointers_gc : forall cenv Gamma Sigma bge vm m x ofs pt v chunk,
@@ -596,7 +594,7 @@ Proof.
         -- intros; simpl in *.
            assert ((Datatypes.length args) = (Datatypes.length vs)).
            lia. apply IHargs in H1.  
-           Search bind_variables. destruct a.
+           destruct a.
            eapply bind_variables_cons.
            ++ admit.
            ++ admit.

@@ -21,6 +21,51 @@ open Assembler
 open Linker
 open Diagnostics
 
+(* Debug: dump Csyntax program to a .debug.compcert.c file *)
+(*let debug_dump_csyntax_public (p : Csyntax.program) =
+  prerr_endline "[DEBUG] Public idents in Csyntax.prog_public:";
+  List.iter
+    (fun id ->
+       let name =
+         try Hashtbl.find Camlcoq.string_of_atom id
+         with Not_found ->
+           Printf.sprintf "<atom %d>" (Camlcoq.P.to_int id)
+       in
+       prerr_endline ("  " ^ name))
+    p.Ctypes.prog_public;
+  prerr_endline "[DEBUG] End public idents.";
+  flush stderr
+
+let debug_dump_csyntax_to_file sourcename (p : Csyntax.program) =
+  let debug_name = output_filename sourcename ~suffix:".debug.compcert.c" in
+  let oc = open_out debug_name in
+  let fmt = Format.formatter_of_out_channel oc in
+  PrintCsyntax.print_program fmt p;
+  Format.pp_print_flush fmt ();
+  close_out oc;
+  prerr_endline ("[DEBUG] Wrote Csyntax dump to: " ^ debug_name);
+  flush stderr
+
+(* Debug: print list of globals with their string names *)
+let debug_dump_csyntax_globals (p : Csyntax.program) =
+  prerr_endline "[DEBUG] Globals in Csyntax.prog_defs:";
+  List.iter
+    (fun (id, gd) ->
+       let name =
+         try Hashtbl.find Camlcoq.string_of_atom id
+         with Not_found ->
+           Printf.sprintf "<atom %d>" (Camlcoq.P.to_int id)
+       in
+       let kind =
+         match gd with
+         | AST.Gfun _ -> "fun"
+         | AST.Gvar _ -> "var"
+       in
+       prerr_endline (Printf.sprintf "  %s %s" kind name))
+    p.Ctypes.prog_defs;
+  prerr_endline "[DEBUG] End of globals.";
+  flush stderr*)
+
 (* Name used for version string etc. *)
 let tool_name = "C verified compiler"
 
@@ -59,7 +104,7 @@ let compile_c_file sourcename ifile ofile =
   let csyntax = parse_c_file sourcename ifile in
 
   (* Convert to Asm *)
-  let asm =
+  (*let asm =
     match Compiler.apply_partial
                (Compiler.transf_c_program csyntax)
                Asmexpand.expand_program with
@@ -71,6 +116,23 @@ let compile_c_file sourcename ifile ofile =
   (* Dump Asm in binary and JSON format *)
   AsmToJSON.print_if asm sourcename;
   (* Print Asm in text form *)
+  let oc = open_out ofile in
+  PrintAsm.print_program oc asm;
+  close_out oc*)
+
+  let asm =
+    match Compiler.apply_partial
+            (Compiler.transf_c_program csyntax)
+            Asmexpand.expand_program with
+    | Errors.OK asm -> asm
+    | Errors.Error msg ->
+        let loc = file_loc sourcename in
+        fatal_error loc
+          "error during transf_c_program: %a"
+          print_error msg
+  in
+
+  AsmToJSON.print_if asm sourcename;
   let oc = open_out ofile in
   PrintAsm.print_program oc asm;
   close_out oc
@@ -215,7 +277,26 @@ let populate_decl_atom (section_info : (AST.ident * BeePL_Csyntax.csyntax_atom_i
   
     PrintCsyntax.print_if updated_csyntax;
   
-    (* Convert to Asm *)
+    (* Convert to Asm 
+    let asm =
+      match Compiler.apply_partial
+              (Compiler.transf_c_program updated_csyntax)
+              Asmexpand.expand_program with
+      | Errors.OK asm -> asm
+      | Errors.Error msg ->
+          prerr_endline "[DEBUG] error during transf_c_program; dumping Csyntax...";
+          flush stderr;
+  
+          debug_dump_csyntax_globals updated_csyntax;
+          debug_dump_csyntax_public updated_csyntax;
+          debug_dump_csyntax_to_file sourcename updated_csyntax;
+  
+          let loc = file_loc sourcename in
+          fatal_error loc
+            "error during transf_c_program: %a"
+            print_error msg
+  
+    in*)
     let asm =
       match Compiler.apply_partial
               (Compiler.transf_c_program updated_csyntax)
@@ -231,9 +312,9 @@ let populate_decl_atom (section_info : (AST.ident * BeePL_Csyntax.csyntax_atom_i
     AsmToJSON.print_if asm sourcename;
     let oc = open_out ofile in
     PrintAsm.print_program oc asm;
-    close_out oc
+    close_out oc 
 
-    let compile_b_file sourcename ofile =
+  let compile_b_file sourcename ofile =
       (* Prepare to dump Clight, RTL, etc, if requested *)
       let set_dest dst opt ext =
         dst := if !opt then Some (output_filename sourcename ~suffix:ext)
@@ -308,7 +389,31 @@ let populate_decl_atom (section_info : (AST.ident * BeePL_Csyntax.csyntax_atom_i
             fatal_error loc
               "error during transf_c_program: %a"
               print_error msg
-      in
+      in 
+
+    (* Convert to Asm 
+    let asm =
+      match Compiler.apply_partial
+              (Compiler.transf_c_program updated_csyntax)
+              Asmexpand.expand_program with
+      | Errors.OK asm -> asm
+      | Errors.Error msg ->
+          let loc = file_loc sourcename in
+  
+          (* DEBUG: dump globals and full Csyntax program *)
+          prerr_endline "[DEBUG] error during transf_c_program; dumping Csyntax...";
+          flush stderr;
+          debug_dump_csyntax_globals updated_csyntax;
+          flush stderr;
+          debug_dump_csyntax_to_file sourcename updated_csyntax;
+          flush stderr;
+  
+          fatal_error loc
+            "error during transf_c_program: %a"
+            print_error msg
+    in*)
+  
+
     
       AsmToJSON.print_if asm sourcename;
       let oc = open_out ofile in
