@@ -109,17 +109,8 @@ Proof.
          -- destruct H. destruct H.  destruct H. congruence.
       * exact Hvm.
   - split.
-    + constructor. inv Hloc.
-      destruct H as [H2 H3].
-      split.
-      * intros.
-        specialize (H2 x0 ofs t0 H).
-        destruct H2 as [chunk [h1 h2]].
-        exists chunk.
-        auto.
-      * intros.
-        specialize (H3 chunk x0 ofs t0 H).
-        exact H3.
+    + constructor. inv Hloc. intros. specialize (H x0 ofs t0 chunk).
+      apply H; auto.
     + constructor. inv Hfunc.
       intros. specialize (H l0 o ef te ts efs rt vs efs' H2 H3 H4).
       destruct H as [fd H].
@@ -203,33 +194,20 @@ Proof.
            eapply Mem.load_alloc_other with (chunk:= (transl_bchunk_cchunk chunk)) (b' :=l') (v:=v0) in Halloc.
            rewrite <- H2 in Halloc. rewrite <- Halloc in H2. apply H2.
            simpl in H2. auto.
-  - inv Hloc. destruct H as [H1 H2].
-    constructor. split.
-    + intros x ofs t Hsigma.
-      destruct (H1 x ofs t) as [chunk [Hvalid Hchunk]]; auto.
-      destruct (chunk_of_type (get_data_type t)) eqn:Eqtyp.
-        -- specialize H2 with b0 x ofs t. apply H2. split; auto.
-         apply extract_sigma in Hballoc. subst.
-         destruct (Pos.eq_dec x b) as [Heq | Hneq]; subst.
-         * assert (~ Mem.valid_block m b).
-           apply  Mem.fresh_block_alloc in Halloc. auto.
-           rewrite PTree.gss in Hsigma. inv Hsigma.
-           exfalso. apply H. eapply valid_access_valid_block2.
-           admit.
-         * eapply PTree.gso with (x := ty) (m := Sigma) in Hneq.
-           rewrite Hneq in Hsigma.
-           specialize H1 with x ofs t. apply H1 in Hsigma. destruct Hsigma.
-           destruct H. rewrite Eqtyp in H0. inv H0. apply H.
-      -- destruct (Pos.eq_dec x b) as [Heq | Hneq]; subst.
-         apply extract_sigma in Hballoc. rewrite Hballoc in Hsigma.
-         rewrite PTree.gss in Hsigma. (* issue is this doesn't get me anything *)
-         (* issue here  *)admit.
-         eapply PTree.gso in Hneq. symmetry. apply extract_sigma in Hballoc. rewrite Hballoc in Hsigma.
-         rewrite <- Hsigma. apply Hneq.
-      -- exists chunk. split; [|exact Hchunk].
-      eapply Mem.valid_access_alloc_other; eauto.
-     intros. destruct H. apply extract_sigma in Hballoc. subst.
-     admit.
+  - inv Hloc. 
+    constructor.  intros.
+    specialize (H x ofs t chunk).
+    Search Mem.valid_access.
+    eapply Mem.valid_access_alloc_other in Halloc.
+    apply Halloc. apply H; auto.
+    assert(HSigma: Sigma' = PTree.set b ty Sigma).
+    apply extract_sigma in Hballoc; auto.
+    rewrite HSigma in H0.
+    destruct (peq x b).
+    subst. admit.
+    Search PTree.set.
+    apply PTree.gso with (j := b) (x := ty) (m := Sigma) in n.
+    rewrite <- n; auto.
   - inv Hfun.
     constructor.
     intros l o ef te ts efs rt vs efs' Hte Heq_type Htes.
@@ -450,6 +428,7 @@ Proof.
   intros. exists Full. 
   assert(Hderef: exists v : value, deref_addr (get_data_type pt) m x ofs Full v).
   apply safe_deref_valid_pointers_gc with (Sigma := Sigma) (chunk := chunk); auto.
+  admit.
   apply Mem.valid_access_freeable_any with (p:= Writable) in H3.
   eapply Mem.valid_access_store with (v := trans_bvalue_cvalue v) in H3.
   destruct H3 as [m' Hstore]. exists m'.
@@ -458,7 +437,7 @@ Proof.
     - apply assign_addr_value with (chunk := BMbool) (v := (trans_bvalue_cvalue v)).
     destruct Hderef. inv H3. assert (chunk = BMbool). induction chunk; auto; try inv H4.
     subst. apply H4. apply H2. apply Hstore. apply bc_cv_comp.
-  - induction i0; induction s; injection H1; intro; subst; simpl in *. (* These are all the primitives *)
+  - induction i; induction s; injection H1; intro; subst; simpl in *. (* These are all the primitives *)
     + apply assign_addr_value with (chunk := BMint8signed) (v := (trans_bvalue_cvalue v)).
       destruct Hderef. inv H3. assert (chunk = BMint8signed). induction chunk; auto; try inv H4.
       subst. apply H4. apply H2. apply Hstore. apply bc_cv_comp.
