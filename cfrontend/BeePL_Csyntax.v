@@ -826,14 +826,14 @@ match e with
 | Var x t => let ct := (transBeePL_type t) in
              ret (Sreturn (Some (Evalof (Evar x ct) ct)), ctx, bctx)
 | Const c t => let ct := (transBeePL_type t) in
-               ret (Sreturn (Some (Evalof (match c with 
+               ret (Sreturn (Some (match c with 
                                       | ConsInt i => Eval (Values.Vint i) ct
                                       | ConsLong i => Eval (Values.Vlong i) ct
                                       | ConsUnit => Eval (Values.Vint (Int.repr 0)) ct
                                       | ConsBool b => if eqb b true 
                                                       then Eval (Values.Vint (Int.repr 1)) ct
                                                       else Eval (Values.Vint (Int.repr 0)) ct
-                                      end) ct)), ctx, bctx)
+                                      end)), ctx, bctx)
 | App e es t => do (ce, ctx') <- (transBeePL_expr_expr e ctx bctx);
                 do (ces, ctx'') <- (transBeePL_expr_exprs transBeePL_expr_expr es (snd ce) ctx');
                 let ct := (transBeePL_type t) in

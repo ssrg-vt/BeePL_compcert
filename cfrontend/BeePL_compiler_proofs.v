@@ -1482,13 +1482,126 @@ apply bsem_exprs_bsem_expr_ind_mut=> //=.
 + 
 Admitted.
 
-(***** Comparing BeePL big-step semantics with Csyntax big-step semantics *****)
-Lemma bsem_csem_stmt_equiv : 
-forall bge cge p bcmp fctx bctx bvm m e m' bvm' bv ce tr cvm fctx' bctx' o g g' i',
-bsem_expr bge p bvm m e m' bvm' bv ->
-transBeePL_expr_st bcmp e fctx bctx g = Res (ce, fctx', bctx') g' i'  ->
-match_env bvm cvm ->
-exec_stmt cge cvm m ce tr m' o.
+Lemma trans_expr_st_ind: forall bcmp e fctx bctx (ct:Csyntax.statement) f b g g' i',
+transBeePL_expr_st bcmp e fctx bctx g = Res (ct, f, b) g' i' ->
+match e with
+| Val v t => ct = Csyntax.Sreturn (Some (Eval (trans_bvalue_cvalue v) (transBeePL_type t)))
+             /\ f = fctx /\ b = bctx
+| Var x t => ct = Csyntax.Sreturn (Some (Evalof (Csyntax.Evar x (transBeePL_type t)) (transBeePL_type t))) 
+             /\ f = fctx /\ b = bctx 
+| Const (ConsInt i) t => ct = Csyntax.Sreturn (Some (Csyntax.Eval (Values.Vint i) (transBeePL_type t)))
+                         /\ f = fctx /\ b = bctx 
+| Const (ConsLong i) t => ct = Csyntax.Sreturn (Some (Csyntax.Eval (Values.Vlong i) (transBeePL_type t)))
+                         /\ f = fctx /\ b = bctx 
+| Const ConsUnit t => ct = Csyntax.Sreturn (Some (Csyntax.Eval (Values.Vint (Int.repr 0)) (transBeePL_type t)))
+                      /\ f = fctx /\ b = bctx       
+| Const (ConsBool bo) t => if eqb bo true 
+                          then ct = Csyntax.Sreturn (Some (Csyntax.Eval (Values.Vint (Int.repr 1)) (transBeePL_type t)))
+                               /\ f = fctx /\ b = bctx 
+                          else ct =  Csyntax.Sreturn (Some (Csyntax.Eval (Values.Vint (Int.repr 0)) (transBeePL_type t)))
+                               /\ f = fctx /\ b = bctx
+| Prim Deref es t => exists ces g1 i1, 
+                     transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g = Res (ces, f, b) g1 i1 /\
+                     ct = Csyntax.Sreturn (Some (Csyntax.Ederef (hd default_expr (exprlist_list_expr ces)) (transBeePL_type t)))
+| _ => True
+end.
 Proof.
 Admitted.
 
+(***** Comparing BeePL big-step semantics with Csyntax big-step semantics *****)
+Lemma bsem_csem_stmt_equiv : 
+forall bge cge p bcmp fctx bctx bvm m e m' bvm' bv ct cvm fctx' bctx' g g' i' fctxf,
+bsem_expr bge p bvm m e m' bvm' bv ->
+transBeePL_expr_st bcmp e fctx bctx g = Res (ct, fctx', bctx') g' i'  ->
+match_env bvm cvm ->
+wf_env bvm cvm fctx ->
+fctx_fresh_in_ff fctxf ->
+exists o tr, exec_stmt cge cvm m ct tr m' o.
+Proof.
+move=> bge cge p bcmp fctx bctx bvm m e m' bvm' bv ct cvm fctx' bctx' g g' i' fctxf.
+move=> he hte hm hwf hf.
+(* We need to not simplify all defs at a time as it makes the proof slower *)
+Local Opaque transBeePL_expr_st transBeePL_type trans_bvalue_cvalue ret.
+elim: e he hte=> //=.
+(* val *) (* done *)
++ move=> v t he hte. inversion he; subst. 
+  have := trans_expr_st_ind bcmp (Val bv t) fctx bctx ct fctx' bctx' g g' i' hte.
+  move=> [] h1 h2; subst. exists (Out_return (Some((trans_bvalue_cvalue bv), (transBeePL_type t)))).
+  exists Events.E0.
+  apply exec_Sreturn_some. apply eval_expression_intro with (Eval (trans_bvalue_cvalue bv) (transBeePL_type t)).
+  + by apply eval_val.
+  by apply esr_val.
+(* var *) (* done *)
++ move=> x t he hte. 
+  have := trans_expr_st_ind bcmp (Var x t) fctx bctx ct fctx' bctx' g g' i' hte. 
+  move=> [] h1 h2; subst. inversion he; subst. inversion H8; subst.
+  (* local *)
+  + exists (Out_return (Some((trans_bvalue_cvalue bv), (transBeePL_type t)))). exists  Events.E0.
+    apply exec_Sreturn_some. 
+    apply eval_expression_intro with (Evalof (Csyntax.Evar x (transBeePL_type t)) (transBeePL_type t)). 
+    + apply eval_valof.
+      + by apply H0.
+      by apply eval_var.
+    apply esr_rvalof with l Ptrofs.zero Full.
+    + apply esl_var_local. case: hwf=> hm1 hm2.
+    by have := equiv_local_benv_cenv bvm' cvm x l t (transBeePL_type t) hm1 erefl H4.
+  + by rewrite /Csyntax.typeof.
+  + by apply H0.
+  have := deref_addr_translated cge t m' l Ptrofs.zero Full bv (transBeePL_type t) (trans_bvalue_cvalue bv) H8 erefl erefl.
+  case hc: (chunk_for_volatile_type (transBeePL_type t) Full)=> [c | ] //=.
+  move=> [] tr [] _ hvo. by rewrite /chunk_for_volatile_type H0 /= in hc.
+ (* global *)  
+ + inversion H9; subst. 
+   exists (Out_return (Some((trans_bvalue_cvalue bv), (transBeePL_type t)))). exists  Events.E0.
+   apply exec_Sreturn_some. 
+   apply eval_expression_intro with (Evalof (Csyntax.Evar x (transBeePL_type t)) (transBeePL_type t)). 
+   + apply eval_valof.
+     + by apply H0.
+      by apply eval_var.
+    apply esr_rvalof with l Ptrofs.zero Full.
+    + apply esl_var_global. case: hwf=> hm1 hm2.
+    by have := equiv_global_benv_cenv bvm' cvm x hm1 H1.
+  + have hg' := symbols_preserved bge cge x. by rewrite H5 in hg'.
+  + by simpl.
+  + by apply H0.
+  have := deref_addr_translated cge t m' l Ptrofs.zero Full bv (transBeePL_type t) (trans_bvalue_cvalue bv) H9 erefl erefl.
+  case hc: (chunk_for_volatile_type (transBeePL_type t) Full)=> [c | ] //=.
+  move=> [] tr [] _ hvo. by rewrite /chunk_for_volatile_type H0 /= in hc.
+(* const int *) (* done *)
++ move=> c t he hte. inversion he; subst.
+  have := trans_expr_st_ind bcmp (Const (ConsInt i) t) fctx bctx ct fctx' bctx' g g' i' hte.
+  move=> [] h1 [] h2 h3; subst. exists (Out_return (Some((Values.Vint i), (transBeePL_type t)))). 
+  exists Events.E0. apply exec_Sreturn_some. 
+  apply eval_expression_intro with 
+    (Csyntax.Eval (Values.Vint i) (transBeePL_type t)).
+  + by apply eval_val.
+  by apply esr_val.
+(* const long *) (* done *)
++ inversion he; subst. have := trans_expr_st_ind bcmp (Const (ConsLong i) t) fctx bctx ct fctx' bctx' g g' i' hte.
+  move=> [] h1 [] h2 h3; subst.
+  exists (Out_return (Some((Values.Vlong i), (transBeePL_type t)))). 
+  exists Events.E0. apply exec_Sreturn_some. 
+  apply eval_expression_intro with 
+    (Csyntax.Eval (Values.Vlong i) (transBeePL_type t)).
+  + by apply eval_val.
+  by apply esr_val.
+(* const unit *) (* done *)
++ inversion he; subst. have := trans_expr_st_ind bcmp (Const (ConsUnit) Utype) fctx bctx ct fctx' bctx' g g' i' hte.
+  move=> [] h1 [] h2 h3; subst.
+  exists (Out_return (Some((Values.Vint (Int.repr 0)), (transBeePL_type Utype)))). 
+  exists Events.E0. apply exec_Sreturn_some. 
+  apply eval_expression_intro with 
+    (Csyntax.Eval (Values.Vint (Int.repr 0)) (transBeePL_type Utype)).
+  + by apply eval_val.
+  by apply esr_val.
+(* app *)
++ move=> e hin es t he hte. admit.
+(* builtin *)
++ move=> [].
+  (* ref *)
+  + admit.
+  (* deref *)
+Admitted.
+
+
+      
