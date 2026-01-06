@@ -96,60 +96,49 @@ Lemma transBeePL_ptr_ref_bool_int : forall bt a,
 transBeePL_ptr_type (Reftype bt a) = Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr ->
 bt = Bprim Tbool \/ bt = Bprim (Tint I8 Unsigned noattr).
 Proof.
-  (*intros a bt. induction bt; intros; try inv H. generalize dependent a.
-  revert a. induction p; intros; try inv H1. left; auto.
-  right.  auto.
-  induction p; try inv H1.
-Qed.*) Admitted.
+  intros a bt H. induction bt; intros; try inv H. 
+  induction a. induction p. left; auto.
+  right. induction i; induction s; induction a; auto; try inv H1.
+  auto. inv H1. inv H1.
+  right. induction p; auto; try inv H1.
+Qed.
 
 (* Easy *)
 (* Original *)
+(* Don't know if it should be provable *)
 Lemma transBeePL_ptr_ref_bool : forall bt a,
 transBeePL_ptr_type (Reftype bt a) = Ctypes.Tpointer (Ctypes.Tint I8 Unsigned noattr) noattr ->
 bt = Bprim Tbool.
 Proof.
-  (*intros h bt. generalize dependent h. induction bt; intros; try inv H. generalize dependent a.
-  revert h. induction p; intros; try inv H1; auto.
-  - induction h; auto. eapply bprim_bool_int with (h := xH) (bt := Bprim Tbool) (a := noattr). 
-    simpl.  auto.  intro.  inv H. 
-  - destruct p. inv H1. inv H1. inv H1.
-Qed.*) Admitted.
+  intros bt a h.  induction bt; intros; try inv H. generalize dependent a.
+  induction p; intros; try inv H1; auto.
+  - induction i; induction s; induction a; try inv h. auto.
+    admit.
+    inv h. inv h. inv h.
+  - destruct p; try inv H0. 
+Admitted.
 
 Lemma transBeePL_ptr_ref_int_bool : forall bt sz s a a',
 transBeePL_ptr_type (Reftype bt a) = Ctypes.Tpointer (Ctypes.Tint sz s a') a ->
 bt = Bprim (Tint sz s a') \/ bt = Bprim Tbool.
 Proof.
-  (*intro h. induction h; intro bt. induction bt; intros; try inv H. destruct p; try inv H1.
-  destruct IHh with (bt := Bprim Tbool) (sz := I8) (s:= Unsigned) (a':= noattr) (a:= noattr).
-  induction h; auto. left; auto. right; auto. left; auto. destruct p; try inv H1.
-  intros. inv H. destruct bt. destruct p. inv H1.  right; auto.
-  inv H1. left; auto. 
-  inv H1. inv H1. destruct p; try inv H1. 
-  intros. inv H. destruct bt; try inv H1. destruct p; try inv H1; auto. inv H0.
-  left; auto. inv H0. induction p; try inv H0.
-Qed.*) Admitted.
-
+  intro h. induction h; intro bt. induction bt; intros; try inv H. destruct p; try inv H1.
+  right; auto. left; auto.
+  induction p; try inv H1.
+  left; auto. induction p; try inv H1. left; auto.
+  induction p; try inv H1. left; auto.
+  intros. inv H. intros. inv H.
+  induction p; try inv H1.
+Qed.
 
 (* Original *)
 (* Easy *)
+(* Don't think this is possible *)
 Lemma transBeePL_ptr_ref_int : forall bt sz s a a',
 transBeePL_ptr_type (Reftype bt a) = Ctypes.Tpointer (Ctypes.Tint sz s a') a ->
 bt = Bprim (Tint sz s a').
 Proof.
-  (*intro h. induction h; intro bt. induction bt; intros; try inv H. destruct p; try inv H1.
-  destruct IHh with (bt := Bprim Tbool) (sz := I8) (s:= Unsigned) (a':= noattr) (a:= noattr).
-  induction h; auto. auto. auto. destruct p; try inv H1.
-  intros. inv H. destruct bt. destruct p. inv H1. symmetry.
-  apply bprim_bool_int with (h:= xH) (bt := Bprim Tbool) (a := noattr).
-  simpl. auto. intro. inv H.
-  inv H1. auto. inv H1. inv H1. destruct p. inv H1. inv H1. inv H1.
-  intros. inv H. destruct bt. destruct p; try inv H1; auto.
-  symmetry. 
-  apply bprim_bool_int with (h:= xH) (bt := Bprim Tbool) (a := noattr).
-  simpl. auto. intro. inv H.
-  inv H1. destruct p. inv H1. inv H1. inv H1.
-Qed. *) Admitted.
-
+Admitted.
 
 (* Easy *)
 Lemma transBeePL_ptr_ref_long : forall bt s a a',
@@ -213,14 +202,12 @@ Lemma transBeePL_type_pfunction : forall t cts ct c,
 transBeePL_ptr_type t = (Tfunction cts ct c) ->
 exists bts bef brt, t = Fptype bts bef brt /\ transBeePL_types transBeePL_type bts = cts /\ transBeePL_type brt = ct. 
 Proof.
-(*intro.  induction t. induction b. induction p; intros; try inv H.
-intros. inv H. generalize dependent i. revert a0. revert a. revert z.
-induction p; intros; try inv H. intros. inv H. apply IHt in H1.
-destruct H1. destruct H. destruct H. exists x. exists x0.  exists x1.
-split. destruct H. destruct H0. subst. auto. auto. admit.
-split. destruct H. destruct H0. auto.
-destruct H. destruct H0. auto.
-intros. inv H. *)
+intro.  induction t. generalize dependent a. induction b. induction p; intros; try inv H.
+intros. simpl in *. inv H.
+intros. simpl in *. generalize dependent H. revert z a a0 cts ct c. induction p; intros; try inv H.
+intros. simpl in H. inv H.  apply IHt in H1. 
+admit.
+intros. simpl in *. induction l; induction t; auto; try inv H.
 Admitted.
 
 (* Might have to generalize dependent *)

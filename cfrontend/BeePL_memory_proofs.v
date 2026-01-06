@@ -195,19 +195,26 @@ Proof.
            rewrite <- H2 in Halloc. rewrite <- Halloc in H2. apply H2.
            simpl in H2. auto.
   - inv Hloc. 
-    constructor.  intros.
+    constructor.  Print well_formed_loc.
+    inv Hballoc. intros. simpl in H0.
+    unfold balloc in H0.
+(* Property about balloc in
+Use offset properties  instead of compcert lemmas.
+
+    simpl.
+    intros.
     specialize (H x ofs t chunk).
-    Search Mem.valid_access.
+    Print Mem.valid_access_alloc_other.
     eapply Mem.valid_access_alloc_other in Halloc.
     apply Halloc. apply H; auto.
     assert(HSigma: Sigma' = PTree.set b ty Sigma).
     apply extract_sigma in Hballoc; auto.
     rewrite HSigma in H0.
     destruct (peq x b).
-    subst. admit.
-    Search PTree.set.
+    subst.
+
     apply PTree.gso with (j := b) (x := ty) (m := Sigma) in n.
-    rewrite <- n; auto.
+    rewrite <- n; auto.*) admit.
   - inv Hfun.
     constructor.
     intros l o ef te ts efs rt vs efs' Hte Heq_type Htes.
@@ -432,7 +439,7 @@ Proof.
   apply Mem.valid_access_freeable_any with (p:= Writable) in H3.
   eapply Mem.valid_access_store with (v := trans_bvalue_cvalue v) in H3.
   destruct H3 as [m' Hstore]. exists m'.
-  split. Print assign_addr.
+  split. 
   induction pt. induction b. induction p; simpl in *; try (injection H1; intros; subst; simpl in * ).
     - apply assign_addr_value with (chunk := BMbool) (v := (trans_bvalue_cvalue v)).
     destruct Hderef. inv H3. assert (chunk = BMbool). induction chunk; auto; try inv H4.
@@ -470,7 +477,7 @@ Proof.
   - simpl in *. apply IHpt; auto. (* Should not assign to a NULL pointer; Option should Some *)
     admit.
   - simpl in *. inv H1.
-  - simpl in Hstore. Print store_well_typed_preserve_gc.
+  - simpl in Hstore. 
     apply store_well_typed_preserve_gc with (b := x) (m' := m') (v := v) (chunk := chunk) (t := get_data_type pt) (ofs := ofs) in H.
     apply H. split. 
     (*eapply Mem.load_store_same in Hstore.
