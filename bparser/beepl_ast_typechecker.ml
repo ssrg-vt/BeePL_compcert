@@ -80,6 +80,22 @@ let build_efenv () : efenv =
           effects = [];
           ret = Vtype Tuint16;
           variadic = false }
+  |> Env.add "bpf_map_lookup_elem"
+     { formals = [
+         Vtype Tulong;  
+         Vtype Tulong;  
+       ];
+       effects = [Io];
+       ret = Vtype Tulong;
+       variadic = false }
+  
+  |> Env.add "bpf_map_update_elem"
+     { formals = [ Vtype Tulong; Vtype Tulong; Vtype Tulong; Vtype Tulong ];
+       effects = [Io];
+       ret = Vtype Tint32;
+       variadic = false }
+
+
     
 let extern_bindings_of_efenv (ee : efenv) : (string * typ) list =
   Env.bindings ee
