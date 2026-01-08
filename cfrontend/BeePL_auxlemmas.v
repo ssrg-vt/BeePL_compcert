@@ -246,7 +246,9 @@ induction p. simpl in H1.
 induction b; try inv H1. induction p; try inv H0. 
 induction p; try inv H1.
 inv H0. inv H0. inv H0. inv H1. apply IHp in H0. inv H0. 
-inv H1. admit.
+inv H1.
+(* Think this is by design due to definition of transBeePL_type *)
+admit.
 Admitted.
 
 (* Easy *)
@@ -254,19 +256,17 @@ Lemma transBeePL_type_function : forall t cts ct c,
 transBeePL_type t = (Tfunction cts ct c) ->
 exists bts bef brt, t = Ftype bts bef brt /\ transBeePL_types transBeePL_type bts = cts /\ transBeePL_type t = ct. 
 Proof.
-(*induction t; intros; try inv H.
-induction p; try inv H.
-inv H1. inv H1. inv H1.
-induction p; try inv H. simpl in H1.
-induction b; try inv H1. induction p; try inv H1.
-inv H0. inv H0. inv H0. revert H0. generalize dependent i. generalize dependent z.
-generalize dependent a0. generalize dependent a.
-generalize dependent cts. generalize dependent ct. generalize dependent c.
-induction p; intros; try inv H0.
-inv H1. apply IHp in H0. destruct H0. destruct H. destruct H.
-destruct H. destruct H0. exists x. exists x0. exists x1.
-split. subst. symmetry in H. admit.
-inv H. inv H1. admit.*)
+induction t; intros; try inv H.
+induction p; try inv H1.
+induction p; try inv H1. simpl in *.
+induction b; try inv H0. induction p; try inv H1.
+induction p; try inv H1.
+apply IHp in H0. destruct H0 as [bts [bef [brt]]].
+destruct H as [H0 [H1 H2]]. exists bts. exists bef. exists brt.
+split; auto. rewrite <- H0. admit.
+exists l. exists e. exists t.
+split; auto. split; auto.
+admit.
 Admitted.
 
 
@@ -333,16 +333,6 @@ Definition access_modeBC (t : type) : mode :=
   | Stype _ _ | Bytes => By_copy
   | _ => access_mode_type t
   end.
-(*
-Definition access_modeBC (t : type) : mode :=
-  match t with
-  | Vtype pt => match pt with
-               | Tbool => By_value Mint8unsigned
-               | pt => access_mode_prim pt
-               end
-  | t => access_mode_type t
-  end.
-*)
 
 Lemma access_mode_preserved : forall ty cty md,
 access_modeBC ty = md ->
@@ -691,47 +681,35 @@ Lemma eq_effect_trans: forall a a0 a1,
     eq_effect_label a a1 ->
     eq_effect_label a0 a1.
 Proof.
-  (*intros. induction a.
+  intros. induction a.
   induction a0; induction a1; auto; try(inv H).
   induction a0; induction a1; auto; try(inv H1).
   induction a0; induction a1; auto; try(inv H).
-  + apply Peqb_true_eq in H2. subst. auto.
-  induction a0; induction a1; auto; try(inv H).
-  +  apply Peqb_true_eq in H2. subst. auto.
-  induction a0; induction a1; auto; try(inv H).
-  +  apply Peqb_true_eq in H2. subst. auto.
-  induction a0; induction a1; auto; try(inv H1).
-Qed.*) Admitted.
+  + destruct a0; destruct a1; try inv a0; try inv a1; auto.
+  + destruct a0; destruct a1; try inv a0; try inv a1; auto.
+  + destruct a0; destruct a1; try inv a0; try inv a1; auto.
+Qed.
   
 Lemma eq_effect_trans': forall a a0 a1,
     eq_effect_label a0 a ->
     eq_effect_label a1 a ->
     eq_effect_label a0 a1.
 Proof.
-  (*intros. induction a.
+  intros. induction a.
   induction a0; induction a1; auto; try(inv H).
   induction a0; induction a1; auto; try(inv H1).
   induction a0; induction a1; auto; try(inv H).
-  + apply Peqb_true_eq in H2. subst. auto.
-    unfold eq_effect_label in *. rewrite Pos.eqb_sym. auto.
-  induction a0; induction a1; auto; try(inv H).
-  + apply Peqb_true_eq in H2. subst. auto.
-    unfold eq_effect_label in *. rewrite Pos.eqb_sym. auto.
-  induction a0; induction a1; auto; try(inv H).
-  + apply Peqb_true_eq in H2. subst. auto.
-    unfold eq_effect_label in *. rewrite Pos.eqb_sym. auto.
-  induction a0; induction a1; auto; try(inv H).
-Qed.*) Admitted.
+  + destruct a0; destruct a1; try inv a0; try inv a1; auto.
+  + destruct a0; destruct a1; try inv a0; try inv a1; auto.
+  + destruct a0; destruct a1; try inv a0; try inv a1; auto.
+Qed.
 
 Lemma eq_effect_sym : forall a b,
     eq_effect_label a b ->
     eq_effect_label b a.
 Proof.
-  (*intros. induction a; induction b; auto.
-  - unfold eq_effect_label in *. rewrite Pos.eqb_sym. auto.
-  - unfold eq_effect_label in *. rewrite Pos.eqb_sym. auto.
-  - unfold eq_effect_label in *. rewrite Pos.eqb_sym. auto.
-Qed.*) Admitted.
+  intros. induction a; induction b; auto.
+Qed.
 
 (* Complete Me: Easy *)
 Lemma sub_effect_trans : forall ef1 ef2 ef3, 
@@ -739,7 +717,7 @@ sub_effect ef1 ef2 = true ->
 sub_effect ef2 ef3 = true ->
 sub_effect ef1 ef3 = true.
 Proof.
-(*  intro. induction ef1.
+intro. induction ef1.
   - intros. apply sub_effect_nil.
   - intros. generalize dependent ef3. induction ef2.
     + intros. inv H.
@@ -768,7 +746,7 @@ Proof.
                      simpl in H0. rewrite Eqa01 in H0.
                      admit.
                      simpl in H0. rewrite Eqa01 in H0. auto.
-                     simpl in Hmid. rewrite Eqaa1 in Hmid. auto.*)
+                     simpl in Hmid. rewrite Eqaa1 in Hmid. auto.
 Admitted.                 
 
 

@@ -195,7 +195,7 @@ Proof.
            rewrite <- H2 in Halloc. rewrite <- Halloc in H2. apply H2.
            simpl in H2. auto.
   - inv Hloc. 
-    constructor.  Print well_formed_loc.
+    constructor.  
     inv Hballoc. intros. simpl in H0.
     unfold balloc in H0.
 (* Property about balloc in
@@ -253,6 +253,20 @@ Definition sizetype (env : bcomposite_env) (t : BeeTypes.type) : Z :=
    | t => sizeof_type env t
    end.
 
+Definition get_chunk (t : type) : option bmemory_chunk :=
+  match t with
+  | Vtype pt => match pt with
+               | Tlong _ _ => Some BMint64
+               | Tint I8 Unsigned _ =>  Some BMint8unsigned
+               | Tint I8 Signed _ =>  Some BMint8signed
+               | Tint I16 Unsigned _ =>  Some BMint16unsigned
+               | Tint I16 Signed _ =>  Some BMint16signed
+               | Tbool => Some BMbool
+               | _ => Some BMint32
+               end
+  | _ => chunk_of_type t
+  end.
+
 Lemma chunk_fits_allocation : forall p t chunk,
 Archi.ptr64 = true ->
 chunk_of_type t = Some chunk ->
@@ -278,6 +292,19 @@ move=> p t chunk harch ct. induction t.
   simpl; try lia; try (simpl in ct; inv ct).
 Qed.
 
+Lemma chunk_fits_allocation_st : forall p t chunk,
+Archi.ptr64 = true ->
+get_chunk t = Some chunk ->
+size_chunk (transl_bchunk_cchunk chunk) <= sizetype (prog_comp_env p) t.
+Proof.
+  intros. induction t; try inv H0.
+  induction p0; try inv H2.
+  simpl; lia.
+  induction i; induction s; try inv H1; simpl; try lia.
+  simpl. lia.
+  simpl. rewrite H. lia.
+Qed.                                  
+
 Lemma storev_succeeds_on_fresh_alloc : forall m chunk v sz,
 let (m1, b) := Mem.alloc m 0 sz in
 size_chunk  (transl_bchunk_cchunk chunk) <= sz ->
@@ -295,22 +322,6 @@ Proof.
 simpl. eapply Mem.valid_access_store with (v := v) in Hvalid.
 destruct Hvalid. exists x. apply e.
 Qed.
-
-Definition get_chunk (t : type) : option bmemory_chunk :=
-  match t with
-  | Vtype pt => match pt with
-               | Tlong _ _ => Some BMint64
-               | Tint I8 Unsigned _ =>  Some BMint8unsigned
-               | Tint I8 Signed _ =>  Some BMint8signed
-               | Tint I16 Unsigned _ =>  Some BMint16unsigned
-               | Tint I16 Signed _ =>  Some BMint16signed
-               | Tbool => Some BMbool
-               | _ => Some BMint32
-               end
-  | _ => chunk_of_type t
-  end.
-
-
 
 Lemma load_not_error :
   forall v e c m x ofs,
@@ -492,6 +503,16 @@ Proof.
 Admitted.
 
 
+(* Doesn't use sizetype *)
+Lemma balloc_to_alloc: forall m m' b t Sigma (bge:BeePL.genv),
+@balloc bge Sigma m t 0 (sizeof_type bge t) = (m', b, PTree.set b t Sigma) ->
+Mem.alloc m  0 (sizeof_type bge t) = (m', b).
+Proof.
+move=> m m' b t Sigma bge hm /=.
+unfold balloc in hm. inv hm. inv H2.
+simpl. auto.
+Qed.
+
 
 (* Allocation through ref should be successful in getting space in memory and storing value v to it *)
 Lemma ref_allocation_succeeds : forall cenv Gamma Sigma (p : BeePL.program) (bge : BeePL.genv) (vm : vmap) 
@@ -511,19 +532,109 @@ case hc: (chunk_of_type t)=> [chunk | ] //=.
   have hs : size_chunk (transl_bchunk_cchunk chunk) <= sizeof_type (p.(prog_comp_env)) t.
 Admitted.
 
+(*
+Was supposed to get rid of first case  of stuck position in
+ref_allocation_succeeds_gc but now I think it should be permissable.
+
+Lemma allocate_nothing : forall bge Sigma m t m' b Sigma', 
+balloc bge Sigma m t 0 0 = (m', b, Sigma') ->
+False.
+Proof.
+intros. assert (HSigma : Sigma' = PTree.set b t Sigma). apply extract_sigma in H. auto.
+subst. 
+assert (Halloc: Mem.alloc m 0 (sizeof_type bge t) = (m', b)).
+apply balloc_to_alloc in H. auto.
+assert (Hb2: balloc bge Sigma m t 0 (sizeof_type bge t) = (m', b, PTree.set b t Sigma)).
+apply alloc_to_balloc with (Sigma := Sigma) in Halloc. auto.
+assert (sizeof_type bge t = 0).
+simpl. admit.
+induction t; simpl in *; try inv H0. admit.
+induction p; simpl in *; try inv H2.
+induction i; try inv H1.
+Admitted
+*)
+
 (* Allocation through ref should be successful in getting space in memory and storing value v to it *)
 (* Not true, if t = Utype and v = Vunit then typeof_value v t holds but chunk_of_type t = None *)
-Lemma ref_allocation_succeeds_gc : forall cenv Gamma Sigma (p : BeePL.program) (bge : BeePL.genv) (vm : vmap)
-(m : Memory.mem) (v : BeePL_values.value) (t : type) ml,
+Lemma ref_allocation_succeeds_gc : forall cenv Gamma Sigma ml b Sigma' (p : BeePL.program) (bge : BeePL.genv) (vm : vmap)
+(m : Memory.mem) (v : BeePL_values.value) (t : type),
 store_well_typed cenv Gamma Sigma bge vm m ->
 typeof_value v t ->
-Mem.alloc m 0 (sizeof_type p.(prog_comp_env) t) = ml ->
+balloc bge Sigma m t 0 (sizetype p.(prog_comp_env) t) = (ml, b, Sigma') ->
 exists m' chunk v',
 trans_bvalue_cvalue v = v' /\
 get_chunk t = Some chunk /\
-Mem.storev (transl_bchunk_cchunk chunk) ml.1 (trans_bvalue_cvalue (Vloc ml.2 Ptrofs.zero)) v' = Some m' /\
-store_well_typed cenv Gamma Sigma bge vm m'.
+Mem.storev (transl_bchunk_cchunk chunk) ml (trans_bvalue_cvalue (Vloc b Ptrofs.zero)) v' = Some m' /\
+store_well_typed cenv Gamma Sigma' bge vm m'.
 Proof.
+intros. rename H into he. rename H0 into ht. rename H1 into ha.
+case hc: (get_chunk t)=> [chunk | ] //=.
++ set (v' := trans_bvalue_cvalue v).
+  have hs : size_chunk (transl_bchunk_cchunk chunk) <=  sizetype (p.(prog_comp_env)) t.
+  apply chunk_fits_allocation_st; auto.
+  have [m' hms] := storev_succeeds_on_fresh_alloc m chunk v' (sizetype (p.(prog_comp_env)) t) hs.
+  exists m'. exists chunk. exists v'. split=> //=; split=> //=; split=> //=.
+  + assert (b = Mem.nextblock m).
+    {
+      injection ha; intros; auto.
+    }
+    subst b.
+    assert (H: ml = {|
+      Mem.mem_contents := PMap.set (Mem.nextblock m) (ZMap.init Undef) (Mem.mem_contents m);
+      Mem.mem_access := PMap.set (Mem.nextblock m)
+        (fun ofs : Z => fun=> (if zle 0 ofs && zlt ofs (sizetype (prog_comp_env p) t)
+                                 then Some Freeable else None)) (Mem.mem_access m);
+      Mem.nextblock := Pos.succ (Mem.nextblock m);
+      Mem.access_max := fun b => [eta Memory.Mem.alloc_obligation_1 m 0 (sizetype (prog_comp_env p) t) b];
+      Mem.nextblock_noaccess := fun b ofs k => [eta Memory.Mem.alloc_obligation_2 m 0 (sizetype (prog_comp_env p) t) b ofs k];
+      Mem.contents_default := [eta Memory.Mem.alloc_obligation_3 m]
+    |}).
+    {
+      injection ha; intros; subst. inv ha.
+    (* If we use chunk_fits_allocation_st which only works with defined sizetype
+       sizeof_type comes from definition of balloc
+       *)
+      apply Mem.mkmem_ext; auto.  admit.
+    }
+    rewrite <- H in hms.
+    unfold Mem.storev in hms.
+    rewrite Ptrofs.unsigned_zero in hms.
+    exact hms.
+    assert (Hm1_wt: store_well_typed cenv Gamma Sigma' bge vm ml).
+    {
+      apply (store_well_typed_mem_alloc cenv Gamma Sigma bge vm t m 0 (sizetype (prog_comp_env p) t) ml b).
+      - exact he.
+      - exact ha.
+    }
+  apply (store_well_typed_preserve_gc cenv Gamma Sigma' bge vm ml b m' v chunk t Ptrofs.zero).
+  - exact Hm1_wt.
+  - split. exact ht.
+  - split. exact hc.
+  - assert (b = Mem.nextblock m).
+    {
+      injection ha; intros; auto.
+    }
+    subst b.
+    assert (H: ml = {|
+      Mem.mem_contents := PMap.set (Mem.nextblock m) (ZMap.init Undef) (Mem.mem_contents m);
+      Mem.mem_access := PMap.set (Mem.nextblock m)
+        (fun ofs : Z => fun=> (if zle 0 ofs && zlt ofs (sizetype (prog_comp_env p) t)
+                                 then Some Freeable else None)) (Mem.mem_access m);
+      Mem.nextblock := Pos.succ (Mem.nextblock m);
+      Mem.access_max := fun b => [eta Memory.Mem.alloc_obligation_1 m 0 (sizetype (prog_comp_env p) t) b];
+      Mem.nextblock_noaccess := fun b ofs k => [eta Memory.Mem.alloc_obligation_2 m 0 (sizetype (prog_comp_env p) t) b ofs k];
+      Mem.contents_default := [eta Memory.Mem.alloc_obligation_3 m]
+    |}).
+    {
+      injection ha; intros; subst.
+      apply Mem.mkmem_ext; auto. (* same issue as 571; balloc uses sizeof_type*) admit.
+    }
+    rewrite <- H in hms.
+    exact hms.
++ (* There must be a contradiction here since one of the proof goals is None = Some chunk.
+   chunk should be the key to it, I'm thinking this is probably missing assumptions to create a contradiction
+   I'm not seeing anything immediately contradictory in the first case. *)
+  induction t; try inv hc; auto. induction v; try inv ht; auto; simpl in *.
 Admitted.
 
 
