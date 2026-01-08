@@ -23,7 +23,7 @@ Definition ident_to_string : list (ident * string) := ((_x, "x") ::
 
 Definition f_add : BeePL.function := {| 
                                    fn_return := trint32s;
-                                   fn_effect := (Alloc mem_ident :: Read mem_ident :: nil);
+                                   fn_effect := (Alloc :: Read :: nil);
                                    fn_callconv := cc_default;
                                    fn_args := nil;
                                    fn_vars := ((_x, trint32s) :: 

@@ -45,9 +45,9 @@ Definition bcomposites : list bcomposite_definition := bcomposites_copy_from_x_b
 Definition f_bytes : BeePL.function := {| fn_return := tint32u;
                                               fn_effect :=  nil;
                                               fn_callconv := cc_default;
-                                              fn_args := (_i, Ptrtype (Reftype mem_ident (Bstruct _copy_from_x_bee noattr) noattr)) :: nil;
+                                              fn_args := (_i, Ptrtype (Reftype (Bstruct _copy_from_x_bee noattr) noattr)) :: nil;
                                               fn_vars := (_ct, Stype _copy_to_x noattr) :: nil;  
-                                              fn_body := Match (Sfield (Var _i (Ptrtype (Reftype mem_ident (Bstruct _copy_from_x_bee noattr) noattr))) _xc_bee Bytes)
+                                              fn_body := Match (Sfield (Var _i (Ptrtype (Reftype (Bstruct _copy_from_x_bee noattr) noattr))) _xc_bee Bytes)
                                                                (Pbytes _ct (Stype _copy_to_x noattr) ((_x, tint32u) :: (_y, tint32u) :: nil) :: nil)
                                                                ((Bind _x tint32u 
                                                                      (Sfield (Var _ct (Stype _copy_to_x noattr)) _x tint32u)

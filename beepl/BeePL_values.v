@@ -194,7 +194,7 @@ match v, t with
 | Vbool b, Vtype Tbool => True
 | Vint i, Vtype (Tint sz s a) => True 
 | Vint64 i, Vtype (Tlong s a) => True 
-| Vloc p ofs, Ptrtype (Reftype h b a) => True (* targeting only 64 bit arch *)
+| Vloc p ofs, Ptrtype (Reftype b a) => True (* targeting only 64 bit arch *)
 | Voption v, Ptrtype (Otype t) => True
 | _, _ => False
 end.
