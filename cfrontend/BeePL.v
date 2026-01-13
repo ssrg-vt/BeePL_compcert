@@ -645,7 +645,7 @@ Inductive assign_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : 
    declared in [vars], and associates the variable name with this block. 
    [vm1] and [m1] are the initial local environment and memory state.
    [e2] and [m2] are the final local environment and memory state *) 
-(* Sigma is a mapping from location to the type of element it holds *)
+(* Sigma is a mapping from location to the type of element it holds *) 
 Definition balloc (Sigma : store_context) (m : Memory.mem) (ty : type) (lo hi: Z) : 
 Mem.mem' * Values.block * store_context :=
 let (m1, l1) := Mem.alloc m 0 (sizeof_type (genv_cenv ge) ty) in 
