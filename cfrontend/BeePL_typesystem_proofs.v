@@ -82,7 +82,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
 + move=> cenv Gamma Sigma bge p vm m. right; subst.
   exists m. exists vm. exists (Val (Vunit) tunit). split=> //=. by apply ssem_constu.
 (* app *)
-+ move=> cenv Gamma Sigma e te es rt efs ts ef efs' hte hin hteq htes hin' bge p vm m hw. 
++ move=> cenv Gamma Sigma e te es rt va efs ts ef efs' hte hin hteq htes hin' bge p vm m hw. 
   move: (hin bge p vm m hw)=> [].
   (* function location e is a value *)
   + move=> hve. case: e hte hin hve=> //= v t hte hin hve. case: v hte hin=> //=.
@@ -101,7 +101,7 @@ apply type_exprs_type_expr_ind_mut=> //=.
       + move=> hvs. pose proof hw as hsw.
         rewrite /store_well_typed in hw. case: hw=> [] hw1 [] hw2 hw3.
         inversion hw3. have [bt [a [h1 [h2 h3]]]] := type_infer_loc cenv Gamma Sigma l o ef t te hte; subst.
-        move: (H l o ef (Ptrtype (Reftype bt a)) ts efs rt es efs' hte hteq htes)=> [] fd [] hg [] hl [] hd [] h1 h2.
+        move: (H l o ef (Ptrtype (Reftype bt a)) ts efs rt va es efs' hte hteq htes)=> [] fd [] hg [] hl [] hd [] h1 h2.
         have [vm' [m' [Sigma' [ha hwa]]]] := alloc_variables_wf cenv Gamma Sigma bge vm m (fn_args fd ++ BeePL.fn_vars fd) hsw hl.
         have [m'' [hb hwb]]:= bind_variables_wf cenv Gamma Sigma bge vm' m' (fn_args fd) (extract_values_exprs es) hwa hd.
         right. exists m''. exists vm'. exists fd.(BeePL.fn_body). by split=> //=. 

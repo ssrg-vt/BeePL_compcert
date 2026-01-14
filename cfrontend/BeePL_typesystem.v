@@ -33,9 +33,9 @@ Inductive type_expr : bcomposite_env -> ty_context -> store_context -> expr -> e
                  type_expr cenv Gamma Sigma (Const (ConsLong i) (Vtype (Tlong s a))) nil (Vtype (Tlong s a))
 | ty_constunit : forall cenv Gamma Sigma,
                  type_expr cenv Gamma Sigma (Const (ConsUnit) tunit) nil tunit
-| ty_app : forall cenv Gamma Sigma e te es rt efs ts ef efs',
+| ty_app : forall cenv Gamma Sigma e te es rt v efs ts ef efs',
            type_expr cenv Gamma Sigma e ef te -> 
-           eq_type te (Ptrtype (Fptype ts efs rt)) || eq_type te (Ftype ts efs rt) ->
+           eq_type te (Ptrtype (Fptype ts efs rt v)) || eq_type te (Ftype ts efs rt v) ->
            type_exprs cenv Gamma Sigma es efs' ts -> 
            type_expr cenv Gamma Sigma (App e es rt) (ef ++ efs ++ efs') rt
 | ty_ref : forall cenv Gamma Sigma e ef bt a, 
@@ -327,9 +327,9 @@ Inductive well_formed_loc (Sigma : store_context) (m : Memory.mem)  : Prop :=
 
 (*** Well formed function ***)
 Inductive well_formed_function (cenv : bcomposite_env) (Gamma : ty_context) (Sigma : store_context) (bge : BeePL.genv) (vm : vmap) (m : Memory.mem) : Prop :=
-| store_well_typed_fn : (forall l o ef te ts efs rt vs efs', 
+| store_well_typed_fn : (forall l o ef te ts efs rt v vs efs', 
                          type_expr cenv Gamma Sigma (Val (Vloc l o) te) ef te -> 
-                         eq_type te (Ptrtype (Fptype ts efs rt)) || eq_type te (Ftype ts efs rt) ->
+                         eq_type te (Ptrtype (Fptype ts efs rt v)) || eq_type te (Ftype ts efs rt v) ->
                          type_exprs cenv Gamma Sigma vs efs' ts ->
                          exists fd, Genv.find_funct bge (trans_bvalue_cvalue (Vloc l o)) = Some (Internal fd) /\
                                     list_norepet (fd.(fn_args) ++ fd.(BeePL.fn_vars)) /\ 
@@ -495,14 +495,14 @@ Qed.
 Lemma type_infer_app: forall cenv Gamma Sigma e es rt ef t,
 type_expr cenv Gamma Sigma (App e es rt) ef t ->
 (t = rt /\
-exists te ts ef' efs efs', type_expr cenv Gamma Sigma e ef' te /\ 
-(eq_type te (Ptrtype (Fptype ts efs rt)) || eq_type te (Ftype ts efs rt)) /\
+exists v te ts ef' efs efs', type_expr cenv Gamma Sigma e ef' te /\ 
+(eq_type te (Ptrtype (Fptype ts efs rt v)) || eq_type te (Ftype ts efs rt v)) /\
 type_exprs cenv Gamma Sigma es efs' ts).
 Proof.
 move=> cenv Gamma Sigma e es rt ef t.
 move eq: (App e es rt)=> ve ht. elim: ht eq=> //=.
-move=> cenv' Gamma' Sigma' e' te es' rt' efs ts ef' efs' ht1 hin ht2 heq [] h1 h2 h3; subst; split=> //=.
-exists te, ts, ef', efs, efs'; split=> //=.
+move=> cenv' Gamma' Sigma' e' te es' rt' v' efs ts ef' efs' ht1 hin ht2 heq [] h1 h2 h3; subst; split=> //=.
+exists v', te, ts, ef', efs, efs'; split=> //=.
 Qed.
 
 Lemma type_infer_ref: forall cenv Gamma Sigma e ef t t',
@@ -1066,11 +1066,11 @@ well_formed_value v t.
 Proof.
 Admitted.
 
-Lemma get_type_fundef : forall cenv Gamma Sigma (bge: BeePL.genv) fd l o ef te ts efs rt,
+Lemma get_type_fundef : forall cenv Gamma Sigma (bge: BeePL.genv) fd l o ef te ts efs rt v,
 type_expr cenv Gamma Sigma (Val (Vloc l o) te) ef te -> 
-eq_type te (Ptrtype (Fptype ts efs rt)) || eq_type te (Ftype ts efs rt) ->
+eq_type te (Ptrtype (Fptype ts efs rt v)) || eq_type te (Ftype ts efs rt v) ->
 Genv.find_funct bge (trans_bvalue_cvalue (Vloc l o)) = Some (Internal fd) ->
-BeePL.type_of_fundef (Internal fd) = Ftype (unzip2 fd.(fn_args)) (get_effect_fundef (Internal fd)) (get_rt_fundef (Internal fd)).
+BeePL.type_of_fundef (Internal fd) = Ftype (unzip2 fd.(fn_args)) (get_effect_fundef (Internal fd)) (get_rt_fundef (Internal fd)) (get_v_fundef (Internal fd)).
 Proof.
 move=> cenv Gamma Sigma bge fd l o ef te ts efs rt hte hteq hg. by case:fd hg=> //=.
 Qed.

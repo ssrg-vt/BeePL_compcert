@@ -125,14 +125,14 @@ Definition f_main : BeePL.function := {|
                                                       (_b) tint32s
                                                       (App (Var _add (tfun (tint32s :: tint32s :: nil) (* type signature *)
                                                                             nil (* effect *)
-                                                                            tint32s)) (* return type *)
+                                                                            tint32s false)) (* return type *)
                                                            (Var _a tint32s :: 
                                                             Var _a tint32s :: nil) tint32s)
                                                       (Bind 
                                                           (_b) tint32s
                                                           (App (Var _add_with_one_ref (tfun (tint32s :: trint32s :: nil) (* type signature *)
                                                                                        (Read :: nil) (* effect *)
-                                                                                       tint32s)) (* return type *)
+                                                                                       tint32s false)) (* return type *)
                                                                (Var _a tint32s :: 
                                                                 Prim (Ref) 
                                                                      (cint (Int.repr 1) tint32s :: nil) trint32s :: nil) tint32s)
@@ -140,7 +140,7 @@ Definition f_main : BeePL.function := {|
                                                              (_b) tint32s
                                                              (App (Var _add_with_two_ref (tfun (trint32s :: trint32s :: nil) (* type signature *)
                                                                                           (Read :: Read :: nil) (* effect *)
-                                                                                          tint32s)) (* return type *)
+                                                                                          tint32s false)) (* return type *)
                                                                   (Prim (Ref) 
                                                                         (cint (Int.repr 5) tint32s :: nil) trint32s ::
                                                                    Prim (Ref) 

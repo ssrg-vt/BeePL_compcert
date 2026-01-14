@@ -59,16 +59,16 @@ Definition f_main : BeePL.function := {|
                                    fn_callconv := cc_default;
                                    fn_args := nil;
                                    fn_vars := ((_a, tint32s) :: 
-                                               (_fp, (tpfun (tint32s :: tint32s :: nil) nil tint32s)) ::
+                                               (_fp, (tpfun (tint32s :: tint32s :: nil) nil tint32s false)) ::
                                                (_r, tint32s) :: nil);
                                    fn_body := 
                                               Bind 
                                                    (_a) tint32s
                                                    (cint (Int.repr 1) tint32s)
-                                                   (Bind (_fp) (tpfun (tint32s :: tint32s :: nil) nil tint32s)
-                                                      (Var _add (tfun (tint32s :: tint32s :: nil) nil tint32s))
+                                                   (Bind (_fp) (tpfun (tint32s :: tint32s :: nil) nil tint32s false)
+                                                      (Var _add (tfun (tint32s :: tint32s :: nil) nil tint32s false))
                                                       (Bind _r tint32s
-                                                         (App (Var _fp (tpfun (tint32s :: tint32s :: nil) nil tint32s))
+                                                         (App (Var _fp (tpfun (tint32s :: tint32s :: nil) nil tint32s false))
                                                             (Var _a tint32s :: 
                                                             Var _a tint32s :: nil) tint32s)
                                                          (Var _r tint32s) tint32s) tint32s) tint32s;

@@ -176,7 +176,7 @@ Inductive bsem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
               bsem_expr p vm1 m1 e m2 vm1 (Vloc l Ptrofs.zero) ->
               Genv.find_funct ge (trans_bvalue_cvalue (Vloc l Ptrofs.zero))  = Some (Internal fd) ->
               BeePL.type_of_fundef (Internal fd) =
-                Ftype (typeof_exprs es) (get_effect_fundef (Internal fd)) (get_rt_fundef (Internal fd)) ->
+                Ftype (typeof_exprs es) (get_effect_fundef (Internal fd)) (get_rt_fundef (Internal fd)) (get_v_fundef (Internal fd)) ->
               list_norepet (fd.(fn_args) ++ fd.(BeePL.fn_vars)) ->
               (* allocate callee locals/args: produce vm_callee *)
               alloc_variables ge empty_context empty_vmap m2 (fd.(fn_args) ++ fd.(BeePL.fn_vars)) vm_callee m3 Sigma ->
@@ -399,7 +399,7 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
 | ssem_app3 : forall Sigma Sigma' p vm1 vm2 m1 es t l o fd m2 m3 m4 vs vm3,
               Genv.find_funct ge (trans_bvalue_cvalue (Vloc l o)) = Some (Internal fd) ->
               BeePL.type_of_fundef (Internal fd) = 
-              Ftype (unzip2 fd.(fn_args)) (get_effect_fundef (Internal fd)) (get_rt_fundef (Internal fd)) ->
+              Ftype (unzip2 fd.(fn_args)) (get_effect_fundef (Internal fd)) (get_rt_fundef (Internal fd)) (get_v_fundef (Internal fd)) ->
               t = get_rt_fundef (Internal fd) ->
               list_norepet (fd.(fn_args) ++ fd.(BeePL.fn_vars)) ->
               alloc_variables ge Sigma vm1 m1 (fd.(fn_args) ++ fd.(BeePL.fn_vars)) vm2 m2 Sigma' -> 
@@ -408,7 +408,7 @@ Inductive ssem_expr : program -> vmap -> Memory.mem -> BeePL.expr -> Memory.mem 
               bind_variables ge vm3 m3 fd.(fn_args) (extract_values_exprs vs) m4  ->
               ssem_expr p vm1 m1 (App (Val (Vloc l o) (Ftype (typeof_exprs es) 
                                                                      (get_effect_fundef (Internal fd)) 
-                                                                     (get_rt_fundef (Internal fd)))) es t) m2 vm2
+                                                                     (get_rt_fundef (Internal fd)) (get_v_fundef (Internal fd)))) es t) m2 vm2
                                fd.(BeePL.fn_body)
 | ssem_ref1 : forall p vm m e m' vm' e' bt a,
               ssem_expr p vm m e m' vm' e' ->

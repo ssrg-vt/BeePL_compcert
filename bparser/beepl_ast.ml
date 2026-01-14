@@ -31,7 +31,7 @@ type typ =
   | Ptr of ptrtype
   | Stype of string  (* struct type name *)
   | Atype of typ * int  (* array type with fixed size *)
-  | Ftype of typ list * effect list * typ
+  | Ftype of typ list * effect list * typ * bool  (* function type: args, effects, return type, is_variadic *)
   | Bytes
 
 type const = 

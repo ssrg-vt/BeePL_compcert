@@ -388,14 +388,13 @@ Inductive fundef : Type :=
 | External: external_function -> list type -> type -> calling_convention -> fundef.
 
 (** Type of a function definition. **)
-
 Definition type_of_function (f: function) : type :=
-  Ftype (unzip2 (fn_args f)) (fn_effect f) (fn_return f).
+  Ftype (unzip2 (fn_args f)) (fn_effect f) (fn_return f) (cc_vararg (fn_callconv f)).
 
 Definition type_of_fundef (f : fundef) : type :=
 match f with 
 | Internal f => type_of_function f
-| External e ts t cc => Ftype ts (get_ef_eapp e) t
+| External e ts t cc => Ftype ts (get_ef_eapp e) t (cc_vararg cc)
 end. 
 
 Definition ef_rtype (ef : external_function) : type :=
@@ -408,6 +407,15 @@ match f with
 | Internal fd => fn_return fd
 | External ef ts t cc => ef_rtype ef
 end.
+
+Definition get_v_fundef (f : fundef) : bool :=
+match f with 
+| Internal fd => (cc_vararg (fn_callconv fd))
+| External ef ts t cc => cc_vararg cc
+end.
+
+Definition get_v_function (f : function) : bool :=
+(cc_vararg (fn_callconv f)).
 
 Definition get_effect_fundef (f : fundef) : effect :=
 match f with 

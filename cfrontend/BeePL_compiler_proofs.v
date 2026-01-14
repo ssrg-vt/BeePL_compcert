@@ -1511,9 +1511,33 @@ match e with
                                                 (transBeePL_type t))
 | Prim (Uop o) es t => exists ces g1 i1,
                        transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g = Res (ces, f, b) g1 i1 /\
-                        ct = Csyntax.Sreturn (Some (Csyntax.Eunop o 
+                       ct = Csyntax.Sreturn (Some (Csyntax.Eunop o 
                                      (hd default_expr (exprlist_list_expr ces)) 
                                      (transBeePL_type t)))
+| Prim (Bop o) es t => exists ces g1 i1, 
+                       transBeePL_expr_exprs transBeePL_expr_expr es fctx bctx g = Res (ces, f, b) g1 i1 /\
+                       match o with 
+                       | Cop.Odiv => exists v g2 i2 rs g3 i3, 
+                                     return_czero (transBeePL_type t) g1 = Res v g2 i2 /\
+                                     check_div ces v (transBeePL_type t) g2 = Res rs g3 i3 /\
+                                     ct = Csyntax.Sreturn (Some rs)
+                       | Cop.Omod => exists v g2 i2 rs g3 i3, 
+                                     return_czero (transBeePL_type t) g1 = Res v g2 i2 /\
+                                     check_div ces v (transBeePL_type t) g2 = Res rs g3 i3 /\
+                                     ct = Csyntax.Sreturn (Some rs)
+                       | Cop.Oshl => exists v g2 i2 rs g3 i3, 
+                                     return_czero (transBeePL_type t) g1 = Res v g2 i2 /\
+                                     check_shl ces v (transBeePL_type t) g2 = Res rs g3 i3 /\
+                                     ct = Csyntax.Sreturn (Some rs)
+                       | Cop.Oshr => exists v g2 i2 rs g3 i3, 
+                                     return_czero (transBeePL_type t) g1 = Res v g2 i2 /\
+                                     check_shr ces v (transBeePL_type t) g2 = Res rs g3 i3 /\
+                                     ct = Csyntax.Sreturn (Some rs)
+                       | _ => ct = Csyntax.Sreturn (Some (Csyntax.Ebinop o
+                                        (hd default_expr (exprlist_list_expr ces)) 
+                                        (hd default_expr (tl (exprlist_list_expr ces)))
+                                        (transBeePL_type t)))
+                       end
 | _ => True
 end.
 Proof.
@@ -1680,6 +1704,23 @@ elim: e he hte=> //=.
   rewrite hteq' in hteq. have := sem_equiv_uop u v e m' v' bv fctx bctx 
                                   (hd default_expr (exprlist_list_expr es')) fctx' bctx' g g1 i1 H10 he1 H11.
   by rewrite hteq.
+ (* bop *)
+ + move=> b es t he hte. inversion he; subst.
+   have := trans_expr_st_ind bcmp (Prim (Bop b) [:: e1; e2] (typeof_expr e1)) fctx bctx ct fctx' bctx' g g' i' hte.
+   move=> [] es' [] g'' [] i'' [] h3 h4; subst.
+   have [h11 h12] := trans_expr_expr_ind.
+   move: (h12 [:: e1; e2] fctx bctx es' fctx' bctx' g g'' i'' h3).
+   move=> [] ce1 [] f' [] b' [] g1 [] i1 [] i2 [] ce2 [] f'' [] b'' [] hce1 [] hce2 [] h1 [] h111 h112; subst.
+      
+  (* have [h1 h2] := bsem_csem_expr_equiv bge cp fctxf.
+   move: (h2 bp bvm' m e1 m'0 bvm' v1 cge).
+   case: b he hte H11 h4=> //=.
+   (* div *)
+   + move=> he hte. case: s H7=> //= hs.
+     (* signed *)
+     + case: ifP=> //= hz _. move=> [] vz [] g2 [] i2 [] rs [] g3 [] i3 [] hr [] hc hd; subst; rewrite /=.*)
+       
+       
 Admitted.
 
 

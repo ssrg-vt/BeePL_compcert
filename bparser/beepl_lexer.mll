@@ -43,6 +43,8 @@ rule read_token = parse
   | ":="            { MASSGN }
   | "true"          { BOOL true }
   | "false"         { BOOL false }
+  | "vararg"   { VARARG }
+  | "novararg" { NOVARARG }
   | "unit"          { UNIT }
   | "int8"          { INT8TYPE }
   | "uint8"         { UINT8TYPE }

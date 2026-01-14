@@ -49,14 +49,14 @@ Inductive basic_type : Type :=
 Inductive ptr_type : Type :=
 | Reftype : basic_type -> attr -> ptr_type                (* Pointer to primitive types and struct : box - introduced in prog *)
 | Otype : ptr_type -> ptr_type                            (* Option type *)          
-| Fptype : list type -> effect -> type -> ptr_type        (* function/arrow pointer type *)
+| Fptype : list type -> effect -> type -> bool -> ptr_type        (* function/arrow pointer type *)
 with type : Type :=
 | Utype : type                                            (* Unit type *)
 | Vtype : primitive_type -> type                          (* Value types *)
 | Ptrtype : ptr_type -> type                              (* pointer type : can be ref, option or function pointer*)
 | Stype : ident -> attr -> type                           (* struct type *)
 | Atype : type -> Z -> attr -> type                       (* array types ([ty[len]]) *)
-| Ftype : list type -> effect -> type -> type             (* function type *)
+| Ftype : list type -> effect -> type -> bool -> type     (* function type *) (* bool says whether it is variadic or not *)
 | Bytes : type                                            (* bytes type of size n *).
 
 Definition get_array_elm_ty (t : type) : res type :=
@@ -88,7 +88,7 @@ match pt with
                     | Barray p z a => Atype (Vtype p) z a
                     end
 | Otype pt => get_data_type pt
-| Fptype ts ef t => Ftype ts ef t
+| Fptype ts ef t v => Ftype ts ef t v
 end.
 
 (* Extract the inner pointer type from an option pointer (Otype pt). *)
@@ -136,7 +136,7 @@ Fixpoint attr_of_ptr_type (t : ptr_type) : attr :=
 match t with 
 | Reftype bt a => a
 | Otype t => attr_of_ptr_type t
-| Fptype ts ef t => noattr
+| Fptype ts ef t v => noattr
 end.
 
 Definition attr_of_type (t : type) : attr :=
@@ -146,7 +146,7 @@ match t with
 | Ptrtype pt => attr_of_ptr_type pt
 | Stype x a => a
 | Atype t z a => a 
-| Ftype ts e t => noattr
+| Ftype ts e t v => noattr
 | Bytes => noattr
 end.
 
@@ -208,11 +208,11 @@ Fixpoint transBeePL_type (t : BeeTypes.type) : Ctypes.type :=
   | Ptrtype pt => (transBeePL_ptr_type pt)
   | Stype s a => (Tstruct s a) 
   | Atype t z a => (Tarray (transBeePL_type t) z a)
-  | Ftype ts ef t' =>
+  | Ftype ts ef t' v =>
       let cts := transBeePL_types transBeePL_type ts in 
       let ct := transBeePL_type t' in 
       (Tfunction cts ct
-        {| cc_vararg := None;
+        {| cc_vararg := if v then Some 1 else None;
            cc_unproto := false;
            cc_structret := false |})
   | Bytes => (Tstruct bytes_t noattr)
@@ -232,12 +232,12 @@ with transBeePL_ptr_type (pt : ptr_type) : Ctypes.type :=
                            end
       end
   | Otype t => (transBeePL_ptr_type t)
-  | Fptype ts ef t =>
+  | Fptype ts ef t v =>
       let cts := transBeePL_types transBeePL_type ts in 
       let ct := transBeePL_type t in 
       (Ctypes.Tpointer
         (Tfunction cts ct 
-          {| cc_vararg := None;
+          {| cc_vararg := if v then Some 1 else None;
              cc_unproto := false;
              cc_structret := false |})
         noattr)
@@ -304,13 +304,13 @@ Fixpoint bcomplete_type (env: bcomposite_env) (t: type) : bool :=
   | Ptrtype pt => true 
   | Stype s _ => match env!s with Some co => true | None => false end
   | Atype t z a => bcomplete_type env t
-  | Ftype _ _ _ => false
+  | Ftype _ _ _ _ => false
   | Bytes => true 
   end.
 
 Definition bcomplete_or_function_type (env: bcomposite_env) (t: type) : bool :=
   match t with
-  | Ftype _ _ _ => true
+  | Ftype _ _ _ _ => true
   | _ => bcomplete_type env t
   end.
 
@@ -386,7 +386,7 @@ match t with
 | Utype => false
 | Vtype vt => false
 | Ptrtype pt => true 
-| Ftype es ef t => false
+| Ftype es ef t v => false
 | Stype x a => false
 | Atype t z a => false
 | Bytes => false
@@ -415,7 +415,7 @@ match t with
 | Utype => false
 | Vtype vt => false
 | Ptrtype pt => false 
-| Ftype es ef t => false
+| Ftype es ef t v => false
 | Stype x a => true
 | Atype t z a => false
 | Bytes => false
@@ -426,7 +426,7 @@ match t with
 | Utype => false
 | Vtype vt => false
 | Ptrtype pt => false 
-| Ftype es ef t => false
+| Ftype es ef t v => false
 | Stype x a => false
 | Atype t z a => true
 | Bytes => false
@@ -437,7 +437,7 @@ match t with
 | Utype => true
 | Vtype vt => false
 | Ptrtype pt => false 
-| Ftype es ef t => false
+| Ftype es ef t _ => false
 | Stype x a => false
 | Atype t z a => false
 | Bytes => false
@@ -445,7 +445,7 @@ end.
 
 Definition is_funtype (t : type) : bool :=
 match t with 
-| Ftype ts ef t => true 
+| Ftype ts ef t _ => true 
 | _ => false
 end.
 
@@ -540,7 +540,7 @@ Fixpoint signedness_of_ptr_type (pt : ptr_type) : option signedness :=
   match pt with
   | Reftype bt _ => signedness_of_basic bt
   | Otype pt' => signedness_of_ptr_type pt'
-  | Fptype _ _ _=> None
+  | Fptype _ _ _ _ => None
   end.
 
 Definition signedness_of_type (t : type) : option signedness :=
@@ -550,7 +550,7 @@ Definition signedness_of_type (t : type) : option signedness :=
   | Ptrtype pt => signedness_of_ptr_type pt
   | Stype _ _ => None
   | Atype t z a => None
-  | Ftype _ _ _ => None
+  | Ftype _ _ _ _ => None
   | Bytes => None
 end.
 
@@ -570,7 +570,7 @@ Definition wtype_of_ptr_type (pt : ptr_type) : wtype :=
       | Barray _ _ _ => Twpa
       end
   | Otype _ => Twot
-  | Fptype _ _ _ => Twfunptr
+  | Fptype _ _ _ _ => Twfunptr
   end.
 
 Definition wtype_of_type (t : type) : wtype :=
@@ -580,7 +580,7 @@ Definition wtype_of_type (t : type) : wtype :=
   | Ptrtype pt => wtype_of_ptr_type pt
   | Stype _ _ => Twst
   | Atype t z a => Twa
-  | Ftype _ _ _ => Twfun
+  | Ftype _ _ _ _ => Twfun
   | Bytes => Twbytes
   end.
 
@@ -716,7 +716,7 @@ Definition access_mode_type (t : type) : mode :=
   | Ptrtype _ => By_value Mptr
   | Stype _ _ => By_reference
   | Atype t z a => By_reference
-  | Ftype _ _ _ => By_reference
+  | Ftype _ _ _ _ => By_reference
   | Bytes => By_reference
   end.
 
@@ -744,7 +744,7 @@ match ty with
 (* Not directly mappable to a single chunk *)
 | Stype _ _ => None
 | Atype _ _ _ => None
-| Ftype _ _ _ => None
+| Ftype _ _ _ _ => None
 | Utype => None
 end.
 
@@ -789,8 +789,8 @@ Fixpoint eq_type (t1 t2 : type) : bool :=
   | Ptrtype pt1, Ptrtype pt2 => eq_ptr_type pt1 pt2
   | Stype id1 a1, Stype id2 a2 => (id1 =? id2)%positive && attr_eq a1 a2
   | Atype t1 z1 a1, Atype t2 z2 a2 => eq_type t1 t2 && (z1 =? z2)%Z && attr_eq a1 a2
-  | Ftype ts1 ef1 t1', Ftype ts2 ef2 t2' =>
-      eq_types eq_type ts1 ts2 && eq_effect ef1 ef2 && eq_type t1' t2'
+  | Ftype ts1 ef1 t1' v1, Ftype ts2 ef2 t2' v2 =>
+      eq_types eq_type ts1 ts2 && eq_effect ef1 ef2 && eq_type t1' t2' && Bool.eqb v1 v2
   | Bytes, Bytes => true
   (*| Atype t1 z1 a1, trint8s => true (* special case because of bpf_printk *)
   | trint8s, Atype t2 z2 a2 => true (* special case because of bpf_printk *)*)
@@ -802,8 +802,8 @@ with eq_ptr_type (p1 p2 : ptr_type) : bool :=
   | Reftype b1 a1, Reftype b2 a2 =>
       eq_basic_type b1 b2 && attr_eq a1 a2
   | Otype t1, Otype t2 => eq_ptr_type t1 t2
-  | Fptype ts1 ef1 t1, Fptype ts2 ef2 t2 =>
-      eq_types eq_type ts1 ts2 && eq_effect ef1 ef2 && eq_type t1 t2
+  | Fptype ts1 ef1 t1 v1, Fptype ts2 ef2 t2 v2 =>
+      eq_types eq_type ts1 ts2 && eq_effect ef1 ef2 && eq_type t1 t2 && Bool.eqb v1 v2
   (*| Otype t1, _ => true   (* we need this special case: all pointer type can be void * *)
   | _, Otype t1 => true   (* we need this special case: all pointer type can be void * *)*)
   | _, _ => false
@@ -856,7 +856,7 @@ Fixpoint sizeof_type (env : bcomposite_env) (t : BeeTypes.type) : Z :=
   | Ptrtype pt => if Archi.ptr64 then 8 else 4
   | Stype x _ => match env!x with Some co => co_sizeof co | None => 0 end
   | Atype t' z a => sizeof_type env t' * Z.max 0 z
-  | Ftype _ _ _ => 1
+  | Ftype _ _ _ _ => 1
   | Bytes => 16
   end.
 
@@ -883,7 +883,7 @@ Fixpoint alignof_type (env : bcomposite_env) (t : BeeTypes.type) : Z :=
   | Ptrtype pt => if Archi.ptr64 then 8 else 4
   | Stype x _ => match env!x with Some co => co_alignof co | None => 1 end
   | Atype t' z a => alignof_type env t'
-  | Ftype _ _ _ => 1
+  | Ftype _ _ _ _ => 1
   (* Bytes get translated to a struct in C with two fields of char* *)
   | Bytes => if Archi.ptr64 then 8 else 4
   end.
@@ -900,8 +900,8 @@ Fixpoint check_fun_ptr_fun (sts : list type) (ats : list type) : bool :=
 match sts, ats with 
 | nil, nil => true 
 | t :: ts, t' :: ts' => match t, t' with 
-                        | Ptrtype (Fptype ts1 ef1 t1), Ftype ts1' ef1' t1' => 
-                          if eq_types eq_type ts1 ts1' && eq_type t1 t1' && eq_effect ef1 ef1'
+                        | Ptrtype (Fptype ts1 ef1 t1 v1), Ftype ts1' ef1' t1' v1' => 
+                          if eq_types eq_type ts1 ts1' && eq_type t1 t1' && eq_effect ef1 ef1' && Bool.eqb v1 v1'
                           then check_fun_ptr_fun ts ts'
                           else false
                         | _, _ => eq_type t t' && check_fun_ptr_fun ts ts'

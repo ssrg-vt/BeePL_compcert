@@ -84,7 +84,7 @@ let build_efenv () : efenv =
 let extern_bindings_of_efenv (ee : efenv) : (string * typ) list =
   Env.bindings ee
   |> List.map (fun (name, info) ->
-        (name, Ftype (info.formals, info.effects, info.ret)))
+        (name, Ftype (info.formals, info.effects, info.ret, info.variadic)))
 
 let rec take n xs =
   match n, xs with
@@ -146,11 +146,12 @@ let rec typ_eq t1 t2 =
   match t1, t2 with
   | Utype, Utype -> true
   | Vtype p1, Vtype p2 -> ptype_eq p1 p2
-  | Ftype (args1, effs1, ret1), Ftype (args2, effs2, ret2) ->
+  | Ftype (args1, effs1, ret1, v1), Ftype (args2, effs2, ret2, v2) ->
     List.length args1 = List.length args2 &&
     List.for_all2 typ_eq args1 args2 &&
-    List.length effs1 = List.length effs2 && (* optional: more precise effect comparison *)
-    typ_eq ret1 ret2
+    List.length effs1 = List.length effs2 && 
+    typ_eq ret1 ret2 &&
+    v1 = v2
   | Ptr (Reftype (b1)), Ptr (Reftype (b2)) ->
     (match b1, b2 with
     | Bprim p1, Bprim p2 -> ptype_eq p1 p2
@@ -301,7 +302,7 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
     let ty1      = infer_expr ee senv env e1 in
     let arg_tys  = List.map (infer_expr ee senv env) args in
     begin match ty1 with
-    | Ftype (formals, _eff, ret_type) ->
+    | Ftype (formals, _eff, ret_type, va) ->
         let n_formals = List.length formals in
         (*and n_actuals = List.length arg_tys in*)
 
@@ -563,13 +564,17 @@ let rec infer_expr (ee : efenv) (senv : Senv.t) (env : tyenv) (e : expr) : typ =
           in
           raise (TypeError msg)
 
-let infer_fundecl (ee : efenv)
-    (Tfundecl (name, ret_type, _eff, args, vars, body))
+    let infer_fundecl (ee : efenv)
+    (Tfundecl (name, ret_type, eff, args, vars, body))
     (senv : Senv.t) (global_env : tyenv) =
+
+  (* 0. Register this function's own type (non-vararg) for recursion *)
+  let self_ty = Ftype (List.map snd args, eff, ret_type, false) in
+  let global_env = Env.add name self_ty global_env in
+
   (* 1. Ensure all parameter names and local variable names are unique *)
   check_unique "parameters" name args;
   check_unique "locals"     name vars;
-  (* also ensure no overlap between params and locals *)
   check_unique "parameters/locals" name (args @ vars);
 
   (* 2. Build env with args + locals *)
@@ -595,9 +600,9 @@ let infer_program (prog : program) =
   let global_fun_types =
     List.filter_map (function
       | Internal (Tfundecl (name, ret, eff, args, _, _), _) ->
-          Some (name, Ftype (List.map snd args, eff, ret))
+          Some (name, Ftype (List.map snd args, eff, ret, false))
       | EBPFInternal (Tfundecl (name, ret, eff, args, _, _), _) ->
-          Some (name, Ftype (List.map snd args, eff, ret))
+          Some (name, Ftype (List.map snd args, eff, ret, false))
       | StructDecl _ -> None
       | GlobalLet (name, ty, _, _) -> Some (name, ty)
     ) prog
