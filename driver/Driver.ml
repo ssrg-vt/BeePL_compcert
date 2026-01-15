@@ -83,6 +83,61 @@ let object_filename sourcename =
   else
     tmp_file ".o"
 
+(* Helper to apply BPF mapping *)
+let apply_bpf_map_replacements asm_filename =
+  (* Resolve path relative to the ccomp executable location *)
+  let bin_dir = Filename.dirname Sys.executable_name in
+  let map_file = Filename.concat (Filename.concat bin_dir "ebpf") "bpfHelperMap.json" in
+
+  if Sys.file_exists map_file then begin
+    try
+      (* 1. Read the Map File *)
+      let ic = open_in map_file in
+      let content = really_input_string ic (in_channel_length ic) in
+      close_in ic;
+
+      (* 2. Parse JSON (Simple Regex approach for flat { "key": int } structure) 
+         Matches: "key" : value *)
+      let regex = Str.regexp "\"\\([^\"]+\\)\"[ \t\n\r]*:[ \t\n\r]*\\([0-9]+\\)" in
+      let rec parse_mappings pos acc =
+        try
+          let _ = Str.search_forward regex content pos in
+          let key = Str.matched_group 1 content in
+          let value = Str.matched_group 2 content in
+          parse_mappings (Str.match_end()) ((key, value) :: acc)
+        with Not_found -> acc
+      in
+      let mappings = parse_mappings 0 [] in
+
+      (* 3. Read the ASM File *)
+      let ic_asm = open_in asm_filename in
+      let lines = ref [] in
+      try
+        while true do lines := input_line ic_asm :: !lines done
+      with End_of_file -> close_in ic_asm;
+      let asm_lines = List.rev !lines in
+
+      (* 4. Replace and Write back *)
+      let oc_asm = open_out asm_filename in
+      List.iter (fun line ->
+        let new_line = List.fold_left (fun l (k, v) ->
+          (* Use Str.regexp_string to treat key as literal text, not regex
+          Str.global_replace (Str.regexp_string k) v l *)
+          let pattern = Str.regexp ("call[ \t]+ bpf_" ^ Str.quote k) in
+          Str.global_replace pattern ("call " ^ v) l
+        ) line mappings in
+        output_string oc_asm (new_line ^ "\n")
+      ) asm_lines;
+      close_out oc_asm;
+
+      ()
+    with e ->
+      Printf.eprintf "Error processing -bpfmap: %s\n" (Printexc.to_string e)
+  end else begin
+    Printf.eprintf "Warning: -bpfmap specified but '%s' not found.\n" map_file
+  end
+
+
 (* From CompCert C AST to asm *)
 
 let compile_c_file sourcename ifile ofile =
@@ -135,7 +190,8 @@ let compile_c_file sourcename ifile ofile =
   AsmToJSON.print_if asm sourcename;
   let oc = open_out ofile in
   PrintAsm.print_program oc asm;
-  close_out oc
+  close_out oc;
+  if !option_bpfmap then apply_bpf_map_replacements ofile
 
 (* The BeePL compiler returns information on which identifiers should be placed
    in specific sections of the binary ELF file. CompCert requires that information
@@ -312,7 +368,8 @@ let populate_decl_atom (section_info : (AST.ident * BeePL_Csyntax.csyntax_atom_i
     AsmToJSON.print_if asm sourcename;
     let oc = open_out ofile in
     PrintAsm.print_program oc asm;
-    close_out oc 
+    close_out oc;
+    if !option_bpfmap then apply_bpf_map_replacements ofile 
 
   let compile_b_file sourcename ofile =
       (* Prepare to dump Clight, RTL, etc, if requested *)
@@ -418,7 +475,8 @@ let populate_decl_atom (section_info : (AST.ident * BeePL_Csyntax.csyntax_atom_i
       AsmToJSON.print_if asm sourcename;
       let oc = open_out ofile in
       PrintAsm.print_program oc asm;
-      close_out oc
+      close_out oc;
+      if !option_bpfmap then apply_bpf_map_replacements ofile
     
 (* From C source to asm *)
 
@@ -685,6 +743,7 @@ let cmdline_actions =
 (* Code generation options -- more below *)
  [
   Exact "-beepl", Set option_beepl;
+  Exact "-bpfmap", Set option_bpfmap;
   Exact "-typecheck", Set option_typecheck;
   Exact "-O0", Unit (unset_all optimization_options);
   Exact "-O", Unit (set_all optimization_options);
