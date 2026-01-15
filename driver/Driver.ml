@@ -123,7 +123,7 @@ let apply_bpf_map_replacements asm_filename =
         let new_line = List.fold_left (fun l (k, v) ->
           (* Use Str.regexp_string to treat key as literal text, not regex
           Str.global_replace (Str.regexp_string k) v l *)
-          let pattern = Str.regexp ("call[ \t]+ bpf_" ^ Str.quote k) in
+          let pattern = Str.regexp ("call[ \t]+bpf_" ^ Str.quote k) in
           Str.global_replace pattern ("call " ^ v) l
         ) line mappings in
         output_string oc_asm (new_line ^ "\n")
