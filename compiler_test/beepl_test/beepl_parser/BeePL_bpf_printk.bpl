@@ -13,5 +13,5 @@ let _license : int8[4] = "GPL"
 #ebpf
 #section xdp
 fun xdp_prog (struct xdp_md* p) : int32, [] {
-  let d : int32 = bpf_printk("Hello!", 6) in 2
+  let d : int32 = bpf_printk("Hello!", 7) in 2
 }
