@@ -36,7 +36,7 @@ Definition prim_expr : BeePL.expr := Prim (Ref)
 
 Definition test : BeePL.expr := (App (Var _add (tfun (tint32s :: trint32s :: nil)(* args type signature *)
                                                       (nil) (* effect *)
-                                                      tint32s)) (* return type *)
+                                                      tint32s false)) (* return type *)
                                      (Var _a tint32s :: 
                                       Prim (Ref) 
                                            (Var _b tint32s :: nil) trint32s :: nil) tint32s).
@@ -59,7 +59,7 @@ Definition f_external_call : BeePL.function := {|
                                                       (_c) tint32s 
                                                       (App (Var _add (Ftype (tint32s :: trint32s :: nil) (* args type signature *)
                                                                             (nil) (* effect *)
-                                                                            tint32s)) (* return type *)
+                                                                            tint32s false)) (* return type *)
                                                            (Var _a tint32s :: 
                                                             Prim (Ref) 
                                                                  (Var _b tint32s :: nil) trint32s :: nil) tint32s)

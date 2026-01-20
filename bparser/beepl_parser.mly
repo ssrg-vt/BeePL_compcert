@@ -6,6 +6,8 @@ open Beepl_ast
 %token <int32> INT32
 %token <int64> INT64
 %token <bool> BOOL
+%token VARARG
+%token NOVARARG
 %token UP DOWN DOT
 %token INT8TYPE UINT8TYPE
 %token INT16TYPE UINT16TYPE 
@@ -105,6 +107,10 @@ effect:
   | ALLOC { Alloc }
   | IO { Io }
 
+vararg_flag:
+| VARARG   { true }
+| NOVARARG { false }
+
 typ:
   | BOOLTYPE  { Vtype Tbool }
   | UINT8TYPE { Vtype Tuint8 }
@@ -158,7 +164,7 @@ typ:
   | STRUCT id = IDENT { Stype id }
   | t = typ LBRACK n = INT32 RBRACK { Atype(t, Int32.to_int n) }
   | FUNTYPE LPAREN args = separated_list(COMMA, typ) RPAREN
-    COLON eff = separated_list(COMMA, effect) COMMA ret = typ { Ftype(args, eff, ret) }
+    COLON eff = separated_list(COMMA, effect) COMMA ret = typ COMMA va = vararg_flag { Ftype(args, eff, ret, va) }
   | BYTES { Bytes }
 
 (* --- END OF typ --- *)

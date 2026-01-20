@@ -1169,6 +1169,11 @@ match e with
                                 
 end.
 
+Definition cc_of_variadic (v : bool) : AST.calling_convention :=
+  {| cc_vararg    := if v then Some 1 else None;
+     cc_unproto   := false;
+     cc_structret := false |}.
+
 (* Translates the BeePL function declaration to a C function *)
 Definition transBeePL_function_function
   (cenv : bcomposite_env)
@@ -1202,7 +1207,7 @@ match create_fn_ctx (BeePL.fn_vars fd) iss (initial_generator tt) with
       | Error msg => Error msg
       | OK params =>
           OK ({| fn_return   := crt
-               ; fn_callconv := cc_default
+               ; fn_callconv := cc_of_variadic (get_v_function fd)
                ; fn_params   := params
                ; fn_vars     := locals
                ; fn_body     := fst fbody |},
@@ -1212,7 +1217,7 @@ match create_fn_ctx (BeePL.fn_vars fd) iss (initial_generator tt) with
       let param_tys := transBeePL_types transBeePL_type (unzip2 fd.(fn_args)) in
       let params    := zip (unzip1 fd.(fn_args)) param_tys in
       OK ({| fn_return   := crt
-           ; fn_callconv := cc_default
+           ; fn_callconv := cc_of_variadic (get_v_function fd)
            ; fn_params   := params
            ; fn_vars     := locals
            ; fn_body     := fst fbody |},

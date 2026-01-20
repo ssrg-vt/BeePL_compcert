@@ -66,7 +66,8 @@ let extern_bindings_of_efenv (ee : Beepl_ast_typechecker.efenv) : (string * Beep
       ( name
       , Beepl_ast.Ftype (info.Beepl_ast_typechecker.formals, 
                          info.Beepl_ast_typechecker.effects, 
-                         info.Beepl_ast_typechecker.ret)
+                         info.Beepl_ast_typechecker.ret,
+                         info.Beepl_ast_typechecker.variadic)
       ))
 
 let collect_global_env
@@ -75,7 +76,7 @@ let collect_global_env
   : Beepl_ast_typechecker.tyenv =
   let externs = extern_bindings_of_efenv ee in
   let ftype_of_decl (Beepl_ast.Tfundecl (name, ret, eff, args, _, _)) =
-    (name, Beepl_ast.Ftype (List.map snd args, eff, ret))
+    (name, Beepl_ast.Ftype (List.map snd args, eff, ret, false))
   in
   let bindings =
     List.filter_map (function
@@ -196,11 +197,11 @@ let rec transform_typ (t : Beepl_ast.typ) : BeeTypes.coq_type =
   | Beepl_ast.Atype (elem_t, size) ->
       let elem_t' = transform_typ elem_t in
       BeeTypes.Atype (elem_t', int_to_coq_z size, Ctypes.noattr)
-  | Beepl_ast.Ftype (args, effs, ret) -> 
+  | Beepl_ast.Ftype (args, effs, ret, va) -> 
       let args' = List.map (fun t -> (transform_typ t)) args in
       let effs' = transform_effect_list effs in
       let ret' = transform_typ ret in
-      BeeTypes.Ftype (args', effs', ret')
+      BeeTypes.Ftype (args', effs', ret', va)
   | Beepl_ast.Bytes -> BeeTypes.Bytes
 let transform_constant (c : Beepl_ast.const) (typ : Beepl_ast.typ) : BeePL_values.constant =
   match typ, c with
@@ -702,9 +703,9 @@ let init_data_of_string (s : string) : AST.init_data list =
            let cc =
              { AST.cc_vararg  =
                  (if info.Beepl_ast_typechecker.variadic
-                  then Some (coqint_of_camlint32 1l)
+                  then Some (Camlcoq.coqint_of_camlint 1l)
                   else None);
-               cc_unproto   = false;
+               cc_unproto   = info.Beepl_ast_typechecker.variadic;
                cc_structret = false }
            in
            let signature =

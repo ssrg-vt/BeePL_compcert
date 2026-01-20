@@ -58,10 +58,10 @@ match e with
 | App e es t => do (ft, efe) <- type_check_expr cenv Gamma Sigma e;
                 do (ts, efs) <- type_check_exprs type_check_expr cenv Gamma Sigma es;
                 match ft with 
-                | Ftype ts1 ef rt1 => if check_fun_ptr_fun ts1 ts
-                                      then OK (rt1, efe ++ ef ++ efs) 
-                                      else Error (msg "TYPE ERROR: Function case does not match the inferred type") 
-                | Ptrtype (Fptype ts1 ef rt1) => if check_fun_ptr_fun ts1 ts
+                | Ftype ts1 ef rt1 v1 => if check_fun_ptr_fun ts1 ts
+                                         then OK (rt1, efe ++ ef ++ efs) 
+                                         else Error (msg "TYPE ERROR: Function case does not match the inferred type") 
+                | Ptrtype (Fptype ts1 ef rt1 v1) => if check_fun_ptr_fun ts1 ts
                                                  then OK (rt1, efe ++ ef ++ efs) 
                                                  else Error (msg "TYPE ERROR: Function pointer case does not match the inferred type")
 
