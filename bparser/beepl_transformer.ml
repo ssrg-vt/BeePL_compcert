@@ -53,7 +53,7 @@ let rec int_to_coq_nat (n : int) : Datatypes.nat =
 let build_senv (prog : Beepl_ast.program) : Beepl_ast_typechecker.Senv.t =
   List.fold_left
     (fun acc -> function
-      | Beepl_ast.StructDecl (name, fields) ->
+      | Beepl_ast.StructDecl (name, fields, _sec) ->
           Beepl_ast_typechecker.Senv.add name fields acc
       | _ -> acc)
     Beepl_ast_typechecker.Senv.empty
@@ -78,13 +78,31 @@ let collect_global_env
   let ftype_of_decl (Beepl_ast.Tfundecl (name, ret, eff, args, _, _)) =
     (name, Beepl_ast.Ftype (List.map snd args, eff, ret, false))
   in
-  let bindings =
-    List.filter_map (function
-      | Beepl_ast.Internal (f, _) | Beepl_ast.EBPFInternal (f, _) -> Some (ftype_of_decl f)
-      | Beepl_ast.StructDecl _ -> None
-      | Beepl_ast.GlobalLet (x, t, _, _) -> Some (x, t)
-    ) prog
+  let is_maps_section (sec : string option) : bool =
+    match sec with
+    | None -> false
+    | Some s -> normalize_section s = ".maps"
   in
+
+  let bindings =
+  List.filter_map (function
+    (* same as before: functions introduce names *)
+    | Beepl_ast.Internal (f, _) | Beepl_ast.EBPFInternal (f, _) ->
+        Some (ftype_of_decl f)
+
+    (* NEW: .maps structs also introduce a name (placeholder type for now) *)
+    | Beepl_ast.StructDecl (name, _fields, sec) when is_maps_section sec ->
+        Some (name, Beepl_ast.Vtype Beepl_ast.Tulong)
+
+    (* normal structs do not introduce values *)
+    | Beepl_ast.StructDecl (_, _, _) ->
+        None
+
+    | Beepl_ast.GlobalLet (x, t, _, _) ->
+        Some (x, t)
+  ) prog
+in
+
   List.fold_left
     (fun acc (id, t) -> Beepl_ast_typechecker.Env.add id t acc)
     (List.fold_left
@@ -142,7 +160,7 @@ let collect_global_env
             List.iter from_effect effs;
             List.iter add_var args;
             from_expr body
-        | Beepl_ast.StructDecl (sname, fields) ->
+        | Beepl_ast.StructDecl (sname, fields, _sec) ->
             add_ident sname;
             List.iter add_var fields
         | Beepl_ast.GlobalLet (x, _, e, _) ->
@@ -599,9 +617,18 @@ let transform_toplevel ee senv global_env = function
 | EBPFInternal(f, sec) ->
     let id = Camlcoq.intern_string (get_fun_name f) in
     `Fun (id, transform_function f true ee senv global_env, sec)
-| StructDecl (name, fields) ->
+| StructDecl (name, fields, sec) ->
     let id = Camlcoq.intern_string name in
-    `Struct (id, transform_struct name fields)
+    begin match sec with
+    | Some s when normalize_section s = ".maps" ->
+        (* Create a real global symbol so references resolve.
+           Placeholder type for now: ulong handle. *)
+        let t = Beepl_ast.Vtype Beepl_ast.Tulong in
+        `Global (id, transform_typ t, Beepl_ast.Const (Beepl_ast.Clong 0L), sec)
+    | _ ->
+        `Struct (id, transform_struct name fields)
+    end
+
 | GlobalLet (name, typ, expr, sec) ->
     let id = Camlcoq.intern_string name in
     let t' = transform_typ typ in
@@ -935,7 +962,7 @@ Printf.eprintf "[DEBUG] --- end of struct list ---\n%!";*)
         let struct_field_names =
           prog
           |> List.filter_map (function
-               | Beepl_ast.StructDecl (_sname, fields) ->
+               | Beepl_ast.StructDecl (_sname, fields, _sec) ->
                    Some (List.map fst fields)
                | _ -> None)
           |> List.flatten
