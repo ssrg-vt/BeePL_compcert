@@ -1711,10 +1711,11 @@ elim: e he hte=> //=.
    have [h11 h12] := trans_expr_expr_ind.
    move: (h12 [:: e1; e2] fctx bctx es' fctx' bctx' g g'' i'' h3).
    move=> [] ce1 [] f' [] b' [] g1 [] i1 [] i2 [] ce2 [] f'' [] b'' [] hce1 [] hce2 [] h1 [] h111 h112; subst.
-      
-  (* have [h1 h2] := bsem_csem_expr_equiv bge cp fctxf.
-   move: (h2 bp bvm' m e1 m'0 bvm' v1 cge).
-   case: b he hte H11 h4=> //=.
+   have := trans_exprs_to_trans_expr e2 f' b' g1 ce2 f'' b'' g'' i2 hce2.
+   move=> [] ce2' [] g2 [] i3 [] hce2' hcc; subst.
+   have [h1 h2] := bsem_csem_expr_equiv bge cp fctxf.
+   move: (h2 bp bvm' m e1 m'0 bvm' v1 cge). 
+   (*case: b he hte H11 h4=> //=.
    (* div *)
    + move=> he hte. case: s H7=> //= hs.
      (* signed *)

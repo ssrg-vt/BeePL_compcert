@@ -982,7 +982,7 @@ Printf.eprintf "[DEBUG] --- end of struct list ---\n%!";*)
     }
   
   
-let parse_file (filename : string) : Beepl_ast.program =
+let parse_bpl_ast (filename : string) : Beepl_ast.program =
   let ch = open_in filename in
   let lexbuf = from_channel ch in
   try
@@ -1003,5 +1003,7 @@ let parse_file (filename : string) : Beepl_ast.program =
     exit (-1)
 
 let parse_and_transform_bpl (filename : string) : BeePL.program =
-  let program = parse_file filename in
+  let program = parse_bpl_ast filename in
+  (* AST typecheck BEFORE lowering to Coq AST *)
+  Beepl_ast_typechecker.infer_program program;
   transform_program program
