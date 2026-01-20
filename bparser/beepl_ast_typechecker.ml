@@ -33,7 +33,7 @@ end
 let build_senv (prog : Beepl_ast.program) : Senv.t =
   List.fold_left
     (fun acc -> function
-      | Beepl_ast.StructDecl (name, fields) ->
+      | Beepl_ast.StructDecl (name, fields, _sec) ->
           Senv.add name fields acc
       | _ -> acc)
     Senv.empty
