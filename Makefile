@@ -439,7 +439,7 @@ clean:
 	rm -f tools/ndfun tools/modorder tools/*.cm? tools/*.o
 	rm -f $(GENERATED) .depend
 	rm -f .lia.cache
-        rm -f test.log test_dummy
+	rm -f test.log test_dummy
 	$(MAKE) -f Makefile.extr clean
 	$(MAKE) -C runtime clean
 
