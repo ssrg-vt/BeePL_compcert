@@ -465,7 +465,8 @@ CoqProject:
 
 beepl-compile-test: ccomp
 	@set -u; \
-	DIR=compiler_test/beepl_test/beepl_parser; \
+	: "$${TEST_DIR:?Usage: make beepl-compile-test TEST_DIR=path/to/tests}"; \
+	DIR="$$TEST_DIR"; \
 	LOG=test.log; \
 	> "$$LOG"; \
 	if date --iso-8601=seconds >/dev/null 2>&1; then \
