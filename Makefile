@@ -36,8 +36,10 @@ endif
 
 COQINCLUDES := $(foreach d, $(DIRS), -R $(d) compcert.$(d))
 
-DIRS += compiler_test/beepl
-COQINCLUDES += -R compiler_test/beepl BeePL_Progs
+#DIRS += compiler_test/beepl
+DIRS += compiler_test/beepl/ast compiler_test/beepl/beepl_success_load
+#COQINCLUDES += -R compiler_test/beepl BeePL_Progs
+COQINCLUDES += -R compiler_test/beepl/ast BeePL_Progs -R compiler_test/beepl/beepl_success_load BeePL_Progs.beepl_success_load
 
 ifeq ($(LIBRARY_FLOCQ),local)
 DIRS += flocq/Core flocq/Prop flocq/Calc flocq/IEEE754
@@ -153,6 +155,18 @@ VLIB=Axioms.v Coqlib.v Intv.v Maps.v Heaps.v Lattice.v Ordered.v \
 # Until BeePL has a functioning lexer and parser the test programs must be
 # compiled with the rest of CompCert
 
+#BEEPL_TESTS=\
+#    BeePL_progs.v \
+#    BeePL_progs.v BeePL_add.v BeePL_add_ptr.v BeePL_div_zero1.v BeePL_div_zero.v \
+#    BeePL_add_ex1.v BeePL_cond.v BeePL_app.v BeePL_funptr_ex1.v BeePL_bpf_get_prandom.v \
+#    BeePL_for_ex1.v BeePL_for_ex2.v BeePL_match_fail_ex1.v BeePL_external_call.v BeePL_null_ptr.v \
+#    BeePL_bitstring1.v BeePL_globvar1.v BeePL_bpf_xdp_packet_count.v BeePL_bpf_xdp_packet_count1.v \
+#    BeePL_bpf_map_example1.v BeePL_bpf_drop_xdp_packet_iPv6.v BeePL_bpf_handle_tp.v BeePL_add_ref.v \
+#    BeePL_cast.v BeePL_cast1.v BeePL_shift.v BeePL_bpf_map_null_check.v BeePL_section.v BeePL_bpf_safe_null_check.v \
+#    BeePL_globvar_local.v BeePL_no_addr_return.v BeePL_check_sec.v beepl_success_load/BeePL_bpf_xdp1.v beepl_success_load/BeePL_bpf_xdp2.v \
+#    beepl_success_load/BeePL_bpf_pid_tgid.v BeePL_var.v BeePL_bytes1.v BeePL_for3.v BeePL_array.v BeePL_array1.v BeePL_array2.v \
+#    BeePL_some.v BeePL_some_match.v
+
 BEEPL_TESTS=\
     BeePL_progs.v \
     BeePL_progs.v BeePL_add.v BeePL_add_ptr.v BeePL_div_zero1.v BeePL_div_zero.v \
@@ -161,8 +175,8 @@ BEEPL_TESTS=\
     BeePL_bitstring1.v BeePL_globvar1.v BeePL_bpf_xdp_packet_count.v BeePL_bpf_xdp_packet_count1.v \
     BeePL_bpf_map_example1.v BeePL_bpf_drop_xdp_packet_iPv6.v BeePL_bpf_handle_tp.v BeePL_add_ref.v \
     BeePL_cast.v BeePL_cast1.v BeePL_shift.v BeePL_bpf_map_null_check.v BeePL_section.v BeePL_bpf_safe_null_check.v \
-    BeePL_globvar_local.v BeePL_no_addr_return.v BeePL_check_sec.v beepl_success_load/BeePL_bpf_xdp1.v beepl_success_load/BeePL_bpf_xdp2.v \
-    beepl_success_load/BeePL_bpf_pid_tgid.v BeePL_var.v BeePL_bytes1.v BeePL_for3.v BeePL_array.v BeePL_array1.v BeePL_array2.v \
+    BeePL_globvar_local.v BeePL_no_addr_return.v BeePL_check_sec.v BeePL_bpf_xdp1.v BeePL_bpf_xdp2.v \
+    BeePL_bpf_pid_tgid.v BeePL_var.v BeePL_bytes1.v BeePL_for3.v BeePL_array.v BeePL_array1.v BeePL_array2.v \
     BeePL_some.v BeePL_some_match.v
 
 #  BeePL_div_zero.v BeePL_div_zero1.v BeePL_external_call.v BeePL_ref.v \
