@@ -73,7 +73,7 @@ rule read_token = parse
   | "ouint32*"      { ORUINT32TYPE }
   | "olong*"        { ORLONGTYPE }
   | "oulong*"       { ORULONGTYPE }
-  | "ostruct"      { ORSTRUCT }
+  | "ostruct"       { ORSTRUCT }
   | "io"            { IO }
   | "divergence"    { DIVERGENCE }
   | "read"          { READ }

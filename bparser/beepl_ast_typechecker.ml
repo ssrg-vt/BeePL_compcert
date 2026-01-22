@@ -55,6 +55,11 @@ let build_efenv () : efenv =
           effects = [Io];
           ret = Vtype Tint32;
           variadic = true }
+  |> Env.add "scanf"
+  { formals = [ Ptr (Reftype (Bprim Tint8)) ];
+    effects = [Io];
+    ret = Vtype Tint32;
+    variadic = true }
   |> Env.add "bpf_printk"
   { formals = [ Ptr (Reftype (Bprim Tint8)); Vtype Tint32];
     effects = [Io];
