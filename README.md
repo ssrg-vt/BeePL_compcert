@@ -64,7 +64,7 @@ To pretty print csyntax: `./ccomp ~/test.b -dc`
 4) Define the BeePL AST in the newly created Coq file
 5) Modify the required lines in `BeePL_progs.v` so the correct program gets extracted
 
-# eBPF helper mapping (`-bpfmap`)
+### eBPF helper mapping (`-bpfmap`)
 
 When compiling **for the `ebpf64` target**, add the `-bpfmap` flag to `ccomp` (e.g. `./ccomp test.bpl -bpfmap`). With `-bpfmap` the driver automatically replaces explicit eBPF helper function names with their numeric helper IDs as defined in `linux/bpf.h`, producing an object file ready for loading. If you omit `-bpfmap`, you must manually replace helper calls with their numeric codes in the generated eBPF bytecode and recompile to produce a correct object file.
 
