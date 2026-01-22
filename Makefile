@@ -36,8 +36,8 @@ endif
 
 COQINCLUDES := $(foreach d, $(DIRS), -R $(d) compcert.$(d))
 
-DIRS += compiler_test/beepl_test
-COQINCLUDES += -R compiler_test/beepl_test BeePL_Progs
+DIRS += compiler_test/beepl
+COQINCLUDES += -R compiler_test/beepl BeePL_Progs
 
 ifeq ($(LIBRARY_FLOCQ),local)
 DIRS += flocq/Core flocq/Prop flocq/Calc flocq/IEEE754
@@ -439,6 +439,7 @@ clean:
 	rm -f tools/ndfun tools/modorder tools/*.cm? tools/*.o
 	rm -f $(GENERATED) .depend
 	rm -f .lia.cache
+        rm -f test.log test_dummy
 	$(MAKE) -f Makefile.extr clean
 	$(MAKE) -C runtime clean
 
