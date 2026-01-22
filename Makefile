@@ -463,6 +463,39 @@ print-includes:
 CoqProject:
 	@echo $(COQINCLUDES) > _CoqProject
 
+beepl-compile-test: ccomp
+	@set -u; \
+	DIR=compiler_test/beepl_test/beepl_parser; \
+	LOG=test.log; \
+	> "$$LOG"; \
+	if date --iso-8601=seconds >/dev/null 2>&1; then \
+		NOW=$$(date --iso-8601=seconds); \
+	else \
+		NOW=$$(date); \
+	fi; \
+	printf "Compile run: %s\nDirectory: %s\n\n" "$$NOW" "$$DIR" >> "$$LOG"; \
+	total=0; succ=0; fail=0; \
+	for f in "$$DIR"/*; do \
+		[ -f "$$f" ] || continue; \
+		total=$$((total + 1)); \
+		base=$$(basename "$$f"); \
+		out=test_dummy; \
+		printf "=== %s ===\n" "$$base" >> "$$LOG"; \
+		output=$$(./ccomp "$$f" -o "$$out" 2>&1); \
+		exit_code=$$?; \
+		if [ $$exit_code -eq 0 ]; then \
+			printf "[%s] SUCCESS: %s -> %s\n%s\n\n" "$$(date)" "$$f" "$$out" "$$output" >> "$$LOG"; \
+			echo "OK: $$base"; \
+			succ=$$((succ + 1)); \
+		else \
+			printf "[%s] FAILURE: %s (exit code %d)\n%s\n\n" "$$(date)" "$$f" "$$exit_code" "$$output" >> "$$LOG"; \
+			echo "FAIL: $$base"; \
+			fail=$$((fail + 1)); \
+			rm -f "$$out" >/dev/null 2>&1; \
+		fi; \
+	done; \
+	printf "\nSummary: total=%d success=%d fail=%d\n" $$total $$succ $$fail | tee -a "$$LOG"
+
 -include .depend
 
 FORCE:
