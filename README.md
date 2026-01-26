@@ -16,6 +16,10 @@ features, installation instructions, using the compiler, etc), please
 refer to the [Web site](https://compcert.org/) and especially
 the [user's manual](https://compcert.org/man/).
 
+## Installing dependencies
+
+Run your script with `source ./install-dependencies.sh` so that `eval "$(opam env)"` updates your current shell; if you run it normally as `./install-dependencies.sh`, it runs in a subshell and the environment changes are lost when the script exits, so you end up needing to run `eval "$(opam env)"` afterward.
+
 ## License
 CompCert is not free software.  This non-commercial release can only
 be used for evaluation, research, educational and personal purposes.
