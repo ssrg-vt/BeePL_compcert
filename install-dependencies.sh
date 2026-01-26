@@ -6,3 +6,5 @@ opam install coq=9.0.0
 opam install menhir
 opam repo add coq-released https://coq.inria.fr/opam/released 
 opam install coq-mathcomp-ssreflect
+sudo apt install llvm
+export LIBRARY_PATH=/home/tester/BeePL_compcert/runtime/:$LIBRARY_PATH
