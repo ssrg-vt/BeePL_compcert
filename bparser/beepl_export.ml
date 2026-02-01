@@ -14,7 +14,7 @@ let extern_bindings_of_efenv (ee : Beepl_ast_typechecker.efenv) : (string * typ)
 let build_senv (prog : program) : Beepl_ast_typechecker.Senv.t =
   List.fold_left
     (fun acc -> function
-      | StructDecl (name, fields) ->
+      | StructDecl (name, fields, _sec) ->
           Beepl_ast_typechecker.Senv.add name fields acc
       | _ -> acc)
     Beepl_ast_typechecker.Senv.empty
@@ -130,7 +130,7 @@ let export_collect_idents (prog : program) (ee : Beepl_ast_typechecker.efenv) : 
              let acc = List.fold_left add_var acc args in
              from_expr acc body
 
-         | StructDecl (sname, fields) ->
+         | StructDecl (sname, fields, _sec) ->
              let acc = if List.mem sname acc then acc else sname :: acc in
              List.fold_left add_var acc fields
 
@@ -868,7 +868,7 @@ let export_coq_program_wrapper ?(name="example1") (entry : string) : string =
 let export_transform_toplevel ~ee ~senv ~globals = function
 | Internal(f, _) -> export_transform_function ~ee ~senv ~globals f false
 | EBPFInternal(f, _) -> export_transform_function ~ee ~senv ~globals f true
-| StructDecl (name, fields) -> ""
+| StructDecl (name, fields, _sec) -> ""
 | GlobalLet (name, t, e, _) ->
     let env = globals in
     let body_str = export_expr_to_coq ee senv env e in
@@ -909,7 +909,7 @@ let export_collect_globals (prog : program) : (string * typ) list =
   let struct_frags =
     List.filter_map
       (function
-        | StructDecl (name, fields) -> Some (export_transform_struct name fields)
+        | StructDecl (name, fields, _sec) -> Some (export_transform_struct name fields)
         | _ -> None)
       prog
   in

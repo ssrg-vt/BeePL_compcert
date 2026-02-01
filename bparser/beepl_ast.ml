@@ -104,7 +104,7 @@ type fundecl =
 type toplevel =
   | Internal of fundecl * string option  (* section *)
   | EBPFInternal of fundecl * string option
-  | StructDecl of string * (string * typ) list
+  | StructDecl of string * (string * typ) list * string option
   | GlobalLet of string * typ * expr * string option  (* section *)
 
 
