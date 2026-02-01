@@ -8,10 +8,10 @@ struct xdp_md {
 }
 
 #section license
-let _license : int8[4] = "GPL"
+let _license : int8* = "GPL"
 
 #ebpf
 #section xdp
-fun xdp_prog (struct xdp_md* p) : int32, [] {
+fun xdp_prog (ostruct xdp_md* p) : int32, [] {
   let d : int32 = bpf_printk("Hello!", 7) in 2
 }
