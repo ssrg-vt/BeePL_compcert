@@ -112,7 +112,7 @@ Proof.
     + constructor. inv Hloc. intros. specialize (H x0 ofs t0 chunk).
       apply H; auto.
     + constructor. inv Hfunc.
-      intros. specialize (H l0 o ef te ts efs rt vs efs' H2 H3 H4).
+     intros. specialize (H l0 o ef te ts efs rt v vs efs' H2 H3 H4).
       destruct H as [fd H].
       exists fd.
       destruct H as [h1 [h2 [h3 [h4 h5]]]].

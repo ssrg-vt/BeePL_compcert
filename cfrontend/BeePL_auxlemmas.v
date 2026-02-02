@@ -265,7 +265,7 @@ apply IHp in H0. destruct H0 as [bts [bef [brt]]].
 destruct H as [H0 [H1 H2]]. exists bts. exists bef. exists brt.
 split; auto. rewrite <- H0. admit.
 exists l. exists e. exists t.
-split; auto. split; auto.
+split; auto. 
 admit.
 Admitted.
 
