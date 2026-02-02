@@ -64,7 +64,291 @@ let debug_dump_csyntax_globals (p : Csyntax.program) =
        prerr_endline (Printf.sprintf "  %s %s" kind name))
     p.Ctypes.prog_defs;
   prerr_endline "[DEBUG] End of globals.";
-  flush stderr*)
+  flush stderr
+
+let debug_find_missing_public (p : Csyntax.program) =
+  let defs_tbl = Hashtbl.create 251 in
+  List.iter (fun (id, _gd) -> Hashtbl.replace defs_tbl id true) p.Ctypes.prog_defs;
+
+  let missing =
+    List.filter (fun id -> not (Hashtbl.mem defs_tbl id)) p.Ctypes.prog_public
+  in
+
+  if missing <> [] then begin
+    prerr_endline "[DEBUG] prog_public contains ids not present in prog_defs:";
+    List.iter (fun id ->
+      let name =
+        try Hashtbl.find Camlcoq.string_of_atom id
+        with Not_found -> Printf.sprintf "<atom %d>" (Camlcoq.P.to_int id)
+      in
+      prerr_endline ("  " ^ name)
+    ) missing;
+    prerr_endline "[DEBUG] end missing-public list.";
+    flush stderr
+  end else begin
+    prerr_endline "[DEBUG] All prog_public ids exist in prog_defs.";
+    flush stderr
+  end
+
+let defs_id_set (p : Csyntax.program) =
+  let tbl = Hashtbl.create 251 in
+  List.iter (fun (id, _gd) -> Hashtbl.replace tbl id true) p.Ctypes.prog_defs;
+  tbl
+
+(* Collect locals (params + locals) so we can distinguish locals from globals. *)
+let locals_of_function fn =
+  let tbl = Hashtbl.create 97 in
+  List.iter (fun (id, _ty) -> Hashtbl.replace tbl id ()) fn.Csyntax.fn_params;
+  List.iter (fun (id, _ty) -> Hashtbl.replace tbl id ()) fn.Csyntax.fn_vars;
+  tbl
+
+let rec collect_expr_global_refs (acc : AST.ident list ref) (locals : (AST.ident, unit) Hashtbl.t) (e : Csyntax.expr) =
+  match e with
+  | Csyntax.Eval _ -> ()
+  | Csyntax.Evar (id, _t) ->
+      (* Only treat it as a global ref if it is NOT a local. *)
+      if not (Hashtbl.mem locals id) then acc := id :: !acc
+  | Csyntax.Efield (a1, _f, _t) -> collect_expr_global_refs acc locals a1
+  | Csyntax.Evalof (l, _t) -> collect_expr_global_refs acc locals l
+  | Csyntax.Ederef (a1, _t) -> collect_expr_global_refs acc locals a1
+  | Csyntax.Eaddrof (a1, _t) -> collect_expr_global_refs acc locals a1
+  | Csyntax.Eunop (_op, a1, _t) -> collect_expr_global_refs acc locals a1
+  | Csyntax.Ebinop (_op, a1, a2, _t) ->
+      collect_expr_global_refs acc locals a1;
+      collect_expr_global_refs acc locals a2
+  | Csyntax.Ecast (a1, _t) -> collect_expr_global_refs acc locals a1
+  | Csyntax.Eseqand (a1, a2, _t)
+  | Csyntax.Eseqor (a1, a2, _t)
+  | Csyntax.Ecomma (a1, a2, _t) ->
+      collect_expr_global_refs acc locals a1;
+      collect_expr_global_refs acc locals a2
+  | Csyntax.Econdition (a1, a2, a3, _t) ->
+      collect_expr_global_refs acc locals a1;
+      collect_expr_global_refs acc locals a2;
+      collect_expr_global_refs acc locals a3
+  | Csyntax.Esizeof _ -> ()
+  | Csyntax.Ealignof _ -> ()
+  | Csyntax.Eassign (l, r, _t) -> 
+      collect_expr_global_refs acc locals l;
+      collect_expr_global_refs acc locals r
+  | Csyntax.Eassignop (_op, l, r, _t', _t) ->
+      collect_expr_global_refs acc locals l;
+      collect_expr_global_refs acc locals r
+  | Csyntax.Epostincr (_id, l, _t) ->
+      collect_expr_global_refs acc locals l
+  | Csyntax.Ecall (r1, rargs, _t) ->
+      collect_expr_global_refs acc locals r1;
+      collect_exprlist_global_refs acc locals rargs
+  | Csyntax.Ebuiltin (_ef, _tyargs, rargs, _t) ->
+      collect_exprlist_global_refs acc locals rargs
+  | Csyntax.Eloc _ -> ()
+  | Csyntax.Eparen (r, _t', _t) -> collect_expr_global_refs acc locals r
+
+and collect_exprlist_global_refs (acc : AST.ident list ref) (locals : (AST.ident, unit) Hashtbl.t) (el : Csyntax.exprlist) =
+  match el with
+  | Csyntax.Enil -> ()
+  | Csyntax.Econs (r1, rl) ->
+      collect_expr_global_refs acc locals r1;
+      collect_exprlist_global_refs acc locals rl
+
+let rec collect_stmt_global_refs (acc : AST.ident list ref) (locals : (AST.ident, unit) Hashtbl.t) (s : Csyntax.statement) =
+  match s with
+  | Csyntax.Sskip -> ()
+  | Csyntax.Sdo e -> collect_expr_global_refs acc locals e
+  | Csyntax.Ssequence (s1, s2) ->
+      collect_stmt_global_refs acc locals s1;
+      collect_stmt_global_refs acc locals s2
+  | Csyntax.Sifthenelse (e, s1, s2) ->
+      collect_expr_global_refs acc locals e;
+      collect_stmt_global_refs acc locals s1;
+      collect_stmt_global_refs acc locals s2
+  | Csyntax.Swhile (e, s1)
+  | Csyntax.Sdowhile (e, s1) ->
+      collect_expr_global_refs acc locals e;
+      collect_stmt_global_refs acc locals s1
+  | Csyntax.Sfor (s1, e, s2, s3) ->
+      collect_stmt_global_refs acc locals s1;
+      collect_expr_global_refs acc locals e;
+      collect_stmt_global_refs acc locals s2;
+      collect_stmt_global_refs acc locals s3
+  | Csyntax.Sbreak -> ()
+  | Csyntax.Scontinue -> ()
+  | Csyntax.Sreturn None -> ()
+  | Csyntax.Sreturn (Some e) -> collect_expr_global_refs acc locals e
+  | Csyntax.Sswitch (e, cases) ->
+      collect_expr_global_refs acc locals e;
+      collect_lblstmt_global_refs acc locals cases
+  | Csyntax.Slabel (_lbl, s1) -> collect_stmt_global_refs acc locals s1
+  | Csyntax.Sgoto _ -> ()
+
+and collect_lblstmt_global_refs (acc : AST.ident list ref) (locals : (AST.ident, unit) Hashtbl.t) (ls : Csyntax.labeled_statements) =
+  match ls with
+  | Csyntax.LSnil -> ()
+  | Csyntax.LScons (_lbl, s, rest) ->
+      collect_stmt_global_refs acc locals s;
+      collect_lblstmt_global_refs acc locals rest
+
+let debug_find_undefined_references (p : Csyntax.program) =
+  let defs_tbl = Hashtbl.create 251 in
+  List.iter (fun (id, _gd) -> Hashtbl.replace defs_tbl id true) p.Ctypes.prog_defs;
+
+  let refs = ref [] in
+
+  List.iter
+  (fun (_id, gd) ->
+    match gd with
+    | AST.Gfun (Ctypes.Internal f) ->
+        let locals = locals_of_function f in
+        collect_stmt_global_refs refs locals f.Csyntax.fn_body
+    | _ -> ())
+  p.Ctypes.prog_defs;
+
+  (* uniq *)
+  let seen = Hashtbl.create 251 in
+  let uniq =
+    List.filter
+      (fun id ->
+        if Hashtbl.mem seen id then false else (Hashtbl.add seen id true; true))
+      !refs
+  in
+
+  let missing = List.filter (fun id -> not (Hashtbl.mem defs_tbl id)) uniq in
+
+  if missing = [] then
+    prerr_endline "[DEBUG] No undefined Evar references found in function bodies."
+  else begin
+    prerr_endline "[DEBUG] Undefined Evar references found:";
+    List.iter
+      (fun id ->
+        let name =
+          try Hashtbl.find Camlcoq.string_of_atom id
+          with Not_found -> Printf.sprintf "<atom %d>" (Camlcoq.P.to_int id)
+        in
+        prerr_endline ("  " ^ name))
+      missing;
+    prerr_endline "[DEBUG] End undefined references."
+  end;
+  flush stderr
+
+let show_atom (id : AST.ident) =
+  try Hashtbl.find Camlcoq.string_of_atom id
+  with Not_found -> Printf.sprintf "<atom %d>" (Camlcoq.P.to_int id)
+
+let ptree_iter (f : Maps.PTree.elt -> 'a -> unit) (t : 'a Maps.PTree.t) : unit =
+  ignore (Maps.PTree.fold (fun acc k v -> f k v; acc) t ())
+
+let rec string_of_type (t : Ctypes.coq_type) : string =
+  match t with
+  | Ctypes.Tvoid -> "void"
+
+  | Ctypes.Tint (sz, sg, _attr) ->
+      let szs =
+        match sz with
+        | Ctypes.I8 -> "i8"
+        | Ctypes.I16 -> "i16"
+        | Ctypes.I32 -> "i32"
+        | Ctypes.IBool -> "bool"
+      in
+      let sgs = match sg with Ctypes.Signed -> "s" | Ctypes.Unsigned -> "u" in
+      sgs ^ szs
+
+  | Ctypes.Tlong (sg, _attr) ->
+      (match sg with Ctypes.Signed -> "slong" | Ctypes.Unsigned -> "ulong")
+
+  | Ctypes.Tfloat (fsz, _attr) ->
+      (match fsz with Ctypes.F32 -> "f32" | Ctypes.F64 -> "f64")
+
+  | Ctypes.Tpointer (t1, _attr) ->
+      (string_of_type t1) ^ "*"
+
+  | Ctypes.Tarray (t1, sz, _attr) ->
+      Printf.sprintf "%s[%s]" (string_of_type t1) (Camlcoq.Z.to_string sz)
+
+  | Ctypes.Tfunction (_args, _res, _cc) ->
+      "fn(...)"
+
+  | Ctypes.Tstruct (id, _attr) ->
+      "struct " ^ show_atom id
+
+  | Ctypes.Tunion (id, _attr) ->
+      "union " ^ show_atom id
+
+
+let pp_typ (t : Ctypes.coq_type) =
+  Format.asprintf "%s" (string_of_type t)
+
+let show_atom (id : AST.ident) =
+  try Hashtbl.find Camlcoq.string_of_atom id
+  with Not_found -> Printf.sprintf "<atom %d>" (Camlcoq.P.to_int id)
+
+let show_su = function
+  | Ctypes.Struct -> "struct"
+  | Ctypes.Union  -> "union"
+
+let show_intsize = function
+  | Ctypes.I8  -> "I8"
+  | Ctypes.I16 -> "I16"
+  | Ctypes.I32 -> "I32"
+  | Ctypes.IBool -> "IBool"
+
+let show_signedness = function
+  | Ctypes.Signed   -> "signed"
+  | Ctypes.Unsigned -> "unsigned"
+
+let debug_dump_composites (p : Csyntax.program) =
+  prerr_endline "[DEBUG] Composites in prog_types:";
+  List.iter
+    (fun (co : Ctypes.composite_definition) ->
+      match co with
+      | Ctypes.Composite (cid, su, members, _attr) ->
+          let su_str =
+            match su with Ctypes.Struct -> "struct" | Ctypes.Union -> "union"
+          in
+          prerr_endline (Printf.sprintf "  %s %s {" su_str (show_atom cid));
+          List.iter
+            (fun (m : Ctypes.member) ->
+              match m with
+              | Ctypes.Member_plain (fid, _ty) ->
+                  prerr_endline (Printf.sprintf "    field %s" (show_atom fid))
+              | Ctypes.Member_bitfield (fid, sz, sg, _a, width, padding) ->
+                  prerr_endline
+                    (Printf.sprintf
+                       "    bitfield %s sz=%s sg=%s width=%s padding=%b"
+                       (show_atom fid)
+                       (show_intsize sz)
+                       (show_signedness sg)
+                       (Camlcoq.Z.to_string width)
+                       padding))
+            members;
+          prerr_endline "  }"
+    )
+    p.Ctypes.prog_types;
+  prerr_endline "[DEBUG] End composites.";
+  flush stderr
+
+let show_id id =
+  let name =
+    try Hashtbl.find Camlcoq.string_of_atom id
+    with Not_found -> "<no-name>"
+  in
+  Printf.sprintf "%s (atom=%d)" name (Camlcoq.P.to_int id)
+
+let debug_dump_function_locals (p : Csyntax.program) =
+  prerr_endline "[DEBUG] Function params/locals:";
+  List.iter
+    (fun (gid, gd) ->
+      match gd with
+      | AST.Gfun (Ctypes.Internal f) ->
+          prerr_endline ("  function " ^ show_id gid);
+          prerr_endline "    params:";
+          List.iter (fun (id, _ty) -> prerr_endline ("      " ^ show_id id))
+            f.Csyntax.fn_params;
+          prerr_endline "    locals:";
+          List.iter (fun (id, _ty) -> prerr_endline ("      " ^ show_id id))
+            f.Csyntax.fn_vars;
+      | _ -> ())
+    p.Ctypes.prog_defs;
+  flush stderr *)
 
 (* Name used for version string etc. *)
 let tool_name = "C verified compiler"
@@ -311,6 +595,13 @@ let populate_decl_atom (section_info : (AST.ident * BeePL_Csyntax.csyntax_atom_i
             "error during transf_beepl_program_csyntax: %a"
             print_error msg
     in
+    (*prerr_endline "===== [DEBUG] After BeePL -> Csyntax =====";
+    debug_dump_csyntax_globals csyntax;
+    debug_dump_csyntax_public csyntax;
+    debug_dump_composites csyntax;
+    debug_find_undefined_references csyntax;
+    debug_dump_function_locals csyntax;
+    flush stderr;
     
     (* Register atoms: numeric ids <-> names *)
     List.iter
@@ -319,6 +610,12 @@ let populate_decl_atom (section_info : (AST.ident * BeePL_Csyntax.csyntax_atom_i
          Hashtbl.add Camlcoq.string_of_atom id s;
          Hashtbl.add Camlcoq.atom_of_string s id)
       ident_to_string;
+    let show_atom id =
+      try Hashtbl.find Camlcoq.string_of_atom id
+      with Not_found -> Printf.sprintf "<atom %d>" (Camlcoq.P.to_int id)
+      in
+      prerr_endline ("[DEBUG] prog_main atom = " ^ show_atom csyntax.Ctypes.prog_main);
+      flush stderr;*)
   
     (* Section / storage info for globals *)
     populate_decl_atom section_info;
@@ -330,6 +627,14 @@ let populate_decl_atom (section_info : (AST.ident * BeePL_Csyntax.csyntax_atom_i
         Ctypes.prog_defs   = gl;
         Ctypes.prog_public = (*main_id ::*) C2C.public_globals gl }
     in
+    (*prerr_endline "===== [DEBUG] After add_helper_functions / public_globals =====";
+    debug_dump_composites updated_csyntax;
+    debug_dump_csyntax_globals updated_csyntax;
+    debug_dump_csyntax_public updated_csyntax;
+    debug_find_undefined_references csyntax;
+    debug_dump_function_locals csyntax;
+    prerr_endline ("[DEBUG] updated prog_main atom = " ^ show_atom updated_csyntax.Ctypes.prog_main);
+    flush stderr;*)
   
     PrintCsyntax.print_if updated_csyntax;
   
@@ -340,12 +645,13 @@ let populate_decl_atom (section_info : (AST.ident * BeePL_Csyntax.csyntax_atom_i
               Asmexpand.expand_program with
       | Errors.OK asm -> asm
       | Errors.Error msg ->
-          prerr_endline "[DEBUG] error during transf_c_program; dumping Csyntax...";
+          (*prerr_endline "[DEBUG] error during transf_c_program; dumping Csyntax...";
           flush stderr;
-  
+          debug_dump_composites updated_csyntax;
           debug_dump_csyntax_globals updated_csyntax;
           debug_dump_csyntax_public updated_csyntax;
-          debug_dump_csyntax_to_file sourcename updated_csyntax;
+          debug_find_undefined_references updated_csyntax;
+          debug_dump_csyntax_to_file sourcename updated_csyntax;*)
   
           let loc = file_loc sourcename in
           fatal_error loc
@@ -359,11 +665,14 @@ let populate_decl_atom (section_info : (AST.ident * BeePL_Csyntax.csyntax_atom_i
               Asmexpand.expand_program with
       | Errors.OK asm -> asm
       | Errors.Error msg ->
-          let loc = file_loc sourcename in
-          fatal_error loc
-            "error during transf_c_program: %a"
-            print_error msg
-    in
+        (*prerr_endline "[DEBUG] transf_c_program failed; checking prog_public vs prog_defs...";
+        debug_find_missing_public updated_csyntax;
+        prerr_endline "[DEBUG] Full error message:";
+        prerr_endline (Format.asprintf "%a" print_error msg);
+        flush stderr;*)
+        let loc = file_loc sourcename in
+        fatal_error loc "error during transf_c_program: %a" print_error msg
+        in
   
     AsmToJSON.print_if asm sourcename;
     let oc = open_out ofile in
@@ -463,6 +772,7 @@ let populate_decl_atom (section_info : (AST.ident * BeePL_Csyntax.csyntax_atom_i
           debug_dump_csyntax_globals updated_csyntax;
           flush stderr;
           debug_dump_csyntax_to_file sourcename updated_csyntax;
+          debug_dump_function_locals update_csyntax;
           flush stderr;
   
           fatal_error loc
