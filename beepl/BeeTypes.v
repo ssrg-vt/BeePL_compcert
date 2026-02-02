@@ -756,7 +756,7 @@ match ty with
 | Utype => None
 | Stype _ _ => None
 | Bytes => None
-| Ftype _ _ _ => None
+| Ftype _ _ _ _ => None
 | Atype _ _ _ => None
 | _ => Some BMint64  (* Assuming 64-bit architecture *)
 end.
