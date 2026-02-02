@@ -8,13 +8,13 @@ open Beepl_ast_typechecker
 let extern_bindings_of_efenv (ee : Beepl_ast_typechecker.efenv) : (string * typ) list =
   Beepl_ast_typechecker.Env.bindings ee
   |> List.map (fun (name, info) ->
-       (name, Ftype (info.formals, info.effects, info.ret)))
+       (name, Ftype (info.formals, info.effects, info.ret, info.variadic)))
 
 (* Build struct environment from the program *)
 let build_senv (prog : program) : Beepl_ast_typechecker.Senv.t =
   List.fold_left
     (fun acc -> function
-      | StructDecl (name, fields) ->
+      | StructDecl (name, fields, _sec) ->
           Beepl_ast_typechecker.Senv.add name fields acc
       | _ -> acc)
     Beepl_ast_typechecker.Senv.empty
@@ -130,7 +130,7 @@ let export_collect_idents (prog : program) (ee : Beepl_ast_typechecker.efenv) : 
              let acc = List.fold_left add_var acc args in
              from_expr acc body
 
-         | StructDecl (sname, fields) ->
+         | StructDecl (sname, fields, _sec) ->
              let acc = if List.mem sname acc then acc else sname :: acc in
              List.fold_left add_var acc fields
 
@@ -312,14 +312,15 @@ match t with
       "Atype (%s) %d noattr"
       (export_typ_to_coq elem_type) size
 
-| Ftype (arg_types, effs, ret_type) ->
+| Ftype (arg_types, effs, ret_type, va) ->
     let arg_strs = List.map export_typ_to_coq arg_types in
     let eff_strs = export_effect_to_coq_list effs in
     Printf.sprintf
-      "Ftype (%s) (%s) (%s)"
+      "Ftype (%s) (%s) (%s) (%s)"
       (export_coq_list arg_strs)
       eff_strs
       (export_typ_to_coq ret_type)
+      (if va then "true" else "false")
 
 | Bytes ->
     "Bytes"
@@ -697,7 +698,7 @@ let export_starts_with ~prefix s =
   String.length s >= plen && String.sub s 0 plen = prefix
 
   let export_cc_of_efinfo (_variadic : bool) (_fixed_arity : int) : string =
-    "cc_default"
+    if _variadic then "cc_vararg" else "cc_default"
   
   let export_bsig_of_external
       (formals : typ list)
@@ -747,14 +748,15 @@ let export_coq_external_globdefs
        in
 
        (* 2) globdef wrapping that external_function *)
+       let cc = export_cc_of_efinfo info.variadic (List.length info.formals) in
        let glob_def =
          Printf.sprintf
            "Definition %s : AST.globdef BeePL.fundef type :=\n\
             \  AST.Gfun (BeePL.External %s\n\
             \                           (%s)\n\
             \                           (%s)\n\
-            \                           (cc_default))."
-           glob_name ef_name args_coq res_coq
+            \                           (%s))."
+           glob_name ef_name args_coq res_coq cc
        in
 
        (* 3) entry for global_definitions *)
@@ -866,7 +868,7 @@ let export_coq_program_wrapper ?(name="example1") (entry : string) : string =
 let export_transform_toplevel ~ee ~senv ~globals = function
 | Internal(f, _) -> export_transform_function ~ee ~senv ~globals f false
 | EBPFInternal(f, _) -> export_transform_function ~ee ~senv ~globals f true
-| StructDecl (name, fields) -> ""
+| StructDecl (name, fields, _sec) -> ""
 | GlobalLet (name, t, e, _) ->
     let env = globals in
     let body_str = export_expr_to_coq ee senv env e in
@@ -907,7 +909,7 @@ let export_collect_globals (prog : program) : (string * typ) list =
   let struct_frags =
     List.filter_map
       (function
-        | StructDecl (name, fields) -> Some (export_transform_struct name fields)
+        | StructDecl (name, fields, _sec) -> Some (export_transform_struct name fields)
         | _ -> None)
       prog
   in

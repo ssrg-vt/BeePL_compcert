@@ -1,3 +1,7 @@
+val parse_bpl_ast : string -> Beepl_ast.program
+
+val transform_program : Beepl_ast.program -> BeePL.program
+
 val parse_and_transform_bpl : string -> BeePL.program
 
 val string_globals : (string, string) Hashtbl.t

@@ -31,7 +31,7 @@ type typ =
   | Ptr of ptrtype
   | Stype of string  (* struct type name *)
   | Atype of typ * int  (* array type with fixed size *)
-  | Ftype of typ list * effect list * typ
+  | Ftype of typ list * effect list * typ * bool  (* function type: args, effects, return type, is_variadic *)
   | Bytes
 
 type const = 
@@ -104,7 +104,7 @@ type fundecl =
 type toplevel =
   | Internal of fundecl * string option  (* section *)
   | EBPFInternal of fundecl * string option
-  | StructDecl of string * (string * typ) list
+  | StructDecl of string * (string * typ) list * string option
   | GlobalLet of string * typ * expr * string option  (* section *)
 
 

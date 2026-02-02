@@ -43,6 +43,8 @@ rule read_token = parse
   | ":="            { MASSGN }
   | "true"          { BOOL true }
   | "false"         { BOOL false }
+  | "vararg"   { VARARG }
+  | "novararg" { NOVARARG }
   | "unit"          { UNIT }
   | "int8"          { INT8TYPE }
   | "uint8"         { UINT8TYPE }
@@ -71,7 +73,7 @@ rule read_token = parse
   | "ouint32*"      { ORUINT32TYPE }
   | "olong*"        { ORLONGTYPE }
   | "oulong*"       { ORULONGTYPE }
-  | "ostruct"      { ORSTRUCT }
+  | "ostruct"       { ORSTRUCT }
   | "io"            { IO }
   | "divergence"    { DIVERGENCE }
   | "read"          { READ }
@@ -128,7 +130,7 @@ rule read_token = parse
   | ident as id     { IDENT id }
   | "#ebpf"         { HASHEBPF }
   (* #section "<anything but newline and unescaped quote>" *)
-  | "#section" whitespace+ (letter identchar*) as id { SECTION id }
+  | "#section" whitespace+ (('.' | letter) (letter | digit | '_' | '/' | '.' | '-')*) as id { SECTION id }
 
   (* #section path/like/name allowing / . - _ after the first char *)
   | "#section" whitespace+ (letter (letter | digit | '_' | '/' | '.' | '-')*) as id { SECTION id }

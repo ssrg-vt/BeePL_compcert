@@ -26,10 +26,10 @@ struct trace_event_raw_sys_enter {
 
 
 #section license
-let _license : int8[4] = "GPL"
+let _license : int8* = "GPL"
 
 #ebpf
 #section tracepoint/syscalls/sys_enter_execve
-fun tick_prog (struct trace_event_raw_sys_enter* p) : int32, [] {
-    let r : int32 = bpf_printk("tick", 4) in 0
+fun tick_prog (ostruct trace_event_raw_sys_enter* p) : int32, [] {
+    let r : int32 = bpf_printk("tick", 5) in 0
 }

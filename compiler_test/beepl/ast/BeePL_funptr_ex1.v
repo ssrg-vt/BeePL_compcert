@@ -70,9 +70,9 @@ Definition f_compute : BeePL.function := {|
                                    fn_callconv := cc_default;
                                    fn_args := ((_x, tint32s) :: 
                                                (_y, tint32s) :: 
-                                               (_fp, (tpfun (tint32s :: tint32s :: nil) nil tint32s)) :: nil); 
+                                               (_fp, (tpfun (tint32s :: tint32s :: nil) nil tint32s false)) :: nil); 
                                    fn_vars := nil;
-                                   fn_body := (App (Var _fp (tpfun (tint32s :: tint32s :: nil) nil tint32s))
+                                   fn_body := (App (Var _fp (tpfun (tint32s :: tint32s :: nil) nil tint32s false))
                                                    (Var _x tint32s :: 
                                                     Var _y tint32s :: nil) tint32s);
                                    is_ebpf := false |}.
@@ -87,11 +87,11 @@ Definition f_main : BeePL.function := {|
                                    fn_body := 
                                               Bind 
                                                    (_r) tint32s
-                                                   (App (Var _compute (tfun (tint32s :: tint32s :: tpfun (tint32s :: tint32s :: nil) nil tint32s :: nil) 
-                                                                       nil tint32s))
+                                                   (App (Var _compute (tfun (tint32s :: tint32s :: tpfun (tint32s :: tint32s :: nil) nil tint32s false :: nil) 
+                                                                       nil tint32s false))
                                                         (cint (Int.repr 3) tint32s ::
                                                          cint (Int.repr 4) tint32s ::
-                                                         Var _add (tfun (tint32s :: tint32s :: nil) nil tint32s) :: nil) 
+                                                         Var _add (tfun (tint32s :: tint32s :: nil) nil tint32s false) :: nil) 
                                                          tint32s)
                                                    (Var _r tint32s) tint32s; 
                                    is_ebpf := false |}.

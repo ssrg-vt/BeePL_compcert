@@ -19,9 +19,6 @@ Local Open Scope csyntax_scope.
 
 Definition _xdp_md_bee : ident := $"_xdp_md_bee".
 Definition _data_bee   : ident := $"_data_bee".
-
-Definition _ctx        : ident := $"ctx".
-
 Definition _xdp_md     : ident := $"xdp_md".
 Definition _data       : ident := $"_data".
 Definition _data_end   : ident := $"_data_end".
@@ -32,8 +29,7 @@ Definition _egress_ifindex  : ident := $"_egress_ifindex".
 
 (* Local mapping of idents to strings that we always want exported *)
 Definition ident_to_string_ctx_xdp : list (ident * string) := 
-  (_ctx,        "ctx")
-  :: (_xdp_md,    "xdp_md")
+  (_xdp_md,    "xdp_md")
   :: (_data,      "_data")
   :: (_data_end,  "_data_end")
   :: (_data_meta, "_data_meta")
@@ -129,7 +125,7 @@ Definition transform_ctx_ebpf_ctx
   match args with
   | (arg_id, _t) :: nil =>
       (* Ignore BeePL's type, standardize on xdp_md *ctx *)
-      OK (( _ctx
+      OK (( arg_id
           , Tpointer (Tstruct _xdp_md noattr) noattr
           ) :: nil)
   | nil =>

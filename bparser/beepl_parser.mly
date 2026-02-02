@@ -6,6 +6,8 @@ open Beepl_ast
 %token <int32> INT32
 %token <int64> INT64
 %token <bool> BOOL
+%token VARARG
+%token NOVARARG
 %token UP DOWN DOT
 %token INT8TYPE UINT8TYPE
 %token INT16TYPE UINT16TYPE 
@@ -70,8 +72,12 @@ toplevel:
       | (false, sec) -> Internal (f, sec)
       | (true, sec)  -> EBPFInternal (f, sec)
     }
-  | STRUCT id = IDENT LBRACE fields = separated_list(COMMA, field_decl) RBRACE
-    { StructDecl(id, fields) }
+  | anns = annotations STRUCT id = IDENT LBRACE fields = separated_list(COMMA, field_decl) RBRACE
+  {
+    match anns with
+    | (false, sec) -> StructDecl(id, fields, sec)
+    | (true, _sec) -> failwith "Struct decl cannot be eBPF"
+  }
   | anns = annotations LET id = IDENT COLON t = typ EQ e = expr
     {
       match anns with
@@ -104,6 +110,10 @@ effect:
   | WRITE { Write }
   | ALLOC { Alloc }
   | IO { Io }
+
+vararg_flag:
+| VARARG   { true }
+| NOVARARG { false }
 
 typ:
   | BOOLTYPE  { Vtype Tbool }
@@ -158,7 +168,7 @@ typ:
   | STRUCT id = IDENT { Stype id }
   | t = typ LBRACK n = INT32 RBRACK { Atype(t, Int32.to_int n) }
   | FUNTYPE LPAREN args = separated_list(COMMA, typ) RPAREN
-    COLON eff = separated_list(COMMA, effect) COMMA ret = typ { Ftype(args, eff, ret) }
+    COLON eff = separated_list(COMMA, effect) COMMA ret = typ COMMA va = vararg_flag { Ftype(args, eff, ret, va) }
   | BYTES { Bytes }
 
 (* --- END OF typ --- *)

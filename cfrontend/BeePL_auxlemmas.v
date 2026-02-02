@@ -197,10 +197,10 @@ induction bt'; try inv H1; auto.
 Qed.
 
 (* Might have to generalize dependent *)
-(* Easy *)
+(* Easy *) 
 Lemma transBeePL_type_pfunction : forall t cts ct c,
 transBeePL_ptr_type t = (Tfunction cts ct c) ->
-exists bts bef brt, t = Fptype bts bef brt /\ transBeePL_types transBeePL_type bts = cts /\ transBeePL_type brt = ct. 
+exists bts bef brt, t = Fptype bts bef brt (cc_vararg c) /\ transBeePL_types transBeePL_type bts = cts /\ transBeePL_type brt = ct. 
 Proof.
 intro.  induction t. generalize dependent a. induction b. induction p; intros; try inv H.
 intros. simpl in *. inv H.
@@ -254,7 +254,7 @@ Admitted.
 (* Easy *)
 Lemma transBeePL_type_function : forall t cts ct c,
 transBeePL_type t = (Tfunction cts ct c) ->
-exists bts bef brt, t = Ftype bts bef brt /\ transBeePL_types transBeePL_type bts = cts /\ transBeePL_type t = ct. 
+exists bts bef brt, t = Ftype bts bef brt (cc_vararg c) /\ transBeePL_types transBeePL_type bts = cts /\ transBeePL_type t = ct. 
 Proof.
 induction t; intros; try inv H.
 induction p; try inv H1.

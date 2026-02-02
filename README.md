@@ -16,6 +16,10 @@ features, installation instructions, using the compiler, etc), please
 refer to the [Web site](https://compcert.org/) and especially
 the [user's manual](https://compcert.org/man/).
 
+## Installing dependencies
+
+Run your script with `source ./install-dependencies.sh` so that `eval "$(opam env)"` updates your current shell; if you run it normally as `./install-dependencies.sh`, it runs in a subshell and the environment changes are lost when the script exits, so you end up needing to run `eval "$(opam env)"` afterward.
+
 ## License
 CompCert is not free software.  This non-commercial release can only
 be used for evaluation, research, educational and personal purposes.
@@ -63,6 +67,10 @@ To pretty print csyntax: `./ccomp ~/test.b -dc`
 3) In `BeePL_progs.v` `Require Import` the file
 4) Define the BeePL AST in the newly created Coq file
 5) Modify the required lines in `BeePL_progs.v` so the correct program gets extracted
+
+### eBPF helper mapping (`-bpfmap`)
+
+When compiling **for the `ebpf64` target**, add the `-bpfmap` flag to `ccomp` (e.g. `./ccomp test.bpl -bpfmap`). With `-bpfmap` the driver automatically replaces explicit eBPF helper function names with their numeric helper IDs as defined in `linux/bpf.h`, producing an object file ready for loading. If you omit `-bpfmap`, you must manually replace helper calls with their numeric codes in the generated eBPF bytecode and recompile to produce a correct object file.
 
 #### Running the typechecker
 

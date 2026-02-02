@@ -217,8 +217,8 @@ Use offset properties  instead of compcert lemmas.
     rewrite <- n; auto.*) admit.
   - inv Hfun.
     constructor.
-    intros l o ef te ts efs rt vs efs' Hte Heq_type Htes.
-    destruct (H l o ef te ts efs rt vs efs') as [fd [Hfind [Hnorepet [Hlen [Hargs Hrt]]]]]; auto.
+    intros l o ef te ts efs rt v vs efs' Hte Heq_type Htes.
+    destruct (H l o ef te ts efs rt v vs efs') as [fd [Hfind [Hnorepet [Hlen [Hargs Hrt]]]]]; auto.
     apply extract_sigma in Hballoc. subst. inv Hte. constructor.
     destruct (Pos.eq_dec l b) as [Heq | Hneq]; subst.
     + rewrite PTree.gss in H7.  rewrite <- H7. injection H7.

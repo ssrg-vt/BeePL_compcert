@@ -388,14 +388,13 @@ Inductive fundef : Type :=
 | External: external_function -> list type -> type -> calling_convention -> fundef.
 
 (** Type of a function definition. **)
-
 Definition type_of_function (f: function) : type :=
-  Ftype (unzip2 (fn_args f)) (fn_effect f) (fn_return f).
+  Ftype (unzip2 (fn_args f)) (fn_effect f) (fn_return f) (cc_vararg (fn_callconv f)).
 
 Definition type_of_fundef (f : fundef) : type :=
 match f with 
 | Internal f => type_of_function f
-| External e ts t cc => Ftype ts (get_ef_eapp e) t
+| External e ts t cc => Ftype ts (get_ef_eapp e) t (cc_vararg cc)
 end. 
 
 Definition ef_rtype (ef : external_function) : type :=
@@ -408,6 +407,15 @@ match f with
 | Internal fd => fn_return fd
 | External ef ts t cc => ef_rtype ef
 end.
+
+Definition get_v_fundef (f : fundef) : bool :=
+match f with 
+| Internal fd => (cc_vararg (fn_callconv fd))
+| External ef ts t cc => cc_vararg cc
+end.
+
+Definition get_v_function (f : function) : bool :=
+(cc_vararg (fn_callconv f)).
 
 Definition get_effect_fundef (f : fundef) : effect :=
 match f with 
@@ -645,7 +653,7 @@ Inductive assign_addr (ty : type) (m : Memory.mem) (addr : Values.block) (ofs : 
    declared in [vars], and associates the variable name with this block. 
    [vm1] and [m1] are the initial local environment and memory state.
    [e2] and [m2] are the final local environment and memory state *) 
-(* Sigma is a mapping from location to the type of element it holds *)
+(* Sigma is a mapping from location to the type of element it holds *) 
 Definition balloc (Sigma : store_context) (m : Memory.mem) (ty : type) (lo hi: Z) : 
 Mem.mem' * Values.block * store_context :=
 let (m1, l1) := Mem.alloc m 0 (sizeof_type (genv_cenv ge) ty) in 
