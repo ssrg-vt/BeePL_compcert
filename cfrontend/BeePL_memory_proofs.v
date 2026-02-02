@@ -243,7 +243,8 @@ forall m lo hi, exists m' b, Mem.alloc m lo hi = (m', b).
 Proof.
 intros. destruct (Mem.alloc m lo hi) as [m' b]. eauto.
 Qed.
-
+(* busted definition *)
+(*
 Definition sizetype (env : bcomposite_env) (t : BeeTypes.type) : Z :=
    match t with
    | Vtype pt => match pt with
@@ -252,6 +253,7 @@ Definition sizetype (env : bcomposite_env) (t : BeeTypes.type) : Z :=
                 end
    | t => sizeof_type env t
    end.
+*)
 
 Definition get_chunk (t : type) : option bmemory_chunk :=
   match t with
@@ -259,6 +261,7 @@ Definition get_chunk (t : type) : option bmemory_chunk :=
                | Tlong _ _ => Some BMint64
                | Tint I8 Unsigned _ =>  Some BMint8unsigned
                | Tint I8 Signed _ =>  Some BMint8signed
+               | Tint IBool _ _ => Some BMint8unsigned
                | Tint I16 Unsigned _ =>  Some BMint16unsigned
                | Tint I16 Signed _ =>  Some BMint16signed
                | Tbool => Some BMbool
@@ -267,47 +270,28 @@ Definition get_chunk (t : type) : option bmemory_chunk :=
   | _ => chunk_of_type t
   end.
 
-Lemma chunk_fits_allocation : forall p t chunk,
-Archi.ptr64 = true ->
-chunk_of_type t = Some chunk ->
-size_chunk (transl_bchunk_cchunk chunk) <= sizetype (prog_comp_env p) t.
-Proof.
-move=> p t chunk harch ct. induction t.
-+ induction chunk; simpl in ct; try inv ct.
-+ destruct p0.
-  induction chunk; simpl in ct. inv ct. inv ct.
-  inv ct. inv ct. inv ct. simpl; lia. inv ct.
-  destruct i; destruct s; destruct a; destruct chunk;
-    simpl; try lia; try (simpl in ct; inv ct).
-  destruct s; destruct a; destruct chunk;
-    simpl; try lia; try (simpl in ct; inv ct).
-  destruct p0; destruct chunk; simpl; try lia; try (simpl in ct; inv ct); try (rewrite harch; lia).
-  destruct i; destruct a; destruct chunk;
-    simpl; try lia; try (simpl in ct; inv ct).
-  destruct t; destruct z; destruct a; destruct chunk;
-  simpl; try lia; try (simpl in ct; inv ct).
-  destruct l; destruct e; destruct t; destruct chunk;
-  simpl; try lia; try (simpl in ct; inv ct).
-  destruct chunk;
-  simpl; try lia; try (simpl in ct; inv ct).
-Qed.
 
 Lemma chunk_fits_allocation_st : forall p t chunk,
 Archi.ptr64 = true ->
 get_chunk t = Some chunk ->
-size_chunk (transl_bchunk_cchunk chunk) <= sizetype (prog_comp_env p) t.
+sizeof_type (prog_comp_env p) t = size_chunk (transl_bchunk_cchunk chunk).
 Proof.
   intros. induction t; try inv H0.
   induction p0; try inv H2.
-  simpl; lia.
+  simpl; lia. 
   induction i; induction s; try inv H1; simpl; try lia.
   simpl. lia.
-  simpl. rewrite H. lia.
+  simpl. rewrite H.
+  (* change Bytes to 8
+                        Change Ftype to Mint64
+                        Don't use C definitions as a guide for BeePL definitions
+                      *)
+  lia.
 Qed.                                  
 
 Lemma storev_succeeds_on_fresh_alloc : forall m chunk v sz,
 let (m1, b) := Mem.alloc m 0 sz in
-size_chunk  (transl_bchunk_cchunk chunk) <= sz ->
+size_chunk  (transl_bchunk_cchunk chunk) = sz ->
 exists m', Mem.storev  (transl_bchunk_cchunk chunk) m1 (Values.Vptr b Ptrofs.zero) v = Some m'.
 Proof.
   intros.
@@ -322,19 +306,6 @@ Proof.
 simpl. eapply Mem.valid_access_store with (v := v) in Hvalid.
 destruct Hvalid. exists x. apply e.
 Qed.
-
-Lemma load_not_error :
-  forall v e c m x ofs,
-    trans_cvalue_bvalue v = Errors.Error e ->
-    Mem.load (transl_bchunk_cchunk c) m x ofs = Some v ->
-    False.
-Proof.
-  intros.
-induction v; try inv H.
-  - admit.
-  - apply Mem.load_type in H0. simpl in H0. destruct c; simpl in H0; try inv H0.
-  - apply Mem.load_type in H0. simpl in H0. destruct c; simpl in H0; try inv H0.
-Admitted.
 
 Lemma store_well_typed_preserve : forall cenv Gamma Sigma bge vm m chunk b v t m',
 store_well_typed cenv Gamma Sigma bge vm m ->
@@ -408,6 +379,23 @@ move=> cenv Sigma bge vm m x ofs h bt a hs hv.
 Admitted.
 
 
+(* type mismatch in sigma and value
+ valid access not given.
+Undefined should not be possible since variables must be defined in BeePL
+ *)
+Lemma load_not_error :
+  forall v e c m x ofs,
+    trans_cvalue_bvalue v = Errors.Error e ->
+    Mem.load (transl_bchunk_cchunk c) m x ofs = Some v ->
+    False.
+Proof.
+  intros.
+induction v; try inv H.
+  - admit.
+  - apply Mem.load_type in H0. simpl in H0. destruct c; simpl in H0; try inv H0.
+  - apply Mem.load_type in H0. simpl in H0. destruct c; simpl in H0; try inv H0.
+Admitted.
+
 (* I think we can prove this and make the well formedness definition simpler *)
 Lemma safe_deref_valid_pointers_gc : forall Sigma m x ofs pt chunk,
 PTree.get x Sigma = Some pt ->
@@ -427,83 +415,76 @@ apply deref_addr_value with chunk v; auto.
       induction p eqn:Eqp. simpl in *; try congruence; try (injection H0; intros).
       subst.  auto.
     + destruct i; destruct s; injection H0; intros; subst; auto.
+      simpl.
       injection H0; intros; subst; auto. 
 injection H0. intros. unfold Mptr. Transparent Archi.ptr64. unfold Archi.ptr64.
-injection H0. intros. subst. auto. 
+injection H0. intros. subst. auto.
 eapply load_not_error in resbv. inv resbv. apply hload. 
 Qed.
-
+       
 (* I think we can prove this and make the well formedness definition simpler *)
 Lemma safe_assgn_valid_pointers_gc : forall cenv Gamma Sigma bge vm m x ofs pt v chunk,
 store_well_typed cenv Gamma Sigma bge vm m ->
-PTree.get x Sigma = Some (Ptrtype pt) ->
-get_chunk (get_data_type pt) = Some chunk ->
-type_is_volatile (transBeePL_type (get_data_type pt)) = false ->
+PTree.get x Sigma = Some pt ->
+get_chunk pt = Some chunk ->
+type_is_volatile (transBeePL_type pt) = false ->
 Mem.valid_access m (transl_bchunk_cchunk chunk) x (Ptrofs.unsigned ofs) Freeable ->
-(* pt is not an option type *)
-exists bf m', assign_addr bge (get_data_type pt) m x ofs bf v m' v /\ store_well_typed cenv Gamma Sigma bge vm m'.
-Proof. 
-  intros. exists Full. 
-  assert(Hderef: exists v : value, deref_addr (get_data_type pt) m x ofs Full v).
-  apply safe_deref_valid_pointers_gc with (Sigma := Sigma) (chunk := chunk); auto.
-  admit.
+exists bf m', assign_addr bge pt m x ofs bf v m' v /\ store_well_typed cenv Gamma Sigma bge vm m'.
+Proof.
+intros. exists Full.
+assert(Hderef: exists v : value, deref_addr pt m x ofs Full v).
+apply safe_deref_valid_pointers_gc with (Sigma := Sigma) (chunk := chunk); auto.
   apply Mem.valid_access_freeable_any with (p:= Writable) in H3.
   eapply Mem.valid_access_store with (v := trans_bvalue_cvalue v) in H3.
   destruct H3 as [m' Hstore]. exists m'.
   split. 
-  induction pt. induction b. induction p; simpl in *; try (injection H1; intros; subst; simpl in * ).
-    - apply assign_addr_value with (chunk := BMbool) (v := (trans_bvalue_cvalue v)).
-    destruct Hderef. inv H3. assert (chunk = BMbool). induction chunk; auto; try inv H4.
-    subst. apply H4. apply H2. apply Hstore. apply bc_cv_comp.
-  - induction i; induction s; injection H1; intro; subst; simpl in *. (* These are all the primitives *)
-    + apply assign_addr_value with (chunk := BMint8signed) (v := (trans_bvalue_cvalue v)).
-      destruct Hderef. inv H3. assert (chunk = BMint8signed). induction chunk; auto; try inv H4.
-      subst. apply H4. apply H2. apply Hstore. apply bc_cv_comp.
-    + apply assign_addr_value with (chunk := BMint8unsigned) (v := (trans_bvalue_cvalue v)).
-    destruct Hderef. inv H3. assert (chunk = BMint8unsigned). induction chunk; auto; try inv H4.
-    subst. apply H4. apply H2. apply Hstore. apply bc_cv_comp.
-    + apply assign_addr_value with (chunk := BMint16signed) (v := (trans_bvalue_cvalue v)).
-    destruct Hderef. inv H3. assert (chunk = BMint16signed). induction chunk; auto; try inv H4.
-    subst. apply H4. apply H2. apply Hstore. apply bc_cv_comp.
-    + apply assign_addr_value with (chunk := BMint16unsigned) (v := (trans_bvalue_cvalue v)).
-    destruct Hderef. inv H3. assert (chunk = BMint16unsigned). induction chunk; auto; try inv H4.
-    subst. apply H4. apply H2. apply Hstore. apply bc_cv_comp.
-    + apply assign_addr_value with (chunk := BMint32) (v := (trans_bvalue_cvalue v)).
-    destruct Hderef. inv H3. assert (chunk = BMint32). induction chunk; auto; try inv H4.
-    subst. apply H4. apply H2. apply Hstore. apply bc_cv_comp.
-    + apply assign_addr_value with (chunk := BMint32) (v := (trans_bvalue_cvalue v)).
-    destruct Hderef. inv H3. assert (chunk = BMint32). induction chunk; auto; try inv H4.
-    subst. apply H4. apply H2. apply Hstore. apply bc_cv_comp.
-    + apply assign_addr_value with (chunk := BMint32) (v := (trans_bvalue_cvalue v)).
-    destruct Hderef. inv H3. assert (chunk = BMint32). induction chunk; auto; try inv H4.
-    subst. apply H4. apply H2. apply Hstore. apply bc_cv_comp.
-    + apply assign_addr_value with (chunk := BMint32) (v := (trans_bvalue_cvalue v)).
-    destruct Hderef. inv H3. assert (chunk = BMint32). induction chunk; auto; try inv H4.
-    subst. apply H4. apply H2. apply Hstore. apply bc_cv_comp.
-    + apply assign_addr_value with (chunk := BMint64) (v := (trans_bvalue_cvalue v)).
-    destruct Hderef. inv H3. assert (chunk = BMint64). induction chunk; auto; try inv H4.
-    subst. apply H4. apply H2. apply Hstore. apply bc_cv_comp.
-  - simpl in *. inv H1.
-  - simpl in *. inv H1.
-  - simpl in *. apply IHpt; auto. (* Should not assign to a NULL pointer; Option should Some *)
-    admit.
-  - simpl in *. inv H1.
-  - simpl in Hstore. 
-    apply store_well_typed_preserve_gc with (b := x) (m' := m') (v := v) (chunk := chunk) (t := get_data_type pt) (ofs := ofs) in H.
-    apply H. split. 
-    (*eapply Mem.load_store_same in Hstore.
-    simpl in *.  (* inside memory, no typing info *)
+  induction pt; simpl in *; try (injection H1; intros; subst; simpl in * ); try inv H1.
+  induction p.
+  - injection H4. intros. apply assign_addr_value with (chunk := BMbool) (v := (trans_bvalue_cvalue v)); simpl; subst; auto.
+    apply bc_cv_comp.
+    + induction i; induction s; simpl in *; injection H4; intros; subst.
+      apply assign_addr_value with (chunk := BMint8signed) (v := (trans_bvalue_cvalue v)); simpl; subst; auto.
+      apply bc_cv_comp.
+      apply assign_addr_value with (chunk := BMint8unsigned) (v := (trans_bvalue_cvalue v)); simpl; subst; auto.
+      apply bc_cv_comp.
+      apply assign_addr_value with (chunk := BMint16signed) (v := (trans_bvalue_cvalue v)); simpl; subst; auto.
+      apply bc_cv_comp.
+      apply assign_addr_value with (chunk := BMint16unsigned) (v := (trans_bvalue_cvalue v)); simpl; subst; auto.
+      apply bc_cv_comp.
+      apply assign_addr_value with (chunk := BMint32) (v := (trans_bvalue_cvalue v)); simpl; subst; auto.
+      apply bc_cv_comp.
+      apply assign_addr_value with (chunk := BMint32) (v := (trans_bvalue_cvalue v)); simpl; subst; auto.
+      apply bc_cv_comp.
+      apply assign_addr_value with (chunk := BMint8unsigned) (v := (trans_bvalue_cvalue v)); simpl; subst; auto.
+      apply bc_cv_comp.
+      apply assign_addr_value with (chunk := BMint8unsigned) (v := (trans_bvalue_cvalue v)); simpl; subst; auto.
+      apply bc_cv_comp.
+      apply assign_addr_value with (chunk := BMint64) (v := (trans_bvalue_cvalue v)); simpl; subst; auto.
+      injection H4; intros; subst; auto.
+      apply bc_cv_comp.
+      apply assign_addr_value with (chunk := BMint64) (v := (trans_bvalue_cvalue v)); simpl; subst; auto.
+      apply bc_cv_comp.
+  - 
+    simpl in Hstore. 
+    apply store_well_typed_preserve_gc with (b := x) (m' := m') (v := v) (chunk := chunk) (t := pt) (ofs := ofs) in H.
+    apply H. split.
+    apply Mem.load_store_same in Hstore.
     apply Mem.load_type in Hstore.
-    induction v eqn:Eqv ; induction (get_data_type pt) eqn:Eqpt; simpl in *; try inv H1.
-    induction p. injection H4. intros; subst; simpl in *.
-    unfold Values.Val.has_type in Hstore. *)
+    (* Values.Val.load_result_type:
+  forall (chunk : memory_chunk) (v : Values.val),
+  Values.Val.has_type (Values.Val.load_result chunk v)
+    (type_of_chunk chunk) *)
+    (* Assume next step would be to create a lemma relating
+     Values.Val.has_type with typeof_value.*)
+    simpl in *.
+    eapply type_rel_typeof_val.
+    
+    (* Use both H1 and Hstore to derive conclusion *)
     admit.
     split. auto.
     auto.
 Admitted.
 
-
-(* Doesn't use sizetype *)
 Lemma balloc_to_alloc: forall m m' b t Sigma (bge:BeePL.genv),
 @balloc bge Sigma m t 0 (sizeof_type bge t) = (m', b, PTree.set b t Sigma) ->
 Mem.alloc m  0 (sizeof_type bge t) = (m', b).
@@ -515,6 +496,7 @@ Qed.
 
 
 (* Allocation through ref should be successful in getting space in memory and storing value v to it *)
+
 Lemma ref_allocation_succeeds : forall cenv Gamma Sigma (p : BeePL.program) (bge : BeePL.genv) (vm : vmap) 
 (m : Memory.mem) (v : BeePL_values.value) (t : type) ml,
 store_well_typed cenv Gamma Sigma bge vm m ->
@@ -533,26 +515,59 @@ case hc: (chunk_of_type t)=> [chunk | ] //=.
 Admitted.
 
 (*
-Was supposed to get rid of first case  of stuck position in
-ref_allocation_succeeds_gc but now I think it should be permissable.
-
-Lemma allocate_nothing : forall bge Sigma m t m' b Sigma', 
-balloc bge Sigma m t 0 0 = (m', b, Sigma') ->
-False.
+(* Allocation through ref should be successful in getting space in memory and storing value v to it *)
+(* Not true, if t = Utype and v = Vunit then typeof_value v t holds but chunk_of_type t = None *)
+Lemma ref_allocation_succeeds : forall cenv Gamma Sigma (p : BeePL.program) (bge : BeePL.genv) (vm : vmap)
+(m : Memory.mem) (v : BeePL_values.value) (t : type) ml,
+store_well_typed cenv Gamma Sigma bge vm m ->
+typeof_value v t ->
+Mem.alloc m 0 (sizeof_type p.(prog_comp_env) t) = ml ->
+exists m' chunk v',
+trans_bvalue_cvalue v = v' /\
+chunk_of_type t = Some chunk /\
+Mem.storev (transl_bchunk_cchunk chunk) ml.1 (trans_bvalue_cvalue (Vloc ml.2 Ptrofs.zero)) v' = Some m' /\
+store_well_typed cenv Gamma Sigma bge vm m'.
 Proof.
-intros. assert (HSigma : Sigma' = PTree.set b t Sigma). apply extract_sigma in H. auto.
-subst. 
-assert (Halloc: Mem.alloc m 0 (sizeof_type bge t) = (m', b)).
-apply balloc_to_alloc in H. auto.
-assert (Hb2: balloc bge Sigma m t 0 (sizeof_type bge t) = (m', b, PTree.set b t Sigma)).
-apply alloc_to_balloc with (Sigma := Sigma) in Halloc. auto.
-assert (sizeof_type bge t = 0).
-simpl. admit.
-induction t; simpl in *; try inv H0. admit.
-induction p; simpl in *; try inv H2.
-induction i; try inv H1.
-Admitted
+move=> cenv Gamma Sigma p bge vm m v t [m1 b] he ht ha.
+case hc: (chunk_of_type t)=> [chunk | ] //=.
++ set (v' := trans_bvalue_cvalue v).
+  have hs : size_chunk (transl_bchunk_cchunk chunk) = sizeof_type (p.(prog_comp_env)) t.
+  admit.
+  have [m' hms] := storev_succeeds_on_fresh_alloc m chunk v' (sizeof_type (p.(prog_comp_env)) t) hs.
+  exists m'. exists chunk. exists v'. split=> //=; split=> //=; split=> //=.
+  + assert (b = Mem.nextblock m).
+    {
+      injection ha; intros; auto.
+    }
+    subst b.
+    assert (H: m1 = {|
+      Mem.mem_contents := PMap.set (Mem.nextblock m) (ZMap.init Undef) (Mem.mem_contents m);
+      Mem.mem_access := PMap.set (Mem.nextblock m)
+        (fun ofs : Z => fun=> (if zle 0 ofs && zlt ofs (sizeof_type (prog_comp_env p) t)
+                                 then Some Freeable else None)) (Mem.mem_access m);
+      Mem.nextblock := Pos.succ (Mem.nextblock m);
+      Mem.access_max := fun b => [eta Memory.Mem.alloc_obligation_1 m 0 (sizeof_type (prog_comp_env p) t) b];
+      Mem.nextblock_noaccess := fun b ofs k => [eta Memory.Mem.alloc_obligation_2 m 0 (sizeof_type (prog_comp_env p) t) b ofs k];
+      Mem.contents_default := [eta Memory.Mem.alloc_obligation_3 m]
+    |}).
+    {
+      injection ha; intros; subst. 
+      apply Mem.mkmem_ext. auto. auto. auto.
+    }
+Admitted.
 *)
+
+
+(* Either
+
+A) only allocate primitive values and fit in 32/16 bit chunks
+B) model initialize memory (need to iterate over all fields i.e. multiple stores/ field)
+
+type preservation lemma typesystem_proofs.
+In the ref case
+in the massign case
+
+ *)
 
 (* Allocation through ref should be successful in getting space in memory and storing value v to it *)
 (* Not true, if t = Utype and v = Vunit then typeof_value v t holds but chunk_of_type t = None *)
@@ -560,7 +575,7 @@ Lemma ref_allocation_succeeds_gc : forall cenv Gamma Sigma ml b Sigma' (p : BeeP
 (m : Memory.mem) (v : BeePL_values.value) (t : type),
 store_well_typed cenv Gamma Sigma bge vm m ->
 typeof_value v t ->
-balloc bge Sigma m t 0 (sizetype p.(prog_comp_env) t) = (ml, b, Sigma') ->
+balloc bge Sigma m t 0 (sizeof_type p.(prog_comp_env) t) = (ml, b, Sigma') ->
 exists m' chunk v',
 trans_bvalue_cvalue v = v' /\
 get_chunk t = Some chunk /\
@@ -570,9 +585,9 @@ Proof.
 intros. rename H into he. rename H0 into ht. rename H1 into ha.
 case hc: (get_chunk t)=> [chunk | ] //=.
 + set (v' := trans_bvalue_cvalue v).
-  have hs : size_chunk (transl_bchunk_cchunk chunk) <=  sizetype (p.(prog_comp_env)) t.
-  apply chunk_fits_allocation_st; auto.
-  have [m' hms] := storev_succeeds_on_fresh_alloc m chunk v' (sizetype (p.(prog_comp_env)) t) hs.
+  have hs : sizeof_type (p.(prog_comp_env)) t = size_chunk (transl_bchunk_cchunk chunk). 
+  apply chunk_fits_allocation_st; auto. symmetry in hs.
+  have [m' hms] := storev_succeeds_on_fresh_alloc m chunk v' (sizeof_type (p.(prog_comp_env)) t) hs.
   exists m'. exists chunk. exists v'. split=> //=; split=> //=; split=> //=.
   + assert (b = Mem.nextblock m).
     {
@@ -582,19 +597,21 @@ case hc: (get_chunk t)=> [chunk | ] //=.
     assert (H: ml = {|
       Mem.mem_contents := PMap.set (Mem.nextblock m) (ZMap.init Undef) (Mem.mem_contents m);
       Mem.mem_access := PMap.set (Mem.nextblock m)
-        (fun ofs : Z => fun=> (if zle 0 ofs && zlt ofs (sizetype (prog_comp_env p) t)
+        (fun ofs : Z => fun=> (if zle 0 ofs && zlt ofs (sizeof_type (prog_comp_env p) t)
                                  then Some Freeable else None)) (Mem.mem_access m);
       Mem.nextblock := Pos.succ (Mem.nextblock m);
-      Mem.access_max := fun b => [eta Memory.Mem.alloc_obligation_1 m 0 (sizetype (prog_comp_env p) t) b];
-      Mem.nextblock_noaccess := fun b ofs k => [eta Memory.Mem.alloc_obligation_2 m 0 (sizetype (prog_comp_env p) t) b ofs k];
+      Mem.access_max := fun b => [eta Memory.Mem.alloc_obligation_1 m 0 (sizeof_type (prog_comp_env p) t) b];
+      Mem.nextblock_noaccess := fun b ofs k => [eta Memory.Mem.alloc_obligation_2 m 0 (sizeof_type (prog_comp_env p) t) b ofs k];
       Mem.contents_default := [eta Memory.Mem.alloc_obligation_3 m]
     |}).
     {
-      injection ha; intros; subst. inv ha.
+      injection ha; intros; subst; inv ha.
     (* If we use chunk_fits_allocation_st which only works with defined sizetype
        sizeof_type comes from definition of balloc
        *)
-      apply Mem.mkmem_ext; auto.  admit.
+      apply Mem.mkmem_ext; auto. (*Set Printing All.*)
+      (*assert (BeePL.genv_cenv bge = (prog_comp_env p)).*)
+      admit.
     }
     rewrite <- H in hms.
     unfold Mem.storev in hms.
@@ -602,7 +619,7 @@ case hc: (get_chunk t)=> [chunk | ] //=.
     exact hms.
     assert (Hm1_wt: store_well_typed cenv Gamma Sigma' bge vm ml).
     {
-      apply (store_well_typed_mem_alloc cenv Gamma Sigma bge vm t m 0 (sizetype (prog_comp_env p) t) ml b).
+      apply (store_well_typed_mem_alloc cenv Gamma Sigma bge vm t m 0 (sizeof_type (prog_comp_env p) t) ml b).
       - exact he.
       - exact ha.
     }
@@ -618,23 +635,22 @@ case hc: (get_chunk t)=> [chunk | ] //=.
     assert (H: ml = {|
       Mem.mem_contents := PMap.set (Mem.nextblock m) (ZMap.init Undef) (Mem.mem_contents m);
       Mem.mem_access := PMap.set (Mem.nextblock m)
-        (fun ofs : Z => fun=> (if zle 0 ofs && zlt ofs (sizetype (prog_comp_env p) t)
+        (fun ofs : Z => fun=> (if zle 0 ofs && zlt ofs (sizeof_type (prog_comp_env p) t)
                                  then Some Freeable else None)) (Mem.mem_access m);
       Mem.nextblock := Pos.succ (Mem.nextblock m);
-      Mem.access_max := fun b => [eta Memory.Mem.alloc_obligation_1 m 0 (sizetype (prog_comp_env p) t) b];
-      Mem.nextblock_noaccess := fun b ofs k => [eta Memory.Mem.alloc_obligation_2 m 0 (sizetype (prog_comp_env p) t) b ofs k];
+      Mem.access_max := fun b => [eta Memory.Mem.alloc_obligation_1 m 0 (sizeof_type (prog_comp_env p) t) b];
+      Mem.nextblock_noaccess := fun b ofs k => [eta Memory.Mem.alloc_obligation_2 m 0 (sizeof_type (prog_comp_env p) t) b ofs k];
       Mem.contents_default := [eta Memory.Mem.alloc_obligation_3 m]
     |}).
     {
       injection ha; intros; subst.
-      apply Mem.mkmem_ext; auto. (* same issue as 571; balloc uses sizeof_type*) admit.
+      apply Mem.mkmem_ext; auto. admit.
     }
     rewrite <- H in hms.
     exact hms.
-+ (* There must be a contradiction here since one of the proof goals is None = Some chunk.
-   chunk should be the key to it, I'm thinking this is probably missing assumptions to create a contradiction
-   I'm not seeing anything immediately contradictory in the first case. *)
-  induction t; try inv hc; auto. induction v; try inv ht; auto; simpl in *.
++ 
+  (*Change defn of chunk_of_type for None to BMany64*)
+  (* Change lemma to bge in balloc *)
 Admitted.
 
 
