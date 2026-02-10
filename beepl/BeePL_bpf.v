@@ -213,6 +213,11 @@ Definition bpf_get_prandom_u32 : ident := $"bpf_get_prandom_u32".
 Definition bpf_get_current_pid_tgid : ident := $"bpf_get_current_pid_tgid".
 Definition bpf_printk : ident := $"bpf_printk".
 Definition htons : ident := $"htons".
+Definition bpf_probe_read_kernel : ident := $"bpf_probe_read_kernel".
+Definition bpf_get_current_comm : ident := $"bpf_get_current_comm".
+Definition bpf_probe_read_user_str : ident := $"bpf_probe_read_user_str".
+
+
 
 Definition ident_to_string_hf : list (ident * string) := ((bpf_get_current_uid_gid, "bpf_get_current_uid_gid") ::
                                                           (bpf_map_lookup_elem, "bpf_map_lookup_elem") ::
@@ -220,7 +225,13 @@ Definition ident_to_string_hf : list (ident * string) := ((bpf_get_current_uid_g
                                                           (bpf_get_prandom_u32, "bpf_get_prandom_u32") ::
                                                           (bpf_get_current_pid_tgid, "bpf_get_current_pid_tgid") ::
                                                           (bpf_printk, "bpf_printk") ::
-                                                          (htons, "htons") :: nil).
+                                                          (htons, "htons") :: nil)::
+                                                          (bpf_probe_read_kernel, "bpf_probe_read_kernel") ::
+                                                          (bpf_get_current_comm, "bpf_get_current_comm") ::
+                                                          (bpf_probe_read_user_str, "bpf_probe_read_user_str")
+
+                                                          
+.
 
 Definition bpf_get_current_uid_gid_ef : BeePL.external_function
    := EF_external "bpf_get_current_uid_gid" 
@@ -279,3 +290,27 @@ Definition htons_ef : BeePL.external_function
          bsig_res := tint16u;
          bsig_cc := cc_default
       |}.*)
+
+Definition bpf_probe_read_kernel_ef : BeePL.external_function :=
+  EF_external "bpf_probe_read_kernel"
+    {| bsig_args := (tolongu :: tint32u :: tolongu :: nil);
+       bsig_ef   := Read :: Io :: nil;
+       bsig_res  := tlongu;
+       bsig_cc   := cc_default
+    |}.
+Definition bpf_get_current_comm_ef : BeePL.external_function :=
+  EF_external "bpf_get_current_comm"
+    {| bsig_args := (tolongu :: tint32u :: nil);
+       bsig_ef   := Read :: Io :: nil;
+       bsig_res  := tlongu;
+       bsig_cc   := cc_default
+    |}.
+
+Definition bpf_probe_read_user_str_ef : BeePL.external_function :=
+  EF_external "bpf_probe_read_user_str"
+    {| bsig_args := (tolongu :: tint32u :: tolongu :: nil);
+       bsig_ef   := Read :: Io :: nil;
+       bsig_res  := tlongu;
+       bsig_cc   := cc_default
+    |}.
+

@@ -85,7 +85,18 @@ let build_efenv () : efenv =
           effects = [];
           ret = Vtype Tuint16;
           variadic = false }
-    
+    |> Env.add "bpf_get_current_comm"
+     { formals = [ Ptr (Reftype (Bprim Tint8)); Vtype Tuint32 ];
+       effects = [Io];
+       ret = Vtype Tlong;       (* Linux returns long; Tulong also ok if you prefer *)
+       variadic = false }
+
+  |> Env.add "bpf_probe_read_user_str"
+     { formals = [ Ptr (Reftype (Bprim Tint8)); Vtype Tuint32; Ptr (Reftype (Bprim Tint8)) ];
+       effects = [Io];
+       ret = Vtype Tlong;
+       variadic = false }
+
 let extern_bindings_of_efenv (ee : efenv) : (string * typ) list =
   Env.bindings ee
   |> List.map (fun (name, info) ->

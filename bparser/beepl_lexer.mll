@@ -133,7 +133,7 @@ rule read_token = parse
   | "#section" whitespace+ (('.' | letter) (letter | digit | '_' | '/' | '.' | '-')*) as id { SECTION id }
 
   (* #section path/like/name allowing / . - _ after the first char *)
-  | "#section" whitespace+ (letter (letter | digit | '_' | '/' | '.' | '-')*) as id { SECTION id }
+  | "#section" whitespace+ (letter (letter | digit | '_' | '/' | '.' | '-' | ':')*) as id { SECTION id }
   | eof             { EOF }
   | _               { raise (SyntaxError ("Unrecognized character: " ^ Lexing.lexeme lexbuf)) }
   | "(*"          { comment lexbuf }
