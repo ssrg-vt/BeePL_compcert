@@ -55,6 +55,9 @@ module Target : TARGET =
 
     let float_reg_abi_name = function _ -> "float_abi"
 
+    let current_user_section : string option ref = ref None
+
+
     let int_reg_name   = if use_abi_name then int_reg_abi_name   else int_reg_num_name
     let float_reg_name = if use_abi_name then float_reg_abi_name else float_reg_num_name
 
@@ -155,7 +158,11 @@ module Target : TARGET =
       | Section_ais_annotation -> sprintf ".section	\"__compcert_ais_annotations\",\"\",@note"
 
     let section oc sec =
+      (match sec with
+        | Section_user (s, _, _) -> current_user_section := Some s
+        | _ -> current_user_section := None);
       fprintf oc "	%s\n" (name_of_section sec)
+
 
 (* Associate labels to floating-point constants and to symbols. *)
 
@@ -277,7 +284,14 @@ module Target : TARGET =
       text,lit,Section_jumptable *)
 
     let print_align oc alignment =
-      fprintf oc "	.balign %d\n" alignment
+      let a =
+        match !current_user_section with
+        | Some ".maps" -> 8
+        | _ -> alignment
+      in
+      fprintf oc "	.balign %d\n" a
+
+
 
     let print_jumptable oc jmptbl =
       let print_tbl oc (lbl, tbl) =
