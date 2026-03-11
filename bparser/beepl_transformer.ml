@@ -621,10 +621,26 @@ let transform_toplevel ee senv global_env = function
     let id = Camlcoq.intern_string name in
     begin match sec with
     | Some s when normalize_section s = ".maps" ->
-        (* Create a real global symbol so references resolve.
-           Placeholder type for now: ulong handle. *)
-        let t = Beepl_ast.Vtype Beepl_ast.Tulong in
-        `Global (id, transform_typ t, Beepl_ast.Const (Beepl_ast.Clong 0L), sec)
+      (* Legacy struct bpf_map_def layout (u32 fields):
+        type, key_size, value_size, max_entries, map_flags
+        Pad to 32 bytes to match clang's .zero 32. *)
+
+      let u32 = Beepl_ast.Vtype Beepl_ast.Tuint32 in
+      let t = Beepl_ast.Atype (u32, 8) in  (* 8 * 4 = 32 bytes *)
+
+      let c x = Beepl_ast.Const (Beepl_ast.Cint32 (Int32.of_int x)) in
+      let init =
+        Beepl_ast.Ainit (name, [
+          c 1;      (* BPF_MAP_TYPE_HASH = 1 *)
+          c 8;      (* key_size = 8 bytes (u64) *)
+          c 8;      (* value_size = 8 bytes (u64) *)
+          c 1024;   (* max_entries *)
+          c 0;      (* map_flags *)
+          c 0; c 0; c 0;   (* padding to 32 bytes *)
+        ])
+      in
+      `Global (id, transform_typ t, init, sec)
+
     | _ ->
         `Struct (id, transform_struct name fields)
     end
@@ -663,7 +679,7 @@ let reorder_program (prog : Beepl_ast.program) : Beepl_ast.program =
   let rest = List.filter (fun d -> not (is_main d)) prog in
   main_fun @ rest
 
-let eval_const_expr (e : Beepl_ast.expr) : AST.init_data list =
+let rec eval_const_expr (e : Beepl_ast.expr) : AST.init_data list =
   match e with
   | Beepl_ast.Const (Beepl_ast.Cint32 i) ->
     [AST.Init_int32 (Integers.Int.repr (coqint_of_camlint32 i))]
@@ -678,6 +694,8 @@ let eval_const_expr (e : Beepl_ast.expr) : AST.init_data list =
       AST.Init_int8 (Integers.Int.repr (coqint_of_camlint32 (Int32.of_int code)))
     ) in
     chars
+  | Beepl_ast.Ainit (_name, elems) ->
+      List.concat (List.map eval_const_expr elems)
   | _ -> []
  
 
