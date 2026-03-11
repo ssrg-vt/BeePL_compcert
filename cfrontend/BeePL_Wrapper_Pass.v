@@ -182,4 +182,15 @@ match args with
 | _ => Error (msg "COMPILER ERROR: eBPF program should take only one argument (context)")
 end.*)
 
+(*BeePL level:
+ebpf_map id (bpftype, int:max_entries, type:keytype, type:valuetype) sec -->
 
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 5000000);
+    __type(key, uint64_t);
+    __type(value, uint64_t);
+} counter_table SEC(".maps");
+
+
+ebpf_map counter_table (BPF_MAP_TYPE_HASH, 500000, uint64, uint64) .maps*)
