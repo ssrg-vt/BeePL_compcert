@@ -317,6 +317,7 @@ Inductive well_formed_var (Gamma : ty_context) (Sigma : store_context) (bge : Be
                          well_formed_var Gamma Sigma bge vm m.
 
 (*** Well formed loc (coming from ref, not variables) ***)
+
 (* Relate chunk and ofs *) 
 Inductive well_formed_loc (Sigma : store_context) (m : Memory.mem)  : Prop :=
 | store_well_typed_loc : (forall x ofs t chunk, PTree.get x Sigma = Some t ->

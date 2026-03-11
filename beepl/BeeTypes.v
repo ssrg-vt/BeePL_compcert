@@ -695,10 +695,10 @@ match t with
 | Tbool => By_value Mbool
 | Tint I8 Signed _ => By_value Mint8signed
 | Tint I8 Unsigned _ => By_value Mint8unsigned
+| Tint IBool _ _ => By_value Mint8unsigned
 | Tint I16 Signed _ => By_value Mint16signed
 | Tint I16 Unsigned _ => By_value Mint16unsigned
 | Tint I32 _ _ => By_value Mint32
-| Tint IBool _ _ => By_value Mint32
 | Tlong _ _ => By_value Mint64
 end.
 
@@ -736,6 +736,7 @@ match ty with
 | Tlong _ _ => BMint64
 end.
 
+(*
 Definition chunk_of_type (ty : type) : option bmemory_chunk :=
 match ty with
 | Vtype pt => Some (chunk_of_ptype pt)
@@ -746,6 +747,18 @@ match ty with
 | Atype _ _ _ => None
 | Ftype _ _ _ _ => None
 | Utype => None
+end.
+*)
+
+Definition chunk_of_type (ty : type) : option bmemory_chunk :=
+match ty with
+| Vtype pt => Some (chunk_of_ptype pt)
+| Utype => None
+| Stype _ _ => None
+| Bytes => None
+| Ftype _ _ _ _ => None
+| Atype _ _ _ => None
+| _ => Some BMint64  (* Assuming 64-bit architecture *)
 end.
 
 Section Eq_basic_types.
